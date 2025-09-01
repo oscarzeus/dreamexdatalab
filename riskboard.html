@@ -1,0 +1,3632 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Risk Dashboard - Dreamex Datalab HSE</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="css/styles.css">
+    <style>
+        
+        /* === Core Variables / Layout (derived from recruitboard + staff) === */
+        :root { --primary-color:#2c3e50; --secondary-color:#3498db; --accent-color:#3498db; --text-color:#333; --bg-color:#f5f6fa; --sidebar-width:250px; --blue:#3498db; --green:#2ecc71; --orange:#e67e22; --red:#e74c3c; --purple:#9b59b6; --font-family:'Inter',system-ui,-apple-system,sans-serif; --base-font-size:.9rem; --font-scale:1; --bg-primary:#ffffff; --bg-secondary:#f8f9fa; --text-primary:#333; --text-secondary:#666; --border-color:#e0e0e0; --spacing-unit:.9rem; --padding-sm:.45rem; --padding-md:.75rem; --padding-lg:1.2rem; --transition-speed:.2s; }
+        *{margin:0;padding:0;box-sizing:border-box;} body{font-family:var(--font-family);font-size:var(--base-font-size);line-height:1.4;color:var(--text-primary);background:#f8f9fa;}
+        .app-container{display:flex;min-height:100vh;}
+        .sidebar{width:var(--sidebar-width);background:var(--primary-color);color:#fff;padding:1rem;position:fixed;height:100vh;overflow-y:auto;transition:transform .3s ease;}
+        .sidebar.collapsed{transform:translateX(-100%);} .logo h2{text-align:center;padding:1rem 0;border-bottom:1px solid rgba(255,255,255,.1);font-size:1.05rem;}
+        .menu{list-style:none;margin-top:1.5rem;} .menu li{margin-bottom:.45rem;} .menu a{color:#fff;text-decoration:none;display:flex;align-items:center;padding:.65rem .9rem;border-radius:6px;font-size:.78rem;gap:.55rem;letter-spacing:.25px;transition:background .25s;} .menu a:hover,.menu a.active{background:var(--secondary-color);} .menu-dropdown .submenu{display:none;list-style:none;margin-left:1.2rem;margin-top:.35rem;} .menu-dropdown:hover .submenu{display:block;}
+        /* Feature-based visibility */
+        [data-feature]:not(.menu-visible){display:none !important;} .menu-dropdown:not(.menu-visible){display:none !important;} 
+        
+        /* Hide ALL menu items by default during loading - only for sidebar menu */
+        .sidebar.menu-loading .menu-item, .sidebar.menu-loading .menu-dropdown, .sidebar.menu-loading li[data-feature], .sidebar.menu-loading [data-feature] {display:none !important;} .menu-loading [data-feature]{display:none !important;} .menu-loading .menu-dropdown{display:none !important;}
+        .main-content{flex:1;margin-left:var(--sidebar-width);padding:.45rem;width:calc(100% - var(--sidebar-width));box-sizing:border-box;display:flex;flex-direction:column;transition:margin-left .3s ease,width .3s ease;}
+        .main-content.sidebar-collapsed{margin-left:0;width:100%;}
+        /* Top Nav (copied style approach from staff.html) */
+        .top-nav{display:flex;justify-content:space-between;align-items:center;padding:.5rem .75rem;background:#fff;box-shadow:0 2px 5px rgba(0,0,0,.1);margin-bottom:.35rem;position:fixed;top:.25rem;right:.5rem;left:calc(var(--sidebar-width) + .5rem);height:50px;min-height:50px;z-index:100;transition:left .3s ease;}
+        .top-nav-left{display:flex;align-items:center;gap:1rem;font-size:.8rem;font-weight:600;color:var(--text-secondary);} .sidebar-toggle-btn{background:none;border:none;cursor:pointer;font-size:1.15rem;padding:.45rem;color:#666;border-radius:6px;display:flex;align-items:center;justify-content:center;} .sidebar-toggle-btn:hover{background:rgba(0,0,0,.06);}
+        #headerCompanyLogo{width:44px;height:44px;border-radius:6px;object-fit:cover;display:none;background:#fff;border:1px solid #d0d7de;box-shadow:0 1px 2px rgba(0,0,0,.08);} #headerCompanyLogo.visible{display:block;} #headerCompanyName{font-size:.8rem;font-weight:600;letter-spacing:.5px;color:var(--primary-color);max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+        #headerCompanyLogo{width:44px;height:44px;border-radius:6px;object-fit:cover;display:none;background:#fff;border:1px solid #d0d7de;box-shadow:0 1px 2px rgba(0,0,0,.08);} #headerCompanyLogo.visible{display:block;} #headerCompanyName{font-size:.8rem;font-weight:600;letter-spacing:.5px;color:var(--primary-color);max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .top-nav-right{display:flex;align-items:center;gap:1.2rem;margin-left:auto;}
+    .user-profile{position:relative;display:flex;align-items:center;}
+        .notifications{position:relative;display:flex;align-items:center;} .notification-btn{background:none;border:none;cursor:pointer;position:relative;font-size:1.1rem;padding:.45rem;display:flex;align-items:center;justify-content:center;} .notification-badge{position:absolute;top:-5px;right:-5px;background:var(--accent-color);color:#fff;border-radius:50%;padding:.15rem .45rem;font-size:.6rem;}
+        .notification-dropdown{display:none;position:absolute;right:0;top:100%;width:280px;background:#fff;border-radius:6px;box-shadow:0 4px 18px rgba(0,0,0,.12);z-index:1000;}
+        .notification-dropdown.show{display:block;} .notification-list{max-height:280px;overflow-y:auto;}
+        .profile-btn{background:none;border:none;cursor:pointer;padding:.25rem;display:flex;align-items:center;position:relative;} 
+        .profile-btn img{width:40px;height:40px;border-radius:50%;object-fit:cover;}
+        .avatar-initials{width:40px;height:40px;border-radius:50%;background:#3498db;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:14px;font-family:Arial,sans-serif;}
+        .profile-dropdown{display:none;position:absolute;top:100%;right:0;background:#fff;border-radius:6px;box-shadow:0 4px 18px rgba(0,0,0,.12);min-width:200px;z-index:1000;} .profile-dropdown.show{display:block;} .profile-dropdown ul{list-style:none;margin:0;padding:0;} .profile-dropdown ul li a{display:flex;align-items:center;padding:12px 16px;color:#333;text-decoration:none;font-size:.78rem;gap:.6rem;transition:background .2s;} .profile-dropdown ul li a:hover{background:#f5f7fa;}
+        .notifications{position:relative;display:flex;align-items:center;} .notification-btn{background:none;border:none;cursor:pointer;position:relative;font-size:1.1rem;padding:.45rem;display:flex;align-items:center;justify-content:center;} .notification-badge{position:absolute;top:-5px;right:-5px;background:var(--accent-color);color:#fff;border-radius:50%;padding:.15rem .45rem;font-size:.6rem;}
+        .notification-dropdown{display:none;position:absolute;right:0;top:100%;width:280px;background:#fff;border-radius:6px;box-shadow:0 4px 18px rgba(0,0,0,.12);z-index:1000;}
+        .notification-dropdown.show{display:block;} .notification-list{max-height:280px;overflow-y:auto;}
+        .profile-btn{background:none;border:none;cursor:pointer;padding:.25rem;display:flex;align-items:center;position:relative;} 
+        .profile-btn img{width:40px;height:40px;border-radius:50%;object-fit:cover;}
+        .avatar-initials{width:40px;height:40px;border-radius:50%;background:#3498db;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:14px;font-family:Arial,sans-serif;}
+        .profile-dropdown{display:none;position:absolute;top:100%;right:0;background:#fff;border-radius:6px;box-shadow:0 4px 18px rgba(0,0,0,.12);min-width:200px;z-index:1000;} .profile-dropdown.show{display:block;} .profile-dropdown ul{list-style:none;margin:0;padding:0;} .profile-dropdown ul li a{display:flex;align-items:center;padding:12px 16px;color:#333;text-decoration:none;font-size:.78rem;gap:.6rem;transition:background .2s;} .profile-dropdown ul li a:hover{background:#f5f7fa;}
+        .avatar-initials{width:40px;height:40px;border-radius:50%;background:var(--secondary-color);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:1rem;}
+        
+        /* Content Area Styles */
+        .content{padding:1rem;background:#fff;border-radius:8px;margin:60px 0 0 0;min-height:calc(100vh - 80px);}
+        
+        /* Page Header */
+        .page-header {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: #fff;
+            padding: 0.55rem 0.75rem;
+            border-radius: 0;
+            margin: 0.35rem 0 0.5rem 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 10px 28px rgba(0,0,0,0.18), 0 6px 16px rgba(0,0,0,0.14);
+            font-size: 0.9rem;
+        }
+
+        .page-header i {
+            font-size: 1rem;
+        }
+
+        .header-main {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+        }
+
+        .page-header h1 {
+            color: #fff;
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            font-size: 0.9rem;
+            margin: 0;
+            font-weight: 600;
+        }
+
+        .page-actions {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn-add-new {
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border: 1px solid rgba(255,255,255,0.3);
+            border-radius: 6px;
+            padding: 0.4rem 0.8rem;
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        .btn-add-new:hover {
+            background: rgba(255,255,255,0.3);
+            border-color: rgba(255,255,255,0.5);
+        }
+        
+        .content-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;padding-bottom:1rem;border-bottom:1px solid #e9ecef;}
+        .content-header h1{color:#333;font-size:1.5rem;margin:0;}
+        
+        /* Button Styles */
+        .btn{display:inline-flex;align-items:center;gap:.5rem;padding:.6rem 1.2rem;border:none;border-radius:6px;font-size:.85rem;font-weight:500;cursor:pointer;transition:all .2s;text-decoration:none;justify-content:center;}
+        .btn-primary{background:#2196F3;color:#fff;} .btn-primary:hover{background:#1976D2;}
+        .btn-secondary{background:#6c757d;color:#fff;} .btn-secondary:hover{background:#5a6268;}
+        .btn-success{background:#28a745;color:#fff;} .btn-success:hover{background:#218838;}
+        .btn-danger{background:#dc3545;color:#fff;} .btn-danger:hover{background:#c82333;}
+        .btn-edit{background:#ffc107;color:#000;} .btn-edit:hover{background:#e0a800;}
+        .btn-delete{background:#dc3545;color:#fff;} .btn-delete:hover{background:#c82333;}
+        
+        /* Table Styles */
+        .table-container{background:#fff;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,.1);overflow:hidden;}
+        .data-table{width:100%;border-collapse:collapse;}
+        .data-table thead th{background:#f8f9fa;padding:1rem;text-align:left;font-weight:600;color:#495057;border-bottom:2px solid #dee2e6;}
+        .data-table tbody td{padding:1rem;border-bottom:1px solid #dee2e6;vertical-align:middle;}
+        .data-table tbody tr:hover{background:#f8f9fa;}
+        .empty-state{text-align:center;padding:3rem;color:#6c757d;}
+        .empty-state i{font-size:3rem;margin-bottom:1rem;color:#dee2e6;}
+        .empty-state p{margin:0.5rem 0;}
+        .empty-state a{color:#2196F3;text-decoration:none;}
+        .empty-state a:hover{text-decoration:underline;}
+
+        /* Search Bar Styles */
+        .search-bar{flex:1;max-width:400px;}
+        .search-bar input{width:100%;padding:.5rem 1rem;border:1px solid #ddd;border-radius:6px;font-size:.85rem;}
+        .search-bar input:focus{outline:none;border-color:#2196F3;box-shadow:0 0 0 2px rgba(33,150,243,.2);}
+
+        /* Risk-specific styles continue from here */
+        .severity-badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.9em;
+            font-weight: bold;
+        }
+        .severity-badge.low { background: #4CAF50; color: white; }
+        .severity-badge.medium { background: #FFC107; color: black; }
+        .severity-badge.high { background: #FF9800; color: white; }
+        .severity-badge.critical { background: #F44336; color: white; }
+
+        .status-badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+        .status-badge.pending { background: #FFC107; color: black; }
+        .status-badge.approved { background: #4CAF50; color: white; }
+        .status-badge.rejected { background: #F44336; color: white; }
+
+        /* Clickable row styles */
+        .clickable-row {
+            cursor: pointer;
+            transition: background-color 0.2s, transform 0.1s;
+        }
+        
+        .clickable-row:hover {
+            background-color: #f5f5f5;
+            transform: translateY(-2px);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .clickable-row:active {
+            transform: translateY(0);
+            background-color: #e9e9e9;
+        }
+        
+        .clickable-row td {
+            padding: 12px 15px;
+        }
+
+        /* Modal Base Styles */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.6);
+            z-index: 1000;
+            backdrop-filter: blur(4px);
+            display: none;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal.show {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            width: 85%;
+            max-width: 900px;
+            border-radius: 10px;
+            position: relative;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.2);
+            max-height: 90vh;
+            display: flex;
+            flex-direction: column;
+            margin: 0;
+            transform: translateY(0);
+            transition: transform 0.3s ease-out;
+            overflow: hidden;
+        }
+
+        /* Modal Animation */
+        .modal:not(.show) .modal-content {
+            transform: translateY(-20px);
+        }
+
+        /* Modal Header */
+        .modal-header {
+            position: relative;
+            background-color: #f8f9fa;
+            padding: 15px 20px;
+            border-bottom: 1px solid #e9ecef;
+            border-radius: 10px 10px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header-content {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            flex-grow: 1;
+        }
+
+        .modal-header h2 {
+            margin: 0;
+            color: #333;
+            font-size: 1.5em;
+        }
+
+        .close-modal {
+            position: absolute;
+            right: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 24px;
+            font-weight: bold;
+            cursor: pointer;
+            background: none;
+            border: none;
+            color: #666;
+            transition: color 0.2s;
+        }
+
+        .close-modal:hover {
+            color: #333;
+        }
+
+        /* Modal Body */
+        .modal-body {
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        /* Modal Footer */
+        .modal-footer {
+            padding: 15px 20px;
+            border-top: 1px solid #e9ecef;
+            background-color: #f8f9fa;
+            border-radius: 0 0 10px 10px;
+            text-align: right;
+            display: flex;
+            gap: 0.85rem;
+            align-items: center;
+            justify-content: flex-end;
+        }
+
+        .modal-footer button {
+            margin-left: 8px;
+            transition: all 0.2s;
+        }
+
+        /* Icon-only modal footer buttons styling (same as staff.html) */
+        .modal-footer .btn {
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.375rem;
+            transition: all 0.2s ease;
+            border: none;
+            cursor: pointer;
+            min-width: 2.5rem;
+            min-height: 2.5rem;
+            justify-content: center;
+        }
+
+        /* Icon-only buttons get square styling */
+        .modal-footer .btn:not(:has(span)):not(:has(div)) {
+            padding: 0.4rem;
+            border-radius: 6px;
+            width: 2.25rem;
+            height: 2.25rem;
+        }
+
+        .modal-footer .btn i {
+            font-size: 0.875rem;
+        }
+
+        .modal-footer .btn-secondary {
+            background-color: transparent;
+            color: #6b7280;
+            border: none;
+            box-shadow: none;
+        }
+
+        .modal-footer .btn-secondary:hover {
+            background-color: #f9fafb;
+            color: #374151;
+            border: none;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+        }
+
+        .modal-footer .btn-edit {
+            background-color: transparent;
+            color: #f59e0b;
+            border: none;
+            box-shadow: none;
+        }
+
+        .modal-footer .btn-edit:hover {
+            background-color: #fef3c7;
+            color: #d97706;
+            border: none;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+        }
+
+        .modal-footer .btn-success {
+            background-color: transparent;
+            color: #10b981;
+            border: none;
+            box-shadow: none;
+        }
+
+        .modal-footer .btn-success:hover {
+            background-color: #d1fae5;
+            color: #059669;
+            border: none;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+        }
+
+        .modal-footer .btn-danger {
+            background-color: transparent;
+            color: #ef4444;
+            border: none;
+            box-shadow: none;
+        }
+
+        .modal-footer .btn-danger:hover {
+            background-color: #fee2e2;
+            color: #dc2626;
+            border: none;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+        }
+
+        .modal-footer .btn-delete {
+            background-color: transparent;
+            color: #ef4444;
+            border: none;
+            box-shadow: none;
+        }
+
+        .modal-footer .btn-delete:hover {
+            background-color: #fee2e2;
+            color: #dc2626;
+            border: none;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+        }
+
+        .modal-footer .btn-primary {
+            background-color: transparent;
+            color: #3b82f6;
+            border: none;
+            box-shadow: none;
+        }
+
+        .modal-footer .btn-primary:hover {
+            background-color: #dbeafe;
+            color: #2563eb;
+            border: none;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+        }
+
+        .risk-info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .info-item {
+            background: #f9f9f9;
+            padding: 12px 15px;
+            border-radius: 6px;
+            border-left: 3px solid #2196F3;
+        }
+
+        .info-item strong {
+            display: block;
+            margin-bottom: 5px;
+            color: #555;
+            font-size: 0.9em;
+        }
+
+        .risk-description {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 24px;
+        }
+
+        .risk-description h3 {
+            margin-top: 0;
+            color: #333;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 8px;
+        }
+
+        .assessment-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 20px;
+            margin-bottom: 24px;
+        }
+
+        .assessment-box {
+            background: #fff;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            padding: 15px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+
+        .assessment-box h4 {
+            margin-top: 0;
+            color: #333;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+        }
+
+        .assessment-details {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+        }
+
+        .controls-section {
+            background: #f9f9f9;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 24px;
+        }
+
+        .controls-section h3, 
+        .controls-section h4 {
+            color: #333;
+            margin-top: 0;
+        }
+
+        .controls-list, 
+        .action-plan-list {
+            padding-left: 20px;
+        }
+
+        .controls-list li, 
+        .action-plan-list li {
+            margin-bottom: 10px;
+        }
+
+        .action-details {
+            background: #fff;
+            padding: 12px;
+            border-radius: 6px;
+            border: 1px solid #eee;
+            margin-bottom: 10px;
+        }
+
+        .attachments {
+            padding: 15px;
+            background: #f5f5f5;
+            border-radius: 6px;
+            margin-top: 20px;
+        }
+
+        .attachments-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .attachments-list li {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+            background: #fff;
+            padding: 8px 12px;
+            border-radius: 4px;
+            border: 1px solid #e0e0e0;
+        }
+
+        .attachments-list i {
+            margin-right: 8px;
+            color: #2196F3;
+        }
+
+        .attachments-list a {
+            color: #2196F3;
+            text-decoration: none;
+        }
+
+        .attachments-list a:hover {
+            text-decoration: underline;
+        }
+
+        .no-data {
+            font-style: italic;
+            color: #888;
+        }
+
+        .btn-view, .btn-edit, .btn-delete {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 4px 8px;
+            margin: 0 2px;
+        }
+        .btn-view i { color: #2196F3; }
+        .btn-edit i { color: #FFC107; }
+        .btn-delete i { color: #F44336; }
+
+        /* Approval Flow Styles */
+        .approval-flow-container {
+            background-color: #f9f9f9;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+
+        .approval-type {
+            display: flex;
+            align-items: center;
+            font-weight: bold;
+            margin-bottom: 12px;
+            color: #333;
+        }
+
+        .approval-type i {
+            margin-right: 8px;
+            color: #2196F3;
+        }
+
+        .approval-levels {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .approval-level {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 15px;
+            background: white;
+            border-radius: 6px;
+            border-left: 3px solid #2196F3;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .approval-level.locked {
+            opacity: 0.7;
+            border-left-color: #9e9e9e;
+            position: relative;
+        }
+
+        .approval-level.locked::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.05);
+            border-radius: 6px;
+            pointer-events: none;
+        }
+
+        .level-header {
+            font-weight: bold;
+            color: #333;
+            min-width: 80px;
+        }
+
+        .approvers-list {
+            flex-grow: 1;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            padding-left: 15px;
+            padding-right: 15px;
+        }
+
+        .approver {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            padding: 8px 12px;
+            background-color: #f8f9fa;
+            border-radius: 6px;
+            margin-bottom: 8px;
+        }
+
+        .approver.approved {
+            background-color: #e8f5e9;
+        }
+
+        .approver i {
+            margin-top: 3px;
+            color: #666;
+        }
+
+        .approver.approved i {
+            color: #4CAF50;
+        }
+
+        .approver-info {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .approver-name {
+            font-weight: 500;
+            color: #333;
+            margin-bottom: 2px;
+        }
+
+        .approver-title {
+            font-size: 0.85em;
+            color: #666;
+            margin-bottom: 2px;
+        }
+
+        .approver-designation {
+            font-size: 0.85em;
+            font-style: italic;
+            color: #888;
+        }
+
+        .approval-info {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.85em;
+            color: #4CAF50;
+        }
+
+        .approval-info i {
+            color: #4CAF50;
+        }
+
+        .approval-date {
+            color: #666;
+        }
+
+        .level-status {
+            font-size: 0.85em;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-weight: 500;
+        }
+
+        .level-status.completed {
+            background-color: #e8f5e9;
+            color: #2e7d32;
+        }
+
+        .level-status.pending {
+            background-color: #fff8e1;
+            color: #ff8f00;
+        }
+
+        .no-approver {
+            color: #9e9e9e;
+            font-style: italic;
+        }
+
+        .approval-history {
+            margin-top: 20px;
+        }
+
+        .history-timeline {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            padding-top: 10px;
+        }
+
+        .timeline-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 10px;
+            background-color: white;
+            border-radius: 6px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        }
+
+        .timeline-item i {
+            font-size: 1.2em;
+            padding: 8px;
+            border-radius: 50%;
+            background-color: #f5f5f5;
+        }
+
+        .timeline-item.approved i {
+            color: #4CAF50;
+            background-color: #e8f5e9;
+        }
+
+        .timeline-item.declined i {
+            color: #F44336;
+            background-color: #ffebee;
+        }
+
+        .timeline-content h4 {
+            margin: 0 0 5px 0;
+            font-size: 1em;
+        }
+
+        .timeline-content p {
+            margin: 0;
+            color: #666;
+            font-size: 0.9em;
+        }
+
+        .decline-reason {
+            margin-top: 5px;
+            padding: 5px;
+            background-color: #fff8e1;
+            border-left: 3px solid #ff8f00;
+            border-radius: 0 3px 3px 0;
+        }
+
+        .risk-info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .info-item {
+            background: #f9f9f9;
+            padding: 12px 15px;
+            border-radius: 6px;
+            border-left: 3px solid #2196F3;
+        }
+
+        .info-item strong {
+            display: block;
+            margin-bottom: 5px;
+            color: #555;
+            font-size: 0.9em;
+        }
+
+        .risk-description {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 24px;
+        }
+
+        .risk-description h3 {
+            margin-top: 0;
+            color: #333;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 8px;
+        }
+
+        .assessment-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 20px;
+            margin-bottom: 24px;
+        }
+
+        .assessment-box {
+            background: #fff;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            padding: 15px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+
+        .assessment-box h4 {
+            margin-top: 0;
+            color: #333;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+        }
+
+        .assessment-details {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+        }
+
+        .controls-section {
+            background: #f9f9f9;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 24px;
+        }
+
+        .controls-section h3, 
+        .controls-section h4 {
+            color: #333;
+            margin-top: 0;
+        }
+
+        .controls-list, 
+        .action-plan-list {
+            padding-left: 20px;
+        }
+
+        .controls-list li, 
+        .action-plan-list li {
+            margin-bottom: 10px;
+        }
+
+        .action-details {
+            background: #fff;
+            padding: 12px;
+            border-radius: 6px;
+            border: 1px solid #eee;
+            margin-bottom: 10px;
+        }
+
+        .attachments {
+            padding: 15px;
+            background: #f5f5f5;
+            border-radius: 6px;
+            margin-top: 20px;
+        }
+
+        .attachments-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .attachments-list li {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+            background: #fff;
+            padding: 8px 12px;
+            border-radius: 4px;
+            border: 1px solid #e0e0e0;
+        }
+
+        .attachments-list i {
+            margin-right: 8px;
+            color: #2196F3;
+        }
+
+        .attachments-list a {
+            color: #2196F3;
+            text-decoration: none;
+        }
+
+        .attachments-list a:hover {
+            text-decoration: underline;
+        }
+
+        .no-data {
+            font-style: italic;
+            color: #888;
+        }
+
+        .btn-view, .btn-edit, .btn-delete {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 4px 8px;
+            margin: 0 2px;
+        }
+        .btn-view i { color: #2196F3; }
+        .btn-edit i { color: #FFC107; }
+        .btn-delete i { color: #F44336; }
+        
+        /* Detail section styles */
+        .detail-section {
+            margin-bottom: 24px;
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #e0e0e0;
+            overflow: hidden;
+        }
+        
+        .detail-section h3 {
+            margin: 0;
+            padding: 12px 15px;
+            background: #f5f5f5;
+            color: #333;
+            font-size: 1.1em;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        .section-content {
+            padding: 15px;
+        }
+        
+        .detail-group {
+            margin-bottom: 12px;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .detail-group:last-child {
+            margin-bottom: 0;
+        }
+        
+        .detail-group label {
+            font-weight: 500;
+            color: #555;
+            margin-bottom: 5px;
+            display: flex;
+            align-items: center;
+        }
+        
+        .detail-group label i {
+            margin-right: 8px;
+            width: 16px;
+            text-align: center;
+            color: #2196F3;
+        }
+
+        .approver-info {
+            display: flex;
+            flex-direction: column;
+            margin-left: 8px;
+        }
+
+        .approver-name {
+            font-weight: 500;
+            color: #333;
+        }
+
+        .approver-title {
+            font-size: 0.85em;
+            color: #666;
+        }
+
+        .approval-info {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-left: auto;
+            font-size: 0.9em;
+            color: #4CAF50;
+        }
+
+        .approval-date {
+            color: #666;
+            font-size: 0.85em;
+        }
+
+        .approval-comments {
+            font-size: 0.85em;
+            color: #666;
+            margin-top: 4px;
+            font-style: italic;
+        }
+
+        /* Enhanced attachment display styles */
+        .attachment-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem;
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 6px;
+            margin-bottom: 0.5rem;
+            transition: all 0.2s ease;
+        }
+
+        .attachment-item:hover {
+            background: #e9ecef;
+            border-color: #dee2e6;
+        }
+
+        .attachment-item i {
+            color: #6c757d;
+            font-size: 1.1rem;
+            width: 20px;
+            text-align: center;
+        }
+
+        .attachment-item .file-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .attachment-item .file-name {
+            font-weight: 500;
+            color: #495057;
+            text-decoration: none;
+            word-break: break-word;
+        }
+
+        .attachment-item .file-name:hover {
+            color: #007bff;
+            text-decoration: underline;
+        }
+
+        .attachment-count {
+            font-size: 0.85rem;
+            color: #6c757d;
+            font-weight: normal;
+        }
+    </style>
+
+    <!-- Firebase v8 CDN for compatibility -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
+    <!-- GitHub Pages Fix Script -->
+    <script src="github-pages-fix.js"></script>
+</head>
+<body>
+    <!-- Authentication Status Indicator -->
+    <div id="authStatus" style="display: none; position: fixed; top: 10px; right: 10px; background: #10b981; color: white; padding: 8px 15px; border-radius: 5px; font-size: 12px; z-index: 1000;">
+        <i class="fas fa-shield-alt"></i> Authenticated
+    </div>
+    
+    <!-- CSS to prevent menu flicker - hide all menu items by default -->
+    <style>
+        /* Hide all menu items with data-feature attributes by default */
+        [data-feature] {
+            display: none !important;
+            visibility: hidden !important;
+        }
+        
+        /* Show items only when explicitly set by JavaScript */
+        [data-feature].menu-visible {
+            display: block !important;
+            visibility: visible !important;
+        }
+        
+        /* Ensure parent dropdowns without data-feature are hidden if they have no visible children */
+        .menu-dropdown:not([data-feature]) {
+            display: none !important;
+        }
+        
+        .menu-dropdown:not([data-feature]).menu-visible {
+            display: block !important;
+        }
+    </style>
+
+    <!-- Menu Visibility Management Script -->
+    <script type="module">
+        import { getDatabase, ref, get } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+        import { auth } from './js/firebase-config.js';
+        
+        // Function to update all menu visibility based on permissions
+        async function updateAllMenuVisibility() {
+            try {
+                console.log('Starting menu visibility update...');
+                
+                // Get user data first
+                if (!auth.currentUser) {
+                    console.log('No authenticated user found');
+                    return;
+                }
+                
+                const db = getDatabase();
+                const userRef = ref(db, `users/${auth.currentUser.uid}`);
+                const userSnapshot = await get(userRef);
+                
+                if (!userSnapshot.exists()) {
+                    console.log('User data not found');
+                    return;
+                }
+                
+                const userData = userSnapshot.val();
+                const userRole = userData.role;
+                const companyId = userData.companyId;
+                
+                console.log(`Loading permissions for role: ${userRole}, company: ${companyId}`);
+                
+                if (!userRole || !companyId) {
+                    console.log('Missing user role or company ID');
+                    // Show basic items if no role/company data (excluding home_view to respect dashboard permissions)
+                    const basicItems = ['company_management_view', 'staff_management_view'];
+                    document.querySelectorAll('[data-feature]').forEach(item => {
+                        const feature = item.getAttribute('data-feature');
+                        if (basicItems.includes(feature)) {
+                            item.classList.add('menu-visible');
+                        } else {
+                            item.classList.remove('menu-visible');
+                        }
+                    });
+                    return;
+                }
+                
+                // Get all permissions at once
+                const permissionsRef = ref(db, `companies/${companyId}/roles/${userRole}/permissions`);
+                const permissionsSnapshot = await get(permissionsRef);
+                
+                if (!permissionsSnapshot.exists()) {
+                    console.log(`No permissions found for role ${userRole} in company ${companyId}`);
+                    // Show basic items if no permissions found (excluding home_view to respect dashboard permissions)
+                    const basicItems = ['company_management_view', 'staff_management_view'];
+                    document.querySelectorAll('[data-feature]').forEach(item => {
+                        const feature = item.getAttribute('data-feature');
+                        if (basicItems.includes(feature)) {
+                            item.classList.add('menu-visible');
+                        } else {
+                            item.classList.remove('menu-visible');
+                        }
+                    });
+                    return;
+                }
+                
+                const permissions = permissionsSnapshot.val();
+                console.log('Loaded permissions:', Object.keys(permissions));
+                console.log('🛡️ risk_view permission details:', permissions.risk_view);
+                
+                // Get all menu items with data-feature attributes
+                const menuItems = document.querySelectorAll('[data-feature]');
+                console.log(`Updating ${menuItems.length} menu items...`);
+                
+                // Update all items based on permissions in one go (no flickering)
+                menuItems.forEach(item => {
+                    const feature = item.getAttribute('data-feature');
+                    
+                    if (feature && permissions[feature]?.view) {
+                        console.log(`✅ Showing menu item: ${feature}`);
+                        item.classList.add('menu-visible');
+                        
+                        // Show parent dropdown if this is a submenu item
+                        const parentDropdown = item.closest('.menu-dropdown');
+                        if (parentDropdown && !parentDropdown.hasAttribute('data-feature')) {
+                            parentDropdown.classList.add('menu-visible');
+                        }
+                    } else {
+                        console.log(`❌ Hiding menu item: ${feature} (permission: ${permissions[feature]?.view || 'undefined'})`);
+                        item.classList.remove('menu-visible');
+                    }
+                });
+                
+                // Handle parent dropdowns - show if they have visible children
+                document.querySelectorAll('.menu-dropdown').forEach(dropdown => {
+                    const visibleSubmenuItems = dropdown.querySelectorAll('.submenu li.menu-visible');
+                    if (visibleSubmenuItems.length > 0) {
+                        dropdown.classList.add('menu-visible');
+                    } else if (!dropdown.hasAttribute('data-feature')) {
+                        dropdown.classList.remove('menu-visible');
+                    }
+                });
+                
+                const visibleCount = document.querySelectorAll('[data-feature].menu-visible').length;
+                console.log(`Menu visibility update completed - ${visibleCount} items visible`);
+                
+            } catch (error) {
+                console.error('Error updating menu visibility:', error);
+                // Fallback: show basic menu items if there's an error (excluding home_view to respect dashboard permissions)
+                const basicItems = ['company_management_view', 'staff_management_view'];
+                document.querySelectorAll('[data-feature]').forEach(item => {
+                    const feature = item.getAttribute('data-feature');
+                    if (basicItems.includes(feature)) {
+                        item.classList.add('menu-visible');
+                    } else {
+                        item.classList.remove('menu-visible');
+                    }
+                });
+                console.log('Fallback: showing basic menu items due to error');
+            }
+        }
+        
+        // Function to handle authentication state changes
+        async function handleAuthStateChange(user) {
+            if (user) {
+                console.log('User authenticated, updating menu visibility...');
+                // Update menu immediately when user is authenticated
+                await updateAllMenuVisibility();
+            } else {
+                console.log('User not authenticated, hiding all menu items');
+                document.querySelectorAll('[data-feature]').forEach(item => {
+                    item.classList.remove('menu-visible');
+                });
+            }
+        }
+        
+        // Set up authentication state listener
+        auth.onAuthStateChanged(handleAuthStateChange);
+        
+        // Listen for role changes from other pages
+        window.addEventListener('userRoleChanged', async (event) => {
+            console.log('Role change detected from another page, refreshing menu...');
+            await updateAllMenuVisibility();
+        });
+        
+        // Listen for localStorage changes that indicate role updates
+        window.addEventListener('storage', async (event) => {
+            if (event.key === 'triggerMenuRefresh') {
+                console.log('Menu refresh triggered from localStorage, updating menu...');
+                await updateAllMenuVisibility();
+                // Clear the trigger to avoid repeated refreshes
+                localStorage.removeItem('triggerMenuRefresh');
+            }
+        });
+        
+        // Check for pending menu refresh on page load
+        if (localStorage.getItem('triggerMenuRefresh')) {
+            console.log('Pending menu refresh detected on page load');
+            setTimeout(async () => {
+                await updateAllMenuVisibility();
+                localStorage.removeItem('triggerMenuRefresh');
+            }, 1500);
+        }
+        
+        // Initialize when DOM is loaded
+        document.addEventListener('DOMContentLoaded', async () => {
+            console.log('DOM loaded, checking authentication...');
+            if (auth.currentUser) {
+                console.log('User already authenticated, updating menu immediately...');
+                await updateAllMenuVisibility();
+            }
+        });
+        
+        // Quick fallback check - only if menu is still empty after 1 second
+        setTimeout(async () => {
+            const visibleMenuItems = document.querySelectorAll('[data-feature].menu-visible');
+            if (auth.currentUser && visibleMenuItems.length === 0) {
+                console.log('Fallback: Menu appears empty, attempting to load...');
+                await updateAllMenuVisibility();
+            }
+        }, 1000);
+        
+        // Debug function for manual menu refresh (accessible from browser console)
+        window.debugRefreshMenu = async function() {
+            console.log('=== Manual Menu Refresh Debug ===');
+            await updateAllMenuVisibility();
+            const visibleItems = document.querySelectorAll('[data-feature].menu-visible');
+            console.log(`Debug: ${visibleItems.length} menu items are now visible`);
+            visibleItems.forEach(item => {
+                console.log(`- ${item.getAttribute('data-feature')}: ${item.textContent.trim()}`);
+            });
+        };
+        
+        // Debug function to show current menu state
+        window.debugMenuState = function() {
+            console.log('=== Current Menu State ===');
+            const allItems = document.querySelectorAll('[data-feature]');
+            const visibleItems = document.querySelectorAll('[data-feature].menu-visible');
+            console.log(`Total menu items: ${allItems.length}`);
+            console.log(`Visible menu items: ${visibleItems.length}`);
+            
+            allItems.forEach(item => {
+                const feature = item.getAttribute('data-feature');
+                const isVisible = item.classList.contains('menu-visible');
+                console.log(`${feature}: ${isVisible ? 'VISIBLE' : 'HIDDEN'} - ${item.textContent.trim()}`);
+            });
+        };
+        
+        // Debug function to specifically check risk_view permission
+        window.debugRiskViewPermission = async function() {
+            if (!auth.currentUser) {
+                console.log('❌ No authenticated user');
+                return;
+            }
+            
+            const db = getDatabase();
+            const userRef = ref(db, `users/${auth.currentUser.uid}`);
+            const userSnapshot = await get(userRef);
+            
+            if (!userSnapshot.exists()) {
+                console.log('❌ User data not found');
+                return;
+            }
+            
+            const userData = userSnapshot.val();
+            const userRole = userData.role;
+            const companyId = userData.companyId;
+            
+            console.log('=== Risk View Permission Debug ===');
+            console.log('User ID:', auth.currentUser.uid);
+            console.log('User Role:', userRole);
+            console.log('Company ID:', companyId);
+            
+            const permissionsRef = ref(db, `companies/${companyId}/roles/${userRole}/permissions`);
+            const permissionsSnapshot = await get(permissionsRef);
+            
+            if (permissionsSnapshot.exists()) {
+                const permissions = permissionsSnapshot.val();
+                console.log('🛡️ risk_view permission:', permissions.risk_view);
+                console.log('🛡️ risk_view.view:', permissions.risk_view?.view);
+                
+                const riskMenuItem = document.querySelector('[data-feature="risk_view"]');
+                const isVisible = riskMenuItem?.classList.contains('menu-visible');
+                console.log('🛡️ Risk menu item visible:', isVisible);
+                console.log('🛡️ Risk menu item element:', riskMenuItem);
+            } else {
+                console.log('❌ No permissions found');
+            }
+        };
+    </script>
+    
+    <div class="app-container">
+        <!-- Left Sidebar -->
+        <nav class="sidebar">
+            <div class="logo">
+                <h2>Dreamex Datalab</h2>
+            </div>
+            <ul class="menu" id="roleBasedMenu">
+                <li class="menu-item" data-feature="home_view" data-requires-permission="home_view">
+                    <a href="index.html"><i class="fas fa-home"></i> Home</a>
+                </li>
+                <li class="menu-dropdown" data-feature="health_view" data-requires-permission="health_view">
+                    <a href="#"><i class="fas fa-medkit"></i> Health</a>
+                    <ul class="submenu">
+                        <li data-feature="health_assessment_view" data-requires-permission="health_assessment_view">
+                            <a href="health-assessment.html">Assessment</a>
+                        </li>
+                        <li data-feature="health_consultation_view" data-requires-permission="health_consultation_view">
+                            <a href="health-consultation.html">Consultation</a>
+                        </li>
+                        <li data-feature="medical_folder_view" data-requires-permission="medical_folder_view">
+                            <a href="medical-folder.html">Medical Folder</a>
+                        </li>
+                    </ul>
+                </li>
+                <li class="menu-dropdown" data-feature="safety_view" data-requires-permission="safety_view">
+                    <a href="#"><i class="fas fa-shield-alt"></i> Safety</a>
+                    <ul class="submenu">
+                        <li data-feature="training_view" data-requires-permission="training_view"><a href="trainingboard.html">Training</a></li>
+                        <li data-feature="risk_view" data-requires-permission="risk_view"><a href="riskboard.html" class="active">Risk Management</a></li>
+                        <li data-feature="jsa_view" data-requires-permission="jsa_view"><a href="jsaboard.html">Job Safety Analysis</a></li>
+                        <li data-feature="ptw_view" data-requires-permission="ptw_view"><a href="ptwboard.html">Permit to Work</a></li>
+                        <li data-feature="incident_view" data-requires-permission="incident_view"><a href="incidentboard.html">Incident Reports</a></li>
+                        <li data-feature="inspection_view" data-requires-permission="inspection_view"><a href="inspectionboard.html">Inspection</a></li>
+                        <li data-feature="audit_view" data-requires-permission="audit_view"><a href="auditboard.html">Audit</a></li>
+                    </ul>
+                </li>
+                <li class="menu-dropdown" data-feature="fuel_management" data-requires-permission="fuel_management">
+                    <a href="#"><i class="fas fa-gas-pump"></i> Fuel Management</a>
+                    <ul class="submenu">
+                        <li data-feature="vessel_offloading" data-requires-permission="vessel_offloading"><a href="vessel-offloading.html">Vessel Offloading</a></li>
+                        <li data-feature="fuel_storage" data-requires-permission="fuel_storage"><a href="fuel-storage-status.html">Fuel Storage Status</a></li>
+                        <li data-feature="tank_transfer" data-requires-permission="tank_transfer"><a href="tank-transfer.html">Tank-to-Tank Transfer</a></li>
+                        <li data-feature="truck_loading" data-requires-permission="truck_loading"><a href="fuel-truck-loading.html">Fuel Truck Loading</a></li>
+                        <li data-feature="quality_analysis" data-requires-permission="quality_analysis"><a href="fuel-quality-analysis.html">Fuel Quality Analysis</a></li>
+                        <li data-feature="fuel_distribution" data-requires-permission="fuel_distribution"><a href="fueldistrib.html">Fuel Distribution</a></li>
+                        <li data-feature="fuel_consumption_analysis" data-requires-permission="fuel_consumption_analysis"><a href="fuelanalys.html">Consumption Analysis</a></li>
+                    </ul>
+                </li>
+                <li class="menu-dropdown" data-feature="environment_view" data-requires-permission="environment_view">
+                    <a href="#"><i class="fas fa-leaf"></i> Environment</a>
+                    <ul class="submenu">
+                        <li data-feature="water_view" data-requires-permission="water_view"><a href="waterboard.html">Water Quality</a></li>
+                    </ul>
+                </li>
+                <li class="menu-dropdown" data-feature="security_view" data-requires-permission="security_view">
+                    <a href="#"><i class="fas fa-lock"></i> Security</a>
+                    <ul class="submenu">
+                        <li data-feature="access_view" data-requires-permission="access_view"><a href="accessboard.html">Access Request</a></li>
+                        <li data-feature="access_daily_view" data-requires-permission="access_daily_view"><a href="accessdaily.html">Daily Access Control</a></li>
+                        <li data-feature="removal_view" data-requires-permission="removal_view"><a href="removalboard.html">Property Removal</a></li>
+                    </ul>
+                </li>
+                <li class="menu-dropdown" data-feature="logistics_view" data-requires-permission="logistics_view">
+                    <a href="#"><i class="fas fa-truck"></i> Logistics</a>
+                    <ul class="submenu">
+                        <li data-feature="fleet_view" data-requires-permission="fleet_view"><a href="fleet.html">Fleet Management</a></li>
+                    </ul>
+                </li>
+                <li class="menu-dropdown" data-feature="accommodation_view" data-requires-permission="accommodation_view">
+                    <a href="#"><i class="fas fa-bed"></i> Accommodation</a>
+                    <ul class="submenu">
+                        <li data-feature="camp_view" data-requires-permission="camp_view"><a href="camp.html">Camp Management</a></li>
+                        <li data-feature="camp_settings_view" data-requires-permission="camp_settings_view"><a href="campset.html">Camp Settings</a></li>
+                    </ul>
+                </li>
+                <li class="menu-dropdown" data-feature="hr_view" data-requires-permission="hr_view">
+                    <a href="#"><i class="fas fa-users"></i> HR</a>
+                    <ul class="submenu">
+                        <li data-feature="human_hr_view" data-requires-permission="human_hr_view"><a href="human-hr.html"><i class="fas fa-user-tie"></i> Human HR</a></li>
+                        <li data-feature="staff_management_view" data-requires-permission="staff_management_view"><a href="staff.html">Staffing</a></li>
+                        <li data-feature="authority_to_recruit_view" data-requires-permission="authority_to_recruit_view"><a href="recruit.html">Authority to Recruit</a></li>
+                        <li data-feature="job_advertising_view" data-requires-permission="job_advertising_view"><a href="jobpost.html">Job Advertising</a></li>
+                        <li data-feature="screening_view" data-requires-permission="screening_view"><a href="jobscreen.html">Screening</a></li>
+                        <li data-feature="interview_view" data-requires-permission="interview_view"><a href="interview.html">Interview</a></li>
+                        <li data-feature="offer_view" data-requires-permission="offer_view"><a href="offer.html">Offer Management</a></li>
+                        <li data-feature="contract_view" data-requires-permission="contract_view"><a href="contract.html">Contract Management</a></li>
+                        <li data-feature="onboarding_view" data-requires-permission="onboarding_view"><a href="onboard.html">Onboarding</a></li>
+                        <li data-feature="chart_view" data-requires-permission="chart_view"><a href="chart.html">Chart Setup</a></li>
+                        <li data-feature="chartboard_view" data-requires-permission="chartboard_view"><a href="chartboard.html">Org Chart</a></li>
+                        <li data-feature="kpi_dashboard_view" data-requires-permission="kpi_dashboard_view"><a href="kpi.html">KPI</a></li>
+                        <li data-feature="action_plan_view" data-requires-permission="action_plan_view"><a href="actionplan.html"><i class="fas fa-tasks"></i> Action Plan Board</a></li>
+                    </ul>
+                </li>
+                <li class="menu-dropdown" data-feature="project_management_view" data-requires-permission="project_management_view">
+                    <a href="#"><i class="fas fa-project-diagram"></i> Project Management</a>
+                    <ul class="submenu">
+                        <li data-feature="project_dashboard_view" data-requires-permission="project_dashboard_view"><a href="project-dashboard.html">Project Dashboard</a></li>
+                        <li data-feature="project_create_view" data-requires-permission="project_create_view"><a href="project-create.html">Create Project</a></li>
+                        <li data-feature="project_list_view" data-requires-permission="project_list_view"><a href="project-list.html">Project List</a></li>
+                        <li data-feature="task_management_view" data-requires-permission="task_management_view"><a href="tasks.html">Task Management</a></li>
+                        <li data-feature="milestone_tracking_view" data-requires-permission="milestone_tracking_view"><a href="milestones.html">Milestone Tracking</a></li>
+                        <li data-feature="resource_allocation_view" data-requires-permission="resource_allocation_view"><a href="resources.html">Resource Allocation</a></li>
+                        <li data-feature="project_reports_view" data-requires-permission="project_reports_view"><a href="project-reports.html">Project Reports</a></li>
+                        <li data-feature="gantt_chart_view" data-requires-permission="gantt_chart_view"><a href="gantt-chart.html">Gantt Chart</a></li>
+                    </ul>
+                </li>
+                <li data-feature="communication_view" data-requires-permission="communication_view"><a href="info.html"><i class="fas fa-comments"></i> Communication</a></li>
+                <li class="menu-dropdown" data-feature="settings_view" data-requires-permission="settings_view">
+                    <a href="#"><i class="fas fa-cog"></i> Settings</a>
+                    <ul class="submenu">
+                        <li data-feature="account_settings_view" data-requires-permission="account_settings_view"><a href="account.html">Account Settings</a></li>
+                        <li data-feature="company_management_view" data-requires-permission="company_management_view"><a href="companymanagement.html">Company Management</a></li>
+                        <li data-feature="approval_settings_view" data-requires-permission="approval_settings_view"><a href="approval-settings.html">Approval Flow Settings</a></li>
+                        <li data-feature="field_setup_view" data-requires-permission="field_setup_view"><a href="fieldsetup.html">Field Setup</a></li>
+                        <li data-feature="preferences_view" data-requires-permission="preferences_view"><a href="preferences.html">Preferences</a></li>
+                        <li data-feature="notification_settings_view" data-requires-permission="notification_settings_view"><a href="notification-settings.html">Notification Settings</a></li>
+                        <li data-feature="audit_log_view" data-requires-permission="audit_log_view"><a href="auditlog.html"><i class="fas fa-history"></i> Audit Log</a></li>
+                        <li data-feature="user_management_view" data-requires-permission="user_management_view"><a href="users.html">User & Role Management</a></li>
+                        <li data-feature="role_permissions_view" data-requires-permission="role_permissions_view"><a href="roles.html">Role Permissions</a></li>
+                    </ul>
+                </li>
+            </ul>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Top Navigation -->
+            <header class="top-nav">
+                <div class="top-nav-left">
+                    <button id="sidebarToggle" class="sidebar-toggle-btn" title="Toggle menu"><i class="fas fa-bars"></i></button>
+                    <img id="headerCompanyLogo" alt="Company Logo">
+                    <span id="headerCompanyName"></span>
+                </div>
+                <div class="top-nav-right">
+                    <div class="notifications">
+                        <button id="notificationBtn" class="notification-btn">
+                            <i class="fas fa-bell"></i>
+                            <span class="notification-badge">0</span>
+                        </button>
+                        <div class="notification-dropdown">
+                            <div class="notification-header">
+                                <h3>Notifications</h3>
+                                <button class="mark-all-read">Mark all as read</button>
+                            </div>
+                            <div class="notification-list">
+                                <!-- Notifications will be dynamically added here -->
+                            </div>
+                        </div>
+                    </div>
+                    <div class="user-profile">
+                        <button id="userProfileBtn" class="profile-btn" aria-label="Profile">
+                            <img id="userAvatarImg" src="" alt="User Avatar" style="display: none;">
+                            <div id="userInitials" class="avatar-initials">U</div>
+                        </button>
+                        <div class="profile-dropdown"><ul></ul></div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Page Content -->
+            <div class="content">
+                <!-- Page Header -->
+                <div class="page-header">
+                    <div style="display: flex; align-items: center; gap: 0.6rem;">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <span>Risk Management Dashboard</span>
+                    </div>
+                    <div class="page-actions">
+                        <button type="button" class="btn-add-new" onclick="clearEditDataAndNavigate()" title="Add New Risk" style="display: flex !important; background: transparent !important; color: white !important; border: none !important; font-size: 1.2rem !important; padding: 0.4rem !important;">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="table-container">
+                    <table id="riskTable" class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Risk ID</th>
+                                <th>Title</th>
+                                <th>Department</th>                                <th>Type</th>
+                                <th>Severity</th>
+                                <th>Location</th>
+                                <th>Submitted By</th>
+                                <th>Date Submitted</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Risks will be dynamically added here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Risk Details Modal -->
+    <div id="riskModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="header-content">
+                    <h2><i class="fas fa-exclamation-triangle"></i> Risk Details</h2>
+                </div>
+                <button class="close-modal">&times;</button>
+            </div>
+            <div class="modal-body" id="riskModalBody">
+                <!-- Risk details will be dynamically added here -->
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-edit" id="editRisk" data-feature="risk_edit" data-action="edit">
+                    <i class="fas fa-edit"></i>
+                </button>
+                <button class="btn btn-success" id="approveRisk" data-feature="risk_approve" data-action="approve">
+                    <i class="fas fa-check"></i>
+                </button>
+                <button class="btn btn-danger" id="declineRisk" data-feature="risk_approve" data-action="decline">
+                    <i class="fas fa-times"></i>
+                </button>
+                <button class="btn btn-delete" id="deleteRisk" data-feature="risk_edit" data-action="delete">
+                    <i class="fas fa-trash"></i>
+                </button>
+                <button class="btn btn-primary" id="exportRisk">
+                    <i class="fas fa-file-export"></i>
+                </button>
+                <button class="btn btn-secondary" id="closeRiskModal">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        </div>
+    </div>    <script>
+        // Firebase config
+        const firebaseConfig = {
+            apiKey: "AIzaSyAsRWoGhgq-FPh7pPRWrmxfEv-jyS_Sa_c",
+            authDomain: "users-8be65.firebaseapp.com",
+            databaseURL: "https://users-8be65-default-rtdb.firebaseio.com",
+            projectId: "users-8be65",
+            storageBucket: "users-8be65.appspot.com",
+            messagingSenderId: "1051641134776",
+            appId: "1:1051641134776:web:95d3124136e65afa7686c0"
+        };
+
+        // Initialize Firebase v8
+        firebase.initializeApp(firebaseConfig);
+        
+        // Initialize database reference
+        const db = firebase.database();
+
+        /**************** Notification Manager (light) ****************/ 
+        class NotificationManager{ 
+            constructor(){
+                this.notifications=this.load();
+                this.init();
+            } 
+            load(){
+                try{
+                    return JSON.parse(localStorage.getItem('notifications')||'[]');
+                }catch{
+                    return[];
+                }
+            } 
+            save(){
+                localStorage.setItem('notifications',JSON.stringify(this.notifications));
+                this.updateBadge();
+                this.render();
+            } 
+            addNotification(n){
+                this.notifications.unshift({
+                    id:Date.now(),
+                    timestamp:new Date().toISOString(),
+                    read:false,
+                    ...n
+                });
+                this.save();
+            } 
+            init(){
+                this.bindUI();
+                this.updateBadge();
+                this.render();
+                if(this.notifications.length===0){
+                    this.addNotification({type:'System',message:'Welcome to Risk Dashboard'});
+                } 
+            } 
+            bindUI(){
+                const btn=document.getElementById('notificationBtn'); 
+                if(btn){
+                    btn.onclick=()=>document.querySelector('.notification-dropdown')?.classList.toggle('show');
+                } 
+                document.addEventListener('click',e=>{
+                    if(!e.target.closest('.notifications')) 
+                        document.querySelector('.notification-dropdown')?.classList.remove('show');
+                }); 
+                const mark=document.querySelector('.mark-all-read'); 
+                if(mark){
+                    mark.onclick=()=>{
+                        this.notifications.forEach(n=>n.read=true); 
+                        this.save();
+                    };
+                }
+            } 
+            updateBadge(){
+                const badge=document.querySelector('.notification-badge'); 
+                if(!badge)return; 
+                const unread=this.notifications.filter(n=>!n.read).length; 
+                badge.textContent=unread; 
+                badge.style.display= unread? 'inline-block':'none';
+            } 
+            render(){
+                const list=document.querySelector('.notification-list'); 
+                if(!list)return; 
+                list.innerHTML=''; 
+                if(this.notifications.length===0){ 
+                    list.innerHTML='<div style="padding:.9rem;font-size:.65rem;">No notifications</div>'; 
+                    return;
+                } 
+                this.notifications.slice(0,25).forEach(n=>{ 
+                    const d=new Date(n.timestamp); 
+                    const div=document.createElement('div'); 
+                    div.className='notification-item'+(n.read?' read':''); 
+                    div.style.cssText='padding:.65rem .75rem;border-bottom:1px solid #eee;font-size:.62rem;cursor:pointer;'+(n.read?'opacity:.6;':''); 
+                    div.innerHTML=`<div style="display:flex;justify-content:space-between;font-weight:600;margin-bottom:2px;"><span>${n.type||'Info'}</span><span style="font-weight:400;color:#555;">${d.toLocaleDateString()} ${d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</span></div><div style="line-height:1.2;">${n.message||''}</div>`; 
+                    div.onclick=()=>{
+                        n.read=true; 
+                        this.save(); 
+                        if(n.link) location.href=n.link;
+                    }; 
+                    list.appendChild(div); 
+                }); 
+            }
+        } 
+        window.notificationManager=new NotificationManager();
+
+        /**************** AuthManager (Complete Implementation) ****************/
+        class AuthManager{ 
+            constructor(){ 
+                this.currentUser=this.getCurrentUser(); 
+                this.currentCompany=null; 
+                console.log('🔐 AuthManager(init) riskboard'); 
+                this.initializeAuth(); 
+            }
+            getCurrentUser(){ 
+                try{
+                    return JSON.parse(localStorage.getItem('currentUser')||'null');
+                }catch{
+                    return null;
+                } 
+            }
+            setCurrentUser(u){ 
+                localStorage.setItem('currentUser',JSON.stringify(u)); 
+                localStorage.setItem('user',JSON.stringify(u)); 
+                this.currentUser=u; 
+            }
+            async logout(){ 
+                try{ 
+                    await firebase.auth().signOut(); 
+                }catch(e){ 
+                    console.warn('Logout error',e);
+                } 
+                ['currentUser','user'].forEach(k=>{
+                    localStorage.removeItem(k);
+                    sessionStorage.removeItem(k);
+                }); 
+                location.href='index.html'; 
+            }
+            initializeAuth(){ 
+                console.log('🚀 initializeAuth called');
+                console.log('👤 Current user:', this.currentUser);
+                if(!this.currentUser){ 
+                    console.warn('No user -> redirect login'); 
+                    location.href='login.html'; 
+                    return; 
+                } 
+                console.log('✅ User:',this.currentUser.email); 
+                
+                this.loadUserRole(this.currentUser); 
+                this.loadUserCompany(); 
+                
+                // Add small delay to ensure DOM is fully ready
+                setTimeout(() => {
+                    console.log('🔄 Starting UI updates...');
+                    this.updateUIForAuthenticatedUser(); 
+                    this.updateMenuVisibility(); 
+                    this.bindProfileDropdown(); 
+                    console.log('✅ UI initialization complete');
+                }, 100);
+            }
+            bindProfileDropdown(){ 
+                console.log('🔗 bindProfileDropdown called');
+                const btn=document.getElementById('userProfileBtn'); 
+                const dd=document.querySelector('.profile-dropdown'); 
+                console.log('🔍 Elements found:', {btn: !!btn, dropdown: !!dd});
+                if(btn && dd){ 
+                    console.log('✅ Binding profile dropdown events');
+                    btn.addEventListener('click',e=>{
+                        console.log('🖱️ Profile button clicked');
+                        e.stopPropagation(); 
+                        dd.classList.toggle('show');
+                        console.log('📋 Dropdown toggled, show class:', dd.classList.contains('show'));
+                    }); 
+                    document.addEventListener('click',e=>{ 
+                        if(!btn.contains(e.target)) {
+                            dd.classList.remove('show');
+                            console.log('🖱️ Clicked outside, hiding dropdown');
+                        }
+                    }); 
+                    const logoutLink=dd.querySelector('a[href="#"]:has(.fa-sign-out-alt)')||dd.querySelector('.fa-sign-out-alt')?.closest('a'); 
+                    if(logoutLink){ 
+                        logoutLink.addEventListener('click',e=>{
+                            e.preventDefault(); 
+                            this.logout();
+                        }); 
+                    } 
+                } else {
+                    console.error('❌ Missing elements for profile dropdown:', {btn, dd});
+                }
+            }
+            resetMenuVisibility(){ 
+                document.querySelectorAll('[data-feature]').forEach(i=>i.classList.remove('menu-visible')); 
+                document.querySelectorAll('.menu-dropdown').forEach(d=>d.classList.remove('menu-visible')); 
+            }
+            async updateMenuVisibility(){ 
+                console.log('🎯 Starting feature-based menu authorization for riskboard.html...');
+                const sidebar=document.querySelector('.sidebar'); 
+                if(!this.currentUser){ 
+                    this.resetMenuVisibility(); 
+                    sidebar?.classList.remove('menu-loading');
+                    return; 
+                } 
+                const companyId=this.currentUser.companyId; 
+                const userRole=this.currentUser.role; 
+                console.log('👤 User:', this.currentUser.email, 'Company ID:', companyId, 'Role:', userRole);
+                if(!companyId){ 
+                    this.resetMenuVisibility(); 
+                    sidebar?.classList.remove('menu-loading');
+                    return; 
+                } 
+                
+                // STEP 1: Apply company feature-based authorization
+                console.log('🏢 STEP 1: Applying company feature authorization...');
+                const authorizedPages = await this.applyFeatureBasedMenuVisibility(companyId);
+                
+                // STEP 2: Filter by user role permissions within authorized features
+                if (userRole && authorizedPages && authorizedPages.length > 0) {
+                    console.log('👤 STEP 2: Applying role-based filtering within authorized features...');
+                    await this.applyRoleBasedFiltering(companyId, userRole, authorizedPages);
+                } else {
+                    console.log('⚠️ STEP 2: Skipping role-based filtering (no role found or no authorized pages)');
+                    sidebar?.classList.remove('menu-loading');
+                }
+            }
+            async applyFeatureBasedMenuVisibility(companyId){ 
+                try{ 
+                    console.log('🔧 Applying feature-based menu visibility for company:', companyId);
+                    const database=firebase.database(); 
+                    const featuresSnapshot=await database.ref('/platformFeatures').once('value'); 
+                    if(!featuresSnapshot.exists()){ 
+                        console.log('⚠️ No platform features found');
+                        this.resetMenuVisibility(); 
+                        return [];
+                    } 
+                    const featuresData=featuresSnapshot.val(); 
+                    const companySnapshot=await database.ref(`/companies/${companyId}`).once('value'); 
+                    const companyData=companySnapshot.val(); 
+                    if(!companyData){ 
+                        console.error('❌ Company data not found');
+                        this.resetMenuVisibility(); 
+                        return [];
+                    } 
+                    const subscribed=companyData.selectedFeatures||[]; 
+                    console.log('🏢 Company subscribed features:', subscribed);
+                    if (subscribed.length === 0) {
+                        console.log('⚠️ Company has no subscribed features');
+                        this.resetMenuVisibility();
+                        return [];
+                    }
+                    const authorizedPages=[]; 
+                    subscribed.forEach(fid=>{
+                        const f=featuresData[fid]; 
+                        if(f && f.status==='active' && f.authorizedPages) {
+                            console.log(`📦 Adding pages from feature "${f.name}":`, f.authorizedPages);
+                            authorizedPages.push(...f.authorizedPages);
+                        } else {
+                            console.log(`⚠️ Feature ${fid} not found or inactive`);
+                        }
+                    }); 
+                    console.log('🔐 All authorized pages from company features:', authorizedPages);
+                    const authorizedFeatures=new Set(); 
+                    authorizedPages.forEach(p=>{ 
+                        if(p.feature) authorizedFeatures.add(p.feature); 
+                    }); 
+                    console.log('🎯 Authorized features for riskboard.html:', Array.from(authorizedFeatures));
+                    this.resetMenuVisibility(); 
+                    let visibleCount = 0;
+                    document.querySelectorAll('li[data-feature]').forEach(item=>{ 
+                        const feature=item.getAttribute('data-feature'); 
+                        const isDropdownContainer = item.classList.contains('menu-dropdown');
+                        
+                        if (isDropdownContainer) {
+                            return; // Handle dropdowns separately after all items are processed
+                        }
+                        
+                        if(authorizedFeatures.has(feature)){ 
+                            item.classList.add('menu-visible'); 
+                            visibleCount++;
+                            console.log(`✅ Feature authorized - showing menu item: ${feature}`);
+                        } else {
+                            console.log(`❌ Feature not authorized - hiding menu item: ${feature}`);
+                        }
+                    }); 
+                    // Handle dropdown menus - show if they have visible children
+                    document.querySelectorAll('li.menu-dropdown').forEach(drop=>{ 
+                        const feature=drop.getAttribute('data-feature'); 
+                        const hasVisible=[...drop.querySelectorAll('.submenu li[data-feature]')].some(li=>li.classList.contains('menu-visible')); 
+                        if(hasVisible || authorizedFeatures.has(feature)) {
+                            drop.classList.add('menu-visible'); 
+                            console.log(`✅ Showing dropdown menu: ${feature} (has visible children or directly authorized)`);
+                        } else {
+                            console.log(`❌ Hiding dropdown menu: ${feature} (no visible children and not authorized)`);
+                        }
+                    }); 
+                    console.log(`🎯 Company feature authorization completed - ${visibleCount} items initially visible`);
+                    // Return authorized pages for role-based filtering
+                    return authorizedPages;
+                }catch(e){ 
+                    console.error('❌ Error applying feature-based menu visibility:', e); 
+                    this.resetMenuVisibility(); 
+                    return [];
+                } 
+            }
+            
+            // Apply role-based filtering within company authorized features
+            async applyRoleBasedFiltering(companyId, userRole, authorizedPages) {
+                try {
+                    console.log('👤 Applying role-based filtering for role:', userRole);
+                    
+                    // Get user role permissions from company
+                    const database = firebase.database();
+                    const permissionsRef = database.ref(`companies/${companyId}/roles/${userRole}/permissions`);
+                    const permissionsSnapshot = await permissionsRef.once('value');
+                    
+                    if (!permissionsSnapshot.exists()) {
+                        console.log(`⚠️ No permissions found for role ${userRole} in company ${companyId}`);
+                        
+                        // CRITICAL: If user is administrator but no permissions found, provide full access as fallback
+                        if (userRole === 'administrator') {
+                            console.log('🔑 ADMINISTRATOR FALLBACK - Skipping role filtering (keeping all company features visible)');
+                            this.showSidebarAfterAuth();
+                            return;
+                        }
+                        
+                        // For other roles without permissions, hide all items with permission requirements
+                        console.log('❌ No valid permissions found - filtering out items requiring permissions');
+                        this.hideItemsRequiringPermissions();
+                        this.showSidebarAfterAuth();
+                        return;
+                    }
+                    
+                    const permissions = permissionsSnapshot.val();
+                    console.log('✅ Loaded role permissions:', permissions);
+                    
+                    // Apply permission-based filtering
+                    this.filterMenuByPermissions(permissions);
+                    
+                } catch (error) {
+                    console.error('❌ Error applying role-based filtering:', error);
+                    // Don't hide everything on error - keep company features visible
+                    this.showSidebarAfterAuth();
+                }
+            }
+
+            // Filter currently visible menu items by role permissions
+            filterMenuByPermissions(permissions) {
+                console.log('🔍 Filtering visible menu items by role permissions...');
+                
+                if (!permissions) {
+                    console.log('⚠️ No permissions object provided');
+                    this.hideItemsRequiringPermissions();
+                    this.showSidebarAfterAuth();
+                    return;
+                }
+                
+                // Only check items that are already visible from company features
+                const visibleMenuItems = document.querySelectorAll('li.menu-visible[data-requires-permission]');
+                console.log(`🎯 Found ${visibleMenuItems.length} visible menu items requiring permissions to check`);
+                
+                let hiddenCount = 0;
+                
+                visibleMenuItems.forEach(item => {
+                    const requiresPermission = item.getAttribute('data-requires-permission');
+                    const feature = item.getAttribute('data-feature');
+                    
+                    if (requiresPermission) {
+                        const hasPermission = permissions[requiresPermission];
+                        const hasViewPermission = hasPermission === true || 
+                                                 (hasPermission && hasPermission.view === true);
+                        
+                        if (!hasViewPermission) {
+                            item.classList.remove('menu-visible');
+                            hiddenCount++;
+                            console.log(`❌ Hiding menu item (no permission): ${feature} (requires: ${requiresPermission})`);
+                        } else {
+                            console.log(`✅ Keeping menu item visible: ${feature} (has permission: ${requiresPermission})`);
+                        }
+                    }
+                });
+                
+                // Re-check dropdown menus after permission filtering
+                const dropdownMenus = document.querySelectorAll('li.menu-dropdown');
+                dropdownMenus.forEach(dropdown => {
+                    const submenuItems = dropdown.querySelectorAll('.submenu li.menu-visible');
+                    const dropdownFeature = dropdown.getAttribute('data-feature');
+                    
+                    if (submenuItems.length === 0) {
+                        dropdown.classList.remove('menu-visible');
+                        console.log(`❌ Hiding dropdown (no visible children): ${dropdownFeature}`);
+                    } else {
+                        console.log(`✅ Keeping dropdown visible (has ${submenuItems.length} visible children): ${dropdownFeature}`);
+                    }
+                });
+                
+                console.log(`🎯 Role-based filtering completed - ${hiddenCount} items hidden due to lack of permissions`);
+                
+                // Show sidebar after all filtering is complete
+                this.showSidebarAfterAuth();
+            }
+
+            // Hide menu items that require permissions (for users without role permissions)
+            hideItemsRequiringPermissions() {
+                console.log('🔒 Hiding all menu items that require permissions...');
+                
+                const itemsRequiringPermissions = document.querySelectorAll('li.menu-visible[data-requires-permission]');
+                let hiddenCount = 0;
+                
+                itemsRequiringPermissions.forEach(item => {
+                    const feature = item.getAttribute('data-feature');
+                    const requiresPermission = item.getAttribute('data-requires-permission');
+                    
+                    item.classList.remove('menu-visible');
+                    hiddenCount++;
+                    console.log(`❌ Hiding menu item (requires permission): ${feature} (${requiresPermission})`);
+                });
+                
+                console.log(`🔒 Hidden ${hiddenCount} items requiring permissions`);
+            }
+
+            // Show sidebar and remove loading state after authentication and filtering
+            showSidebarAfterAuth() {
+                const sidebar = document.querySelector('.sidebar');
+                if (sidebar) {
+                    sidebar.classList.remove('menu-loading');
+                    console.log('✅ Sidebar loading state removed - menu authorization complete');
+                }
+                
+                // Apply button permission filtering after menu is ready
+                this.updateButtonVisibility();
+            }
+
+            // Update button visibility based on user permissions
+            async updateButtonVisibility() {
+                if (!this.currentUser?.companyId || !this.currentUser?.role) {
+                    console.log('⚠️ No user data for button filtering');
+                    return;
+                }
+
+                try {
+                    // Get user permissions
+                    const database = firebase.database();
+                    const permissionsRef = database.ref(`companies/${this.currentUser.companyId}/roles/${this.currentUser.role}/permissions`);
+                    const permissionsSnapshot = await permissionsRef.once('value');
+
+                    if (!permissionsSnapshot.exists()) {
+                        console.log('⚠️ No permissions found for button filtering');
+                        // For administrators, show all buttons
+                        if (this.currentUser.role === 'administrator') {
+                            console.log('🔑 ADMINISTRATOR - Showing all buttons');
+                            const actionButtons = document.querySelectorAll('[data-action]');
+                            actionButtons.forEach(button => {
+                                button.classList.add('permission-checked');
+                            });
+                            return;
+                        }
+                        // For other roles, hide action buttons
+                        this.hideAllActionButtons();
+                        return;
+                    }
+
+                    const permissions = permissionsSnapshot.val();
+                    console.log('🔍 Filtering buttons by permissions...');
+                    
+                    // Get all buttons with data-action attributes
+                    const actionButtons = document.querySelectorAll('[data-action]');
+                    console.log(`📋 Found ${actionButtons.length} action buttons to filter`);
+                    
+                    actionButtons.forEach(button => {
+                        const action = button.getAttribute('data-action');
+                        const feature = button.getAttribute('data-feature') || 'risk_view';
+                        
+                        // Check if user has permission for this action
+                        const hasPermission = this.checkActionPermission(permissions, feature, action);
+                        
+                        if (hasPermission) {
+                            button.classList.add('permission-checked');
+                            console.log(`✅ Showing button: ${feature}.${action}`);
+                        } else {
+                            button.classList.remove('permission-checked');
+                            console.log(`❌ Hiding button: ${feature}.${action} (no permission)`);
+                        }
+                    });
+
+                    console.log('✅ Button permission filtering completed');
+                    
+                } catch (error) {
+                    console.error('❌ Error filtering buttons by permissions:', error);
+                    // On error, show all buttons for administrators, hide for others
+                    if (this.currentUser.role === 'administrator') {
+                        console.log('🔑 Error fallback - showing all buttons for administrator');
+                    } else {
+                        this.hideAllActionButtons();
+                    }
+                }
+            }
+
+            // Check if user has permission for a specific action
+            checkActionPermission(permissions, feature, action) {
+                if (!permissions || !feature || !action) return false;
+
+                // Map action to permission type
+                const permissionMap = {
+                    'create': 'create',
+                    'edit': 'edit',
+                    'delete': 'delete',
+                    'approve': 'approve',
+                    'decline': 'approve', // decline requires approve permission
+                    'export': 'export',
+                    'view': 'view'
+                };
+
+                const permissionType = permissionMap[action] || 'view';
+                
+                // Check if feature permission exists
+                if (!permissions[feature]) {
+                    console.log(`⚪ No permissions found for feature: ${feature}`);
+                    return false;
+                }
+
+                const featurePermissions = permissions[feature];
+                
+                // If permission is just boolean true, allow all actions
+                if (featurePermissions === true) {
+                    return true;
+                }
+
+                // If permission is an object, check specific action
+                if (typeof featurePermissions === 'object') {
+                    return featurePermissions[permissionType] === true;
+                }
+
+                return false;
+            }
+
+            // Hide all action buttons (fallback for users without permissions)
+            hideAllActionButtons() {
+                const actionButtons = document.querySelectorAll('[data-action]');
+                actionButtons.forEach(button => {
+                    button.classList.remove('permission-checked');
+                });
+                console.log('🔒 Hidden all action buttons - no permissions');
+            }
+
+            async loadUserRole(user){ 
+                if(user.role||!user.uid) return; 
+                try{ 
+                    const snap=await firebase.database().ref(`users/${user.uid}`).once('value'); 
+                    if(snap.exists()){ 
+                        user.role=snap.val().role||'user'; 
+                        this.setCurrentUser(user);
+                    } 
+                }catch(e){ 
+                    console.warn('Role load error',e);
+                } 
+            }
+            async loadUserCompany(){ 
+                if(!this.currentUser) return; 
+                try{ 
+                    const snap=await firebase.database().ref('companies').once('value'); 
+                    if(!snap.exists()) { 
+                        this.resetMenuVisibility(); 
+                        return;
+                    } 
+                    const companies=snap.val(); 
+                    for(const [cid,comp] of Object.entries(companies)){ 
+                        if(comp.status!=='active') continue; 
+                        if(comp.users){ 
+                            for(const [uid,u] of Object.entries(comp.users)){ 
+                                if(u.authUid===this.currentUser.uid || uid===this.currentUser.uid){ 
+                                    this.currentUser.companyId=cid; 
+                                    this.currentUser.companyName=comp.companyName; 
+                                    this.currentUser.role=u.role || u.userRole || 'user'; // Set user role from company user record
+                                    this.currentCompany=comp; 
+                                    this.setCurrentUser(this.currentUser); 
+                                    console.log('✅ Found user in company:', cid, 'with role:', this.currentUser.role);
+                                    this.updateCompanyBranding(); 
+                                    await this.updateMenuVisibility(); 
+                                    
+                                    // Initialize company-scoped risks listener
+                                    initializeCompanyRisksListener();
+                                    
+                                    return; 
+                                }
+                            }
+                        } 
+                    } 
+                    this.resetMenuVisibility(); 
+                }catch(e){ 
+                    console.error('Company load error',e); 
+                    this.resetMenuVisibility(); 
+                } 
+            }
+            updateCompanyBranding(){ 
+                if(!this.currentCompany){ 
+                    this.showFallbackBranding(); 
+                    return;
+                } 
+                const logoEl=document.getElementById('headerCompanyLogo'); 
+                const nameEl=document.getElementById('headerCompanyName'); 
+                if(nameEl) nameEl.textContent=this.currentCompany.companyName||''; 
+                const logoUrl=this.currentCompany.logo||this.currentCompany.logoUrl; 
+                if(logoEl){ 
+                    if(logoUrl){ 
+                        logoEl.src=logoUrl; 
+                        logoEl.classList.add('visible'); 
+                    } else { 
+                        const svg=this.generateCompanyInitialsSVG(this.getCompanyInitials(this.currentCompany.companyName||'')); 
+                        logoEl.src=svg; 
+                        logoEl.classList.add('visible'); 
+                    }
+                } 
+                if(this.currentCompany.branding){ 
+                    const root=document.documentElement; 
+                    if(this.currentCompany.branding.primaryColor) root.style.setProperty('--primary-color',this.currentCompany.branding.primaryColor); 
+                    if(this.currentCompany.branding.secondaryColor) root.style.setProperty('--secondary-color',this.currentCompany.branding.secondaryColor); 
+                }
+            }
+            showFallbackBranding(){ 
+                const logoEl=document.getElementById('headerCompanyLogo'); 
+                if(logoEl){ 
+                    const svg=this.generateCompanyInitialsSVG('DX'); 
+                    logoEl.src=svg; 
+                    logoEl.classList.add('visible'); 
+                }
+            } 
+            getCompanyInitials(name){ 
+                if(!name) return 'CO'; 
+                const parts=name.trim().split(/\s+/); 
+                if(parts.length===1) return parts[0].substring(0,2).toUpperCase(); 
+                return (parts[0][0]+parts[1][0]).toUpperCase(); 
+            }
+            generateCompanyInitialsSVG(initials){ 
+                const svg=`<svg width="44" height="44" viewBox="0 0 44 44" xmlns="http://www.w3.org/2000/svg"><rect width="44" height="44" rx="6" fill="#f0f3f6"/><text x="50%" y="52%" dominant-baseline="middle" text-anchor="middle" fill="#495057" font-family="Inter,Arial,sans-serif" font-weight="600" font-size="14">${initials}</text></svg>`; 
+                return 'data:image/svg+xml;base64,'+btoa(svg); 
+            }
+            getUserDisplayName(){ 
+                if(!this.currentUser) return 'User'; 
+                const n=v=> typeof v==='string'? v.trim().replace(/\s+/g,' '):''; 
+                const cand=[this.currentUser.displayName,this.currentUser.name,this.currentUser.username]; 
+                for(const c of cand){
+                    const cleaned=n(c); 
+                    if(cleaned) return cleaned;
+                } 
+                if(this.currentUser.email) return n(this.currentUser.email.split('@')[0])||'User'; 
+                return 'User'; 
+            }
+            getUserInitials(){ 
+                const dn=this.getUserDisplayName(); 
+                const parts=dn.split(' ').filter(Boolean); 
+                if(parts.length===1) return parts[0].substring(0,2).toUpperCase(); 
+                return parts.slice(0,2).map(p=>p[0]).join('').toUpperCase(); 
+            }
+            async getUserAvatarUrl(){ 
+                if(!this.currentUser) {
+                    console.log('getUserAvatarUrl: No current user');
+                    return null; 
+                }
+                
+                // Get company ID for scoped path
+                const companyId = this.currentUser.companyId || 'default';
+                console.log('🏢 Using company ID for avatar path:', companyId);
+                
+                try{ 
+                    // Try company-scoped paths first, then fallback to global paths
+                    const possiblePaths = [
+                        // Company-scoped paths (preferred)
+                        `companies/${companyId}/avatars/${this.currentUser.uid}/profile.jpg`,
+                        `companies/${companyId}/avatars/${this.currentUser.uid}/profile.png`,
+                        `companies/${companyId}/avatars/${this.currentUser.uid}/profile.jpeg`,
+                        `companies/${companyId}/avatars/${this.currentUser.uid}/avatar.jpg`,
+                        `companies/${companyId}/avatars/${this.currentUser.uid}/avatar.png`,
+                        // Global fallback paths
+                        `avatars/${this.currentUser.uid}/profile.jpg`,
+                        `avatars/${this.currentUser.uid}/profile.png`,
+                        `avatars/${this.currentUser.uid}/avatar.jpg`,
+                        `avatars/${this.currentUser.uid}/avatar.png`,
+                        `profiles/${this.currentUser.uid}/profile.jpg`,
+                        `profiles/${this.currentUser.uid}/profile.png`
+                    ];
+                    
+                    for(const path of possiblePaths) {
+                        try {
+                            const ref = firebase.storage().ref(path);
+                            const url = await ref.getDownloadURL();
+                            console.log(`✅ Found profile picture at: ${path}`);
+                            return url;
+                        } catch(err) {
+                            console.log(`❌ No profile picture at: ${path}`);
+                            continue;
+                        }
+                    }
+                    
+                    console.log('No profile picture found in any path');
+                    return null;
+                } catch(error) { 
+                    console.error('Error getting user avatar:', error);
+                    return null; 
+                }
+            }
+            async updateUIForAuthenticatedUser(){ 
+                console.log('🔄 updateUIForAuthenticatedUser called');
+                const btn=document.getElementById('userProfileBtn'); 
+                const list=document.querySelector('.profile-dropdown ul'); 
+                const userAvatarImg=document.getElementById('userAvatarImg');
+                const userInitials=document.getElementById('userInitials');
+                
+                if(!btn||!list||!this.currentUser) {
+                    console.log('❌ Missing elements:', {btn: !!btn, list: !!list, user: !!this.currentUser});
+                    return; 
+                }
+                
+                const displayName=this.getUserDisplayName(); 
+                const email=this.currentUser.email||''; 
+                console.log('👤 User info:', {displayName, email, uid: this.currentUser.uid});
+                
+                // Set user initials first as fallback
+                if(userInitials) {
+                    const initials = this.getUserInitials();
+                    userInitials.textContent = initials;
+                    console.log('🔤 Set user initials:', initials);
+                } else {
+                    console.error('❌ userInitials element not found');
+                }
+                
+                // Try to get avatar URL with detailed logging
+                let avatarUrl = null;
+                try {
+                    avatarUrl = await this.getUserAvatarUrl();
+                    console.log('�️ Avatar URL result:', avatarUrl);
+                } catch(error) {
+                    console.error('❌ Error getting avatar URL:', error);
+                }
+                
+                // Update header avatar display
+                if(avatarUrl && userAvatarImg) { 
+                    console.log('✅ Setting avatar image:', avatarUrl);
+                    userAvatarImg.src = avatarUrl; 
+                    userAvatarImg.alt = displayName + ' Avatar';
+                    userAvatarImg.style.display = 'block';
+                    if(userInitials) userInitials.style.display = 'none';
+                    
+                    // Handle image load error
+                    userAvatarImg.onerror = () => {
+                        console.log('❌ Avatar image failed to load, showing initials');
+                        userAvatarImg.style.display = 'none';
+                        if(userInitials) userInitials.style.display = 'flex';
+                    };
+                } else { 
+                    console.log('🔤 No avatar URL, showing initials');
+                    if(userAvatarImg) userAvatarImg.style.display = 'none';
+                    if(userInitials) userInitials.style.display = 'flex';
+                }
+                
+                // Update dropdown content
+                const avatarHtml= avatarUrl? `<img src="${avatarUrl}" alt="${displayName} Avatar" style="width:32px;height:32px;border-radius:50%;object-fit:cover;">` : `<div style="width:32px;height:32px;border-radius:50%;background:#3498db;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:12px;">${this.getUserInitials()}</div>`; 
+                list.innerHTML=`<li style="border-bottom:1px solid #eee;padding:12px 16px;background:#f8f9fa;"><div style="display:flex;align-items:center;gap:12px;">${avatarHtml}<div><div style="font-weight:600;color:#333;font-size:14px;margin-bottom:2px;">${displayName}</div><div style="color:#666;font-size:12px;">${email}</div></div></div></li><li><a href="account.html"><i class="fas fa-user"></i> Account Settings</a></li><li><a href="#" id="logoutLink"><i class="fas fa-sign-out-alt"></i> Logout</a></li>`; 
+                list.querySelector('#logoutLink')?.addEventListener('click',e=>{e.preventDefault(); this.logout();}); 
+            }
+        } 
+
+        // Initialize global instances
+        let authManager;
+        
+        // Ensure DOM is ready before initializing AuthManager
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🔧 DOM ready, initializing AuthManager...');
+            
+            // Check if user is in localStorage
+            const storedUser = localStorage.getItem('currentUser');
+            console.log('📦 Stored user in localStorage:', storedUser ? 'Found' : 'Not found');
+            
+            if (!storedUser) {
+                console.warn('❌ No user found in localStorage, redirecting to login');
+                window.location.href = 'login.html';
+                return;
+            }
+            
+            window.authManager = new AuthManager();
+            authManager = window.authManager;
+        });
+        
+        // Debug function for testing profile dropdown (can be called from browser console)
+        window.testProfileDropdown = function() {
+            console.log('🧪 Testing profile dropdown functionality...');
+            const btn = document.getElementById('userProfileBtn');
+            const dropdown = document.querySelector('.profile-dropdown');
+            
+            console.log('🔍 Elements:', {
+                button: !!btn,
+                dropdown: !!dropdown,
+                buttonVisible: btn ? getComputedStyle(btn).display !== 'none' : false,
+                dropdownClasses: dropdown ? Array.from(dropdown.classList) : []
+            });
+            
+            if (btn && dropdown) {
+                console.log('🖱️ Simulating click...');
+                btn.click();
+                
+                setTimeout(() => {
+                    const isVisible = dropdown.classList.contains('show');
+                    console.log('📋 Dropdown visible after click:', isVisible);
+                    
+                    if (!isVisible) {
+                        console.log('❌ Dropdown not showing. Manual toggle...');
+                        dropdown.classList.add('show');
+                        console.log('✅ Manually added show class');
+                    }
+                }, 100);
+            } else {
+                console.error('❌ Missing elements for testing');
+            }
+        };
+        
+        // Debug function to check current authManager state
+        window.debugAuthState = function() {
+            console.log('🔧 Current auth state:');
+            console.log('AuthManager exists:', !!window.authManager);
+            console.log('Current user:', window.authManager?.currentUser);
+            console.log('Profile button:', !!document.getElementById('userProfileBtn'));
+            console.log('Profile dropdown:', !!document.querySelector('.profile-dropdown'));
+        };
+
+        // Create a global permissions manager
+        window.permissionsManager = {
+            // Check if user is an approver
+            async isUserApprover(currentUser, db) {
+                if (!currentUser) return false;
+
+                try {
+                    // Use company-scoped path for approval flow
+                    if (!currentUser.companyId) {
+                        console.warn('No company context available for checking approver status');
+                        return false;
+                    }
+
+                    const flowRef = firebase.database().ref(`companies/${currentUser.companyId}/approvalFlows/risk`);
+                    const snapshot = await flowRef.once('value');
+                    if (!snapshot.exists()) return false;
+
+                    const flow = snapshot.val();
+                    if (!flow.enabled) return false;
+                    
+                    const selectedRoles = flow.selectedRoles || {};
+
+                    // Get the current user's job title
+                    const userRef = firebase.database().ref(`users/${currentUser.uid}`);
+                    const userSnapshot = await userRef.once('value');
+                    if (!userSnapshot.exists()) return false;
+                    
+                    const userData = userSnapshot.val();
+                    const userJobTitle = userData.jobTitle?.toLowerCase();
+
+                    // Check each level for the current user
+                    for (const roles of Object.values(selectedRoles)) {
+                        for (const role of roles) {
+                            // Direct user assignment
+                            if (role.value === `user_${currentUser.uid}`) {
+                                return true;
+                            }
+
+                            // Function/role-based assignment
+                            if (role.value.startsWith('function_')) {
+                                const functionId = role.value.replace('function_', '').toLowerCase();
+                                if (userJobTitle === functionId) {
+                                    return true;
+                                }
+                            }
+                        }
+                    }
+                    return false;
+                } catch (error) {
+                    console.error('Error checking approver status:', error);
+                    return false;
+                }
+            }
+        };        
+          // Check if user can view a risk        
+        async function canViewRisk(risk) {
+            if (!currentUser) return false;
+            
+            // Allow view if user is the submitter
+            if (risk.submittedBy === currentUser.uid) return true;
+            
+            // Check if user is an approver in the approval flow
+            try {
+                // Use company-scoped path for approval flow
+                const currentUser = getCurrentUser();
+                if (!currentUser || !currentUser.companyId) {
+                    console.warn('No company context available for checking approval flow');
+                    return false;
+                }
+
+                const flowRef = firebase.database().ref(`companies/${currentUser.companyId}/approvalFlows/risk`);
+                const snapshot = await flowRef.once('value');
+                if (!snapshot.exists()) return false;
+
+                const flow = snapshot.val();
+                if (!flow.enabled) return false;
+                
+                const selectedRoles = flow.selectedRoles || {};
+
+                // Get the current user's job title
+                const userRef = ref(db, `users/${currentUser.uid}`);
+                const userSnapshot = await get(userRef);
+                if (!userSnapshot.exists()) return false;
+                
+                const userData = userSnapshot.val();
+                const userJobTitle = userData.jobTitle?.toLowerCase();
+
+                // Check each level for the current user
+                for (const roles of Object.values(selectedRoles)) {
+                    for (const role of roles) {
+                        // Direct user assignment
+                        if (role.value === `user_${currentUser.uid}`) {
+                            return true;
+                        }
+
+                        // Function/role-based assignment
+                        if (role.value.startsWith('function_')) {
+                            const functionId = role.value.replace('function_', '').toLowerCase();
+                            if (userJobTitle === functionId) {
+                                return true;
+                            }
+                        }
+                    }
+                }
+                return false;
+            } catch (error) {
+                console.error('Error checking view permission:', error);
+                return false;
+            }
+        }
+
+        // Check if user can edit a risk
+        function canEditRisk(risk) {
+            if (!currentUser) return false;
+            return risk.submittedBy === currentUser.uid;
+        }
+
+        // Check if user can approve/decline a risk
+        async function canApproveRisk(risk) {
+            if (!currentUser) return false;
+
+            try {
+                const approvalConfig = await getApprovalConfig(risk);
+                if (!approvalConfig) return false;
+
+                // Get the selectedRoles from the approval flow configuration
+                const selectedRoles = approvalConfig.selectedRoles || {};
+                const currentUser = getCurrentUser();
+                
+                if (!currentUser) return false;
+
+                // Get user data to check job title for function-based approvers
+                let userData = null;
+                try {
+                    const userRef = firebase.database().ref(`users/${currentUser.uid}`);
+                    const userSnapshot = await userRef.once('value');
+                    if (userSnapshot.exists()) {
+                        userData = userSnapshot.val();
+                    }
+                } catch (error) {
+                    console.warn('Could not fetch user data for approval check:', error);
+                }
+
+                // Check each approval level to see if current user is an approver
+                for (const [levelKey, roles] of Object.entries(selectedRoles)) {
+                    if (!Array.isArray(roles)) continue;
+                    
+                    // Check if this level is pending (not yet completed)
+                    const currentLevelData = risk.approvalFlow?.[levelKey] || { status: 'pending', approvers: [] };
+                    if (currentLevelData.status === 'completed') continue;
+
+                    // Check if current user is in this level's approvers
+                    for (const role of roles) {
+                        // Direct user assignment
+                        if (role.value === `user_${currentUser.uid}`) {
+                            return true;
+                        }
+
+                        // Function/role-based assignment
+                        if (role.value && role.value.startsWith('function_') && userData) {
+                            const functionId = role.value.replace('function_', '').toLowerCase();
+                            const userJobTitle = userData.jobTitle?.toLowerCase();
+                            if (userJobTitle === functionId) {
+                                return true;
+                            }
+                        }
+                    }
+                }
+
+                return false;
+            } catch (error) {
+                console.error('Error checking approval permission:', error);
+                return false;
+            }
+        }
+
+        // Get approval configuration for a risk
+        async function getApprovalConfig(risk) {
+            try {
+                // Get current user's company ID for company-scoped approval flow
+                const currentUser = getCurrentUser();
+                if (!currentUser || !currentUser.companyId) {
+                    console.warn('No company context available for fetching approval config');
+                    return null;
+                }
+
+                // Use company-scoped path: companies/{companyId}/approvalFlows/risk
+                const approvalRef = firebase.database().ref(`companies/${currentUser.companyId}/approvalFlows/risk`);
+                const snapshot = await approvalRef.once('value');
+                const config = snapshot.val();
+                
+                if (config && config.enabled) {
+                    return config;
+                } else {
+                    console.log('Risk approval flow is not configured or disabled for this company');
+                    return null;
+                }
+            } catch (error) {
+                console.error('Error fetching company-specific approval config:', error);
+                return null;
+            }
+        }
+
+        // Function to format date
+        function formatDate(dateString) {
+            return new Date(dateString).toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+
+        // Function to create severity badge
+        function createSeverityBadge(severity) {
+            return `<span class="severity-badge ${severity.toLowerCase()}">${severity}</span>`;
+        }
+
+        // Function to create status badge
+        function createStatusBadge(status) {
+            return `<span class="status-badge ${status.toLowerCase()}">${status}</span>`;
+        }
+
+        // Function to get user display name (company-scoped first, with simple cache)
+        const userNameCache = {};
+        async function getUserDisplayName(userId) {
+            if (!userId) return 'N/A';
+            if (userNameCache[userId]) return userNameCache[userId];
+            try {
+                const currentUser = getCurrentUser();
+                const companyId = currentUser?.companyId;
+
+                // Try company-scoped user record first
+                if (companyId) {
+                    const companyUserSnapshot = await firebase.database().ref(`companies/${companyId}/users/${userId}`).once('value');
+                    if (companyUserSnapshot.exists()) {
+                        const cu = companyUserSnapshot.val();
+                        const name = `${cu.firstName || ''} ${cu.lastName || ''}`.trim() || cu.displayName || cu.name || cu.email || 'N/A';
+                        userNameCache[userId] = name;
+                        return name;
+                    }
+                }
+
+                // Fallback to global users collection
+                const userSnapshot = await firebase.database().ref(`users/${userId}`).once('value');
+                if (userSnapshot.exists()) {
+                    const userData = userSnapshot.val();
+                    const name = `${userData.firstName || ''} ${userData.lastName || ''}`.trim() || userData.displayName || userData.name || userData.email || 'N/A';
+                    userNameCache[userId] = name;
+                    return name;
+                }
+                return 'N/A';
+            } catch (error) {
+                console.error('Error fetching user data:', error);
+                return 'N/A';
+            }
+        }
+
+        // Function to load and display approver name
+        async function loadApproverName(userId, riskId) {
+            try {
+                const approverNameElement = document.getElementById(`approverName-${riskId}`);
+                if (!approverNameElement) return;
+                
+                const displayName = await getUserDisplayName(userId);
+                approverNameElement.textContent = displayName;
+            } catch (error) {
+                console.error('Error loading approver name:', error);
+                const approverNameElement = document.getElementById(`approverName-${riskId}`);
+                if (approverNameElement) {
+                    approverNameElement.textContent = 'Error loading name';
+                }
+            }
+        }
+
+        // Function to populate table with risks
+        async function populateRisksTable(risks) {
+            const tableBody = document.querySelector('#riskTable tbody');
+                tableBody.innerHTML = '';
+                window._risksCache = {};
+
+                currentUser = await getCurrentUser();
+                if (!currentUser) return;
+
+                if (!risks) return;
+
+                for (const [id, risk] of Object.entries(risks)) {
+                    try {
+                        if (!await canViewRisk(risk)) continue;
+                        const displayName = await getUserDisplayName(risk.submittedBy);
+                        const row = document.createElement('tr');
+                        row.classList.add('clickable-row');
+                        row.dataset.riskId = id;
+                        window._risksCache[id] = risk;
+                        row.innerHTML = `
+                            <td>${risk.riskID || risk.id || id}</td>
+                            <td>${risk.riskTitle || risk.title || 'N/A'}</td>
+                            <td>${risk.department || 'N/A'}</td>
+                            <td>${risk.hazardType || risk.type || 'N/A'}</td>
+                            <td>${createSeverityBadge(risk.severity || 'Low')}</td>
+                            <td>${risk.location || 'N/A'}</td>
+                            <td>${displayName}</td>
+                            <td>${formatDate(risk.dateSubmitted || new Date())}</td>
+                            <td>${createStatusBadge(risk.status || 'Pending')}</td>`;
+                        row.addEventListener('click', () => {
+                            console.debug('[RiskBoard] Direct row click', id);
+                            showRiskDetails(risk, id);
+                        });
+                        tableBody.appendChild(row);
+                    } catch (err) {
+                        console.error('Error rendering risk row', id, err);
+                    }
+                }
+                
+                // Check if modal is open and refresh it with updated data
+                refreshOpenModal();
+        }
+
+        // Function to decode Firebase-safe keys back to readable names
+        function decodeFirebaseSafeKey(encodedKey) {
+            return encodedKey
+                .replace(/_DOT_/g, '.')
+                .replace(/_HASH_/g, '#')
+                .replace(/_DOLLAR_/g, '$')
+                .replace(/_SLASH_/g, '/')
+                .replace(/_LBRACKET_/g, '[')
+                .replace(/_RBRACKET_/g, ']');
+        }
+
+        // Function to refresh the currently open modal with updated data
+        async function refreshOpenModal() {
+            try {
+                // Check if modal is currently open and we have a current risk ID
+                const modal = document.getElementById('riskModal');
+                if (!modal || !modal.classList.contains('show') || !window._currentRiskId) {
+                    return; // No modal open, nothing to refresh
+                }
+                
+                // Get updated risk data from cache
+                const updatedRisk = window._risksCache[window._currentRiskId];
+                if (!updatedRisk) {
+                    console.warn('⚠️ Current risk not found in updated cache:', window._currentRiskId);
+                    return;
+                }
+                
+                console.log('🔄 Refreshing open modal for risk:', window._currentRiskId);
+                
+                // Refresh the modal content without closing/reopening
+                await showRiskDetails(updatedRisk, window._currentRiskId);
+                
+            } catch (error) {
+                console.error('❌ Error refreshing open modal:', error);
+            }
+        }
+
+        // Function to show risk details in modal
+        async function showRiskDetails(risk, riskId) {
+            if (!risk) { console.warn('[RiskBoard] showRiskDetails called with null risk', riskId); return; }
+            console.debug('[RiskBoard] Opening modal for', riskId);
+            
+            // Store current risk ID globally for action functions
+            window._currentRiskId = riskId;
+            
+            const modalBody = document.getElementById('riskModalBody');
+            let canEdit = false, canApprove = false, submitterName = 'N/A';
+            try {
+                canEdit = canEditRisk(risk);
+                canApprove = await canApproveRisk(risk);
+                submitterName = await getUserDisplayName(risk.submittedBy);
+
+            // Fallback mapping for legacy fields
+            const hazard = risk.hazard || risk.type || 'N/A';
+            const hazardType = risk.hazardType || risk.type || 'N/A';
+            const riskCategory = risk.riskCategory || risk.category || 'N/A';
+            const dateIdentified = risk.dateIdentified || risk.dateSubmitted || new Date();
+            const requestor = risk.requestor || submitterName || 'N/A';
+
+            // Title normalization
+            const riskTitle = risk.riskTitle || risk.title || 'N/A';
+
+            // Inherent (legacy fallback to likelihood/impact)
+            const inherentLikelihood = risk.inherentLikelihood || risk.likelihood || 'N/A';
+            const inherentImpact = risk.inherentImpact || risk.impact || 'N/A';
+            const inherentRating = risk.inherentRating || risk.rating || '';
+            const inherentLevel = risk.inherentLevel || risk.level || '';
+
+            // Residual
+            const residualLikelihood = risk.residualLikelihood || 'N/A';
+            const residualImpact = risk.residualImpact || 'N/A';
+            const residualRating = risk.residualRating || '';
+            const residualLevel = risk.residualLevel || '';
+
+            // Risk Strategy / Severity (fallback)
+            const riskStrategy = risk.riskStrategy || 'N/A';
+            const severityBadge = createSeverityBadge(risk.severity || inherentLevel || 'Low');
+
+            // Controls & Actions normalization (array of strings expected from form)
+            const controlsList = Array.isArray(risk.controls) ? risk.controls : [];
+            const actionsList = Array.isArray(risk.actions) ? risk.actions : [];
+
+            // Attachments normalization
+            const attachments = risk.attachments && typeof risk.attachments === 'object' ? risk.attachments : null;
+
+            modalBody.innerHTML = `
+                <div class="risk-info-grid">
+                    <div class="info-item">
+                        <strong><i class="fas fa-hashtag"></i> Risk ID</strong>
+                        <span>${risk.riskID || risk.id || riskId}</span>
+                    </div>
+                    <div class="info-item">
+                        <strong><i class="fas fa-user"></i> Requestor</strong>
+                        <span>${requestor}</span>
+                    </div>
+                    <div class="info-item">
+                        <strong><i class="fas fa-calendar-day"></i> Date Identified</strong>
+                        <span>${formatDate(dateIdentified)}</span>
+                    </div>
+                    <div class="info-item">
+                        <strong><i class="fas fa-calendar-alt"></i> Submitted</strong>
+                        <span>${formatDate(risk.submittedAt || risk.dateSubmitted || dateIdentified)}</span>
+                    </div>
+                    <div class="info-item">
+                        <strong><i class="fas fa-building"></i> Department</strong>
+                        <span>${risk.department || 'N/A'}</span>
+                    </div>
+                    <div class="info-item">
+                        <strong><i class="fas fa-map-marker-alt"></i> Location</strong>
+                        <span>${risk.location || 'N/A'}</span>
+                    </div>
+                    <div class="info-item">
+                        <strong><i class="fas fa-exclamation-circle"></i> Hazard</strong>
+                        <span>${hazard}</span>
+                    </div>
+                    <div class="info-item">
+                        <strong><i class="fas fa-tags"></i> Hazard Type</strong>
+                        <span>${hazardType}</span>
+                    </div>
+                    <div class="info-item">
+                        <strong><i class="fas fa-layer-group"></i> Risk Category</strong>
+                        <span>${riskCategory}</span>
+                    </div>
+                    <div class="info-item">
+                        <strong><i class="fas fa-route"></i> Strategy</strong>
+                        <span>${riskStrategy}</span>
+                    </div>
+                    <div class="info-item">
+                        <strong><i class="fas fa-thermometer-half"></i> Severity</strong>
+                        <span>${severityBadge}</span>
+                    </div>
+                </div>
+
+                <div class="risk-description">
+                    <h3><i class="fas fa-info-circle"></i> Title & Description</h3>
+                    <div class="section-content">
+                        <div class="detail-group">
+                            <label><i class="fas fa-heading"></i> Title</label>
+                            <p>${riskTitle}</p>
+                        </div>
+                        <div class="detail-group">
+                            <label><i class="fas fa-align-left"></i> Description</label>
+                            <p>${risk.description || 'No description provided'}</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="assessment-grid">
+                    <div class="assessment-box">
+                        <h4><i class="fas fa-biohazard"></i> Inherent Risk (Before Controls)</h4>
+                        <div class="assessment-details">
+                            <div class="detail-item"><strong>Likelihood:</strong> <span>${inherentLikelihood}</span></div>
+                            <div class="detail-item"><strong>Impact:</strong> <span>${inherentImpact}</span></div>
+                            <div class="detail-item"><strong>Rating:</strong> <span>${inherentRating || '-'}</span></div>
+                            <div class="detail-item"><strong>Level:</strong> <span>${inherentLevel || '-'}</span></div>
+                        </div>
+                    </div>
+                    <div class="assessment-box">
+                        <h4><i class="fas fa-shield-alt"></i> Residual Risk (After Controls)</h4>
+                        <div class="assessment-details">
+                            <div class="detail-item"><strong>Likelihood:</strong> <span>${residualLikelihood}</span></div>
+                            <div class="detail-item"><strong>Impact:</strong> <span>${residualImpact}</span></div>
+                            <div class="detail-item"><strong>Rating:</strong> <span>${residualRating || '-'}</span></div>
+                            <div class="detail-item"><strong>Level:</strong> <span>${residualLevel || '-'}</span></div>
+                        </div>
+                    </div>
+                    <div class="approval-section detail-section">
+                        <h3><i class="fas fa-check-circle"></i> Approval Status</h3>
+                        <div class="section-content">
+                            <div class="approval-status">
+                                <div class="detail-group">
+                                    <label><i class="fas fa-flag"></i> Current Status</label>
+                                    <span>${createStatusBadge(risk.status || 'Pending')}</span>
+                                </div>
+                                ${risk.approvedBy ? `
+                                <div class="detail-group">
+                                    <label><i class="fas fa-user-check"></i> Approved By</label>
+                                    <span id="approverName-${riskId}">Loading...</span>
+                                </div>
+                                <div class="detail-group">
+                                    <label><i class="fas fa-calendar-check"></i> Approval Date</label>
+                                    <span>${formatDate(risk.approvedAt)}</span>
+                                </div>` : ''}
+                                ${risk.rejectedBy ? `
+                                <div class="detail-group">
+                                    <label><i class="fas fa-user-times"></i> Rejected By</label>
+                                    <span>${risk.rejectedBy}</span>
+                                </div>
+                                <div class="detail-group">
+                                    <label><i class="fas fa-comment-alt"></i> Rejection Reason</label>
+                                    <p class="rejection-reason">${risk.rejectionReason || 'No reason provided'}</p>
+                                </div>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="approval-flow-container">
+                    <div class="approval-type">
+                        <i class="fas fa-tasks"></i>
+                        <span>Risk Assessment Approval Flow</span>
+                    </div>
+                    <div class="approval-levels">
+                        ${await getApprovalLevels(risk)}
+                    </div>
+                </div>
+
+                ${controlsList.length ? `
+                    <div class="controls-section">
+                        <h3><i class="fas fa-list-check"></i> Existing Controls</h3>
+                        <ul class="controls-list">
+                            ${controlsList.map(c => `<li>${c}</li>`).join('')}
+                        </ul>
+                    </div>` : ''}
+
+                ${actionsList.length ? `
+                    <div class="controls-section">
+                        <h3><i class="fas fa-clipboard-list"></i> Action Plan</h3>
+                        <ul class="action-plan-list">
+                            ${actionsList.map(a => `<li>${a}</li>`).join('')}
+                        </ul>
+                    </div>` : ''}
+
+                ${attachments ? `
+                    <div class="attachments">
+                        <h3><i class="fas fa-paperclip"></i> Attachments <span class="attachment-count">(${Object.keys(attachments).length})</span></h3>
+                        <div class="attachments-container">
+                            ${Object.entries(attachments).map(([key, value]) => {
+                                // Handle both old format (key: url) and new format (key: {url, originalName})
+                                const isNewFormat = typeof value === 'object' && value.url;
+                                const url = isNewFormat ? value.url : value;
+                                const displayName = isNewFormat ? value.originalName : decodeFirebaseSafeKey(key);
+                                
+                                return `
+                                    <div class="attachment-item">
+                                        <i class="fas fa-file"></i>
+                                        <div class="file-info">
+                                            <a href="${url}" target="_blank" class="file-name" title="Click to download">${displayName}</a>
+                                        </div>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    </div>` : ''}
+            `;
+
+            document.getElementById('riskModal').classList.add('show');
+                document.getElementById('riskModal').classList.add('show');
+                updateModalButtons(risk, canEdit, canApprove);
+                
+                // Load approver name if risk is approved
+                if (risk.approvedBy) {
+                    loadApproverName(risk.approvedBy, riskId);
+                }
+            } catch (err) {
+                console.error('[RiskBoard] Failed to render risk modal', riskId, err);
+                try {
+                    modalBody.innerHTML = `<div style="padding:1rem;color:#b00;">Error loading risk details: ${err.message}</div>`;
+                    document.getElementById('riskModal').classList.add('show');
+                } catch(_) {}
+            }
+
+        // Delegated click handler fallback
+        document.addEventListener('click', (ev) => {
+            const row = ev.target.closest('#riskTable tbody tr.clickable-row');
+            if (!row) return;
+            if (row.__delegatedHandled) return; // prevent duplicate immediate handling
+            row.__delegatedHandled = true;
+            setTimeout(()=>{ row.__delegatedHandled = false; }, 300);
+            const rid = row.dataset.riskId;
+            const risk = window._risksCache ? window._risksCache[rid] : null;
+            console.debug('[RiskBoard] Delegated click handler', rid, risk ? 'cached' : 'missing');
+            showRiskDetails(risk, rid);
+        });
+        }        // Function to update modal button states
+        function updateModalButtons(risk, canEdit, canApprove) {
+            const editBtn = document.getElementById('editRisk');
+            const deleteBtn = document.getElementById('deleteRisk');
+            const approveBtn = document.getElementById('approveRisk');
+            const declineBtn = document.getElementById('declineRisk');
+            const exportBtn = document.getElementById('exportRisk');
+
+            // Store the risk ID in all buttons for action functions
+            const riskId = window._currentRiskId || null;
+            if (riskId) {
+                editBtn.dataset.riskId = riskId;
+                deleteBtn.dataset.riskId = riskId;
+                approveBtn.dataset.riskId = riskId;
+                declineBtn.dataset.riskId = riskId;
+                exportBtn.dataset.riskId = riskId;
+            }
+
+            // Check if risk is approved - if so, hide all action buttons except export
+            const isApproved = risk.status === 'approved';
+            
+            if (isApproved) {
+                // Hide all action buttons when risk is approved
+                editBtn.classList.remove('menu-visible');
+                editBtn.style.display = 'none';
+                deleteBtn.classList.remove('menu-visible');
+                deleteBtn.style.display = 'none';
+                approveBtn.classList.remove('menu-visible');
+                approveBtn.style.display = 'none';
+                declineBtn.classList.remove('menu-visible');
+                declineBtn.style.display = 'none';
+            } else {
+                // Normal permission-based visibility when not approved
+                // Submitter permissions (edit/delete)
+                if (canEdit) {
+                    editBtn.classList.add('menu-visible');
+                    editBtn.style.display = 'inline-flex';
+                    deleteBtn.classList.add('menu-visible');
+                    deleteBtn.style.display = 'inline-flex';
+                } else {
+                    editBtn.classList.remove('menu-visible');
+                    editBtn.style.display = 'none';
+                    deleteBtn.classList.remove('menu-visible');
+                    deleteBtn.style.display = 'none';
+                }
+
+                // Approver permissions (approve/decline)
+                if (canApprove) {
+                    approveBtn.classList.add('menu-visible');
+                    approveBtn.style.display = 'inline-flex';
+                    declineBtn.classList.add('menu-visible');
+                    declineBtn.style.display = 'inline-flex';
+                } else {
+                    approveBtn.classList.remove('menu-visible');
+                    approveBtn.style.display = 'none';
+                    declineBtn.classList.remove('menu-visible');
+                    declineBtn.style.display = 'none';
+                }
+            }
+
+            // Export button is always visible
+            exportBtn.style.display = 'inline-flex';
+        }
+
+        // Close modal handlers
+        document.querySelectorAll('.close-modal, #closeRiskModal').forEach(button => {
+            button.addEventListener('click', () => {
+                document.getElementById('riskModal').classList.remove('show');
+            });
+        });
+
+        // Action button event listeners
+        document.getElementById('editRisk').addEventListener('click', function() {
+            const riskId = this.dataset.riskId;
+            editRisk(riskId);
+        });
+
+        document.getElementById('approveRisk').addEventListener('click', function() {
+            const riskId = this.dataset.riskId;
+            approveRisk(riskId);
+        });
+
+        document.getElementById('declineRisk').addEventListener('click', function() {
+            const riskId = this.dataset.riskId;
+            declineRisk(riskId);
+        });
+
+        document.getElementById('deleteRisk').addEventListener('click', function() {
+            const riskId = this.dataset.riskId;
+            deleteRisk(riskId);
+        });
+
+        document.getElementById('exportRisk').addEventListener('click', function() {
+            const riskId = this.dataset.riskId;
+            exportRisk(riskId);
+        });
+
+        // Action button functions
+        function editRisk(riskId) {
+            try {
+                console.log('Editing risk:', riskId);
+                
+                // Get the risk data from cache
+                const risk = window._risksCache ? window._risksCache[riskId] : null;
+                if (!risk) {
+                    alert('Risk data not available for editing. Please try again.');
+                    return;
+                }
+
+                // Store the risk data in localStorage for the edit form to use
+                const editData = {
+                    riskId: risk.riskID || risk.id || riskId, // Use human-readable Risk ID for display
+                    firebaseKey: riskId, // Keep the Firebase key for database operations
+                    mode: 'edit',
+                    data: {
+                        riskID: risk.riskID || risk.id || riskId, // Include the human-readable Risk ID
+                        riskTitle: risk.riskTitle || risk.title || '',
+                        description: risk.description || '',
+                        hazard: risk.hazard || risk.type || '',
+                        hazardType: risk.hazardType || risk.type || '',
+                        riskCategory: risk.riskCategory || risk.category || '',
+                        // Newly included fields that were missing in edit transfer
+                        department: risk.department || '',
+                        location: risk.location || '',
+                        dateIdentified: risk.dateIdentified || risk.dateSubmitted || '',
+                        requestor: risk.requestor || '',
+                        
+                        // Inherent assessment
+                        inherentLikelihood: risk.inherentLikelihood || risk.likelihood || '',
+                        inherentImpact: risk.inherentImpact || risk.impact || '',
+                        inherentRating: risk.inherentRating || risk.rating || '',
+                        inherentLevel: risk.inherentLevel || risk.level || '',
+                        
+                        // Residual assessment
+                        residualLikelihood: risk.residualLikelihood || '',
+                        residualImpact: risk.residualImpact || '',
+                        residualRating: risk.residualRating || '',
+                        residualLevel: risk.residualLevel || '',
+                        
+                        // Controls and actions
+                        controls: Array.isArray(risk.controls) ? risk.controls : (risk.controls ? [risk.controls] : []),
+                        actions: Array.isArray(risk.actions) ? risk.actions : (risk.actions ? [risk.actions] : []),
+                        
+                        // Additional fields
+                        riskStrategy: risk.riskStrategy || '',
+                        severity: risk.severity || '',
+                        status: risk.status || 'pending',
+                        
+                        // Preserve original metadata
+                        submittedBy: risk.submittedBy || '',
+                        dateSubmitted: risk.dateSubmitted || '',
+                        submittedByName: risk.submittedByName || '',
+                        
+                        // Attachments if any
+                        attachments: risk.attachments || null
+                    }
+                };
+
+                localStorage.setItem('riskEditData', JSON.stringify(editData));
+                
+                // Close the current modal
+                document.getElementById('riskModal').classList.remove('show');
+                
+                // Redirect to risk.html with edit parameter using Firebase key
+                window.location.href = `risk.html?edit=${riskId}`;
+                
+            } catch (error) {
+                console.error('Error editing risk:', error);
+                alert('Error opening risk for editing. Please try again.');
+            }
+        }
+
+        async function approveRisk(riskId) {
+            try {
+                console.log('Approving risk:', riskId);
+                
+                // Get current user
+                const currentUser = getCurrentUser();
+                if (!currentUser) {
+                    alert('Please log in to approve risks.');
+                    return;
+                }
+
+                // Confirm approval
+                const confirmed = confirm('Are you sure you want to approve this risk assessment?');
+                if (!confirmed) return;
+
+                // Get approval comments (optional)
+                const comments = prompt('Approval comments (optional):') || '';
+
+                // Update the risk with approval
+                const updates = {
+                    [`companies/${currentUser.companyId}/risks/${riskId}/status`]: 'approved',
+                    [`companies/${currentUser.companyId}/risks/${riskId}/approvedBy`]: currentUser.uid,
+                    [`companies/${currentUser.companyId}/risks/${riskId}/approvedAt`]: new Date().toISOString(),
+                    [`companies/${currentUser.companyId}/risks/${riskId}/approvalComments`]: comments
+                };
+
+                await firebase.database().ref().update(updates);
+                
+                alert('Risk assessment approved successfully!');
+                
+                // Refresh the modal to update the button visibility immediately
+                await refreshOpenModal();
+                
+            } catch (error) {
+                console.error('Error approving risk:', error);
+                alert('Error approving risk. Please try again.');
+            }
+        }
+
+        async function declineRisk(riskId) {
+            try {
+                console.log('Declining risk:', riskId);
+                
+                // Get current user
+                const currentUser = getCurrentUser();
+                if (!currentUser) {
+                    alert('Please log in to decline risks.');
+                    return;
+                }
+
+                // Get decline reason (required)
+                const reason = prompt('Please provide a reason for declining this risk assessment:');
+                if (!reason || reason.trim() === '') {
+                    alert('A reason is required to decline a risk assessment.');
+                    return;
+                }
+
+                // Confirm decline
+                const confirmed = confirm('Are you sure you want to decline this risk assessment?');
+                if (!confirmed) return;
+
+                // Update the risk with decline
+                const updates = {
+                    [`companies/${currentUser.companyId}/risks/${riskId}/status`]: 'declined',
+                    [`companies/${currentUser.companyId}/risks/${riskId}/declinedBy`]: currentUser.uid,
+                    [`companies/${currentUser.companyId}/risks/${riskId}/declinedAt`]: new Date().toISOString(),
+                    [`companies/${currentUser.companyId}/risks/${riskId}/declineReason`]: reason
+                };
+
+                await firebase.database().ref().update(updates);
+                
+                alert('Risk assessment declined.');
+                
+                // Close modal and refresh
+                document.getElementById('riskModal').classList.remove('show');
+                
+            } catch (error) {
+                console.error('Error declining risk:', error);
+                alert('Error declining risk. Please try again.');
+            }
+        }
+
+        async function deleteRisk(riskId) {
+            try {
+                console.log('Deleting risk:', riskId);
+                
+                // Get current user
+                const currentUser = getCurrentUser();
+                if (!currentUser) {
+                    alert('Please log in to delete risks.');
+                    return;
+                }
+
+                // Double confirmation for delete
+                const confirmed1 = confirm('Are you sure you want to delete this risk assessment? This action cannot be undone.');
+                if (!confirmed1) return;
+
+                const confirmed2 = confirm('This will permanently delete the risk assessment and all its data. Continue?');
+                if (!confirmed2) return;
+
+                // Delete the risk
+                await firebase.database().ref(`companies/${currentUser.companyId}/risks/${riskId}`).remove();
+                
+                alert('Risk assessment deleted successfully.');
+                
+                // Close modal and refresh
+                document.getElementById('riskModal').classList.remove('show');
+                
+            } catch (error) {
+                console.error('Error deleting risk:', error);
+                alert('Error deleting risk. Please try again.');
+            }
+        }
+
+        function exportRisk(riskId) {
+            try {
+                console.log('Exporting risk:', riskId);
+                
+                // Get the risk data from cache or fetch it
+                const risk = window._risksCache ? window._risksCache[riskId] : null;
+                if (!risk) {
+                    alert('Risk data not available for export. Please try again.');
+                    return;
+                }
+
+                // Create export data
+                const exportData = {
+                    riskId: riskId,
+                    title: risk.riskTitle || risk.title || 'N/A',
+                    description: risk.description || 'N/A',
+                    hazard: risk.hazard || risk.type || 'N/A',
+                    category: risk.riskCategory || risk.category || 'N/A',
+                    severity: risk.severity || 'N/A',
+                    status: risk.status || 'N/A',
+                    dateIdentified: risk.dateIdentified || risk.dateSubmitted || 'N/A',
+                    inherentLikelihood: risk.inherentLikelihood || risk.likelihood || 'N/A',
+                    inherentImpact: risk.inherentImpact || risk.impact || 'N/A',
+                    inherentRating: risk.inherentRating || risk.rating || 'N/A',
+                    residualLikelihood: risk.residualLikelihood || 'N/A',
+                    residualImpact: risk.residualImpact || 'N/A',
+                    residualRating: risk.residualRating || 'N/A',
+                    controls: Array.isArray(risk.controls) ? risk.controls.join('; ') : 'N/A',
+                    actions: Array.isArray(risk.actions) ? risk.actions.join('; ') : 'N/A',
+                    riskStrategy: risk.riskStrategy || 'N/A',
+                    submittedBy: risk.submittedBy || 'N/A',
+                    exportedAt: new Date().toISOString(),
+                    exportedBy: getCurrentUser()?.uid || 'Unknown'
+                };
+
+                // Convert to CSV format
+                const csvHeaders = Object.keys(exportData).join(',');
+                const csvData = Object.values(exportData).map(value => 
+                    typeof value === 'string' && value.includes(',') ? `"${value}"` : value
+                ).join(',');
+                const csvContent = csvHeaders + '\n' + csvData;
+
+                // Create and download file
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement('a');
+                const url = URL.createObjectURL(blob);
+                link.setAttribute('href', url);
+                link.setAttribute('download', `risk_assessment_${riskId}_${new Date().toISOString().split('T')[0]}.csv`);
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                console.log('Risk exported successfully:', exportData);
+                
+            } catch (error) {
+                console.error('Error exporting risk:', error);
+                alert('Error exporting risk. Please try again.');
+            }
+        }
+
+        // Function to clear edit data and navigate to new risk form
+        function clearEditDataAndNavigate() {
+            // Clear any existing edit data from localStorage
+            localStorage.removeItem('riskEditData');
+            
+            // Navigate to risk.html for new risk creation
+            window.location.href = 'risk.html';
+        }
+
+        // Close modal when clicking outside
+        document.getElementById('riskModal').addEventListener('click', (e) => {
+            if (e.target === document.getElementById('riskModal')) {
+                document.getElementById('riskModal').classList.remove('show');
+            }
+        });
+
+        // Company-scoped risks listener - initialized after authentication
+        // Company-scoped risks listener variables
+        let risksRef = null;            // Firebase ref to current company's risks
+        let risksValueCallback = null;  // Stored callback so we can detach cleanly
+
+        // Global helper to safely get current user (used outside class methods)
+        function getCurrentUser() {
+            try {
+                // Prefer live authManager instance
+                if (window.authManager && window.authManager.currentUser) {
+                    return window.authManager.currentUser;
+                }
+                // Fallback to localStorage
+                const raw = localStorage.getItem('currentUser');
+                return raw ? JSON.parse(raw) : null;
+            } catch (e) {
+                console.warn('getCurrentUser() parse error', e);
+                return null;
+            }
+        }
+        
+        // Function to initialize real-time risks listener for company
+        function initializeRisksListener(companyId) {
+            try {
+                // Detach previous listener if exists
+                if (risksRef && risksValueCallback) {
+                    risksRef.off('value', risksValueCallback);
+                    console.log('♻️ Previous risks listener detached');
+                }
+
+                risksRef = db.ref(`companies/${companyId}/risks`);
+                risksValueCallback = (snapshot) => {
+                    console.log('📊 Risks data updated for company:', companyId);
+                    const data = snapshot.val();
+                    populateRisksTable(data || {});
+                };
+                risksRef.on('value', risksValueCallback, (err) => {
+                    console.error('❌ Risks listener error:', err);
+                });
+                console.log('✅ Real-time risks listener initialized for company:', companyId, 'path:', `companies/${companyId}/risks`);
+            } catch (e) {
+                console.error('❌ Failed to initialize risks listener', e);
+            }
+        }
+        
+        // Function to get current user's company and initialize listener
+        async function initializeCompanyRisksListener() {
+            try {
+                const cu = getCurrentUser();
+                if (!cu || !cu.companyId) {
+                    console.warn('❌ initializeCompanyRisksListener: missing user or companyId');
+                    return;
+                }
+                console.log('🏢 Initializing risks listener for company:', cu.companyId);
+                initializeRisksListener(cu.companyId);
+            } catch (error) {
+                console.error('❌ Error initializing company risks listener:', error);
+            }
+        }
+        
+        async function getApprovalLevels(risk) {
+            try {
+                // Get current user's company ID for company-scoped approval flow
+                const currentUser = getCurrentUser();
+                if (!currentUser || !currentUser.companyId) {
+                    console.warn('No company context available for fetching approval flow config');
+                    return '<div class="no-data">No company context available</div>';
+                }
+
+                // Use company-scoped path: companies/{companyId}/approvalFlows/risk
+                const approvalFlowRef = firebase.database().ref(`companies/${currentUser.companyId}/approvalFlows/risk`);
+                const snapshot = await approvalFlowRef.once('value');
+                const approvalFlow = snapshot.val();
+                
+                console.log(`📋 Risk approval flow config from Firebase (company: ${currentUser.companyId}):`, approvalFlow);
+                
+                if (!approvalFlow || !approvalFlow.enabled) {
+                    return '<div class="no-data">Risk approval flow is not configured or disabled for this company</div>';
+                }
+
+                // Validate the expected structure from approval-settings.html
+                if (!approvalFlow.selectedRoles || typeof approvalFlow.selectedRoles !== 'object') {
+                    console.warn('⚠️ Approval flow config exists but selectedRoles structure is invalid:', approvalFlow.selectedRoles);
+                    return '<div class="no-data">Invalid approval flow configuration</div>';
+                }
+
+                const selectedRoles = approvalFlow.selectedRoles || {};
+                const isSequential = approvalFlow.approvalOrder === 'sequential';
+                
+                console.log('✅ Valid company-specific risk approval flow config found:', {
+                    companyId: currentUser.companyId,
+                    enabled: approvalFlow.enabled,
+                    approvalOrder: approvalFlow.approvalOrder,
+                    selectedRoles: selectedRoles,
+                    levels: approvalFlow.levels
+                });
+
+                // Process levels sequentially to handle async operations
+                const levelPromises = Object.entries(selectedRoles).map(async ([levelKey, roles], index) => {
+                    const levelNumber = parseInt(levelKey.replace('level', ''));
+                    const currentLevelData = risk.approvalFlow?.[levelKey] || { status: 'pending', approvers: [] };
+                    const isLocked = isSequential && index > 0 && (!risk.approvalFlow?.[`level${index}`] || risk.approvalFlow[`level${index}`].status !== 'completed');                    
+                    
+                    const approversHtml = await renderApproversForLevel(roles, currentLevelData, currentUser.companyId);
+                    
+                    return `
+                        <div class="approval-level ${isLocked ? 'locked' : ''}">
+                            <div class="level-header">Level ${levelNumber}</div>
+                            <div class="approvers-list">
+                                ${approversHtml}
+                            </div>
+                            <span class="level-status ${currentLevelData.status}">${currentLevelData.status}</span>
+                        </div>
+                    `;
+                });
+
+                const levelResults = await Promise.all(levelPromises);
+                return levelResults.join('');
+            } catch (error) {
+                console.error('❌ Error fetching company-specific risk approval flow config:', error);
+                return '<div class="error">Error loading approval flow</div>';
+            }
+        }
+
+        // Helper function to render approvers for a specific level
+        async function renderApproversForLevel(roles, currentLevelData, companyId) {
+            console.debug('[RiskBoard] renderApproversForLevel called with:', { roles, currentLevelData, companyId });
+            
+            if (!roles || !Array.isArray(roles)) {
+                console.warn('[RiskBoard] No roles or roles not array:', roles);
+                return '<div class="no-approver">No approvers configured</div>';
+            }
+
+            const approverPromises = roles.map(async (role) => {
+                console.debug('[RiskBoard] Processing role:', role);
+                
+                let approverInfo = role.text || role.value || 'Unknown';
+                let status = 'pending';
+                let timestamp = null;
+                let comment = '';
+                let approverName = approverInfo;
+                let approverTitle = '';
+
+                // Get actual user information for user-based approvers
+                if (role.value && role.value.startsWith('user_')) {
+                    const userId = role.value.replace('user_', '');
+                    console.debug('[RiskBoard] Fetching name for user:', userId);
+                    
+                    approverName = await getUserDisplayName(userId);
+                    console.debug('[RiskBoard] Got approver name:', approverName);
+                    
+                    // Try to get user details from company users first, then global users (using Firebase v8 API consistently)
+                    try {
+                        let userSnapshot = await firebase.database().ref(`companies/${companyId}/users/${userId}`).once('value');
+                        if (!userSnapshot.exists()) {
+                            userSnapshot = await firebase.database().ref(`users/${userId}`).once('value');
+                        }
+                        
+                        if (userSnapshot.exists()) {
+                            const userData = userSnapshot.val();
+                            approverTitle = userData.jobTitle || userData.position || userData.role || 'User';
+                            console.debug('[RiskBoard] Got approver title:', approverTitle);
+                            
+                            // If getUserDisplayName didn't work, try to get name from here too
+                            if (!approverName || approverName === 'N/A') {
+                                approverName = `${userData.firstName || ''} ${userData.lastName || ''}`.trim() || 
+                                              userData.displayName || userData.name || userData.email || 'Unknown User';
+                                console.debug('[RiskBoard] Fallback approver name:', approverName);
+                            }
+                        } else {
+                            console.warn('[RiskBoard] No user data found for:', userId);
+                        }
+                    } catch (error) {
+                        console.warn('Could not fetch user details for approver:', userId, error);
+                        approverTitle = 'User';
+                    }
+                } else if (role.value && role.value.startsWith('function_')) {
+                    approverName = role.text || role.value.replace('function_', '') || 'Role-based Approver';
+                    approverTitle = 'Role-based Approver';
+                    console.debug('[RiskBoard] Function-based approver:', approverName);
+                } else {
+                    approverName = role.text || role.value || 'Unknown Approver';
+                    approverTitle = role.text || 'Approver';
+                    console.debug('[RiskBoard] Generic approver:', approverName);
+                }
+
+                // Find approver status in risk data
+                const approverRecord = currentLevelData.approvers?.find(a => {
+                    if (role.value.startsWith('user_')) {
+                        return a.userId === role.value.replace('user_', '');
+                    } else if (role.value.startsWith('function_')) {
+                        return a.role === role.value.replace('function_', '');
+                    }
+                    return false;
+                });
+
+                if (approverRecord) {
+                    status = approverRecord.status;
+                    timestamp = approverRecord.timestamp;
+                    comment = approverRecord.comment || '';
+                }
+
+                return `
+                    <div class="approver ${status}">
+                        <i class="fas fa-user${status === 'approved' ? '-check' : status === 'rejected' ? '-times' : ''}"></i>
+                        <div class="approver-info">
+                            <span class="approver-name">${approverName || 'Unknown Name'}</span>
+                            <span class="approver-title">${approverTitle || 'Unknown Title'}</span>
+                            ${status === 'approved' ? `
+                                <div class="approval-info">
+                                    <i class="fas fa-check-circle"></i>
+                                    <span class="approval-date">${timestamp ? formatDate(timestamp) : ''}</span>
+                                </div>
+                                ${comment ? `
+                                    <div class="approval-comments">
+                                        <i class="fas fa-comment"></i> ${comment}
+                                    </div>
+                                ` : ''}
+                            ` : status === 'rejected' ? `
+                                <div class="approval-info rejected">
+                                    <i class="fas fa-times-circle"></i>
+                                    <span class="approval-date">${timestamp ? formatDate(timestamp) : ''}</span>
+                                </div>
+                                ${comment ? `
+                                    <div class="approval-comments rejected">
+                                        <i class="fas fa-comment"></i> ${comment}
+                                    </div>
+                                ` : ''}
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+            });
+
+            const approverHtml = await Promise.all(approverPromises);
+            const result = approverHtml.join('');
+            console.debug('[RiskBoard] Final approvers HTML:', result);
+            return result;
+        }
+    </script>
+
+<script>
+// Error handling for missing resources
+window.addEventListener('error', function(e) {
+  console.error('Resource loading error:', e.target.src || e.target.href);
+  
+  // Handle missing CSS files
+  if (e.target.tagName === 'LINK' && e.target.rel === 'stylesheet') {
+    console.warn('CSS file not found:', e.target.href);
+  }
+  
+  // Handle missing JS files
+  if (e.target.tagName === 'SCRIPT') {
+    console.warn('JavaScript file not found:', e.target.src);
+  }
+});
+
+// Check if critical files are loaded
+document.addEventListener('DOMContentLoaded', function() {
+  // Check if main CSS is loaded
+  const stylesheets = document.querySelectorAll('link[rel="stylesheet"]');
+  let mainCssLoaded = false;
+  
+  stylesheets.forEach(function(link) {
+    if (link.href.includes('css/styles.css')) {
+      mainCssLoaded = true;
+    }
+  });
+  
+  if (!mainCssLoaded) {
+    console.warn('Main CSS file (css/styles.css) may not be loaded properly');
+  }
+
+  // Add sidebar toggle functionality
+  const sidebarToggle = document.getElementById('sidebarToggle');
+  const sidebar = document.querySelector('.sidebar');
+  const mainContent = document.querySelector('.main-content');
+  const topNav = document.querySelector('.top-nav');
+  
+  if (sidebarToggle) {
+    sidebarToggle.addEventListener('click', function() {
+      sidebar?.classList.toggle('collapsed');
+      mainContent?.classList.toggle('sidebar-collapsed');
+      if (topNav) {
+        if (sidebar?.classList.contains('collapsed')) {
+          topNav.style.left = '0.5rem';
+        } else {
+          topNav.style.left = 'calc(var(--sidebar-width) + 0.5rem)';
+        }
+      }
+    });
+  }
+});
+</script>
+</body>
+</html>

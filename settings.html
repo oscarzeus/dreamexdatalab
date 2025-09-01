@@ -1,0 +1,3738 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HSE System - Settings (Standalone)</title>
+    
+    <!-- Firebase v8 CDN for compatibility -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
+    
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- ExcelJS for handling Excel files -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+    
+    <!-- Embedded CSS Styles -->
+    <style>
+        /* All CSS from styles.css embedded here */
+        :root {
+            --primary-color: #2c3e50;
+            --secondary-color: #3498db;
+            --accent-color: #e74c3c;
+            --text-color: #333;
+            --bg-color: #f5f6fa;
+            --sidebar-width: 250px;
+            /* Theme Colors */
+            --blue: #3498db;
+            --green: #2ecc71;
+            --purple: #9b59b6;
+            --orange: #e67e22;
+            --red: #e74c3c;
+            
+            /* Default Values */
+            --accent-color: var(--blue);
+            --font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            --base-font-size: 0.9rem; /* Standardized, reduced from 14px */
+            --font-scale: 1;
+            
+            /* Theme-specific variables */
+            --bg-primary: #ffffff;
+            --bg-secondary: #f8f9fa;
+            --text-primary: #333333;
+            --text-secondary: #666666;
+            --border-color: #e0e0e0;
+        }
+
+        /* Dark theme */
+        [data-theme="dark"] {
+            --bg-primary: #1a1a1a;
+            --bg-secondary: #2d2d2d;
+            --text-primary: #ffffff;
+            --text-secondary: #cccccc;
+            --border-color: #404040;
+        }
+
+        /* High contrast mode */
+        [data-contrast="high"] {
+            --text-primary: #000000;
+            --text-secondary: #000000;
+            --bg-primary: #ffffff;
+            --bg-secondary: #ffffff;
+            --border-color: #000000;
+        }
+
+        [data-theme="dark"][data-contrast="high"] {
+            --text-primary: #ffffff;
+            --text-secondary: #ffffff;
+            --bg-primary: #000000;
+            --bg-secondary: #000000;
+            --border-color: #ffffff;
+        }
+
+        /* Layout density */
+        [data-density="comfortable"] {
+            --spacing-unit: 1rem;
+            --padding-sm: 0.5rem;
+            --padding-md: 1rem;
+            --padding-lg: 1.5rem;
+        }
+
+        [data-density="compact"] {
+            --spacing-unit: 0.75rem;
+            --padding-sm: 0.25rem;
+            --padding-md: 0.75rem;
+            --padding-lg: 1rem;
+        }
+
+        [data-density="spacious"] {
+            --spacing-unit: 1.5rem;
+            --padding-sm: 0.75rem;
+            --padding-md: 1.5rem;
+            --padding-lg: 2rem;
+        }
+
+        /* Animation settings */
+        [data-reduced-motion="none"] {
+            --transition-speed: 0.2s;
+        }
+
+        [data-reduced-motion="reduced"] {
+            --transition-speed: 0.4s;
+        }
+
+        [data-reduced-motion="minimal"] {
+            --transition-speed: 0s;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: var(--font-family);
+            font-size: var(--base-font-size);
+            line-height: calc(1.5 * var(--font-scale));
+            color: var(--text-primary);
+            background-color: var(--bg-primary);
+            transition: background-color var(--transition-speed), color var(--transition-speed);
+        }
+
+        .app-container {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        /* Sidebar Styles */
+        .sidebar {
+            width: var(--sidebar-width);
+            background-color: var(--primary-color);
+            color: white;
+            padding: 1rem;
+            position: fixed;
+            height: 100vh;
+            overflow-y: auto;
+        }
+
+        .logo h2 {
+            text-align: center;
+            padding: 1rem 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .menu {
+            list-style: none;
+            margin-top: 2rem;
+        }
+
+        .menu li {
+            margin-bottom: 0.5rem;
+        }
+
+        .menu a {
+            color: white;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            padding: 0.75rem 1rem;
+            border-radius: 5px;
+            transition: background-color 0.3s;
+        }
+
+        .menu a i {
+            margin-right: 10px;
+        }
+
+        .menu a:hover, .menu a.active {
+            background-color: var(--secondary-color);
+        }
+
+        .menu-dropdown .submenu {
+            display: none;
+            list-style: none;
+            margin-left: 2rem;
+            margin-top: 0.5rem;
+        }
+
+        .menu-dropdown:hover .submenu {
+            display: block;
+        }
+
+        /* Main Content Styles */
+        .main-content {
+            flex: 1;
+            margin-left: var(--sidebar-width);
+            padding: 0.5rem;
+            width: calc(100% - var(--sidebar-width));
+            box-sizing: border-box;
+        }
+
+        .top-nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem;
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            margin-bottom: 1rem;
+            position: relative;
+        }
+
+        .top-nav-left {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .sidebar-toggle-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: var(--text-color);
+            font-size: 1.2rem;
+            padding: 0.5rem;
+            border-radius: 5px;
+            transition: background-color 0.3s ease;
+        }
+
+        .sidebar-toggle-btn:hover {
+            background-color: rgba(0, 0, 0, 0.1);
+        }
+
+        .header-company-logo {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            object-fit: cover;
+            border: 2px solid #e9ecef;
+            display: none;
+        }
+
+        .header-company-logo.visible {
+            display: block;
+        }
+
+        .header-logo-placeholder {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            background: #f8f9fa;
+            border: 2px dashed #ced4da;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #6c757d;
+            font-size: 1.2rem;
+        }
+
+        .company-name-header {
+            font-weight: 600;
+            color: #2c3e50;
+            font-size: 1.1rem;
+            display: inline-block;
+        }
+
+        .top-nav-right {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-left: auto;
+        }
+
+        /* Notification Styles */
+        .notifications {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .notification-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            position: relative;
+            font-size: 1.2rem;
+            padding: 0.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .notification-badge {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            background-color: var(--accent-color);
+            color: white;
+            border-radius: 50%;
+            padding: 0.2rem 0.5rem;
+            font-size: 0.7rem;
+        }
+
+        .notification-dropdown {
+            display: none;
+            position: absolute;
+            right: 0;
+            top: 100%;
+            width: 300px;
+            background-color: white;
+            border-radius: 5px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+        }
+
+        .notification-dropdown.show {
+            display: block;
+        }
+
+        /* User Profile Styles */
+        .user-profile {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .profile-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 0.25rem;
+            display: flex;
+            align-items: center;
+            border-radius: 50%;
+            transition: all 0.2s ease;
+        }
+
+        .profile-btn:hover {
+            background-color: rgba(0, 0, 0, 0.05);
+            transform: scale(1.05);
+        }
+
+        .profile-btn img {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            transition: border-color 0.2s ease, opacity 0.3s ease;
+            opacity: 1;
+        }
+
+        .profile-btn:hover img {
+            border-color: rgba(52, 152, 219, 0.5);
+        }
+
+        .profile-dropdown {
+            display: none;
+            position: absolute;
+            top: 100%;
+            right: 0;
+            background: #fff;
+            border-radius: 4px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            min-width: 200px;
+            z-index: 1000;
+        }
+
+        .profile-dropdown.show {
+            display: block;
+        }
+
+        .profile-dropdown ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .profile-dropdown ul li {
+            padding: 0;
+        }
+
+        .profile-dropdown ul li a {
+            display: flex;
+            align-items: center;
+            padding: 12px 16px;
+            color: #333;
+            text-decoration: none;
+            transition: background-color 0.2s;
+        }
+
+        .profile-dropdown ul li a:hover {
+            background-color: #f8f9fa;
+        }
+
+        .profile-dropdown ul li a i {
+            margin-right: 10px;
+            width: 16px;
+            color: #666;
+        }
+
+        .profile-dropdown ul li a i {
+            margin-right: 10px;
+            width: 16px;
+            color: #666;
+        }
+
+        /* Settings specific styles */
+        .settings-container {
+            margin: 90px 0 0;
+            padding: 0 20px;
+            width: 100%;
+            max-width: none;
+        }
+        
+        .settings-header {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            padding: 2rem;
+            border-radius: 12px;
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        
+        .settings-title h2 {
+            font-size: 1.8rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .settings-title p {
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 1.1rem;
+        }
+        
+        .settings-card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        .settings-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+        
+        .settings-card-header {
+            background: linear-gradient(to right, var(--bg-secondary), white);
+            padding: 1.25rem 1.5rem;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+            font-weight: 600;
+            font-size: 1.1rem;
+            color: var(--primary-color);
+        }
+        
+        .settings-card-body {
+            padding: 20px;
+        }
+        
+        .settings-section {
+            margin-bottom: 30px;
+        }
+        
+        .settings-section:last-child {
+            margin-bottom: 0;
+        }
+        
+        .settings-section h3 {
+            margin-top: 0;
+            margin-bottom: 15px;
+            color: #333;
+            font-size: 18px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .settings-group {
+            padding: 2rem;
+            border: 1px solid rgba(0, 0, 0, 0.08);
+            border-radius: 8px;
+            background: var(--bg-secondary);
+            margin-bottom: 2rem;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        
+        .settings-group label {
+            color: var(--text-primary);
+            font-weight: 500;
+            margin-bottom: 0.75rem;
+        }
+        
+        .settings-group select, 
+        .settings-group input[type="text"], 
+        .settings-group input[type="email"], 
+        .settings-group input[type="password"] {
+            border: 2px solid rgba(0, 0, 0, 0.08);
+            border-radius: 6px;
+            padding: 0.75rem 1rem;
+            transition: all 0.2s ease;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        
+        .settings-group select:focus, 
+        .settings-group input:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(var(--primary-color-rgb), 0.1);
+        }
+        
+        .settings-group .form-help {
+            font-size: 12px;
+            color: #6c757d;
+            margin-top: 5px;
+        }
+        
+        .settings-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+            gap: 30px;
+        }
+        
+        .settings-footer {
+            display: flex;
+            justify-content: flex-end;
+            padding: 15px 20px;
+            background-color: #f8f9fa;
+            border-top: 1px solid #eee;
+        }
+        
+        .settings-footer .btn {
+            margin-left: 10px;
+        }
+
+        .btn {
+            padding: var(--padding-sm) var(--padding-md);
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all var(--transition-speed);
+        }
+
+        .btn-primary {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .btn-secondary {
+            background-color: #6b7280;
+            color: white;
+        }
+
+        .btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+        }
+        
+        .status-message {
+            border-radius: 8px;
+            padding: 1rem 1.25rem;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            animation: slideIn 0.3s ease;
+        }
+        
+        .status-success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .status-error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Quick actions */
+        .quick-actions {
+            margin-top: 2rem;
+            display: flex;
+            gap: 1rem;
+        }
+
+        /* Hidden elements for functionality */
+        #statusSuccess, #statusError {
+            display: none;
+        }
+
+        /* Field Configuration Styles */
+        .field-configuration {
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            margin-top: 20px;
+            width: 100%;
+        }
+        
+        .field-config-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-bottom: 1px solid #dee2e6;
+        }
+        
+        .field-config-header select {
+            width: 250px;
+        }
+        
+        .btn-group {
+            display: flex;
+            gap: 0.5rem;
+        }
+        
+        .btn-sm {
+            padding: 0.375rem 0.75rem;
+            font-size: 0.8rem;
+        }
+        
+        .btn-success {
+            background-color: #198754;
+            color: white;
+        }
+        
+        .field-options-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            padding: 20px;
+        }
+        
+        .field-options-list {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 10px;
+            background-color: #f8f9fa;
+        }
+        
+        .field-option-item {
+            background: white;
+            border-radius: 6px;
+            padding: 0.75rem 1rem;
+            margin-bottom: 0.5rem;
+            border: 1px solid rgba(0, 0, 0, 0.08);
+            transition: all 0.2s ease;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .field-option-item:hover {
+            background: var(--bg-secondary);
+            transform: translateX(4px);
+        }
+        
+        .field-option-item.disabled {
+            opacity: 0.5;
+            text-decoration: line-through;
+        }
+        
+        .field-option-info {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .field-option-color {
+            width: 24px;
+            height: 24px;
+            border-radius: 6px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        .field-option-actions {
+            display: flex;
+            gap: 5px;
+        }
+        
+        .field-option-form {
+            padding: 15px;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            background-color: white;
+        }
+        
+        .field-option-form h4 {
+            margin-top: 0;
+            margin-bottom: 15px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #dee2e6;
+        }
+        
+        .form-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        .field-preview {
+            grid-column: 1 / -1;
+            border-top: 1px solid #dee2e6;
+            padding: 15px;
+        }
+        
+        .field-preview h4 {
+            margin-top: 0;
+            margin-bottom: 10px;
+        }
+        
+        .preview-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 15px;
+        }
+
+        .preview-tag {
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            color: white;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+
+        /* Excel Import Modal */
+        .info-modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+        }
+
+        .info-modal-content {
+            background-color: white;
+            margin: 5% auto;
+            padding: 20px;
+            border-radius: 8px;
+            width: 80%;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .close-button {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .close-button:hover {
+            color: #000;
+        }
+
+        .excel-upload-area {
+            border: 2px dashed #ccc;
+            border-radius: 8px;
+            padding: 40px;
+            text-align: center;
+            margin: 20px 0;
+            cursor: pointer;
+            transition: border-color 0.3s;
+        }
+
+        .excel-upload-area:hover {
+            border-color: #007bff;
+        }
+
+        .excel-import-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-top: 20px;
+        }
+
+        /* Responsive design */
+        @media (max-width: 768px) {
+            .settings-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .settings-container {
+                padding: 0 10px;
+                margin-top: 60px;
+            }
+            
+            .main-content {
+                margin-left: 0;
+                width: 100%;
+            }
+            
+            .sidebar {
+                transform: translateX(-100%);
+                transition: transform 0.3s ease;
+            }
+            
+            .sidebar.show {
+                transform: translateX(0);
+            }
+            
+            .field-options-container {
+                grid-template-columns: 1fr;
+                gap: 20px;
+                padding: 15px;
+            }
+            
+            .field-config-header {
+                flex-direction: column;
+                gap: 15px;
+                align-items: stretch;
+            }
+            
+            .field-config-header select {
+                width: 100%;
+            }
+        }
+
+        /* Menu Visibility Styles */
+        [data-feature]:not(.menu-visible) {
+            display: none !important;
+        }
+
+        .menu-dropdown:not(.menu-visible) {
+            display: none !important;
+        }
+
+        /* Show menu items by default until permissions are loaded */
+        .menu-loading [data-feature] {
+            display: block !important;
+        }
+
+        .menu-loading .menu-dropdown {
+            display: block !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Left Sidebar -->
+        <nav class="sidebar menu-loading">
+            <div class="logo">
+                <h2>Dreamex Datalab</h2>
+            </div>
+            <ul class="menu" id="roleBasedMenu">
+                <li class="menu-item" data-feature="home_view" data-requires-permission="home_view">
+                    <a href="index.html"><i class="fas fa-home"></i> Home</a>
+                </li>
+                <li class="menu-dropdown" data-feature="health_view" data-requires-permission="health_view">
+                    <a href="#"><i class="fas fa-medkit"></i> Health</a>
+                    <ul class="submenu">
+                        <li data-feature="health_assessment_view" data-requires-permission="health_assessment_view">
+                            <a href="health-assessment.html">Assessment</a>
+                        </li>
+                        <li data-feature="health_consultation_view" data-requires-permission="health_consultation_view">
+                            <a href="health-consultation.html">Consultation</a>
+                        </li>
+                        <li data-feature="medical_folder_view" data-requires-permission="medical_folder_view">
+                            <a href="medical-folder.html">Medical Folder</a>
+                        </li>
+                    </ul>
+                </li>
+                <li class="menu-dropdown" data-feature="safety_view" data-requires-permission="safety_view">
+                    <a href="#"><i class="fas fa-shield-alt"></i> Safety</a>
+                    <ul class="submenu">
+                        <li data-feature="training_view" data-requires-permission="training_view"><a href="trainingboard.html">Training</a></li>
+                        <li data-feature="risk_view" data-requires-permission="risk_view"><a href="riskboard.html">Risk Management</a></li>
+                        <li data-feature="jsa_view" data-requires-permission="jsa_view"><a href="jsaboard.html">Job Safety Analysis</a></li>
+                        <li data-feature="ptw_view" data-requires-permission="ptw_view"><a href="ptwboard.html">Permit to Work</a></li>
+                        <li data-feature="incident_view" data-requires-permission="incident_view"><a href="incidentboard.html">Incident Reports</a></li>
+                        <li data-feature="inspection_view" data-requires-permission="inspection_view"><a href="inspectionboard.html">Inspection</a></li>
+                        <li data-feature="audit_view" data-requires-permission="audit_view"><a href="auditboard.html">Audit</a></li>
+                    </ul>
+                </li>
+                <li class="menu-dropdown" data-feature="fuel_management">
+                    <a href="#"><i class="fas fa-gas-pump"></i> Fuel Management</a>
+                    <ul class="submenu">
+                        <li data-feature="vessel_offloading"><a href="vessel-offloading.html">Vessel Offloading</a></li>
+                        <li data-feature="fuel_storage"><a href="fuel-storage-status.html">Fuel Storage Status</a></li>
+                        <li data-feature="tank_transfer"><a href="tank-transfer.html">Tank-to-Tank Transfer</a></li>
+                        <li data-feature="truck_loading"><a href="fuel-truck-loading.html">Fuel Truck Loading</a></li>
+                        <li data-feature="quality_analysis"><a href="fuel-quality-analysis.html">Fuel Quality Analysis</a></li>
+                        <li data-feature="fuel_distribution"><a href="fueldistrib.html">Fuel Distribution</a></li>
+                        <li data-feature="fuel_consumption_analysis"><a href="fuelanalys.html">Consumption Analysis</a></li>
+                    </ul>
+                </li>
+                <li class="menu-dropdown" data-feature="environment_view">
+                    <a href="#"><i class="fas fa-leaf"></i> Environment</a>
+                    <ul class="submenu">
+                        <li data-feature="water_view"><a href="waterboard.html">Water Quality</a></li>
+                    </ul>
+                </li>
+                <li class="menu-dropdown" data-feature="security_view">
+                    <a href="#"><i class="fas fa-lock"></i> Security</a>
+                    <ul class="submenu">
+                        <li data-feature="access_view"><a href="accessboard.html">Access Request</a></li>
+                        <li data-feature="access_daily_view"><a href="accessdaily.html">Daily Access Control</a></li>
+                        <li data-feature="removal_view"><a href="removalboard.html">Property Removal</a></li>
+                    </ul>
+                </li>
+                <li class="menu-dropdown" data-feature="logistics_view" data-requires-permission="logistics_view">
+                    <a href="#"><i class="fas fa-truck"></i> Logistics</a>
+                    <ul class="submenu">
+                        <li data-feature="fleet_view" data-requires-permission="fleet_view"><a href="fleet.html">Fleet Management</a></li>
+                        <li data-feature="camp_view" data-requires-permission="camp_view"><a href="camp.html">Camp Management</a></li>
+                        <li data-feature="camp_settings_view" data-requires-permission="camp_settings_view"><a href="campset.html">Camp Settings</a></li>
+                    </ul>
+                </li>
+                <li class="menu-dropdown" data-feature="hr_view" data-requires-permission="hr_view">
+                    <a href="#"><i class="fas fa-users"></i> HR</a>
+                    <ul class="submenu">
+                        <li data-feature="human_hr_view" data-requires-permission="human_hr_view"><a href="human-hr.html"><i class="fas fa-user-tie"></i> Human HR</a></li>
+                        <li data-feature="staff_management_view" data-requires-permission="staff_management_view"><a href="staff.html">Staffing</a></li>
+                        <li data-feature="authority_to_recruit_view" data-requires-permission="authority_to_recruit_view"><a href="recruit.html">Authority to Recruit</a></li>
+                        <li data-feature="job_advertising_view" data-requires-permission="job_advertising_view"><a href="jobpost.html">Job Advertising</a></li>
+                        <li data-feature="screening_view" data-requires-permission="screening_view"><a href="jobscreen.html">Screening</a></li>
+                        <li data-feature="interview_view" data-requires-permission="interview_view"><a href="interview.html">Interview</a></li>
+                        <li data-feature="offer_view" data-requires-permission="offer_view"><a href="offer.html">Offer Management</a></li>
+                        <li data-feature="contract_view" data-requires-permission="contract_view"><a href="contract.html">Contract Management</a></li>
+                        <li data-feature="onboarding_view" data-requires-permission="onboarding_view"><a href="onboard.html">Onboarding</a></li>
+                        <li data-feature="chart_view" data-requires-permission="chart_view"><a href="chart.html">Chart Setup</a></li>
+                        <li data-feature="chartboard_view" data-requires-permission="chartboard_view"><a href="chartboard.html">Org Chart</a></li>
+                        <li data-feature="kpi_dashboard_view" data-requires-permission="kpi_dashboard_view"><a href="kpi.html">KPI</a></li>
+                    </ul>
+                </li>
+                <li data-feature="communication_view"><a href="info.html"><i class="fas fa-comments"></i> Communication</a></li>
+                <li class="menu-dropdown" data-feature="settings_view">
+                    <a href="#"><i class="fas fa-cog"></i> Settings</a>
+                    <ul class="submenu">
+                        <li data-feature="account_settings_view"><a href="account.html">Account Settings</a></li>
+                        <li data-feature="company_management_view"><a href="companymanagement.html">Company Management</a></li>
+                        <li data-feature="approval_settings_view"><a href="approval-settings.html">Approval Flow Settings</a></li>
+                        <li data-feature="field_setup_view"><a href="fieldsetup.html">Field Setup</a></li>
+                        <li data-feature="preferences_view"><a href="preferences.html">Preferences</a></li>
+                        <li data-feature="notification_settings_view"><a href="notification-settings.html">Notification Settings</a></li>
+                        <li data-feature="audit_log_view"><a href="auditlog.html"><i class="fas fa-history"></i> Audit Log</a></li>
+                        <li data-feature="user_management_view"><a href="users.html">User & Role Management</a></li>
+                        <li data-feature="role_permissions_view"><a href="roles.html">Role Permissions</a></li>
+                    </ul>
+                </li>
+            </ul>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Top Navigation -->
+            <header class="top-nav">
+                <div class="top-nav-left">
+                    <button id="sidebarToggle" class="sidebar-toggle-btn">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <img id="headerCompanyLogo" class="header-company-logo" src="" alt="Company Logo">
+                    <div id="headerLogoPlaceholder" class="header-logo-placeholder">
+                        <i class="fas fa-building"></i>
+                    </div>
+                    <span id="headerCompanyName" class="company-name-header">Dreamex DataLab</span>
+                </div>
+                <div class="top-nav-right">
+                    <div class="notifications">
+                        <button id="notificationBtn" class="notification-btn">
+                            <i class="fas fa-bell"></i>
+                            <span class="notification-badge">0</span>
+                        </button>
+                        <div class="notification-dropdown">
+                            <div class="notification-header">
+                                <h3>Notifications</h3>
+                                <button class="mark-all-read">Mark all as read</button>
+                            </div>
+                            <div class="notification-list">
+                                <!-- Notifications will be dynamically added here -->
+                            </div>
+                        </div>
+                    </div>
+                    <div class="user-profile">
+                        <button id="userProfileBtn" class="profile-btn">
+                            <img id="userAvatar" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA0MCA0MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMjAiIGN5PSIyMCIgcj0iMjAiIGZpbGw9IiMzNDk4ZGIiLz4KPHN2ZyB4PSI4IiB5PSI4IiB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSI+CjxwYXRoIGQ9Ik0yMCAyMXYtMmE0IDQgMCAwIDAtNC00SDhhNCA0IDAgMCAwLTQgNHYyIiBzdHJva2U9IndoaXRlIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPgo8Y2lyY2xlIGN4PSIxMiIgY3k9IjciIHI9IjQiIHN0cm9rZT0id2hpdGUiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIi8+Cjwvc3ZnPgo8L3N2Zz4K" alt="User Avatar">
+                        </button>
+                        <div class="profile-dropdown">
+                            <ul>
+                                <li><a href="account.html"><i class="fas fa-user"></i> Account Settings</a></li>
+                                <li><a href="#"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Main Content Area -->
+            <main class="settings-container">
+                <div class="settings-header">
+                    <div class="settings-title">
+                        <h2>Personal Settings (Standalone)</h2>
+                        <p>Configure your personal preferences and system settings - Standalone Version</p>
+                    </div>
+                </div>
+                
+                <!-- Status Messages -->
+                <div id="statusSuccess" class="status-message status-success">
+                    <i class="fas fa-check-circle"></i> Settings saved successfully!
+                </div>
+                <div id="statusError" class="status-message status-error">
+                    <i class="fas fa-exclamation-circle"></i> Error saving settings. Please try again.
+                </div>
+                
+                <!-- Personal Settings Card -->
+                <div class="settings-card">
+                    <div class="settings-card-header">
+                        <span>Personal Settings</span>
+                    </div>
+                    <div class="settings-card-body">
+                        <div class="settings-section">
+                            <h3>Date and Time Format</h3>
+                            <p>Choose your preferred date and time format for displaying across the system.</p>
+                            
+                            <div class="settings-grid">
+                                <div class="settings-group">
+                                    <label for="dateFormat">Date Format</label>
+                                    <select id="dateFormat" class="form-control">
+                                        <option value="MM/DD/YYYY">MM/DD/YYYY (US Format)</option>
+                                        <option value="DD/MM/YYYY">DD/MM/YYYY (UK Format)</option>
+                                        <option value="YYYY-MM-DD">YYYY-MM-DD (ISO Format)</option>
+                                        <option value="MMMM D, YYYY">Month D, YYYY</option>
+                                        <option value="D MMMM YYYY">D Month YYYY</option>
+                                    </select>
+                                    <div class="form-help">This affects how dates are displayed throughout the application.</div>
+                                </div>
+                                
+                                <div class="settings-group">
+                                    <label for="timeFormat">Time Format</label>
+                                    <select id="timeFormat" class="form-control">
+                                        <option value="HH:mm">24-hour format (HH:mm)</option>
+                                        <option value="h:mm A">12-hour format (h:mm AM/PM)</option>
+                                        <option value="HH:mm:ss">24-hour with seconds</option>
+                                        <option value="h:mm:ss A">12-hour with seconds</option>
+                                    </select>
+                                    <div class="form-help">This affects how times are displayed throughout the application.</div>
+                                </div>
+                            </div>
+                            
+                            <div class="format-preview">
+                                <h4>Preview:</h4>
+                                <div class="format-preview-item">
+                                    <span class="format-preview-label">Current Date/Time:</span>
+                                    <span id="dateTimePreview">Loading...</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="settings-section">
+                            <h3>Notification Preferences</h3>
+                            <p>Configure how you receive notifications from the system.</p>
+                            
+                            <div class="settings-grid">
+                                <div class="settings-group">
+                                    <label>
+                                        <input type="checkbox" id="emailNotifications" checked> Email Notifications
+                                    </label>
+                                    <div class="form-help">You'll receive email notifications for important events.</div>
+                                </div>
+                                
+                                <div class="settings-group">
+                                    <label>
+                                        <input type="checkbox" id="browserNotifications"> Browser Notifications
+                                    </label>
+                                    <div class="form-help">You'll receive notifications in your browser when you're using the system.</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="settings-section">
+                            <h3>Form Field Configuration</h3>
+                            <p>Manage dropdown options for forms and customize field values across the system.</p>
+                            
+                            <div class="field-configuration">
+                                <div class="field-config-header">
+                                    <select id="fieldTypeSelector" class="form-control">
+                                        <!-- Add Menu Navigation Section at the top -->
+                                        <optgroup label="Menu Navigation">
+                                            <option value="menu-home">Home Menu</option>
+                                            <option value="menu-health">Health Menu</option>
+                                            <option value="menu-safety">Safety Menu</option>
+                                            <option value="menu-environment">Environment Menu</option>
+                                            <option value="menu-security">Security Menu</option>
+                                            <option value="menu-logistics">Logistics Menu</option>
+                                            <option value="menu-settings">Settings Menu</option>
+                                            <option value="menu-lms">LMS Menu</option>
+                                        </optgroup>
+                                        <!-- Add Health Section -->
+                                        <optgroup label="Health">
+                                            <option value="health-assessment-type">Assessment Type</option>
+                                            <option value="health-assessment-status">Assessment Status</option>
+                                            <option value="health-consultation-type">Consultation Type</option>
+                                            <option value="health-consultation-status">Consultation Status</option>
+                                            <option value="medical-record-type">Medical Record Type</option>
+                                            <option value="medical-record-status">Medical Record Status</option>
+                                            <option value="vital-signs">Vital Signs</option>
+                                            <option value="medical-conditions">Medical Conditions</option>
+                                            <option value="medical-history">Medical History</option>
+                                            <option value="medication-type">Medication Type</option>
+                                        </optgroup>
+                                        <!-- Add Environment Section -->
+                                        <optgroup label="Environment">
+                                            <option value="water-quality-parameter">Water Quality Parameters</option>
+                                            <option value="water-quality-status">Water Quality Status</option>
+                                            <option value="water-source">Water Sources</option>
+                                            <option value="water-test-type">Water Test Types</option>
+                                            <option value="air-quality-parameter">Air Quality Parameters</option>
+                                            <option value="air-quality-status">Air Quality Status</option>
+                                            <option value="environmental-aspect">Environmental Aspects</option>
+                                            <option value="environmental-impact">Environmental Impacts</option>
+                                        </optgroup>
+                                        <!-- Add Security Section -->
+                                        <optgroup label="Security">
+                                            <option value="access-type">Access Types</option>
+                                            <option value="access-area">Access Areas</option>
+                                            <option value="access-status">Access Status</option>
+                                            <option value="removal-type">Removal Types</option>
+                                            <option value="removal-status">Removal Status</option>
+                                            <option value="property-type">Property Types</option>
+                                            <option value="security-clearance">Security Clearance Levels</option>
+                                        </optgroup>
+                                        <!-- Add Logistics Section -->
+                                        <optgroup label="Logistics">
+                                            <option value="fleet-type">Fleet Types</option>
+                                            <option value="vehicle-status">Vehicle Status</option>
+                                            <option value="maintenance-type">Maintenance Types</option>
+                                            <option value="fuel-type">Fuel Types</option>
+                                            <option value="driver-status">Driver Status</option>
+                                        </optgroup>
+                                        <!-- Audit Section -->
+                                        <optgroup label="Audit Management">
+                                            <option value="audit-type">Audit Type</option>
+                                            <option value="audit-status">Audit Status</option>
+                                            <option value="audit-finding-type">Audit Finding Type</option>
+                                            <option value="audit-priority">Audit Priority</option>
+                                            <option value="audit-area">Audit Area</option>
+                                            <option value="audit-evidence-type">Audit Evidence Type</option>
+                                            <option value="corrective-action-status">Corrective Action Status</option>
+                                            <option value="compliance-standard">Compliance Standard</option>
+                                            <option value="audit-frequency">Audit Frequency</option>
+                                        </optgroup>
+                                        <!-- User Management -->
+                                        <optgroup label="User Management">
+                                            <option value="user-gender">Gender</option>
+                                            <option value="user-role">User Role</option>
+                                            <option value="account-status">Account Status</option>
+                                            <option value="department">Department</option>
+                                            <option value="job-title">Job Title</option>
+                                            <option value="company">Company</option>
+                                        </optgroup>
+                                        <!-- Medical Assessment Form Options -->
+                                        <optgroup label="Medical Assessment Form">
+                                            <option value="assessment-type">Assessment Type</option>
+                                            <option value="medical-location">Medical Location</option>
+                                            <option value="medical-status">Medical Status</option>
+                                            <option value="medical-conditions">Medical Conditions</option>
+                                            <option value="vital-signs">Vital Signs</option>
+                                        </optgroup>
+                                        
+                                        <!-- Risk Assessment Form Options -->
+                                        <optgroup label="Risk Assessment Form">
+                                            <option value="risk-category">Risk Category</option>
+                                            <option value="hazard-type">Hazard Type</option>
+                                            <option value="risk-strategy">Risk Strategy</option>
+                                        </optgroup>
+                                        
+                                        <!-- Job Safety Analysis Form Options -->
+                                        <optgroup label="Job Safety Analysis Form">
+                                            <option value="job-type">Job Types</option>
+                                            <option value="job-step">Job Steps</option>
+                                        </optgroup>
+                                        
+                                        <!-- Event Form Options -->
+                                        <optgroup label="Event Form">
+                                            <option value="event-type">Event Types</option>
+                                            <option value="injury-type">Injury Types</option>
+                                            <option value="property-damage">Property Damage</option>
+                                            <option value="incident-category">Incident Categories</option>
+                                            <option value="observation-type">Observation Types</option>
+                                            <option value="behavior-category">Behavior Categories</option>
+                                            <option value="inspection-type">Inspection Types</option>
+                                            <option value="equipment">Equipment</option>
+                                            <option value="compliance-standard">Compliance Standards</option>
+                                            <option value="severity">Severity Levels</option>
+                                            <option value="contributing-factors">Contributing Factors</option>
+                                        </optgroup>
+                                        
+                                        <!-- Project Management Options -->
+                                        <optgroup label="Project Management">
+                                            <option value="project-status">Project Status</option>
+                                            <option value="project-priority">Project Priority</option>
+                                            <option value="project-category">Project Category</option>
+                                            <option value="task-status">Task Status</option>
+                                            <option value="task-priority">Task Priority</option>
+                                            <option value="milestone-status">Milestone Status</option>
+                                            <option value="resource-type">Resource Type</option>
+                                        </optgroup>
+                                        
+                                        <!-- Training Form Options -->
+                                        <optgroup label="Training Form">
+                                            <option value="training-category">Training Categories</option>
+                                            <option value="training-type">Training Types</option>
+                                            <option value="certification">Certification Types</option>
+                                        </optgroup>
+                                        
+                                        <!-- Permit Form Options -->
+                                        <optgroup label="Permit Form">
+                                            <option value="permit-type">Permit Types</option>
+                                            <option value="isolation-type">Isolation Types</option>
+                                            <option value="emergency-equipment">Emergency Equipment</option>
+                                        </optgroup>
+                                        
+                                        <!-- Training Creator Options -->
+                                        <optgroup label="Training Creator">
+                                            <option value="trainer-qualification">Trainer Qualifications</option>
+                                            <option value="training-location">Training Locations</option>
+                                            <option value="audience-type">Audience Types</option>
+                                        </optgroup>
+                                        
+                                        <!-- Common Options -->
+                                        <optgroup label="Common Fields">
+                                            <option value="area">Work Areas</option>
+                                            <option value="equipment">Equipment</option>
+                                            <option value="ppe">Personal Protective Equipment</option>
+                                        </optgroup>
+                                        <!-- GHG Section -->
+                                        <optgroup label="Greenhouse Gas (GHG)">
+                                            <option value="ghg-fuel-category">Fuel Categories (IPCC)</option>
+                                            <option value="ghg-fuel-liquid-crude">Liquid Fuels - Crude Oil Based</option>
+                                            <option value="ghg-fuel-liquid-primary">Liquid Fuels - Primary Oil Products</option>
+                                            <option value="ghg-fuel-liquid-secondary">Liquid Fuels - Secondary Oil Products</option>
+                                            <option value="ghg-fuel-gaseous">Gaseous Fuels</option>
+                                            <option value="ghg-fuel-solid-fossil">Solid Fossil Fuels</option>
+                                            <option value="ghg-fuel-biomass-solid">Biomass Fuels - Solid</option>
+                                            <option value="ghg-fuel-biomass-liquid">Biomass Fuels - Liquid</option>
+                                            <option value="ghg-fuel-biomass-gas">Biomass Fuels - Gas</option>
+                                            <option value="ghg-fuel-other">Other Fuels</option>
+                                            <option value="ghg-scope-type">GHG Scope Types</option>
+                                            <option value="ghg-emission-standard">Emission Factor Standards</option>
+                                        </optgroup>
+                                        
+                                        <!-- Add Settings Section -->
+                                        <optgroup label="Settings">
+                                            <option value="settings-language">Language Options</option>
+                                            <option value="settings-timezone">Timezone Options</option>
+                                            <option value="settings-date-format">Date Formats</option>
+                                            <option value="settings-time-format">Time Formats</option>
+                                            <option value="settings-notification">Notification Types</option>
+                                            <option value="settings-theme">Theme Options</option>
+                                            <option value="settings-accessibility">Accessibility Options</option>
+                                            <option value="settings-user-management">User Management Options</option>
+                                        </optgroup>
+                                        
+                                        <!-- Camp Management Section -->
+                                        <optgroup label="Camp Management">
+                                            <option value="room-type">Room Types</option>
+                                            <option value="room-status">Room Status</option>
+                                            <option value="amenity-type">Amenity Types</option>
+                                            <option value="accommodation-category">Accommodation Categories</option>
+                                            <option value="room-capacity">Room Capacity Options</option>
+                                            <option value="bed-type">Bed Types</option>
+                                            <option value="room-location">Room Locations</option>
+                                            <option value="camp-facility">Camp Facilities</option>
+                                            <option value="maintenance-status">Maintenance Status</option>
+                                            <option value="occupancy-status">Occupancy Status</option>
+                                            <option value="camp-area">Camp Areas</option>
+                                            <option value="camp-building">Camp Buildings</option>
+                                        </optgroup>
+                                        
+                                        <!-- Fuel Management Section -->
+                                        <optgroup label="Fuel Management">
+                                            <option value="fuel-type">Fuel Types</option>
+                                            <option value="fuel-tanks">Fuel Tanks</option>
+                                            <option value="tank-id">Tank IDs</option>
+                                            <option value="distribution-method">Distribution Methods</option>
+                                            <option value="testing-lab">Testing Laboratories</option>
+                                            <option value="fuel-grade">Fuel Grades</option>
+                                            <option value="fuel-quality-status">Fuel Quality Status</option>
+                                            <option value="fuel-quality-standard">Quality Standards</option>
+                                            <option value="fuel-supplier">Fuel Suppliers</option>
+                                            <option value="fuel-delivery-method">Delivery Methods</option>
+                                            <option value="fuel-storage-location">Storage Locations</option>
+                                            <option value="fuel-test-parameter">Test Parameters</option>
+                                        </optgroup>
+                                    </select>
+                                    <div class="btn-group">
+                                        <button id="addFieldOptionBtn" class="btn btn-primary btn-sm">
+                                            <i class="fas fa-plus"></i> Add Option
+                                        </button>
+                                        <button id="importExcelBtn" class="btn btn-success btn-sm ms-2" title="Import options from Excel">
+                                            <i class="fas fa-file-excel"></i> Import from Excel
+                                        </button>
+                                    </div>
+                                    <!-- Hidden file input for Excel import -->
+                                    <input type="file" id="excelFileInput" accept=".xlsx, .xls" style="display: none">
+                                </div>
+
+                                <!-- Excel Import Modal -->
+                                <div id="excelImportModal" class="info-modal">
+                                    <div class="info-modal-content">
+                                        <span class="close-button">&times;</span>
+                                        <h3>Import Options from Excel</h3>
+                                        <div class="excel-import-instructions">
+                                            <p>To import options from Excel:</p>
+                                            <ol>
+                                                <li>Your Excel file should have these columns:
+                                                    <ul>
+                                                        <li>Label (required) - Display text for the option</li>
+                                                        <li>Value (optional) - Internal value, will be generated from label if empty</li>
+                                                        <li>Color (optional) - Hex color code (e.g., #3498db)</li>
+                                                        <li>Enabled (optional) - "true" or "false", defaults to true</li>
+                                                    </ul>
+                                                </li>
+                                            </ol>
+                                        </div>
+                                        <div class="excel-upload-area" id="excelUploadArea">
+                                            <p>Drop your Excel file here or click to select</p>
+                                        </div>
+                                        <div id="excelPreview" class="excel-preview" style="display: none">
+                                            <h4>Preview</h4>
+                                            <div id="excelPreviewContent"></div>
+                                            <div class="excel-import-actions">
+                                                <button id="confirmImportBtn" class="btn btn-primary">Import Options</button>
+                                                <button id="cancelImportBtn" class="btn btn-secondary">Cancel</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="field-options-container">
+                                    <div class="field-options-list" id="fieldOptionsList">
+                                        <!-- Options will be populated dynamically -->
+                                    </div>
+                                    <div class="field-option-form" id="fieldOptionForm" style="display: none;">
+                                        <h4 id="optionFormTitle">Add New Option</h4>
+                                        <div class="form-group">
+                                            <label for="optionLabel">Option Label</label>
+                                            <input type="text" id="optionLabel" class="form-control" placeholder="Enter option label">
+                                        </div>
+                                        
+                                        <div class="form-group">
+                                            <label for="optionValue">Option Value</label>
+                                            <input type="text" id="optionValue" class="form-control" placeholder="Enter option value (generated from label if empty)">
+                                            <div class="form-help">Internal value used by the system. Will be auto-generated from label if left empty.</div>
+                                        </div>
+                                        
+                                        <div class="form-group">
+                                            <label for="optionColor">Color (for tags)</label>
+                                            <input type="color" id="optionColor" class="form-control" value="#3498db">
+                                        </div>
+                                        
+                                        <div class="form-group">
+                                            <div class="checkbox-group">
+                                                <input type="checkbox" id="optionEnabled" checked>
+                                                <label for="optionEnabled">Enabled</label>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="form-actions">
+                                            <button id="cancelOptionBtn" class="btn btn-secondary btn-sm">Cancel</button>
+                                            <button id="saveOptionBtn" class="btn btn-success btn-sm">Save Option</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="field-preview">
+                                    <h4>Preview</h4>
+                                    <label>Risk Category</label>
+                                    <div class="preview-tags" id="previewTags">
+                                        <!-- Tag preview will appear here -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="settings-footer">
+                        <button id="resetFormBtn" class="btn btn-secondary">Reset Changes</button>
+                        <button id="saveSettingsBtn" class="btn btn-primary">Save Settings</button>
+                    </div>
+                </div>
+                
+                <div class="quick-actions">
+                    <button class="btn btn-secondary" id="exportSettingsBtn">
+                        <i class="fas fa-file-export"></i> Export Settings
+                    </button>
+                </div>
+            </main>
+        </main>
+    </div>
+
+    <!-- Moment.js for date formatting -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"></script>
+    
+    <!-- Embedded JavaScript -->
+    <script>
+        // Standalone Firebase Configuration and Authentication
+        const firebaseConfig = {
+            apiKey: "AIzaSyCUTmTn0rRBb0M-UkQJxnUMrWqXYU_BgIc",
+            authDomain: "users-8be65.firebaseapp.com",
+            databaseURL: "https://users-8be65-default-rtdb.firebaseio.com",
+            projectId: "users-8be65",
+            storageBucket: "users-8be65.firebasestorage.app",
+            messagingSenderId: "909025468149",
+            appId: "1:909025468149:web:fb4e7c4a8b4bd6d1076e4d",
+            measurementId: "G-XHFMRCJQEZ"
+        };
+        
+        // Initialize Firebase v8 if not already initialized
+        function initializeFirebase() {
+            if (!window.firebase || !window.firebase.apps || window.firebase.apps.length === 0) {
+                window.firebase.initializeApp(firebaseConfig);
+                console.log('✅ Firebase v8 initialized successfully');
+            }
+            return window.firebase;
+        }
+        
+        // Initialize Firebase
+        const firebase = initializeFirebase();
+        const database = firebase.database();
+        const auth = firebase.auth();
+        const storage = firebase.storage();
+        
+        // Additional Firebase helper functions
+        function getDatabase() {
+            return firebase.database();
+        }
+
+        function ref(database, path) {
+            return database.ref(path);
+        }
+
+        function get(reference) {
+            return reference.once('value');
+        }
+
+        function set(reference, value) {
+            return reference.set(value);
+        }
+
+        function logoutUser() {
+            return new Promise((resolve, reject) => {
+                const firebase = initializeFirebase();
+                const auth = firebase.auth();
+                
+                auth.signOut()
+                    .then(() => {
+                        resolve(true);
+                    })
+                    .catch((error) => {
+                        console.error('Logout error:', error);
+                        resolve(false);
+                    });
+            });
+        }
+
+        // Centralized Authentication Manager
+        class AuthManager {
+            constructor() {
+                this.currentUser = this.getCurrentUser();
+                this.db = getDatabase();
+                this.currentCompany = null;
+                
+                // Initialize Firebase services
+                this.auth = firebase.auth();
+                this.storage = firebase.storage();
+                
+                console.log('🔐 AuthManager initialized for Settings');
+                console.log('Current user:', this.currentUser);
+                
+                this.initializeAuth();
+            }
+
+            getCurrentUser() {
+                try {
+                    return JSON.parse(localStorage.getItem('currentUser') || 'null');
+                } catch (error) {
+                    console.error('Error parsing current user:', error);
+                    return null;
+                }
+            }
+
+            setCurrentUser(userData) {
+                localStorage.setItem('currentUser', JSON.stringify(userData));
+                localStorage.setItem('user', JSON.stringify(userData));
+                this.currentUser = userData;
+            }
+
+            async logout() {
+                const success = await logoutUser();
+                if (success) {
+                    localStorage.removeItem('currentUser');
+                    localStorage.removeItem('user');
+                    sessionStorage.removeItem('currentUser');
+                    sessionStorage.removeItem('user');
+                    this.currentUser = null;
+                    window.location.href = 'index.html';
+                }
+            }
+
+            initializeAuth() {
+                // Check if user is logged in
+                if (!this.currentUser) {
+                    console.log('🔐 No authenticated user found, redirecting to login');
+                    window.location.href = 'login.html';
+                    return;
+                }
+                
+                console.log('✅ User authenticated successfully');
+                
+                // Load user data and update UI
+                this.loadUserRole(this.currentUser);
+                this.loadUserCompany();
+                this.updateUIForAuthenticatedUser();
+
+                // Add event listeners for user profile dropdown
+                const userProfileBtn = document.getElementById('userProfileBtn');
+                const profileDropdown = document.querySelector('.profile-dropdown');
+                
+                if (userProfileBtn && profileDropdown) {
+                    userProfileBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        profileDropdown.classList.toggle('show');
+                    });
+
+                    // Close dropdown when clicking outside
+                    document.addEventListener('click', (e) => {
+                        if (!userProfileBtn.contains(e.target)) {
+                            profileDropdown.classList.remove('show');
+                        }
+                    });
+                }
+
+                // Handle logout
+                const logoutBtn = document.querySelector('.profile-dropdown a[href="#"]');
+                if (logoutBtn) {
+                    logoutBtn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        this.logout();
+                    });
+                }
+            }
+
+            loadUserRole(user) {
+                console.log('👤 Loading user role for:', user.email || user.uid);
+                
+                if (!user.role) {
+                    console.warn('⚠️ User has no role defined, using default permissions');
+                    user.role = 'user'; // Default role
+                }
+                
+                console.log('✅ User role loaded:', user.role);
+            }
+
+            async loadUserCompany() {
+                if (!this.currentUser) return;
+
+                try {
+                    console.log('🏢 Loading company data for user:', this.currentUser.email);
+                    
+                    if (this.currentUser.companyId) {
+                        const companyRef = ref(this.db, `companies/${this.currentUser.companyId}`);
+                        const companySnapshot = await get(companyRef);
+                        
+                        if (companySnapshot.exists()) {
+                            this.currentCompany = companySnapshot.val();
+                            this.currentCompany.id = this.currentUser.companyId;
+                            
+                            console.log('✅ Company data loaded:', this.currentCompany.name);
+                            this.updateCompanyBranding();
+                        } else {
+                            console.warn('⚠️ Company data not found');
+                            this.showFallbackBranding();
+                        }
+                    } else {
+                        console.warn('⚠️ User has no company ID');
+                        this.showFallbackBranding();
+                    }
+                } catch (error) {
+                    console.error('❌ Error loading company data:', error);
+                    this.showFallbackBranding();
+                }
+            }
+
+            // Get user display information
+            getUserDisplayName() {
+                return this.currentUser?.displayName || 
+                       this.currentUser?.name || 
+                       this.currentUser?.email || 
+                       'User';
+            }
+
+            getUserEmail() {
+                return this.currentUser?.email || '';
+            }
+
+            getUserInitials() {
+                const displayName = this.getUserDisplayName();
+                return displayName.split(' ')
+                    .map(name => name.charAt(0).toUpperCase())
+                    .join('')
+                    .substring(0, 2);
+            }
+
+            // Get user avatar URL or initials
+            async getUserAvatarUrl() {
+                if (!this.currentUser) return null;
+                
+                try {
+                    const avatarPath = `avatars/${this.currentUser.uid}/profile.jpg`;
+                    const avatarRef = this.storage.ref(avatarPath);
+                    
+                    return await avatarRef.getDownloadURL();
+                } catch (error) {
+                    // No custom avatar found
+                    return null;
+                }
+            }
+
+            // Update user avatar display with custom image or initials
+            async updateUserAvatarDisplay(elementId = 'userAvatar') {
+                const avatarElement = document.getElementById(elementId);
+                if (avatarElement) {
+                    try {
+                        const avatarUrl = await this.getUserAvatarUrl();
+                        if (avatarUrl) {
+                            // Show custom avatar
+                            avatarElement.src = avatarUrl;
+                            avatarElement.alt = 'Profile Picture';
+                            avatarElement.style.borderRadius = '50%';
+                            avatarElement.style.objectFit = 'cover';
+                            avatarElement.style.opacity = '1';
+                            console.log('👤 Custom avatar displayed successfully');
+                        } else {
+                            // Show initials avatar
+                            this.generateInitialsAvatar(avatarElement);
+                        }
+                    } catch (error) {
+                        // Fallback to initials
+                        console.log('👤 Falling back to initials avatar');
+                        this.generateInitialsAvatar(avatarElement);
+                    }
+                }
+            }
+
+            // Generate initials avatar
+            generateInitialsAvatar(avatarElement) {
+                if (!avatarElement) return;
+                
+                const displayName = this.getUserDisplayName();
+                const initials = this.getUserInitials();
+                
+                // Create SVG with initials and random color
+                const colors = ['#3498db', '#e74c3c', '#2ecc71', '#f39c12', '#9b59b6', '#1abc9c', '#34495e'];
+                const colorIndex = Math.abs(this.currentUser.uid.split('').reduce((a, b) => a + b.charCodeAt(0), 0)) % colors.length;
+                const backgroundColor = colors[colorIndex];
+                
+                const svgAvatar = `data:image/svg+xml;base64,${btoa(`
+                    <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="20" cy="20" r="20" fill="${backgroundColor}"/>
+                        <text x="20" y="25" text-anchor="middle" fill="white" font-size="14" font-weight="600" font-family="Arial, sans-serif">${initials}</text>
+                    </svg>
+                `)}`;
+                
+                avatarElement.src = svgAvatar;
+                avatarElement.alt = displayName + ' Avatar';
+                avatarElement.title = `${displayName} - Click to access profile menu`;
+                avatarElement.style.opacity = '1';
+                console.log('👤 Initials avatar displayed:', initials, 'with color:', backgroundColor);
+            }
+
+            updateCompanyBranding() {
+                if (!this.currentCompany) {
+                    console.log('❌ No company data available for branding');
+                    this.showFallbackBranding();
+                    return;
+                }
+
+                console.log('✅ Company data found:', this.currentCompany.companyName || this.currentCompany.name);
+
+                // Update company logo and name in header
+                const headerLogo = document.getElementById('headerCompanyLogo');
+                const headerLogoPlaceholder = document.getElementById('headerLogoPlaceholder');
+                const headerCompanyName = document.getElementById('headerCompanyName');
+
+                console.log('Header elements found:', {
+                    logo: headerLogo ? '✅' : '❌',
+                    placeholder: headerLogoPlaceholder ? '✅' : '❌',
+                    companyName: headerCompanyName ? '✅' : '❌'
+                });
+
+                // Get company name with fallback options
+                const companyName = this.currentCompany?.companyName || 
+                                  this.currentCompany?.name ||
+                                  this.currentUser?.companyName || 
+                                  'Company';
+
+                // Update company name
+                if (headerCompanyName) {
+                    headerCompanyName.textContent = companyName;
+                    headerCompanyName.style.display = 'inline-block';
+                    console.log('✅ Company name updated:', headerCompanyName.textContent);
+                }
+
+                // Update logo or show placeholder
+                if (this.currentCompany.logoUrl || this.currentCompany.logo) {
+                    const logoUrl = this.currentCompany.logoUrl || this.currentCompany.logo;
+                    console.log('✅ Company logo URL found:', logoUrl);
+                    
+                    if (headerLogo) {
+                        headerLogo.src = logoUrl;
+                        headerLogo.classList.add('visible');
+                        headerLogo.style.display = 'block';
+                        console.log('✅ Company logo updated');
+                    }
+                    
+                    if (headerLogoPlaceholder) {
+                        headerLogoPlaceholder.style.display = 'none';
+                    }
+                } else {
+                    console.log('⚠️ No company logo found, showing placeholder');
+                    if (headerLogoPlaceholder) {
+                        headerLogoPlaceholder.style.display = 'flex';
+                    }
+                    if (headerLogo) {
+                        headerLogo.classList.remove('visible');
+                        headerLogo.style.display = 'none';
+                    }
+                }
+
+                console.log('✅ Company branding updated successfully');
+            }
+
+            showFallbackBranding() {
+                console.log('🏢 Showing fallback branding...');
+                
+                const headerLogoPlaceholder = document.getElementById('headerLogoPlaceholder');
+                const headerCompanyLogo = document.getElementById('headerCompanyLogo');
+                const headerCompanyName = document.getElementById('headerCompanyName');
+
+                // Show placeholder logo
+                if (headerLogoPlaceholder) {
+                    headerLogoPlaceholder.style.display = 'flex';
+                }
+                
+                // Hide company logo
+                if (headerCompanyLogo) {
+                    headerCompanyLogo.classList.remove('visible');
+                    headerCompanyLogo.style.display = 'none';
+                }
+                
+                // Set fallback company name
+                if (headerCompanyName) {
+                    headerCompanyName.textContent = 'Dreamex Datalab HSE';
+                    headerCompanyName.style.display = 'inline-block';
+                }
+
+                console.log('✅ Fallback branding displayed');
+            }
+
+            updateUIForAuthenticatedUser() {
+                // Update user display elements
+                const userName = document.getElementById('userName');
+                const userEmail = document.getElementById('userEmail');
+                
+                if (userName) {
+                    userName.textContent = this.getUserDisplayName();
+                }
+                
+                if (userEmail) {
+                    userEmail.textContent = this.getUserEmail();
+                }
+                
+                // Update avatar with a slight delay to ensure DOM is ready
+                setTimeout(() => {
+                    this.updateUserAvatarDisplay();
+                }, 100);
+                
+                console.log('✅ UI updated for authenticated user');
+            }
+        }
+
+        // Legacy compatibility functions for backward compatibility
+        function getCurrentUser() {
+            return window.authManager ? window.authManager.getCurrentUser() : null;
+        }
+
+        function setCurrentUser(userData) {
+            if (window.authManager) {
+                window.authManager.setCurrentUser(userData);
+            }
+        }
+
+        // Global avatar update function for compatibility
+        async function updateUserAvatar() {
+            if (window.authManager) {
+                await window.authManager.updateUserAvatarDisplay();
+            }
+        }
+
+        // Generate initials avatar as fallback
+        function generateInitialsAvatar() {
+            if (window.authManager) {
+                const avatarElement = document.getElementById('userAvatar');
+                if (avatarElement) {
+                    window.authManager.generateInitialsAvatar(avatarElement);
+                }
+            }
+        }
+        
+        // Initialize authentication
+        function initializeAuth() {
+            // Get current user from localStorage
+            currentUser = getCurrentUser();
+            
+            // Check if we're on the login page
+            if (window.location.pathname.includes('login.html')) {
+                initializeLoginPage();
+            } else if (window.location.pathname.includes('company-complete-registration.html')) {
+                // Skip authentication check for registration page
+                return;
+            } else {
+                // Check if user is logged in
+                if (!currentUser) {
+                    console.log('🔐 No authenticated user found, redirecting to login');
+                    window.location.href = 'login.html';
+                    return;
+                }
+                
+                console.log('🔐 User authenticated:', currentUser.email || currentUser.id);
+                // Load user data and initialize page
+                loadUserRole(currentUser);
+                loadUserCompany();
+                updateUIForAuthenticatedUser();
+            }
+        }
+        
+        // Load user role and permissions
+        function loadUserRole(user) {
+            if (!user) return;
+            
+            try {
+                const companyId = user.companyId;
+                const userRole = user.role;
+                
+                if (companyId && userRole) {
+                    console.log('User role loaded:', userRole);
+                    // Settings page is typically accessible to all authenticated users
+                    // but you can add specific role checks here if needed
+                }
+            } catch (error) {
+                console.error('Error loading user role:', error);
+            }
+        }
+        
+        // Load user company information
+        function loadUserCompany() {
+            if (!currentUser || !currentUser.companyId) return;
+            
+            const companyRef = database.ref(`companies/${currentUser.companyId}`);
+            companyRef.once('value')
+                .then(snapshot => {
+                    const companyData = snapshot.val();
+                    if (companyData) {
+                        updateCompanyInfo(companyData);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading company data:', error);
+                });
+        }
+        
+        // Update company information in UI
+        function updateCompanyInfo(companyData) {
+            // Update company name
+            const headerCompanyName = document.getElementById('headerCompanyName');
+            if (headerCompanyName && companyData.name) {
+                headerCompanyName.textContent = companyData.name;
+            }
+            
+            // Update company logo
+            const headerLogo = document.getElementById('headerCompanyLogo');
+            const headerPlaceholder = document.getElementById('headerLogoPlaceholder');
+            
+            if (companyData.logoUrl) {
+                if (headerLogo) {
+                    headerLogo.src = companyData.logoUrl;
+                    headerLogo.classList.add('visible');
+                }
+                if (headerPlaceholder) {
+                    headerPlaceholder.style.display = 'none';
+                }
+            } else {
+                if (headerLogo) {
+                    headerLogo.classList.remove('visible');
+                }
+                if (headerPlaceholder) {
+                    headerPlaceholder.style.display = 'flex';
+                }
+            }
+        }
+        
+        // Update UI for authenticated user
+        function updateUIForAuthenticatedUser() {
+            if (!currentUser) return;
+            
+            // Update user avatar and display name
+            updateUserAvatar();
+            
+            // Show authenticated UI elements
+            const authElements = document.querySelectorAll('.auth-required');
+            authElements.forEach(element => {
+                element.style.display = 'block';
+            });
+        }
+        
+        // Update user avatar in header
+        function updateUserAvatar() {
+            if (!currentUser) {
+                console.log('👤 No current user, skipping avatar update');
+                return;
+            }
+            
+            const userAvatarImg = document.getElementById('userAvatar');
+            const userDisplayName = document.getElementById('userDisplayName');
+            
+            if (!userAvatarImg) {
+                console.log('👤 User avatar element not found, skipping avatar update');
+                return;
+            }
+            
+            if (userDisplayName) {
+                userDisplayName.textContent = currentUser.firstName && currentUser.lastName 
+                    ? `${currentUser.firstName} ${currentUser.lastName}`
+                    : currentUser.email || 'User';
+            }
+            
+            // Ensure avatar is visible from the start
+            userAvatarImg.style.display = 'block';
+            
+            if (currentUser.profilePicture) {
+                console.log('👤 Loading profile picture from user data');
+                userAvatarImg.src = currentUser.profilePicture;
+                userAvatarImg.onload = () => {
+                    console.log('👤 Profile picture loaded successfully');
+                };
+                userAvatarImg.onerror = () => {
+                    console.log('👤 Profile picture failed to load, generating initials avatar');
+                    generateInitialsAvatar();
+                };
+            } else {
+                console.log('👤 No profile picture in user data, checking Firebase Storage');
+                // Try to load from Firebase Storage
+                const storageRef = storage.ref(`avatars/${currentUser.uid || currentUser.id}`);
+                storageRef.getDownloadURL()
+                    .then(url => {
+                        console.log('👤 Found avatar in Firebase Storage:', url);
+                        userAvatarImg.src = url;
+                        // Update user data with avatar URL
+                        currentUser.profilePicture = url;
+                        setCurrentUser(currentUser);
+                    })
+                    .catch((error) => {
+                        console.log('👤 No avatar found in Firebase Storage, generating initials avatar');
+                        // No avatar found, generate initials avatar
+                        generateInitialsAvatar();
+                    });
+            }
+        }
+        
+        // Generate initials avatar as fallback
+        function generateInitialsAvatar() {
+            const userAvatarImg = document.getElementById('userAvatar');
+            if (!userAvatarImg || !currentUser) {
+                console.log('👤 Cannot generate initials avatar - missing elements or user data');
+                return;
+            }
+            
+            // Get user's display name for initials
+            let displayName = 'User';
+            if (currentUser.firstName && currentUser.lastName) {
+                displayName = `${currentUser.firstName} ${currentUser.lastName}`;
+            } else if (currentUser.firstName) {
+                displayName = currentUser.firstName;
+            } else if (currentUser.email) {
+                displayName = currentUser.email.split('@')[0];
+            }
+            
+            // Generate initials (max 2 characters)
+            const initials = displayName.split(' ')
+                .map(name => name.charAt(0).toUpperCase())
+                .join('')
+                .substring(0, 2);
+            
+            // Generate color based on user ID or name
+            const colors = ['#3498db', '#e74c3c', '#2ecc71', '#f39c12', '#9b59b6', '#1abc9c', '#34495e'];
+            const userId = currentUser.uid || currentUser.id || currentUser.email || 'default';
+            const colorIndex = Math.abs(userId.split('').reduce((a, b) => a + b.charCodeAt(0), 0)) % colors.length;
+            const backgroundColor = colors[colorIndex];
+            
+            // Create SVG avatar
+            const svgAvatar = `data:image/svg+xml;base64,${btoa(`
+                <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="20" cy="20" r="20" fill="${backgroundColor}"/>
+                    <text x="20" y="25" text-anchor="middle" fill="white" font-size="14" font-weight="600" font-family="Arial, sans-serif">${initials}</text>
+                </svg>
+            `)}`;
+            
+            // Smoothly update the avatar
+            userAvatarImg.style.opacity = '0';
+            setTimeout(() => {
+                userAvatarImg.src = svgAvatar;
+                userAvatarImg.alt = displayName + ' Avatar';
+                userAvatarImg.title = `${displayName} - Click to access profile menu`;
+                userAvatarImg.style.display = 'block';
+                userAvatarImg.style.opacity = '1';
+                
+                console.log('👤 Generated initials avatar for:', displayName, 'with initials:', initials);
+            }, 150);
+        }
+
+        // Initialize the centralized authentication system
+        window.authManager = new AuthManager();
+
+        // Make helper functions available globally for compatibility
+        window.getCurrentUser = getCurrentUser;
+        window.setCurrentUser = setCurrentUser;
+        window.updateUserAvatar = updateUserAvatar;
+        window.generateInitialsAvatar = generateInitialsAvatar;
+        
+        // Embedded Standalone JavaScript
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('✅ Settings Standalone Page Loaded with Centralized Auth');
+            
+            // The AuthManager constructor already handles authentication initialization
+            // No need to call initializeAuth() manually
+            
+            // Get form elements
+            const dateFormatSelect = document.getElementById('dateFormat');
+            const timeFormatSelect = document.getElementById('timeFormat');
+            const emailNotificationsToggle = document.getElementById('emailNotifications');
+            const browserNotificationsToggle = document.getElementById('browserNotifications');
+            const saveSettingsBtn = document.getElementById('saveSettingsBtn');
+            const resetFormBtn = document.getElementById('resetFormBtn');
+            const statusSuccess = document.getElementById('statusSuccess');
+            const statusError = document.getElementById('statusError');
+            const dateTimePreview = document.getElementById('dateTimePreview');
+            
+            // Update date/time preview
+            function updateDateTimePreview() {
+                const now = new Date();
+                const dateFormat = dateFormatSelect.value;
+                const timeFormat = timeFormatSelect.value;
+                
+                try {
+                    // Use moment.js for formatting if available, otherwise fallback
+                    if (typeof moment !== 'undefined') {
+                        const formattedDateTime = moment(now).format(`${dateFormat} ${timeFormat}`);
+                        dateTimePreview.textContent = formattedDateTime;
+                    } else {
+                        // Fallback formatting
+                        const options = { 
+                            year: 'numeric', 
+                            month: 'numeric', 
+                            day: 'numeric',
+                            hour: 'numeric',
+                            minute: 'numeric'
+                        };
+                        dateTimePreview.textContent = now.toLocaleDateString('en-US', options) + ' ' + now.toLocaleTimeString('en-US', options);
+                    }
+                } catch (error) {
+                    console.error('Error formatting date/time:', error);
+                    dateTimePreview.textContent = now.toString();
+                }
+            }
+            
+            // Save preferences (standalone version - uses localStorage)
+            function saveUserPreferences() {
+                const dateFormat = dateFormatSelect.value;
+                const timeFormat = timeFormatSelect.value;
+                const fullFormat = `${dateFormat} ${timeFormat}`;
+                
+                const preferences = {
+                    datetimeFormat: fullFormat,
+                    notifications: {
+                        email: emailNotificationsToggle.checked,
+                        browser: browserNotificationsToggle.checked
+                    },
+                    lastUpdated: new Date().toISOString(),
+                    standalone: true
+                };
+                
+                try {
+                    // Save to localStorage for standalone version
+                    localStorage.setItem('standaloneSettings', JSON.stringify(preferences));
+                    
+                    showStatusMessage('success', 'Settings saved successfully! (Standalone Mode)');
+                    console.log('Standalone settings saved:', preferences);
+                    
+                } catch (error) {
+                    console.error('Error saving standalone settings:', error);
+                    showStatusMessage('error', 'Failed to save settings: ' + error.message);
+                }
+            }
+            
+            // Load preferences (standalone version - uses localStorage)
+            function loadUserPreferences() {
+                try {
+                    const savedSettings = localStorage.getItem('standaloneSettings');
+                    if (savedSettings) {
+                        const preferences = JSON.parse(savedSettings);
+                        
+                        if (preferences.datetimeFormat) {
+                            const formatParts = preferences.datetimeFormat.split(' ');
+                            const dateFormat = formatParts[0];
+                            const timeFormat = formatParts.slice(1).join(' ');
+                            
+                            if (dateFormat && isValidOption(dateFormatSelect, dateFormat)) {
+                                dateFormatSelect.value = dateFormat;
+                            }
+                            if (timeFormat && isValidOption(timeFormatSelect, timeFormat)) {
+                                timeFormatSelect.value = timeFormat;
+                            }
+                        }
+                        
+                        if (preferences.notifications) {
+                            emailNotificationsToggle.checked = preferences.notifications.email !== false;
+                            browserNotificationsToggle.checked = preferences.notifications.browser === true;
+                        }
+                        
+                        console.log('Standalone settings loaded:', preferences);
+                    }
+                    
+                    updateDateTimePreview();
+                } catch (error) {
+                    console.error('Error loading standalone settings:', error);
+                    showStatusMessage('error', 'Failed to load settings: ' + error.message);
+                }
+            }
+            
+            // Check if an option is valid in a select element
+            function isValidOption(selectElement, value) {
+                if (!selectElement) return false;
+                for (let i = 0; i < selectElement.options.length; i++) {
+                    if (selectElement.options[i].value === value) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+            
+            // Show status message
+            function showStatusMessage(type, message) {
+                const statusElement = type === 'success' ? statusSuccess : statusError;
+                if (!statusElement) return;
+                
+                statusElement.style.display = 'flex';
+                statusElement.innerHTML = `
+                    <i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-circle'}"></i>
+                    <span>${message}</span>
+                `;
+                
+                // Add slide-up animation
+                statusElement.style.animation = 'slideIn 0.3s ease';
+                
+                setTimeout(() => {
+                    statusElement.style.animation = 'slideOut 0.3s ease';
+                    setTimeout(() => {
+                        statusElement.style.display = 'none';
+                    }, 300);
+                }, 4000);
+            }
+            
+            // Event listeners
+            if (dateFormatSelect) {
+                dateFormatSelect.addEventListener('change', updateDateTimePreview);
+            }
+            
+            if (timeFormatSelect) {
+                timeFormatSelect.addEventListener('change', updateDateTimePreview);
+            }
+            
+            if (saveSettingsBtn) {
+                saveSettingsBtn.addEventListener('click', saveUserPreferences);
+            }
+            
+            if (resetFormBtn) {
+                resetFormBtn.addEventListener('click', function() {
+                    if (confirm('Are you sure you want to reset your changes?')) {
+                        // Reset to defaults
+                        dateFormatSelect.value = 'MM/DD/YYYY';
+                        timeFormatSelect.value = 'HH:mm';
+                        emailNotificationsToggle.checked = true;
+                        browserNotificationsToggle.checked = false;
+                        updateDateTimePreview();
+                        
+                        // Clear localStorage
+                        localStorage.removeItem('standaloneSettings');
+                        showStatusMessage('success', 'Settings reset to defaults');
+                    }
+                });
+            }
+            
+            // Export settings
+            const exportBtn = document.getElementById('exportSettingsBtn');
+            if (exportBtn) {
+                exportBtn.addEventListener('click', function() {
+                    try {
+                        const settings = localStorage.getItem('standaloneSettings');
+                        const data = settings ? JSON.parse(settings) : {
+                            datetimeFormat: `${dateFormatSelect.value} ${timeFormatSelect.value}`,
+                            notifications: {
+                                email: emailNotificationsToggle.checked,
+                                browser: browserNotificationsToggle.checked
+                            },
+                            exportedAt: new Date().toISOString(),
+                            standalone: true
+                        };
+                        
+                        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = 'settings-export.json';
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                        
+                        showStatusMessage('success', 'Settings exported successfully!');
+                    } catch (error) {
+                        console.error('Export error:', error);
+                        showStatusMessage('error', 'Failed to export settings');
+                    }
+                });
+            }
+            
+            // Profile dropdown functionality is now handled by AuthManager
+            // No duplicate setup needed here
+            
+            // Initialize authenticated user data
+            loadUserPreferences();
+            updateDateTimePreview();
+            
+            // Sidebar toggle functionality (basic for consistency)
+            const sidebarToggle = document.getElementById('sidebarToggle');
+            if (sidebarToggle) {
+                sidebarToggle.addEventListener('click', function() {
+                    // For now, just provide visual feedback
+                    console.log('Sidebar toggle clicked (standalone mode)');
+                    // In a full implementation, this would toggle sidebar visibility
+                });
+            }
+            
+            // =============== FORM FIELD OPTIONS CONFIGURATION ===============
+            
+            // DOM elements for field options configuration
+            const fieldTypeSelector = document.getElementById('fieldTypeSelector');
+            const fieldOptionsList = document.getElementById('fieldOptionsList');
+            const fieldOptionForm = document.getElementById('fieldOptionForm');
+            const optionFormTitle = document.getElementById('optionFormTitle');
+            const addFieldOptionBtn = document.getElementById('addFieldOptionBtn');
+            const cancelOptionBtn = document.getElementById('cancelOptionBtn');
+            const saveOptionBtn = document.getElementById('saveOptionBtn');
+            const optionLabel = document.getElementById('optionLabel');
+            const optionValue = document.getElementById('optionValue');
+            const optionColor = document.getElementById('optionColor');
+            const optionEnabled = document.getElementById('optionEnabled');
+            const previewTags = document.getElementById('previewTags');
+            const importExcelBtn = document.getElementById('importExcelBtn');
+            const excelFileInput = document.getElementById('excelFileInput');
+            const excelImportModal = document.getElementById('excelImportModal');
+            
+            // Current field options and editing state
+            let currentFieldType = 'risk-category';
+            let currentOptions = [];
+            let isEditing = false;
+            let editingIndex = -1;
+            let excelImportData = null;
+            
+            // Default options for dropdown fields (simplified for standalone)
+            const defaultFieldOptions = {
+                'risk-category': [
+                    { label: 'High Risk', value: 'high-risk', color: '#dc3545', enabled: true },
+                    { label: 'Medium Risk', value: 'medium-risk', color: '#fd7e14', enabled: true },
+                    { label: 'Low Risk', value: 'low-risk', color: '#28a745', enabled: true }
+                ],
+                'hazard-type': [
+                    { label: 'Physical', value: 'physical', color: '#dc3545', enabled: true },
+                    { label: 'Chemical', value: 'chemical', color: '#fd7e14', enabled: true },
+                    { label: 'Biological', value: 'biological', color: '#198754', enabled: true },
+                    { label: 'Ergonomic', value: 'ergonomic', color: '#0d6efd', enabled: true }
+                ],
+                'risk-strategy': [
+                    { label: 'Avoid', value: 'avoid', color: '#dc3545', enabled: true },
+                    { label: 'Mitigate', value: 'mitigate', color: '#fd7e14', enabled: true },
+                    { label: 'Transfer', value: 'transfer', color: '#0d6efd', enabled: true },
+                    { label: 'Accept', value: 'accept', color: '#28a745', enabled: true }
+                ],
+                'training-category': [
+                    { label: 'Safety Training', value: 'safety', color: '#28a745', enabled: true },
+                    { label: 'Compliance', value: 'compliance', color: '#0d6efd', enabled: true },
+                    { label: 'Technical Skills', value: 'technical', color: '#6f42c1', enabled: true },
+                    { label: 'Emergency Response', value: 'emergency', color: '#dc3545', enabled: true }
+                ],
+                'area': [
+                    { label: 'Production', value: 'production', color: '#0d6efd', enabled: true },
+                    { label: 'Warehouse', value: 'warehouse', color: '#6f42c1', enabled: true },
+                    { label: 'Laboratory', value: 'laboratory', color: '#fd7e14', enabled: true },
+                    { label: 'Office', value: 'office', color: '#198754', enabled: true }
+                ],
+                'equipment': [
+                    { label: 'Forklift', value: 'forklift', color: '#fd7e14', enabled: true },
+                    { label: 'Crane', value: 'crane', color: '#dc3545', enabled: true },
+                    { label: 'Power Tools', value: 'power-tools', color: '#0d6efd', enabled: true }
+                ],
+                'ppe': [
+                    { label: 'Hard Hat', value: 'hard-hat', color: '#fd7e14', enabled: true },
+                    { label: 'Safety Glasses', value: 'safety-glasses', color: '#0d6efd', enabled: true },
+                    { label: 'Safety Gloves', value: 'gloves', color: '#6f42c1', enabled: true },
+                    { label: 'Safety Boots', value: 'boots', color: '#198754', enabled: true }
+                ],
+                // Fuel Management Field Options
+                'fuel-type': [
+                    { label: 'Diesel', value: 'diesel', color: '#fd7e14', enabled: true },
+                    { label: 'Gasoline', value: 'gasoline', color: '#dc3545', enabled: true },
+                    { label: 'Jet Fuel', value: 'jet-fuel', color: '#0d6efd', enabled: true },
+                    { label: 'Heavy Fuel Oil', value: 'heavy-fuel-oil', color: '#6f42c1', enabled: true },
+                    { label: 'Marine Gas Oil', value: 'marine-gas-oil', color: '#198754', enabled: true },
+                    { label: 'Kerosene', value: 'kerosene', color: '#20c997', enabled: true }
+                ],
+                'fuel-tanks': [
+                    { label: 'Tank A1', value: 'tank-a1', color: '#0d6efd', enabled: true },
+                    { label: 'Tank A2', value: 'tank-a2', color: '#0d6efd', enabled: true },
+                    { label: 'Tank B1', value: 'tank-b1', color: '#198754', enabled: true },
+                    { label: 'Tank B2', value: 'tank-b2', color: '#198754', enabled: true },
+                    { label: 'Tank C1', value: 'tank-c1', color: '#fd7e14', enabled: true },
+                    { label: 'Reserve Tank 1', value: 'reserve-tank-1', color: '#6f42c1', enabled: true }
+                ],
+                'tank-id': [
+                    { label: 'TK-001', value: 'tk-001', color: '#0d6efd', enabled: true },
+                    { label: 'TK-002', value: 'tk-002', color: '#0d6efd', enabled: true },
+                    { label: 'TK-003', value: 'tk-003', color: '#198754', enabled: true },
+                    { label: 'TK-004', value: 'tk-004', color: '#198754', enabled: true },
+                    { label: 'TK-005', value: 'tk-005', color: '#fd7e14', enabled: true },
+                    { label: 'TK-RSV-001', value: 'tk-rsv-001', color: '#6f42c1', enabled: true }
+                ],
+                'distribution-method': [
+                    { label: 'Pipeline', value: 'pipeline', color: '#0d6efd', enabled: true },
+                    { label: 'Truck Transport', value: 'truck-transport', color: '#fd7e14', enabled: true },
+                    { label: 'Ship Loading', value: 'ship-loading', color: '#198754', enabled: true },
+                    { label: 'Barge Loading', value: 'barge-loading', color: '#20c997', enabled: true },
+                    { label: 'Rail Transport', value: 'rail-transport', color: '#6f42c1', enabled: true },
+                    { label: 'Direct Pump', value: 'direct-pump', color: '#dc3545', enabled: true }
+                ],
+                'testing-lab': [
+                    { label: 'Internal Quality Lab', value: 'internal-lab', color: '#198754', enabled: true },
+                    { label: 'SGS Laboratory', value: 'sgs-lab', color: '#0d6efd', enabled: true },
+                    { label: 'Bureau Veritas', value: 'bureau-veritas', color: '#fd7e14', enabled: true },
+                    { label: 'Intertek Testing', value: 'intertek', color: '#6f42c1', enabled: true },
+                    { label: 'ALS Laboratory', value: 'als-lab', color: '#20c997', enabled: true },
+                    { label: 'Saybolt Laboratory', value: 'saybolt-lab', color: '#dc3545', enabled: true }
+                ],
+                'fuel-grade': [
+                    { label: 'Premium Grade', value: 'premium', color: '#28a745', enabled: true },
+                    { label: 'Standard Grade', value: 'standard', color: '#0d6efd', enabled: true },
+                    { label: 'Commercial Grade', value: 'commercial', color: '#fd7e14', enabled: true },
+                    { label: 'Marine Grade', value: 'marine', color: '#20c997', enabled: true }
+                ],
+                'fuel-quality-status': [
+                    { label: 'Passed', value: 'passed', color: '#28a745', enabled: true },
+                    { label: 'Failed', value: 'failed', color: '#dc3545', enabled: true },
+                    { label: 'Pending', value: 'pending', color: '#fd7e14', enabled: true },
+                    { label: 'In Progress', value: 'in-progress', color: '#0d6efd', enabled: true },
+                    { label: 'Requires Retest', value: 'retest', color: '#6f42c1', enabled: true }
+                ],
+                'fuel-quality-standard': [
+                    { label: 'ISO 8217', value: 'iso-8217', color: '#0d6efd', enabled: true },
+                    { label: 'ASTM D975', value: 'astm-d975', color: '#198754', enabled: true },
+                    { label: 'EN 590', value: 'en-590', color: '#fd7e14', enabled: true },
+                    { label: 'API Standards', value: 'api-standards', color: '#6f42c1', enabled: true },
+                    { label: 'MARPOL Annex VI', value: 'marpol-annex-vi', color: '#20c997', enabled: true }
+                ],
+                'fuel-supplier': [
+                    { label: 'Shell International', value: 'shell', color: '#dc3545', enabled: true },
+                    { label: 'ExxonMobil', value: 'exxonmobil', color: '#0d6efd', enabled: true },
+                    { label: 'BP Fuels', value: 'bp', color: '#28a745', enabled: true },
+                    { label: 'Total Energies', value: 'total', color: '#fd7e14', enabled: true },
+                    { label: 'Chevron', value: 'chevron', color: '#6f42c1', enabled: true },
+                    { label: 'Local Supplier', value: 'local-supplier', color: '#20c997', enabled: true }
+                ],
+                'fuel-delivery-method': [
+                    { label: 'Vessel Offloading', value: 'vessel-offloading', color: '#0d6efd', enabled: true },
+                    { label: 'Tank Truck', value: 'tank-truck', color: '#fd7e14', enabled: true },
+                    { label: 'Pipeline Transfer', value: 'pipeline-transfer', color: '#198754', enabled: true },
+                    { label: 'Barge Delivery', value: 'barge-delivery', color: '#20c997', enabled: true },
+                    { label: 'Rail Car', value: 'rail-car', color: '#6f42c1', enabled: true }
+                ],
+                'fuel-storage-location': [
+                    { label: 'Terminal A', value: 'terminal-a', color: '#0d6efd', enabled: true },
+                    { label: 'Terminal B', value: 'terminal-b', color: '#198754', enabled: true },
+                    { label: 'Main Storage Facility', value: 'main-storage', color: '#fd7e14', enabled: true },
+                    { label: 'Auxiliary Storage', value: 'aux-storage', color: '#6f42c1', enabled: true },
+                    { label: 'Emergency Storage', value: 'emergency-storage', color: '#dc3545', enabled: true }
+                ],
+                'fuel-test-parameter': [
+                    { label: 'Density', value: 'density', color: '#0d6efd', enabled: true },
+                    { label: 'Viscosity', value: 'viscosity', color: '#198754', enabled: true },
+                    { label: 'Sulfur Content', value: 'sulfur-content', color: '#fd7e14', enabled: true },
+                    { label: 'Flash Point', value: 'flash-point', color: '#dc3545', enabled: true },
+                    { label: 'Pour Point', value: 'pour-point', color: '#6f42c1', enabled: true },
+                    { label: 'Water Content', value: 'water-content', color: '#20c997', enabled: true },
+                    { label: 'Sediment Content', value: 'sediment-content', color: '#ffc107', enabled: true },
+                    { label: 'Carbon Residue', value: 'carbon-residue', color: '#e83e8c', enabled: true }
+                ],
+                // User Management Field Options
+                'company': [
+                    { label: 'Dreamex Labs', value: 'dreamex-labs', color: '#0d6efd', enabled: true },
+                    { label: 'Tech Solutions Inc', value: 'tech-solutions', color: '#198754', enabled: true },
+                    { label: 'Global Industries', value: 'global-industries', color: '#fd7e14', enabled: true },
+                    { label: 'Enterprise Corp', value: 'enterprise-corp', color: '#6f42c1', enabled: true }
+                ],
+                'user-gender': [
+                    { label: 'Male', value: 'male', color: '#0d6efd', enabled: true },
+                    { label: 'Female', value: 'female', color: '#e83e8c', enabled: true },
+                    { label: 'Other', value: 'other', color: '#6c757d', enabled: true },
+                    { label: 'Prefer not to say', value: 'not-specified', color: '#20c997', enabled: true }
+                ],
+                'user-role': [
+                    { label: 'Administrator', value: 'admin', color: '#dc3545', enabled: true },
+                    { label: 'Manager', value: 'manager', color: '#fd7e14', enabled: true },
+                    { label: 'User', value: 'user', color: '#0d6efd', enabled: true },
+                    { label: 'Viewer', value: 'viewer', color: '#6c757d', enabled: true }
+                ],
+                'account-status': [
+                    { label: 'Active', value: 'active', color: '#28a745', enabled: true },
+                    { label: 'Inactive', value: 'inactive', color: '#6c757d', enabled: true },
+                    { label: 'Suspended', value: 'suspended', color: '#dc3545', enabled: true },
+                    { label: 'Pending', value: 'pending', color: '#fd7e14', enabled: true }
+                ],
+                'department': [
+                    { label: 'Information Technology', value: 'it', color: '#0d6efd', enabled: true },
+                    { label: 'Human Resources', value: 'hr', color: '#e83e8c', enabled: true },
+                    { label: 'Finance', value: 'finance', color: '#28a745', enabled: true },
+                    { label: 'Operations', value: 'operations', color: '#fd7e14', enabled: true },
+                    { label: 'Marketing', value: 'marketing', color: '#6f42c1', enabled: true },
+                    { label: 'Sales', value: 'sales', color: '#20c997', enabled: true }
+                ],
+                'job-title': [
+                    { label: 'Software Engineer', value: 'software-engineer', color: '#0d6efd', enabled: true },
+                    { label: 'Project Manager', value: 'project-manager', color: '#fd7e14', enabled: true },
+                    { label: 'Business Analyst', value: 'business-analyst', color: '#6f42c1', enabled: true },
+                    { label: 'Data Analyst', value: 'data-analyst', color: '#20c997', enabled: true },
+                    { label: 'HR Specialist', value: 'hr-specialist', color: '#e83e8c', enabled: true },
+                    { label: 'Financial Analyst', value: 'financial-analyst', color: '#28a745', enabled: true }
+                ],
+                // Project Management Field Options
+                'project-status': [
+                    { label: 'Planning', value: 'planning', color: '#fd7e14', enabled: true },
+                    { label: 'In Progress', value: 'in-progress', color: '#0d6efd', enabled: true },
+                    { label: 'On Hold', value: 'on-hold', color: '#6c757d', enabled: true },
+                    { label: 'Completed', value: 'completed', color: '#28a745', enabled: true },
+                    { label: 'Cancelled', value: 'cancelled', color: '#dc3545', enabled: true }
+                ],
+                'project-priority': [
+                    { label: 'Low', value: 'low', color: '#28a745', enabled: true },
+                    { label: 'Medium', value: 'medium', color: '#fd7e14', enabled: true },
+                    { label: 'High', value: 'high', color: '#dc3545', enabled: true },
+                    { label: 'Critical', value: 'critical', color: '#6f42c1', enabled: true }
+                ],
+                'project-category': [
+                    { label: 'Software Development', value: 'software-dev', color: '#0d6efd', enabled: true },
+                    { label: 'Infrastructure', value: 'infrastructure', color: '#6c757d', enabled: true },
+                    { label: 'Research & Development', value: 'research-dev', color: '#6f42c1', enabled: true },
+                    { label: 'Marketing Campaign', value: 'marketing', color: '#fd7e14', enabled: true },
+                    { label: 'Process Improvement', value: 'process-improvement', color: '#20c997', enabled: true }
+                ],
+                'task-status': [
+                    { label: 'To Do', value: 'todo', color: '#6c757d', enabled: true },
+                    { label: 'In Progress', value: 'in-progress', color: '#0d6efd', enabled: true },
+                    { label: 'Review', value: 'review', color: '#fd7e14', enabled: true },
+                    { label: 'Done', value: 'done', color: '#28a745', enabled: true },
+                    { label: 'Blocked', value: 'blocked', color: '#dc3545', enabled: true }
+                ],
+                'task-priority': [
+                    { label: 'Low', value: 'low', color: '#28a745', enabled: true },
+                    { label: 'Medium', value: 'medium', color: '#fd7e14', enabled: true },
+                    { label: 'High', value: 'high', color: '#dc3545', enabled: true },
+                    { label: 'Urgent', value: 'urgent', color: '#6f42c1', enabled: true }
+                ],
+                'milestone-status': [
+                    { label: 'Planned', value: 'planned', color: '#6c757d', enabled: true },
+                    { label: 'In Progress', value: 'in-progress', color: '#0d6efd', enabled: true },
+                    { label: 'Achieved', value: 'achieved', color: '#28a745', enabled: true },
+                    { label: 'Missed', value: 'missed', color: '#dc3545', enabled: true },
+                    { label: 'Postponed', value: 'postponed', color: '#fd7e14', enabled: true }
+                ],
+                'resource-type': [
+                    { label: 'Human Resource', value: 'human', color: '#0d6efd', enabled: true },
+                    { label: 'Equipment', value: 'equipment', color: '#fd7e14', enabled: true },
+                    { label: 'Software License', value: 'software', color: '#6f42c1', enabled: true },
+                    { label: 'Budget', value: 'budget', color: '#28a745', enabled: true },
+                    { label: 'Material', value: 'material', color: '#20c997', enabled: true }
+                ],
+                // Camp Management Field Options
+                'room-type': [
+                    { label: 'Single Room', value: 'single', color: '#0d6efd', enabled: true },
+                    { label: 'Double Room', value: 'double', color: '#198754', enabled: true },
+                    { label: 'Triple Room', value: 'triple', color: '#fd7e14', enabled: true },
+                    { label: 'Dormitory', value: 'dormitory', color: '#6f42c1', enabled: true },
+                    { label: 'Suite', value: 'suite', color: '#20c997', enabled: true },
+                    { label: 'Executive Room', value: 'executive', color: '#dc3545', enabled: true }
+                ],
+                'room-status': [
+                    { label: 'Available', value: 'available', color: '#28a745', enabled: true },
+                    { label: 'Occupied', value: 'occupied', color: '#dc3545', enabled: true },
+                    { label: 'Maintenance', value: 'maintenance', color: '#fd7e14', enabled: true },
+                    { label: 'Out of Service', value: 'out-of-service', color: '#6c757d', enabled: true },
+                    { label: 'Cleaning', value: 'cleaning', color: '#0d6efd', enabled: true },
+                    { label: 'Reserved', value: 'reserved', color: '#6f42c1', enabled: true }
+                ],
+                'amenity-type': [
+                    { label: 'Air Conditioning', value: 'ac', color: '#20c997', enabled: true },
+                    { label: 'Bed', value: 'bed', color: '#198754', enabled: true },
+                    { label: 'Desk', value: 'desk', color: '#fd7e14', enabled: true },
+                    { label: 'Wardrobe', value: 'wardrobe', color: '#6f42c1', enabled: true },
+                    { label: 'WiFi', value: 'wifi', color: '#0d6efd', enabled: true },
+                    { label: 'Television', value: 'tv', color: '#dc3545', enabled: true },
+                    { label: 'Mini Fridge', value: 'fridge', color: '#28a745', enabled: true },
+                    { label: 'Safe', value: 'safe', color: '#6c757d', enabled: true },
+                    { label: 'Balcony', value: 'balcony', color: '#ffc107', enabled: true },
+                    { label: 'Kitchenette', value: 'kitchenette', color: '#e83e8c', enabled: true }
+                ],
+                'accommodation-category': [
+                    { label: 'Standard', value: 'standard', color: '#0d6efd', enabled: true },
+                    { label: 'Premium', value: 'premium', color: '#fd7e14', enabled: true },
+                    { label: 'Executive', value: 'executive', color: '#dc3545', enabled: true },
+                    { label: 'Economy', value: 'economy', color: '#6c757d', enabled: true },
+                    { label: 'Temporary', value: 'temporary', color: '#20c997', enabled: true }
+                ],
+                'room-capacity': [
+                    { label: '1 Person', value: '1', color: '#0d6efd', enabled: true },
+                    { label: '2 Persons', value: '2', color: '#198754', enabled: true },
+                    { label: '3 Persons', value: '3', color: '#fd7e14', enabled: true },
+                    { label: '4 Persons', value: '4', color: '#6f42c1', enabled: true },
+                    { label: '5+ Persons', value: '5+', color: '#dc3545', enabled: true }
+                ],
+                'bed-type': [
+                    { label: 'Single Bed', value: 'single-bed', color: '#0d6efd', enabled: true },
+                    { label: 'Double Bed', value: 'double-bed', color: '#198754', enabled: true },
+                    { label: 'Bunk Bed', value: 'bunk-bed', color: '#fd7e14', enabled: true },
+                    { label: 'Queen Bed', value: 'queen-bed', color: '#6f42c1', enabled: true },
+                    { label: 'King Bed', value: 'king-bed', color: '#dc3545', enabled: true }
+                ],
+                'room-location': [
+                    { label: 'Block A', value: 'block-a', color: '#0d6efd', enabled: true },
+                    { label: 'Block B', value: 'block-b', color: '#198754', enabled: true },
+                    { label: 'Block C', value: 'block-c', color: '#fd7e14', enabled: true },
+                    { label: 'Block D', value: 'block-d', color: '#6f42c1', enabled: true },
+                    { label: 'Main Building', value: 'main-building', color: '#20c997', enabled: true },
+                    { label: 'Annex Building', value: 'annex-building', color: '#dc3545', enabled: true }
+                ],
+                'camp-facility': [
+                    { label: 'Dining Hall', value: 'dining-hall', color: '#fd7e14', enabled: true },
+                    { label: 'Recreation Center', value: 'recreation-center', color: '#0d6efd', enabled: true },
+                    { label: 'Laundry', value: 'laundry', color: '#198754', enabled: true },
+                    { label: 'Medical Center', value: 'medical-center', color: '#dc3545', enabled: true },
+                    { label: 'Gym', value: 'gym', color: '#6f42c1', enabled: true },
+                    { label: 'Library', value: 'library', color: '#20c997', enabled: true },
+                    { label: 'Prayer Room', value: 'prayer-room', color: '#6c757d', enabled: true },
+                    { label: 'Common Room', value: 'common-room', color: '#ffc107', enabled: true }
+                ],
+                'maintenance-status': [
+                    { label: 'Scheduled', value: 'scheduled', color: '#0d6efd', enabled: true },
+                    { label: 'In Progress', value: 'in-progress', color: '#fd7e14', enabled: true },
+                    { label: 'Completed', value: 'completed', color: '#28a745', enabled: true },
+                    { label: 'Overdue', value: 'overdue', color: '#dc3545', enabled: true },
+                    { label: 'Cancelled', value: 'cancelled', color: '#6c757d', enabled: true }
+                ],
+                'occupancy-status': [
+                    { label: 'Vacant', value: 'vacant', color: '#28a745', enabled: true },
+                    { label: 'Occupied', value: 'occupied', color: '#dc3545', enabled: true },
+                    { label: 'Check-in Today', value: 'check-in-today', color: '#0d6efd', enabled: true },
+                    { label: 'Check-out Today', value: 'check-out-today', color: '#fd7e14', enabled: true },
+                    { label: 'Dirty', value: 'dirty', color: '#6f42c1', enabled: true },
+                    { label: 'Clean', value: 'clean', color: '#20c997', enabled: true }
+                ],
+                'camp-area': [
+                    { label: 'Residential Zone', value: 'residential', color: '#0d6efd', enabled: true },
+                    { label: 'Administrative Zone', value: 'administrative', color: '#198754', enabled: true },
+                    { label: 'Recreation Zone', value: 'recreation', color: '#fd7e14', enabled: true },
+                    { label: 'Service Zone', value: 'service', color: '#6f42c1', enabled: true },
+                    { label: 'Security Zone', value: 'security', color: '#dc3545', enabled: true }
+                ],
+                'camp-building': [
+                    { label: 'Accommodation Block', value: 'accommodation', color: '#0d6efd', enabled: true },
+                    { label: 'Office Building', value: 'office', color: '#198754', enabled: true },
+                    { label: 'Mess Hall', value: 'mess-hall', color: '#fd7e14', enabled: true },
+                    { label: 'Maintenance Building', value: 'maintenance', color: '#6f42c1', enabled: true },
+                    { label: 'Storage Building', value: 'storage', color: '#20c997', enabled: true },
+                    { label: 'Security Building', value: 'security', color: '#dc3545', enabled: true }
+                ]
+            };
+            
+            // Initialize field configuration
+            async function initializeFieldConfiguration() {
+                if (!fieldTypeSelector) return;
+                
+                console.log('🔧 Initializing field configuration system...');
+                
+                // Set up real-time listeners for field option changes from other tabs
+                setupFieldOptionsListeners();
+                
+                await loadFieldOptions();
+                updatePreview();
+                
+                // Event listeners
+                fieldTypeSelector.addEventListener('change', onFieldTypeChange);
+                
+                if (addFieldOptionBtn) {
+                    addFieldOptionBtn.addEventListener('click', () => showOptionForm());
+                }
+                
+                if (cancelOptionBtn) {
+                    cancelOptionBtn.addEventListener('click', hideOptionForm);
+                }
+                
+                if (saveOptionBtn) {
+                    saveOptionBtn.addEventListener('click', saveOption);
+                }
+                
+                if (importExcelBtn) {
+                    importExcelBtn.addEventListener('click', () => {
+                        showStatusMessage('info', 'Excel import feature available in full version');
+                    });
+                }
+                
+                console.log('✅ Field configuration system initialized');
+            }
+            
+            // Set up listeners for real-time field option updates
+            function setupFieldOptionsListeners() {
+                // Listen for BroadcastChannel updates from other tabs
+                if (typeof BroadcastChannel !== 'undefined') {
+                    try {
+                        const channel = new BroadcastChannel('fieldOptionsUpdates');
+                        channel.addEventListener('message', (event) => {
+                            const { fieldType, companyId, options } = event.data;
+                            
+                            // Only update if it's for the current field type and company
+                            if (fieldType === currentFieldType && 
+                                companyId === window.authManager?.currentUser?.companyId) {
+                                console.log(`📡 Received field options update via BroadcastChannel for ${fieldType}`);
+                                currentOptions = options || [];
+                                renderFieldOptions();
+                                updatePreview();
+                            }
+                        });
+                        console.log('📡 BroadcastChannel listener set up for field options');
+                    } catch (error) {
+                        console.warn('BroadcastChannel not available:', error);
+                    }
+                }
+                
+                // Listen for localStorage changes (fallback for older browsers)
+                window.addEventListener('storage', (event) => {
+                    if (event.key && event.key.startsWith('fieldOptionsChange_')) {
+                        try {
+                            const changeData = JSON.parse(event.newValue);
+                            if (changeData.fieldType === currentFieldType && 
+                                changeData.companyId === window.authManager?.currentUser?.companyId) {
+                                console.log(`📱 Received field options update via localStorage for ${changeData.fieldType}`);
+                                // Reload from the source
+                                loadFieldOptions();
+                            }
+                        } catch (error) {
+                            console.warn('Error parsing localStorage change event:', error);
+                        }
+                    }
+                });
+                
+                // Listen for custom events within the same page
+                document.addEventListener('fieldOptionsChanged', (event) => {
+                    const { fieldType, companyId, options } = event.detail;
+                    
+                    if (fieldType === currentFieldType && 
+                        companyId === window.authManager?.currentUser?.companyId) {
+                        console.log(`📄 Received field options update via custom event for ${fieldType}`);
+                        // Update display without reloading from source
+                        if (options && Array.isArray(options)) {
+                            currentOptions = [...options];
+                            renderFieldOptions();
+                            updatePreview();
+                        }
+                    }
+                });
+                
+                console.log('👂 Field options listeners configured');
+                
+                // Auto-generate value from label
+                if (optionLabel) {
+                    optionLabel.addEventListener('input', () => {
+                        if (optionValue && !isEditing) {
+                            optionValue.value = generateValueFromLabel(optionLabel.value);
+                        }
+                    });
+                }
+            }
+            
+            // Load field options for current type
+            async function loadFieldOptions() {
+                if (!fieldTypeSelector) return;
+                
+                currentFieldType = fieldTypeSelector.value;
+                console.log(`🔄 Loading field options for: ${currentFieldType}`);
+                
+                try {
+                    // Try to load from company Firebase scope first
+                    if (window.authManager && window.authManager.currentUser && window.authManager.currentUser.companyId) {
+                        const companyId = window.authManager.currentUser.companyId;
+                        
+                        // Try primary location first
+                        const fieldOptionsRef = ref(database, `companies/${companyId}/fieldOptions/${currentFieldType}`);
+                        let snapshot = await get(fieldOptionsRef);
+                        
+                        // If not found in primary location, try settings location
+                        if (!snapshot.exists()) {
+                            const settingsFieldOptionsRef = ref(database, `companies/${companyId}/settings/fieldOptions/${currentFieldType}`);
+                            snapshot = await get(settingsFieldOptionsRef);
+                        }
+                        
+                        if (snapshot.exists() && snapshot.val()) {
+                            const loadedOptions = snapshot.val();
+                            // Ensure the data is in the expected array format
+                            if (Array.isArray(loadedOptions)) {
+                                currentOptions = loadedOptions;
+                                console.log(`✅ Loaded ${currentOptions.length} field options for ${currentFieldType} from company scope`);
+                                console.log('📊 Loaded options:', currentOptions);
+                            } else {
+                                console.warn('Invalid field options format from Firebase, using defaults');
+                                currentOptions = [...(defaultFieldOptions[currentFieldType] || [])];
+                            }
+                        } else {
+                            // Try loading from company-specific localStorage
+                            const companyStorageKey = `fieldOptions_${companyId}_${currentFieldType}`;
+                            const companySavedOptions = localStorage.getItem(companyStorageKey);
+                            
+                            if (companySavedOptions) {
+                                try {
+                                    currentOptions = JSON.parse(companySavedOptions);
+                                    console.log(`📱 Loaded field options for ${currentFieldType} from company localStorage`);
+                                } catch (parseError) {
+                                    console.warn('Error parsing company localStorage options, using defaults');
+                                    currentOptions = [...(defaultFieldOptions[currentFieldType] || [])];
+                                }
+                            } else {
+                                // No company options found, use defaults and save them
+                                currentOptions = [...(defaultFieldOptions[currentFieldType] || [])];
+                                console.log(`📋 Using default options for ${currentFieldType}: ${currentOptions.length} options`);
+                                
+                                // Auto-save defaults to company scope for future use
+                                if (currentOptions.length > 0) {
+                                    await saveFieldOptions();
+                                    console.log(`💾 Auto-saved default options for ${currentFieldType} to company scope`);
+                                }
+                            }
+                        }
+                    } else {
+                        // Fallback to localStorage for standalone mode
+                        const storageKey = `fieldOptions_${currentFieldType}`;
+                        const savedOptions = localStorage.getItem(storageKey);
+                        if (savedOptions) {
+                            try {
+                                currentOptions = JSON.parse(savedOptions);
+                                console.log(`📱 Loaded field options for ${currentFieldType} from localStorage`);
+                            } catch (error) {
+                                console.log('Using default options for', currentFieldType);
+                                currentOptions = [...(defaultFieldOptions[currentFieldType] || [])];
+                            }
+                        } else {
+                            currentOptions = [...(defaultFieldOptions[currentFieldType] || [])];
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error loading field options from Firebase:', error);
+                    
+                    // Enhanced fallback strategy
+                    if (window.authManager && window.authManager.currentUser && window.authManager.currentUser.companyId) {
+                        const companyId = window.authManager.currentUser.companyId;
+                        const companyStorageKey = `fieldOptions_${companyId}_${currentFieldType}`;
+                        const companySavedOptions = localStorage.getItem(companyStorageKey);
+                        
+                        if (companySavedOptions) {
+                            try {
+                                currentOptions = JSON.parse(companySavedOptions);
+                                console.log(`📱 Fallback: Loaded field options for ${currentFieldType} from company localStorage`);
+                            } catch (parseError) {
+                                currentOptions = [...(defaultFieldOptions[currentFieldType] || [])];
+                            }
+                        } else {
+                            // Try regular localStorage
+                            const storageKey = `fieldOptions_${currentFieldType}`;
+                            const savedOptions = localStorage.getItem(storageKey);
+                            if (savedOptions) {
+                                try {
+                                    currentOptions = JSON.parse(savedOptions);
+                                } catch (parseError) {
+                                    currentOptions = [...(defaultFieldOptions[currentFieldType] || [])];
+                                }
+                            } else {
+                                currentOptions = [...(defaultFieldOptions[currentFieldType] || [])];
+                            }
+                        }
+                    } else {
+                        // Standalone mode fallback
+                        const storageKey = `fieldOptions_${currentFieldType}`;
+                        const savedOptions = localStorage.getItem(storageKey);
+                        if (savedOptions) {
+                            try {
+                                currentOptions = JSON.parse(savedOptions);
+                            } catch (parseError) {
+                                currentOptions = [...(defaultFieldOptions[currentFieldType] || [])];
+                            }
+                        } else {
+                            currentOptions = [...(defaultFieldOptions[currentFieldType] || [])];
+                        }
+                    }
+                }
+                
+                // Ensure currentOptions is always an array
+                if (!Array.isArray(currentOptions)) {
+                    console.warn('Field options is not an array, resetting to defaults');
+                    currentOptions = [...(defaultFieldOptions[currentFieldType] || [])];
+                }
+                
+                console.log(`📊 Final loaded options for ${currentFieldType}:`, currentOptions.length, 'items');
+                renderFieldOptions();
+                updatePreview();
+            }
+            
+            // Render field options list
+            function renderFieldOptions() {
+                if (!fieldOptionsList) return;
+                
+                fieldOptionsList.innerHTML = '';
+                
+                if (currentOptions.length === 0) {
+                    fieldOptionsList.innerHTML = '<p>No options available. Add some options to get started.</p>';
+                    return;
+                }
+                
+                currentOptions.forEach((option, index) => {
+                    const optionItem = document.createElement('div');
+                    optionItem.className = `field-option-item ${!option.enabled ? 'disabled' : ''}`;
+                    
+                    optionItem.innerHTML = `
+                        <div class="field-option-info">
+                            <div class="field-option-color" style="background-color: ${option.color}"></div>
+                            <span>${option.label}</span>
+                        </div>
+                        <div class="field-option-actions">
+                            <button class="btn btn-sm btn-secondary" onclick="editOption(${index})">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="btn btn-sm btn-danger" onclick="deleteOption(${index})">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    `;
+                    
+                    fieldOptionsList.appendChild(optionItem);
+                });
+            }
+            
+            // Update preview
+            function updatePreview() {
+                if (!previewTags) return;
+                
+                previewTags.innerHTML = '';
+                
+                const enabledOptions = currentOptions.filter(opt => opt.enabled);
+                enabledOptions.forEach(option => {
+                    const tag = document.createElement('span');
+                    tag.className = 'preview-tag';
+                    tag.style.backgroundColor = option.color;
+                    tag.textContent = option.label;
+                    previewTags.appendChild(tag);
+                });
+                
+                if (enabledOptions.length === 0) {
+                    previewTags.innerHTML = '<span style="color: #666;">No enabled options to preview</span>';
+                }
+            }
+            
+            // Event handlers
+            async function onFieldTypeChange() {
+                await loadFieldOptions();
+                hideOptionForm();
+            }
+            
+            function showOptionForm(editIndex = -1) {
+                if (!fieldOptionForm) return;
+                
+                isEditing = editIndex >= 0;
+                editingIndex = editIndex;
+                
+                if (isEditing) {
+                    const option = currentOptions[editIndex];
+                    optionFormTitle.textContent = 'Edit Option';
+                    optionLabel.value = option.label;
+                    optionValue.value = option.value;
+                    optionColor.value = option.color;
+                    optionEnabled.checked = option.enabled;
+                } else {
+                    optionFormTitle.textContent = 'Add New Option';
+                    optionLabel.value = '';
+                    optionValue.value = '';
+                    optionColor.value = '#3498db';
+                    optionEnabled.checked = true;
+                }
+                
+                fieldOptionForm.style.display = 'block';
+                optionLabel.focus();
+            }
+            
+            function hideOptionForm() {
+                if (fieldOptionForm) {
+                    fieldOptionForm.style.display = 'none';
+                }
+                isEditing = false;
+                editingIndex = -1;
+            }
+            
+            async function saveOption() {
+                if (!optionLabel || !optionLabel.value.trim()) {
+                    showStatusMessage('error', 'Option label is required');
+                    return;
+                }
+                
+                const label = optionLabel.value.trim();
+                const value = optionValue.value.trim() || generateValueFromLabel(label);
+                const color = optionColor.value;
+                const enabled = optionEnabled.checked;
+                
+                const option = { label, value, color, enabled };
+                const scope = getFieldOptionsScope();
+                
+                if (isEditing) {
+                    currentOptions[editingIndex] = option;
+                    showStatusMessage('success', `Option updated successfully in ${scope.companyName} settings!`);
+                } else {
+                    currentOptions.push(option);
+                    showStatusMessage('success', `Option added successfully to ${scope.companyName} settings!`);
+                }
+                
+                await saveFieldOptions();
+                renderFieldOptions();
+                updatePreview();
+                hideOptionForm();
+            }
+            
+            function generateValueFromLabel(label) {
+                return label.toLowerCase()
+                    .replace(/[^a-z0-9\s]/g, '')
+                    .replace(/\s+/g, '-')
+                    .trim();
+            }
+            
+            async function saveFieldOptions() {
+                try {
+                    // Validate current options before saving
+                    if (!currentOptions || !Array.isArray(currentOptions)) {
+                        console.error('Invalid field options data:', currentOptions);
+                        showStatusMessage('error', 'Invalid field options data. Please check your configuration.');
+                        return;
+                    }
+
+                    // Save to company Firebase scope first
+                    if (window.authManager && window.authManager.currentUser && window.authManager.currentUser.companyId) {
+                        const companyId = window.authManager.currentUser.companyId;
+                        
+                        // Save to the company fieldOptions path
+                        const fieldOptionsRef = ref(database, `companies/${companyId}/fieldOptions/${currentFieldType}`);
+                        
+                        // Also save to the settings path for backward compatibility
+                        const settingsFieldOptionsRef = ref(database, `companies/${companyId}/settings/fieldOptions/${currentFieldType}`);
+                        
+                        console.log(`🔄 Saving ${currentOptions.length} field options for ${currentFieldType} to company ${companyId}...`);
+                        
+                        // Save to both locations for maximum compatibility
+                        await Promise.all([
+                            set(fieldOptionsRef, currentOptions),
+                            set(settingsFieldOptionsRef, currentOptions)
+                        ]);
+                        
+                        console.log(`✅ Field options for ${currentFieldType} saved to company scope (${companyId})`);
+                        console.log('📊 Saved options:', currentOptions);
+                        
+                        // Also save to localStorage as backup
+                        const storageKey = `fieldOptions_${currentFieldType}`;
+                        localStorage.setItem(storageKey, JSON.stringify(currentOptions));
+                        
+                        // Save with company-specific key for cross-session consistency
+                        const companyStorageKey = `fieldOptions_${companyId}_${currentFieldType}`;
+                        localStorage.setItem(companyStorageKey, JSON.stringify(currentOptions));
+                        
+                        // Notify other pages that field options have changed
+                        notifyFieldOptionsChanged();
+                        
+                        // Show success message
+                        const scope = getFieldOptionsScope();
+                        showStatusMessage('success', `Field options for ${currentFieldType} saved successfully to ${scope.companyName}!`);
+                        
+                    } else {
+                        // Fallback to localStorage only for standalone mode
+                        const storageKey = `fieldOptions_${currentFieldType}`;
+                        localStorage.setItem(storageKey, JSON.stringify(currentOptions));
+                        console.log(`📱 Field options for ${currentFieldType} saved to localStorage (standalone mode)`);
+                        showStatusMessage('success', `Field options for ${currentFieldType} saved locally!`);
+                    }
+                } catch (error) {
+                    console.error('Error saving field options to Firebase:', error);
+                    showStatusMessage('error', 'Failed to save options to company database. Saved locally instead.');
+                    
+                    // Fallback to localStorage
+                    const storageKey = `fieldOptions_${currentFieldType}`;
+                    try {
+                        localStorage.setItem(storageKey, JSON.stringify(currentOptions));
+                        console.log(`📱 Field options for ${currentFieldType} saved to localStorage (fallback)`);
+                    } catch (localError) {
+                        console.error('Error saving to localStorage:', localError);
+                        showStatusMessage('error', 'Failed to save options');
+                    }
+                }
+            }
+            
+            // Global functions for button clicks
+            window.editOption = function(index) {
+                showOptionForm(index);
+            };
+            
+            window.deleteOption = async function(index) {
+                if (confirm('Are you sure you want to delete this option?')) {
+                    const scope = getFieldOptionsScope();
+                    currentOptions.splice(index, 1);
+                    await saveFieldOptions();
+                    renderFieldOptions();
+                    updatePreview();
+                    showStatusMessage('success', `Option deleted successfully from ${scope.companyName} settings!`);
+                }
+            };
+            
+            // Excel Import Functions
+            function setupExcelImport(fieldType) {
+                const importBtn = document.getElementById('importExcelBtn');
+                const fileInput = document.getElementById('excelFileInput');
+                const modal = document.getElementById('excelImportModal');
+                const uploadArea = document.getElementById('excelUploadArea');
+                const preview = document.getElementById('excelPreview');
+                const previewContent = document.getElementById('excelPreviewContent');
+                const confirmBtn = document.getElementById('confirmImportBtn');
+                const cancelBtn = document.getElementById('cancelImportBtn');
+                
+                if (!importBtn || !fileInput || !modal || !uploadArea) return;
+                
+                // Import button click handler
+                importBtn.addEventListener('click', () => {
+                    modal.style.display = 'block';
+                });
+                
+                // Close modal handlers
+                modal.querySelector('.close-button').addEventListener('click', () => {
+                    modal.style.display = 'none';
+                    preview.style.display = 'none';
+                    previewContent.innerHTML = '';
+                });
+                
+                cancelBtn.addEventListener('click', () => {
+                    modal.style.display = 'none';
+                    preview.style.display = 'none';
+                    previewContent.innerHTML = '';
+                });
+                
+                window.addEventListener('click', (e) => {
+                    if (e.target === modal) {
+                        modal.style.display = 'none';
+                        preview.style.display = 'none';
+                        previewContent.innerHTML = '';
+                    }
+                });
+                
+                // Upload area click handler
+                uploadArea.addEventListener('click', () => {
+                    fileInput.click();
+                });
+                
+                // File drag and drop handlers
+                uploadArea.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    uploadArea.classList.add('dragover');
+                });
+                
+                uploadArea.addEventListener('dragleave', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    uploadArea.classList.remove('dragover');
+                });
+                
+                uploadArea.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    uploadArea.classList.remove('dragover');
+                    
+                    const files = e.dataTransfer.files;
+                    if (files.length > 0) {
+                        handleExcelFile(files[0], fieldType);
+                    }
+                });
+                
+                // File input change handler
+                fileInput.addEventListener('change', (e) => {
+                    if (e.target.files.length > 0) {
+                        handleExcelFile(e.target.files[0], fieldType);
+                    }
+                });
+                
+                // Confirm import handler
+                confirmBtn.addEventListener('click', async () => {
+                    if (!excelImportData || !excelImportData.length) return;
+                    
+                    // Convert Excel data to field options format
+                    const options = excelImportData.map(row => {
+                        const option = {
+                            label: row.Label || row.label,
+                            value: row.Value || row.value || createValueFromLabel(row.Label || row.label),
+                            color: row.Color || row.color || '#3498db',
+                            enabled: getBoolean(row.Enabled || row.enabled, true)
+                        };
+                        
+                        // Process optional columns
+                        const columns = [];
+                        for (const [key, value] of Object.entries(row)) {
+                            if (!['Label', 'label', 'Value', 'value', 'Color', 'color', 'Enabled', 'enabled'].includes(key)) {
+                                const parts = key.split('|');
+                                if (parts.length > 1) {
+                                    const columnName = parts[0];
+                                    const settings = {};
+                                    
+                                    parts.slice(1).forEach(part => {
+                                        const [setting, val] = part.split(':');
+                                        settings[setting.trim()] = val.trim();
+                                    });
+                                    
+                                    columns.push({
+                                        name: columnName,
+                                        type: settings.type || 'text',
+                                        required: getBoolean(settings.required, false),
+                                        defaultValue: settings.default || '',
+                                        placeholder: settings.placeholder || ''
+                                    });
+                                }
+                            }
+                        }
+                        
+                        if (columns.length > 0) {
+                            option.columns = columns;
+                        }
+                        
+                        return option;
+                    });
+                    
+                    // Save the options to company scope (or localStorage as fallback)
+                    currentOptions = options;
+                    await saveFieldOptions();
+                    renderFieldOptions();
+                    updatePreview();
+                    showStatusMessage('success', 'Options imported successfully and saved to company settings!');
+                    modal.style.display = 'none';
+                    preview.style.display = 'none';
+                    previewContent.innerHTML = '';
+                });
+            }
+            
+            function handleExcelFile(file, fieldType) {
+                const preview = document.getElementById('excelPreview');
+                const previewContent = document.getElementById('excelPreviewContent');
+                
+                if (!file || !preview || !previewContent) return;
+                
+                // Check file type
+                if (!file.name.match(/\.(xlsx|xls)$/i)) {
+                    showStatusMessage('error', 'Please select a valid Excel file (.xlsx or .xls)');
+                    return;
+                }
+                
+                // Show loading state
+                previewContent.innerHTML = '<div class="loading">Processing Excel file...</div>';
+                preview.style.display = 'block';
+                
+                // Read file using ExcelJS
+                const reader = new FileReader();
+                reader.onload = async function(e) {
+                    try {
+                        const workbook = new ExcelJS.Workbook();
+                        await workbook.xlsx.load(e.target.result);
+                        
+                        // Get the first worksheet
+                        const worksheet = workbook.worksheets[0];
+                        if (!worksheet) {
+                            throw new Error('No worksheet found in Excel file');
+                        }
+                        
+                        // Convert worksheet to array of objects
+                        const data = [];
+                        const headers = [];
+                        
+                        // Get headers from first row
+                        worksheet.getRow(1).eachCell((cell, colNumber) => {
+                            headers[colNumber - 1] = cell.value;
+                        });
+                        
+                        // Get data from remaining rows
+                        worksheet.eachRow((row, rowNumber) => {
+                            if (rowNumber === 1) return; // Skip header row
+                            
+                            const rowData = {};
+                            row.eachCell((cell, colNumber) => {
+                                rowData[headers[colNumber - 1]] = cell.value;
+                            });
+                            data.push(rowData);
+                        });
+                        
+                        // Store data for later use
+                        excelImportData = data;
+                        
+                        // Show preview
+                        showExcelPreview(data);
+                        
+                    } catch (error) {
+                        console.error('Error processing Excel file:', error);
+                        previewContent.innerHTML = `<div class="error">Error processing Excel file: ${error.message}</div>`;
+                    }
+                };
+                
+                reader.readAsArrayBuffer(file);
+            }
+            
+            function showExcelPreview(data) {
+                const previewContent = document.getElementById('excelPreviewContent');
+                if (!previewContent || !data.length) return;
+                
+                // Create preview table
+                let html = '<div class="table-responsive"><table class="table table-sm">';
+                
+                // Add headers
+                html += '<thead><tr>';
+                const headers = Object.keys(data[0]);
+                headers.forEach(header => {
+                    html += `<th>${header}</th>`;
+                });
+                html += '</tr></thead>';
+                
+                // Add data rows (max 5 for preview)
+                html += '<tbody>';
+                data.slice(0, 5).forEach(row => {
+                    html += '<tr>';
+                    headers.forEach(header => {
+                        html += `<td>${row[header] || ''}</td>`;
+                    });
+                    html += '</tr>';
+                });
+                html += '</tbody></table></div>';
+                
+                // Add summary
+                html += `<div class="preview-summary">
+                    <p>Total rows: ${data.length}</p>
+                    <p>Columns: ${headers.join(', ')}</p>
+                    ${data.length > 5 ? '<p class="text-muted">(Showing first 5 rows)</p>' : ''}
+                </div>`;
+                
+                previewContent.innerHTML = html;
+            }
+            
+            function createValueFromLabel(label) {
+                return label.toLowerCase().replace(/\s+/g, '-');
+            }
+            
+            function getBoolean(value, defaultValue = false) {
+                if (typeof value === 'boolean') return value;
+                if (typeof value === 'string') {
+                    const lower = value.toLowerCase();
+                    if (['true', 'yes', '1'].includes(lower)) return true;
+                    if (['false', 'no', '0'].includes(lower)) return false;
+                }
+                if (typeof value === 'number') return value !== 0;
+                return defaultValue;
+            }
+
+            function getFieldOptionsScope() {
+                if (window.authManager && window.authManager.currentUser && window.authManager.currentUser.companyId) {
+                    return {
+                        scope: 'company',
+                        companyId: window.authManager.currentUser.companyId,
+                        companyName: window.authManager.currentCompany?.companyName || window.authManager.currentCompany?.name || 'Company'
+                    };
+                } else {
+                    return {
+                        scope: 'local',
+                        companyId: null,
+                        companyName: 'Local Settings'
+                    };
+                }
+            }
+            
+            // Additional helper functions for field options management
+            function validateFieldOptions(options) {
+                if (!Array.isArray(options)) {
+                    console.warn('Field options is not an array:', typeof options);
+                    return false;
+                }
+                
+                for (let i = 0; i < options.length; i++) {
+                    const option = options[i];
+                    if (!option || typeof option !== 'object') {
+                        console.warn(`Field option at index ${i} is not an object:`, option);
+                        return false;
+                    }
+                    
+                    if (!option.label || typeof option.label !== 'string') {
+                        console.warn(`Field option at index ${i} missing or invalid label:`, option);
+                        return false;
+                    }
+                    
+                    if (!option.value || typeof option.value !== 'string') {
+                        console.warn(`Field option at index ${i} missing or invalid value:`, option);
+                        return false;
+                    }
+                }
+                
+                return true;
+            }
+            
+            // Debug function to inspect current field options state
+            function debugFieldOptions() {
+                console.log('🔍 Field Options Debug Information:');
+                console.log('- Current Field Type:', currentFieldType);
+                console.log('- Current User:', window.authManager?.currentUser?.email);
+                console.log('- Company ID:', window.authManager?.currentUser?.companyId);
+                console.log('- Company Name:', window.authManager?.currentCompany?.companyName);
+                console.log('- Current Options Count:', currentOptions?.length || 0);
+                console.log('- Current Options Valid:', validateFieldOptions(currentOptions));
+                console.log('- Current Options:', currentOptions);
+                
+                // Check localStorage state
+                const storageKey = `fieldOptions_${currentFieldType}`;
+                const localData = localStorage.getItem(storageKey);
+                console.log('- LocalStorage Data:', localData ? 'Present' : 'Missing');
+                
+                if (window.authManager?.currentUser?.companyId) {
+                    const companyStorageKey = `fieldOptions_${window.authManager.currentUser.companyId}_${currentFieldType}`;
+                    const companyLocalData = localStorage.getItem(companyStorageKey);
+                    console.log('- Company LocalStorage Data:', companyLocalData ? 'Present' : 'Missing');
+                }
+            }
+            
+            // Export debug function to global scope for console access
+            window.debugFieldOptions = debugFieldOptions;
+            
+            // Additional missing functions from original
+            function addColumnToForm() {
+                // Add a new optional column to the form
+                const columnsContainer = document.getElementById('optionalColumns');
+                if (!columnsContainer) return;
+                
+                const columnIndex = columnsContainer.children.length;
+                const columnHtml = `
+                    <div class="column-item" data-index="${columnIndex}">
+                        <div class="form-group">
+                            <label>Column Name:</label>
+                            <input type="text" class="form-control column-name" placeholder="Column Name">
+                        </div>
+                        <div class="form-group">
+                            <label>Column Type:</label>
+                            <select class="form-control column-type">
+                                <option value="text">Text</option>
+                                <option value="number">Number</option>
+                                <option value="date">Date</option>
+                                <option value="checkbox">Checkbox</option>
+                                <option value="select">Select</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Required:</label>
+                            <input type="checkbox" class="column-required">
+                        </div>
+                        <div class="form-group">
+                            <label>Default Value:</label>
+                            <input type="text" class="form-control column-default" placeholder="Default Value">
+                        </div>
+                        <div class="form-group">
+                            <label>Placeholder:</label>
+                            <input type="text" class="form-control column-placeholder" placeholder="Placeholder Text">
+                        </div>
+                        <button type="button" class="btn btn-sm btn-danger" onclick="removeColumn(${columnIndex})">Remove</button>
+                    </div>
+                `;
+                
+                columnsContainer.insertAdjacentHTML('beforeend', columnHtml);
+            }
+            
+            function removeColumn(index) {
+                const columnItem = document.querySelector(`[data-index="${index}"]`);
+                if (columnItem) {
+                    columnItem.remove();
+                }
+            }
+            
+            function notifyFieldOptionsChanged() {
+                // Dispatch event for any other pages listening
+                const eventData = { 
+                    fieldType: currentFieldType,
+                    companyId: window.authManager?.currentUser?.companyId,
+                    scope: 'company',
+                    timestamp: Date.now(),
+                    options: currentOptions
+                };
+
+                const event = new CustomEvent('fieldOptionsChanged', {
+                    detail: eventData
+                });
+                document.dispatchEvent(event);
+                
+                // Broadcast to other tabs/windows using BroadcastChannel if available
+                if (typeof BroadcastChannel !== 'undefined') {
+                    try {
+                        const channel = new BroadcastChannel('fieldOptionsUpdates');
+                        channel.postMessage(eventData);
+                        console.log(`📡 Broadcast field options change via BroadcastChannel`);
+                    } catch (error) {
+                        console.warn('BroadcastChannel not available:', error);
+                    }
+                }
+                
+                // Update localStorage to signal that options have changed (for legacy compatibility)
+                localStorage.setItem('fieldOptionsUpdated', JSON.stringify(eventData));
+                
+                // Set a flag for other pages to detect changes
+                const changeNotificationKey = `fieldOptionsChange_${currentFieldType}_${Date.now()}`;
+                localStorage.setItem(changeNotificationKey, JSON.stringify(eventData));
+                
+                // Also store latest version for immediate access
+                if (window.authManager?.currentUser?.companyId) {
+                    const latestVersionKey = `fieldOptionsLatest_${window.authManager.currentUser.companyId}_${currentFieldType}`;
+                    localStorage.setItem(latestVersionKey, JSON.stringify({
+                        options: currentOptions,
+                        timestamp: Date.now()
+                    }));
+                }
+                
+                // Clean up old notification keys (keep only last 10)
+                try {
+                    const allKeys = Object.keys(localStorage);
+                    const changeKeys = allKeys.filter(key => key.startsWith('fieldOptionsChange_')).sort();
+                    if (changeKeys.length > 10) {
+                        const keysToRemove = changeKeys.slice(0, changeKeys.length - 10);
+                        keysToRemove.forEach(key => localStorage.removeItem(key));
+                    }
+                } catch (error) {
+                    console.warn('Error cleaning up notification keys:', error);
+                }
+                
+                console.log(`📢 Enhanced field options change notification sent for ${currentFieldType} in company scope`);
+                console.log('📊 Updated options count:', currentOptions.length);
+            }
+            
+            // Initialize field configuration
+            initializeFieldConfiguration();
+            
+            // Set up Excel import for initial field type
+            setupExcelImport(currentFieldType);
+            
+            // Update Excel import when field type changes
+            fieldTypeSelector.addEventListener('change', function() {
+                setupExcelImport(this.value);
+            });
+            
+            // Refresh preview every minute
+            setInterval(updateDateTimePreview, 60000);
+            
+            console.log('✅ Standalone Settings Page Initialized Successfully');
+
+            // ============================================
+            // FEATURE-BASED MENU AUTHORIZATION SYSTEM
+            // ============================================
+            // Enhanced menu visibility system based on roles.html template
+            
+            // Reset all menu items to hidden
+            function resetMenuVisibility() {
+                document.querySelectorAll('[data-feature]').forEach(item => {
+                    item.classList.remove('menu-visible');
+                });
+                document.querySelectorAll('.menu-dropdown').forEach(dropdown => {
+                    dropdown.classList.remove('menu-visible');
+                });
+            }
+
+            // Emergency fallback - show basic menu items
+            function showBasicMenu() {
+                console.log('🔧 Emergency fallback: Showing basic menu items');
+                resetMenuVisibility();
+                
+                // Remove loading class
+                const sidebar = document.querySelector('.sidebar');
+                if (sidebar) {
+                    sidebar.classList.remove('menu-loading');
+                }
+                
+                const homeItem = document.querySelector('[data-feature="home_view"]');
+                if (homeItem) {
+                    homeItem.classList.add('menu-visible');
+                }
+            }
+
+            // Feature-based authorization system that takes priority over role permissions
+            async function updateMenuWithFeatureAuthorization() {
+                console.log('🎯 Starting feature-based menu authorization for settings.html...');
+                
+                try {
+                    let currentUser = null;
+                    let companyId = null;
+                    
+                    // Get user and company info using authManager first
+                    if (window.authManager && window.authManager.currentUser) {
+                        currentUser = window.authManager.currentUser;
+                        companyId = currentUser.companyId;
+                        console.log('👤 Using AuthManager - User:', currentUser.email, 'Company ID:', companyId);
+                    } else if (firebase.auth().currentUser) {
+                        currentUser = firebase.auth().currentUser;
+                        console.log('👤 Using Firebase auth - will search for company');
+                    } else {
+                        console.log('❌ No authenticated user found');
+                        resetMenuVisibility();
+                        return;
+                    }
+                    
+                    // If no company ID from authManager, search companies collection
+                    if (!companyId && currentUser) {
+                        console.log('🔍 Searching for user company...');
+                        const database = firebase.database();
+                        const companiesRef = database.ref('companies');
+                        const companiesSnapshot = await companiesRef.once('value');
+                        
+                        if (companiesSnapshot.exists()) {
+                            const companies = companiesSnapshot.val();
+                            
+                            for (const [cId, company] of Object.entries(companies)) {
+                                if (company.status !== 'active') continue;
+                                
+                                if (company.users && company.users[currentUser.uid]) {
+                                    companyId = cId;
+                                    console.log(`✅ Found user in company: ${companyId} (${company.name})`);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    
+                    if (!companyId) {
+                        console.error('❌ No company ID found, cannot determine authorized features');
+                        resetMenuVisibility();
+                        return;
+                    }
+                    
+                    // Apply feature-based authorization
+                    await applyFeatureBasedMenuVisibility(companyId);
+                    
+                } catch (error) {
+                    console.error('❌ Error in feature-based menu authorization:', error);
+                    resetMenuVisibility();
+                }
+            }
+
+            // Apply feature-based menu visibility
+            async function applyFeatureBasedMenuVisibility(companyId) {
+                try {
+                    console.log('🔧 Applying feature-based menu visibility for company:', companyId);
+                    
+                    // Get platform features
+                    const database = firebase.database();
+                    const featuresSnapshot = await database.ref('/platformFeatures').once('value');
+                    
+                    if (!featuresSnapshot.exists()) {
+                        console.log('⚠️ No platform features found');
+                        resetMenuVisibility();
+                        return;
+                    }
+                    
+                    const featuresData = featuresSnapshot.val();
+                    
+                    // Get company's selected features
+                    const companySnapshot = await database.ref(`/companies/${companyId}`).once('value');
+                    const companyData = companySnapshot.val();
+                    
+                    if (!companyData) {
+                        console.error('❌ Company data not found');
+                        resetMenuVisibility();
+                        return;
+                    }
+                    
+                    const subscribedFeatureIds = companyData.selectedFeatures || [];
+                    console.log('🏢 Company subscribed features:', subscribedFeatureIds);
+                    
+                    if (subscribedFeatureIds.length === 0) {
+                        console.log('⚠️ Company has no subscribed features');
+                        resetMenuVisibility();
+                        return;
+                    }
+                    
+                    // Collect authorized pages from subscribed features
+                    const authorizedPages = [];
+                    subscribedFeatureIds.forEach(featureId => {
+                        const feature = featuresData[featureId];
+                        if (feature && feature.status === 'active' && feature.authorizedPages) {
+                            console.log(`📦 Adding pages from feature "${feature.name}":`, feature.authorizedPages);
+                            authorizedPages.push(...feature.authorizedPages);
+                        } else {
+                            console.log(`⚠️ Feature ${featureId} not found or inactive`);
+                        }
+                    });
+                    
+                    console.log('🔐 All authorized pages:', authorizedPages);
+                    
+                    // Reset all menu items first
+                    resetMenuVisibility();
+                    
+                    // Create set of authorized features
+                    const authorizedFeatures = new Set();
+                    authorizedPages.forEach(pageInfo => {
+                        if (pageInfo.feature) {
+                            authorizedFeatures.add(pageInfo.feature);
+                        }
+                    });
+                    
+                    console.log('🎯 Authorized features for settings.html:', Array.from(authorizedFeatures));
+                    
+                    // Apply menu visibility
+                    const allMenuItems = document.querySelectorAll('#roleBasedMenu li[data-feature]');
+                    let visibleCount = 0;
+                    
+                    allMenuItems.forEach(menuItem => {
+                        const featureAttribute = menuItem.getAttribute('data-feature');
+                        const isAuthorized = authorizedFeatures.has(featureAttribute);
+                        const isDropdownContainer = menuItem.classList.contains('menu-dropdown');
+                        
+                        if (isDropdownContainer) {
+                            return; // Handle dropdowns separately after all items are processed
+                        }
+                        
+                        if (isAuthorized) {
+                            menuItem.classList.add('menu-visible');
+                            visibleCount++;
+                            console.log(`✅ Feature authorized - showing menu item: ${featureAttribute}`);
+                        } else {
+                            menuItem.classList.remove('menu-visible');
+                            console.log(`❌ Feature not authorized - hiding menu item: ${featureAttribute}`);
+                        }
+                    });
+                    
+                    // Handle dropdown menus - show if they have visible children
+                    const dropdownMenus = document.querySelectorAll('#roleBasedMenu li.menu-dropdown');
+                    dropdownMenus.forEach(dropdown => {
+                        const dropdownFeature = dropdown.getAttribute('data-feature');
+                        const submenuItems = dropdown.querySelectorAll('.submenu li[data-feature]');
+                        let hasVisibleChildren = false;
+                        
+                        submenuItems.forEach(submenuItem => {
+                            if (submenuItem.classList.contains('menu-visible')) {
+                                hasVisibleChildren = true;
+                            }
+                        });
+                        
+                        if (hasVisibleChildren || authorizedFeatures.has(dropdownFeature)) {
+                            dropdown.classList.add('menu-visible');
+                            console.log(`✅ Showing dropdown menu: ${dropdownFeature} (has visible children or directly authorized)`);
+                        } else {
+                            dropdown.classList.remove('menu-visible');
+                            console.log(`❌ Hiding dropdown menu: ${dropdownFeature} (no visible children and not authorized)`);
+                        }
+                    });
+                    
+                    console.log(`🎯 Feature-based menu authorization completed for settings.html - ${visibleCount} items visible`);
+                    
+                    // Remove loading class after successful authorization
+                    const sidebar = document.querySelector('.sidebar');
+                    if (sidebar) {
+                        sidebar.classList.remove('menu-loading');
+                    }
+                } catch (error) {
+                    console.error('❌ Error applying feature-based menu visibility:', error);
+                    resetMenuVisibility();
+                }
+            }
+
+            // Make updateMenuWithFeatureAuthorization available globally
+            window.updateMenuWithFeatureAuthorization = updateMenuWithFeatureAuthorization;
+
+            // Enhanced initialization - use feature-based authorization by default (like dashboard.html)
+            // Wait for auth manager to be ready
+            setTimeout(async () => {
+                try {
+                    await updateMenuWithFeatureAuthorization();
+                } catch (error) {
+                    console.error('❌ Error initializing feature-based menu:', error);
+                    showBasicMenu();
+                }
+            }, 1500);
+        });
+    </script>
+</body>
+</html>

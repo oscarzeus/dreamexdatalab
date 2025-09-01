@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tank-to-Tank Transfer - Dreamex Datalab HSE</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="css/styles.css">
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --secondary-color: #3498db;
+            --sidebar-width: 250px;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.5);
+            backdrop-filter: blur(5px);
+        }
+        .modal.show {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+            max-width: 700px;
+            border-radius: 10px;
+        }
+        .close-modal {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+        }
+        .close-modal:hover,
+        .close-modal:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        /* Menu Visibility Styles */
+        [data-feature]:not(.menu-visible) {
+            display: none !important;
+        }
+
+        .menu-dropdown:not(.menu-visible) {
+            display: none !important;
+        }
+
+        .menu-loading [data-feature] {
+            display: none !important;
+        }
+
+        .menu-loading .menu-dropdown {
+            display: none !important;
+        }
+
+        .sidebar.menu-loading::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.8);
+            z-index: 1000;
+            pointer-events: none;
+        }
+    </style>
+
+    <!-- Firebase v8 CDN for compatibility -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
+    
+    <!-- Module System Integration -->
+    <script type="module" src="js/firebase-config-v8.js"></script>
+    <script type="module" src="js/company-data-service.js"></script>
+    <script type="module" src="js/auth.js"></script>
+    
+    <!-- Module Integration Script -->
+    <script type="module">
+        // Initialize the centralized authentication system
+        import AuthManager from './js/auth.js';
+        import companyDataService from './js/company-data-service.js';
+        
+        // Make auth manager available globally for backward compatibility
+        window.authManager = new AuthManager();
+        window.companyDataService = companyDataService;
+        
+        // Expose Firebase for direct use if needed
+        import { getDatabase, ref, get, set, update, remove } from './js/firebase-config-v8.js';
+        window.getDatabase = getDatabase;
+        window.ref = ref;
+        window.get = get;
+        window.set = set;
+        window.update = update;
+        window.remove = remove;
+        
+        console.log('✅ Centralized AuthManager initialized and available globally');
+    </script>
+</head>
+<body class="bg-gray-100">
+    <div class="app-container">
+        <!-- Sidebar -->
+        <nav class="sidebar menu-loading">
+            <div class="logo">
+                <h2>Dreamex Datalab</h2>
+            </div>
+            <ul class="menu" id="roleBasedMenu">
+                 <li class="menu-item" data-feature="home_view"><a href="index.html"><i class="fas fa-home"></i> Home</a></li>
+                 <li class="menu-dropdown" data-feature="fuel_management">
+                    <a href="#"><i class="fas fa-gas-pump"></i> Fuel Management</a>
+                    <ul class="submenu">
+                        <li data-feature="vessel_offloading"><a href="vessel-offloading.html">Vessel Offloading</a></li>
+                        <li data-feature="fuel_storage"><a href="fuel-storage-status.html">Fuel Storage Status</a></li>
+                        <li data-feature="tank_transfer"><a href="tank-transfer.html">Tank-to-Tank Transfer</a></li>
+                        <li data-feature="truck_loading"><a href="fuel-truck-loading.html">Fuel Truck Loading</a></li>
+                        <li data-feature="quality_analysis"><a href="fuel-quality-analysis.html">Fuel Quality Analysis</a></li>
+                        <li data-feature="fuel_distribution"><a href="fueldistrib.html">Fuel Distribution</a></li>
+                        <li data-feature="fuel_consumption_analysis"><a href="fuelanalys.html">Consumption Analysis</a></li>
+                    </ul>
+                </li>
+                <li class="menu-dropdown" data-feature="hr_view">
+                    <a href="#"><i class="fas fa-users"></i> HR</a>
+                    <ul class="submenu">
+                        <li data-feature="staff_management_view"><a href="staff.html">Staffing</a></li>
+                        <li data-feature="recruitment_view"><a href="recruitboard.html">Recruitment</a></li>
+                    </ul>
+                </li>
+                <li class="menu-dropdown" data-feature="settings_view">
+                    <a href="#"><i class="fas fa-cog"></i> Settings</a>
+                    <ul class="submenu">
+                        <li data-feature="user_management_view"><a href="users.html">User Management</a></li>
+                        <li data-feature="role_permissions_view"><a href="roles.html">Role Permissions</a></li>
+                    </ul>
+                </li>
+            </ul>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Top Navigation -->
+            <header class="top-nav">
+                <div class="top-nav-left">
+                    <button id="sidebarToggle" class="sidebar-toggle-btn"><i class="fas fa-bars"></i></button>
+                    <span id="headerCompanyName" class="company-name-header">Fuel Management</span>
+                </div>
+                <div class="top-nav-right">
+                    <div class="user-profile">
+                        <button id="userProfileBtn" class="profile-btn">
+                            <img id="userAvatar" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA0MCA0MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMjAiIGN5PSIyMCIgcj0iMjAiIGZpbGw9IiM5OTkiLz4KPHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA0MCA0MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMjAiIGN5PSIyMCIgcj0iMjAiIGZpbGw9IiNkZGQiLz4KPHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA0MCA0MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMjAiIGN5PSIyMCIgcj0iMjAiIGZpbGw9IiNlZWUiLz4KPHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA0MCA0MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMjAiIGN5PSIyMCIgcj0iMjAiIGZpbGw9IiNlZWUiLz4=" alt="User Avatar">
+                        </button>
+                        <div class="profile-dropdown">
+                            <ul>
+                                <li><a href="account.html"><i class="fas fa-user"></i> Account</a></li>
+                                <li><a href="#" id="logoutBtn"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Page Content -->
+            <div class="content p-6">
+                <div class="flex justify-between items-center mb-6">
+                    <h1 class="text-2xl font-bold text-gray-800">Tank-to-Tank Transfer</h1>
+                    <button id="logTransferBtn" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg flex items-center">
+                        <i class="fas fa-plus mr-2"></i> Log New Transfer
+                    </button>
+                </div>
+
+                <!-- Data Table -->
+                <div class="bg-white p-4 rounded-lg shadow-md">
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full bg-white" id="transfersTable">
+                            <thead class="bg-gray-200">
+                                <tr>
+                                    <th class="py-2 px-4 border-b">Date</th>
+                                    <th class="py-2 px-4 border-b">From Tank</th>
+                                    <th class="py-2 px-4 border-b">To Tank</th>
+                                    <th class="py-2 px-4 border-b">Fuel Type</th>
+                                    <th class="py-2 px-4 border-b">Quantity (L)</th>
+                                    <th class="py-2 px-4 border-b">Operator</th>
+                                    <th class="py-2 px-4 border-b">Checklist Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="transfersTableBody">
+                                <!-- JS will populate this -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modal -->
+            <div id="transferModal" class="modal">
+                <div class="modal-content bg-white rounded-lg shadow-xl">
+                    <div class="flex justify-between items-center border-b p-4">
+                        <h2 class="text-xl font-bold">Log New Tank-to-Tank Transfer</h2>
+                        <button class="close-modal text-2xl">&times;</button>
+                    </div>
+                    <div class="p-6">
+                        <form id="transferForm">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label for="fromDate" class="block text-sm font-medium text-gray-700">Date</label>
+                                    <input type="datetime-local" id="fromDate" name="date" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" required>
+                                </div>
+                                <div>
+                                    <label for="operator" class="block text-sm font-medium text-gray-700">Operator Name</label>
+                                    <input type="text" id="operator" name="operator" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" required>
+                                </div>
+                                <div>
+                                    <label for="fromTank" class="block text-sm font-medium text-gray-700">From Tank</label>
+                                    <select id="fromTank" name="fromTank" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" required></select>
+                                </div>
+                                <div>
+                                    <label for="toTank" class="block text-sm font-medium text-gray-700">To Tank</label>
+                                    <select id="toTank" name="toTank" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" required></select>
+                                </div>
+                                <div>
+                                    <label for="fuelType" class="block text-sm font-medium text-gray-700">Fuel Type</label>
+                                    <select id="fuelType" name="fuelType" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" required>
+                                        <option>Diesel</option>
+                                        <option>Jet A1</option>
+                                        <option>Gasoline</option>
+                                        <option>HFO</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label for="quantity" class="block text-sm font-medium text-gray-700">Quantity (liters)</label>
+                                    <input type="number" id="quantity" name="quantity" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" required>
+                                </div>
+                            </div>
+                            
+                            <div class="mt-6">
+                                <h3 class="text-lg font-bold">ISGOTT Pre-Operation Safety Checklist</h3>
+                                <div class="mt-4 space-y-2" id="isgottChecklist">
+                                    <label class="flex items-center"><input type="checkbox" class="form-checkbox h-5 w-5"> <span class="ml-2">All hoses inspected and in good condition.</span></label>
+                                    <label class="flex items-center"><input type="checkbox" class="form-checkbox h-5 w-5"> <span class="ml-2">Source and destination valves correctly aligned.</span></label>
+                                    <label class="flex items-center"><input type="checkbox" class="form-checkbox h-5 w-5"> <span class="ml-2">Adequate spill containment measures in place.</span></label>
+                                </div>
+                            </div>
+
+                            <div class="flex justify-end mt-6 border-t pt-4">
+                                <button type="button" class="bg-gray-300 hover:bg-gray-400 text-black font-bold py-2 px-4 rounded-lg mr-2" id="cancelBtn">Cancel</button>
+                                <button type="submit" class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg">Save Transfer</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const modal = document.getElementById('transferModal');
+            const btn = document.getElementById('logTransferBtn');
+            const closeBtn = document.querySelector('.close-modal');
+            const cancelBtn = document.getElementById('cancelBtn');
+            const form = document.getElementById('transferForm');
+            const tableBody = document.getElementById('transfersTableBody');
+            const fromTankSelect = document.getElementById('fromTank');
+            const toTankSelect = document.getElementById('toTank');
+
+            // Dummy data for tanks
+            const tanks = [
+                { id: 'T-01', fuel: 'Diesel', currentVolume: 50000, maxVolume: 100000 },
+                { id: 'T-02', fuel: 'Jet A1', currentVolume: 80000, maxVolume: 100000 },
+                { id: 'T-03', fuel: 'Diesel', currentVolume: 20000, maxVolume: 50000 },
+                { id: 'T-04', fuel: 'Gasoline', currentVolume: 75000, maxVolume: 100000 },
+                { id: 'T-05', fuel: 'HFO', currentVolume: 90000, maxVolume: 150000 },
+            ];
+
+            function populateTankOptions() {
+                fromTankSelect.innerHTML = '<option value="">Select Tank</option>';
+                toTankSelect.innerHTML = '<option value="">Select Tank</option>';
+                tanks.forEach(tank => {
+                    const option = `<option value="${tank.id}">${tank.id} (${tank.fuel} - ${tank.currentVolume}L)</option>`;
+                    fromTankSelect.innerHTML += option;
+                    toTankSelect.innerHTML += option;
+                });
+            }
+
+            btn.onclick = () => modal.classList.add('show');
+            closeBtn.onclick = () => modal.classList.remove('show');
+            cancelBtn.onclick = () => modal.classList.remove('show');
+            window.onclick = (event) => {
+                if (event.target == modal) {
+                    modal.classList.remove('show');
+                }
+            };
+
+            form.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                const checklistItems = document.querySelectorAll('#isgottChecklist input[type="checkbox"]');
+                const allChecked = Array.from(checklistItems).every(item => item.checked);
+
+                if (!allChecked) {
+                    alert('Please ensure all ISGOTT safety checklist items are checked before proceeding.');
+                    return;
+                }
+
+                const formData = new FormData(form);
+                const data = Object.fromEntries(formData.entries());
+
+                const fromTank = tanks.find(t => t.id === data.fromTank);
+                if (fromTank.currentVolume < data.quantity) {
+                    alert(`Validation failed: Source tank ${fromTank.id} has insufficient volume.`);
+                    return;
+                }
+
+                const newRow = document.createElement('tr');
+                newRow.innerHTML = `
+                    <td class="py-2 px-4 border-b">${new Date(data.date).toLocaleString()}</td>
+                    <td class="py-2 px-4 border-b">${data.fromTank}</td>
+                    <td class="py-2 px-4 border-b">${data.toTank}</td>
+                    <td class="py-2 px-4 border-b">${data.fuelType}</td>
+                    <td class="py-2 px-4 border-b">${data.quantity}</td>
+                    <td class="py-2 px-4 border-b">${data.operator}</td>
+                    <td class="py-2 px-4 border-b"><span class="text-green-500 font-bold">Passed</span></td>
+                `;
+                tableBody.appendChild(newRow);
+
+                // Update tank volumes (dummy update)
+                const fromTankIndex = tanks.findIndex(t => t.id === data.fromTank);
+                const toTankIndex = tanks.findIndex(t => t.id === data.toTank);
+                tanks[fromTankIndex].currentVolume -= parseInt(data.quantity);
+                tanks[toTankIndex].currentVolume += parseInt(data.quantity);
+                
+                populateTankOptions();
+                form.reset();
+                modal.classList.remove('show');
+            });
+
+            document.getElementById('logoutBtn').addEventListener('click', function() {
+                if (window.authManager) {
+                    window.authManager.logout();
+                } else {
+                    localStorage.removeItem('currentUser');
+                    window.location.href = 'login.html';
+                }
+            });
+
+            populateTankOptions();
+
+            // ============================================
+            // FEATURE-BASED MENU AUTHORIZATION SYSTEM
+            // ============================================
+            // Enhanced menu visibility system based on dashboard.html template
+            
+            // Reset all menu items to hidden
+            function resetMenuVisibility() {
+                document.querySelectorAll('[data-feature]').forEach(item => {
+                    item.classList.remove('menu-visible');
+                });
+                document.querySelectorAll('.menu-dropdown').forEach(dropdown => {
+                    dropdown.classList.remove('menu-visible');
+                });
+            }
+
+            // Emergency fallback - show basic menu items
+            function showBasicMenu() {
+                console.log('🔧 Emergency fallback: Showing basic menu items');
+                resetMenuVisibility();
+                const homeItem = document.querySelector('[data-feature="home_view"]');
+                if (homeItem) {
+                    homeItem.classList.add('menu-visible');
+                }
+                const sidebar = document.querySelector('.sidebar');
+                if (sidebar) {
+                    sidebar.classList.remove('menu-loading');
+                }
+            }
+
+            // Feature-based authorization system that takes priority over role permissions
+            async function updateMenuWithFeatureAuthorization() {
+                console.log('🎯 Starting feature-based menu authorization for tank-transfer.html...');
+                
+                const sidebar = document.querySelector('.sidebar');
+                
+                try {
+                    let currentUser = null;
+                    let companyId = null;
+                    
+                    // Get user and company info using authManager first
+                    if (window.authManager && window.authManager.currentUser) {
+                        currentUser = window.authManager.currentUser;
+                        companyId = currentUser.companyId;
+                        console.log('👤 Using AuthManager - User:', currentUser.email, 'Company ID:', companyId);
+                    } else if (firebase.auth().currentUser) {
+                        currentUser = firebase.auth().currentUser;
+                        console.log('👤 Using Firebase auth - will search for company');
+                    } else {
+                        console.log('❌ No authenticated user found');
+                        resetMenuVisibility();
+                        sidebar.classList.remove('menu-loading');
+                        return;
+                    }
+                    
+                    // If no company ID from authManager, search companies collection
+                    if (!companyId && currentUser) {
+                        console.log('🔍 Searching for user company...');
+                        const database = firebase.database();
+                        const companiesRef = database.ref('companies');
+                        const companiesSnapshot = await companiesRef.once('value');
+                        
+                        if (companiesSnapshot.exists()) {
+                            const companies = companiesSnapshot.val();
+                            
+                            for (const [cId, company] of Object.entries(companies)) {
+                                if (company.status !== 'active') continue;
+                                
+                                if (company.users && company.users[currentUser.uid]) {
+                                    companyId = cId;
+                                    console.log(`✅ Found user in company: ${companyId} (${company.name})`);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    
+                    if (!companyId) {
+                        console.error('❌ No company ID found, cannot determine authorized features');
+                        resetMenuVisibility();
+                        sidebar.classList.remove('menu-loading');
+                        return;
+                    }
+                    
+                    // Apply feature-based authorization
+                    await applyFeatureBasedMenuVisibility(companyId);
+                    
+                } catch (error) {
+                    console.error('❌ Error in feature-based menu authorization:', error);
+                    resetMenuVisibility();
+                    sidebar.classList.remove('menu-loading');
+                }
+            }
+
+            // Apply feature-based menu visibility
+            async function applyFeatureBasedMenuVisibility(companyId) {
+                const sidebar = document.querySelector('.sidebar');
+                
+                try {
+                    console.log('🔧 Applying feature-based menu visibility for company:', companyId);
+                    
+                    // Get platform features
+                    const database = firebase.database();
+                    const featuresSnapshot = await database.ref('/platformFeatures').once('value');
+                    
+                    if (!featuresSnapshot.exists()) {
+                        console.log('⚠️ No platform features found');
+                        resetMenuVisibility();
+                        sidebar.classList.remove('menu-loading');
+                        return;
+                    }
+                    
+                    const featuresData = featuresSnapshot.val();
+                    
+                    // Get company's selected features
+                    const companySnapshot = await database.ref(`/companies/${companyId}`).once('value');
+                    const companyData = companySnapshot.val();
+                    
+                    if (!companyData) {
+                        console.error('❌ Company data not found');
+                        resetMenuVisibility();
+                        sidebar.classList.remove('menu-loading');
+                        return;
+                    }
+                    
+                    const subscribedFeatureIds = companyData.selectedFeatures || [];
+                    console.log('🏢 Company subscribed features:', subscribedFeatureIds);
+                    
+                    if (subscribedFeatureIds.length === 0) {
+                        console.log('⚠️ Company has no subscribed features');
+                        resetMenuVisibility();
+                        sidebar.classList.remove('menu-loading');
+                        return;
+                    }
+                    
+                    // Collect authorized pages from subscribed features
+                    const authorizedPages = [];
+                    subscribedFeatureIds.forEach(featureId => {
+                        const feature = featuresData[featureId];
+                        if (feature && feature.status === 'active' && feature.authorizedPages) {
+                            console.log(`📦 Adding pages from feature "${feature.name}":`, feature.authorizedPages);
+                            authorizedPages.push(...feature.authorizedPages);
+                        } else {
+                            console.log(`⚠️ Feature ${featureId} not found or inactive`);
+                        }
+                    });
+                    
+                    console.log('🔐 All authorized pages:', authorizedPages);
+                    
+                    // Reset all menu items first
+                    resetMenuVisibility();
+                    
+                    // Create set of authorized features
+                    const authorizedFeatures = new Set();
+                    authorizedPages.forEach(pageInfo => {
+                        if (pageInfo.feature) {
+                            authorizedFeatures.add(pageInfo.feature);
+                        }
+                    });
+                    
+                    console.log('🎯 Authorized features for tank-transfer.html:', Array.from(authorizedFeatures));
+                    
+                    // Apply menu visibility
+                    const allMenuItems = document.querySelectorAll('#roleBasedMenu li[data-feature]');
+                    let visibleCount = 0;
+                    
+                    allMenuItems.forEach(menuItem => {
+                        const featureAttribute = menuItem.getAttribute('data-feature');
+                        const isAuthorized = authorizedFeatures.has(featureAttribute);
+                        const isDropdownContainer = menuItem.classList.contains('menu-dropdown');
+                        
+                        if (isDropdownContainer) {
+                            return; // Handle dropdowns separately after all items are processed
+                        }
+                        
+                        if (isAuthorized) {
+                            menuItem.classList.add('menu-visible');
+                            visibleCount++;
+                            console.log(`✅ Feature authorized - showing menu item: ${featureAttribute}`);
+                        } else {
+                            menuItem.classList.remove('menu-visible');
+                            console.log(`❌ Feature not authorized - hiding menu item: ${featureAttribute}`);
+                        }
+                    });
+                    
+                    // Handle dropdown menus - show if they have visible children
+                    const dropdownMenus = document.querySelectorAll('#roleBasedMenu li.menu-dropdown');
+                    dropdownMenus.forEach(dropdown => {
+                        const dropdownFeature = dropdown.getAttribute('data-feature');
+                        const submenuItems = dropdown.querySelectorAll('.submenu li[data-feature]');
+                        let hasVisibleChildren = false;
+                        
+                        submenuItems.forEach(submenuItem => {
+                            if (submenuItem.classList.contains('menu-visible')) {
+                                hasVisibleChildren = true;
+                            }
+                        });
+                        
+                        if (hasVisibleChildren || authorizedFeatures.has(dropdownFeature)) {
+                            dropdown.classList.add('menu-visible');
+                            console.log(`✅ Showing dropdown menu: ${dropdownFeature} (has visible children or directly authorized)`);
+                        } else {
+                            dropdown.classList.remove('menu-visible');
+                            console.log(`❌ Hiding dropdown menu: ${dropdownFeature} (no visible children and not authorized)`);
+                        }
+                    });
+                    
+                    console.log(`🎯 Feature-based menu authorization completed for tank-transfer.html - ${visibleCount} items visible`);
+                    
+                    // Remove loading state after successful authorization
+                    sidebar.classList.remove('menu-loading');
+                    
+                } catch (error) {
+                    console.error('❌ Error applying feature-based menu visibility:', error);
+                    resetMenuVisibility();
+                    sidebar.classList.remove('menu-loading');
+                }
+            }
+
+            // Make updateMenuWithFeatureAuthorization available globally
+            window.updateMenuWithFeatureAuthorization = updateMenuWithFeatureAuthorization;
+
+            // Initialize user profile display using centralized auth
+            if (window.authManager) {
+                setTimeout(async () => {
+                    try {
+                        console.log('🎯 Initializing user profile display...');
+                        await window.authManager.updateUserProfileDisplay();
+                        console.log('✅ User profile display initialized');
+                    } catch (error) {
+                        console.error('❌ Error initializing user profile:', error);
+                    }
+                }, 500);
+            }
+
+            // Enhanced initialization - use feature-based authorization by default
+            setTimeout(async () => {
+                try {
+                    await updateMenuWithFeatureAuthorization();
+                } catch (error) {
+                    console.error('❌ Error initializing feature-based menu:', error);
+                    showBasicMenu();
+                }
+            }, 1500);
+        });
+    </script>
+</body>
+</html>
