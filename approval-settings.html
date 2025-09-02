@@ -1,0 +1,2843 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Approval Flow Settings - Dreamex Datalab HSE</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="css/styles.css">
+    <script type="module" src="js/firebase-config.js"></script>
+    <script type="module" src="js/auth.js"></script>
+    <style>
+        .settings-container {
+            width: 100%;
+            max-width: none;
+            margin: 0;
+            padding: 20px;
+        }
+
+        /* App Container and Layout */
+        .app-container {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        /* Sidebar Styles */
+        .sidebar {
+            width: var(--sidebar-width, 250px);
+            background-color: var(--primary-color, #2c3e50);
+            color: white;
+            padding: 1rem;
+            position: fixed;
+            height: 100vh;
+            overflow-y: auto;
+            z-index: 50;
+        }
+
+        .sidebar .logo h2 {
+            text-align: center;
+            padding: 1rem 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .sidebar .menu {
+            list-style: none;
+            margin-top: 2rem;
+        }
+
+        .sidebar .menu li {
+            margin-bottom: 0.5rem;
+        }
+
+        /* Loading and Status States */
+        .loading-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #64748b;
+        }
+
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid #e2e8f0;
+            border-top: 3px solid #3b82f6;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .empty-approval-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #64748b;
+        }
+
+        .empty-approval-state .empty-state-icon {
+            font-size: 4rem;
+            color: #cbd5e1;
+            margin-bottom: 20px;
+        }
+
+        .empty-approval-state h3 {
+            color: #374151;
+            margin-bottom: 10px;
+            font-size: 1.5rem;
+        }
+
+        .empty-approval-state p {
+            font-size: 1rem;
+            color: #6b7280;
+        }
+
+        .process-type-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin: 16px 0;
+            font-size: 0.9rem;
+            font-weight: 500;
+            animation: fadeIn 0.3s ease-in;
+        }
+
+        .process-type-status.status-success {
+            background-color: #dcfce7;
+            color: #166534;
+            border: 1px solid #bbf7d0;
+        }
+
+        .process-type-status.status-info {
+            background-color: #dbeafe;
+            color: #1e40af;
+            border: 1px solid #bfdbfe;
+        }
+
+        .process-type-status.status-error {
+            background-color: #fee2e2;
+            color: #dc2626;
+            border: 1px solid #fecaca;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .sidebar .menu a {
+            color: white;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            padding: 0.75rem 1rem;
+            border-radius: 5px;
+            transition: background-color 0.3s;
+        }
+
+        .sidebar .menu a i {
+            margin-right: 10px;
+        }
+
+        .sidebar .menu a:hover, .sidebar .menu a.active {
+            background-color: var(--secondary-color, #3498db);
+        }
+
+        .sidebar .menu-dropdown .submenu {
+            display: none;
+            list-style: none;
+            margin-left: 2rem;
+            margin-top: 0.5rem;
+        }
+
+        .sidebar .menu-dropdown:hover .submenu {
+            display: block;
+        }
+
+        /* Menu visibility classes */
+        .sidebar .menu li {
+            display: none;
+        }
+
+        .sidebar .menu li.menu-visible {
+            display: block;
+        }
+
+        .sidebar.menu-loading .menu li {
+            opacity: 0.5;
+        }
+
+        /* Main Content Styles */
+        .main-content {
+            flex: 1;
+            margin-left: var(--sidebar-width, 250px);
+            padding: 0.5rem;
+            width: calc(100% - var(--sidebar-width, 250px));
+            box-sizing: border-box;
+        }
+
+        /* Top Navigation Header */
+        .top-nav {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 2rem;
+            background: white;
+            border-bottom: 1px solid #e9ecef;
+            margin-bottom: 1rem;
+            border-radius: 0 0 10px 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+        }
+
+        /* Mobile responsive adjustments for sticky header */
+        @media (max-width: 768px) {
+            .top-nav {
+                padding: 0.75rem 1rem;
+                margin-bottom: 0.5rem;
+                border-radius: 0;
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            }
+            
+            .top-nav-left {
+                gap: 0.5rem;
+            }
+            
+            .company-name-header {
+                font-size: 1rem;
+            }
+            
+            .header-company-logo, .header-logo-placeholder {
+                width: 32px;
+                height: 32px;
+            }
+        }
+
+        .top-nav-left {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .header-company-logo {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            object-fit: cover;
+            border: 2px solid #e9ecef;
+            display: none;
+        }
+
+        .header-company-logo.visible {
+            display: block;
+        }
+
+        .header-logo-placeholder {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            background: #f8f9fa;
+            border: 2px dashed #ced4da;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #6c757d;
+            font-size: 1.2rem;
+        }
+
+        .company-name-header {
+            font-weight: 600;
+            color: #2c3e50;
+            font-size: 1.1rem;
+        }
+
+        .top-nav-right {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+        }
+
+        /* Notification Styles */
+        .notifications {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .notification-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            position: relative;
+            font-size: 1.2rem;
+            padding: 0.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .notification-badge {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            background-color: var(--accent-color, #e74c3c);
+            color: white;
+            border-radius: 50%;
+            padding: 0.2rem 0.5rem;
+            font-size: 0.7rem;
+        }
+
+        .notification-dropdown {
+            display: none;
+            position: absolute;
+            right: 0;
+            top: 100%;
+            width: 300px;
+            background-color: white;
+            border-radius: 5px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+        }
+
+        .notification-dropdown.show {
+            display: block;
+        }
+
+        .notification-header {
+            padding: 1rem;
+            border-bottom: 1px solid #ddd;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .notification-header h3 {
+            margin: 0;
+            color: #2c3e50;
+            font-size: 1.1rem;
+        }
+
+        .mark-all-read {
+            background: none;
+            border: none;
+            color: var(--secondary-color, #3498db);
+            cursor: pointer;
+            font-size: 0.85rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            transition: all 0.2s ease;
+        }
+
+        .mark-all-read:hover {
+            background: #f8f9fa;
+        }
+
+        .notification-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .notification-item {
+            padding: 1rem;
+            border-bottom: 1px solid #ddd;
+            cursor: pointer;
+        }
+
+        .notification-item:hover {
+            background-color: #f5f5f5;
+        }
+
+        /* User Profile Styles */
+        .user-profile {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .profile-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 0.25rem;
+            display: flex;
+            align-items: center;
+        }
+
+        .profile-btn img {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+
+        .avatar-initials {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background-color: var(--secondary-color);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            font-weight: 600;
+        }
+
+        .profile-dropdown {
+            display: none;
+            position: absolute;
+            top: 100%;
+            right: 0;
+            background: #fff;
+            border-radius: 4px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            min-width: 200px;
+            z-index: 1000;
+        }
+
+        .profile-dropdown.show {
+            display: block;
+        }
+
+        .profile-dropdown ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .profile-dropdown ul li {
+            padding: 0;
+        }
+
+        .profile-dropdown ul li a {
+            display: flex;
+            align-items: center;
+            padding: 12px 16px;
+            color: #333;
+            text-decoration: none;
+            transition: background-color 0.2s;
+        }
+
+        .profile-dropdown ul li a:hover {
+            background-color: #f8f9fa;
+        }
+
+        .profile-dropdown ul li a i {
+            margin-right: 10px;
+            width: 16px;
+            color: #666;
+        }
+
+        /* User Profile Dropdown Styles */
+        .profile-dropdown .user-info {
+            padding: 1rem;
+            border-bottom: 1px solid #eee;
+        }
+
+        .profile-dropdown .user-details {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .profile-dropdown .user-name {
+            font-weight: 600;
+            color: #2c3e50;
+        }
+
+        .profile-dropdown .user-email {
+            color: #6c757d;
+            font-size: 0.875rem;
+        }
+
+        .profile-dropdown .status-badge {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            text-transform: uppercase;
+        }
+
+        .profile-dropdown .status-active {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .profile-dropdown .divider {
+            height: 1px;
+            background: #eee;
+            margin: 0;
+        }
+
+        /* Content area adjustments */
+        .content {
+            width: 100%;
+            margin: 0;
+            padding: 0.5rem;
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            max-width: none;
+        }
+
+        .settings-section {
+            background: #fff;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .settings-section h2 {
+            color: #2c3e50;
+            margin-bottom: 25px;
+            font-size: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .settings-section h2 i {
+            color: #3b82f6;
+        }
+
+        .approval-flows {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #4a5568;
+        }
+
+        .form-hint {
+            display: block;
+            margin-top: 5px;
+            color: #718096;
+            font-size: 0.875rem;
+        }
+
+        select {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            font-size: 0.95rem;
+            color: #4a5568;
+            transition: all 0.2s;
+        }
+
+        select:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
+        /* Enhanced Approval Levels Design - Horizontal Tabs */
+        .approval-levels-container {
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.07);
+            overflow: hidden;
+            margin-top: 20px;
+            width: 100%;
+            max-width: none;
+        }
+
+        .approval-levels-tabs {
+            display: flex;
+            background: #f8fafc;
+            border-bottom: 1px solid #e2e8f0;
+            overflow-x: auto;
+            scrollbar-width: thin;
+            scrollbar-color: #cbd5e1 transparent;
+        }
+
+        .approval-levels-tabs::-webkit-scrollbar {
+            height: 4px;
+        }
+
+        .approval-levels-tabs::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+
+        .approval-levels-tabs::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 2px;
+        }
+
+        .approval-tab {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 16px 24px;
+            border: none;
+            background: none;
+            cursor: pointer;
+            font-size: 0.95rem;
+            font-weight: 500;
+            color: #64748b;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s ease;
+            white-space: nowrap;
+            min-width: 140px;
+            justify-content: center;
+            position: relative;
+        }
+
+        .approval-tab:hover {
+            background: #e2e8f0;
+            color: #475569;
+        }
+
+        .approval-tab.active {
+            background: #fff;
+            color: #3b82f6;
+            border-bottom-color: #3b82f6;
+            box-shadow: 0 -2px 8px rgba(59, 130, 246, 0.1);
+        }
+
+        .approval-tab i {
+            font-size: 1rem;
+        }
+
+        .approval-tab .tab-label {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2px;
+        }
+
+        .approval-tab .tab-title {
+            font-weight: 600;
+        }
+
+        .approval-tab .tab-subtitle {
+            font-size: 0.75rem;
+            opacity: 0.7;
+        }
+
+        .approval-tab .remove-level {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #ef4444;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-size: 0.7rem;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }
+
+        .approval-tab:hover .remove-level {
+            display: flex;
+        }
+
+        .approval-tab .remove-level:hover {
+            background: #dc2626;
+            transform: scale(1.1);
+        }
+
+        .add-level-tab {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 16px 24px;
+            border: 2px dashed #cbd5e1;
+            background: #f8fafc;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: #64748b;
+            transition: all 0.3s ease;
+            min-width: 140px;
+            justify-content: center;
+            border-radius: 8px;
+            margin: 8px;
+        }
+
+        .add-level-tab:hover {
+            border-color: #3b82f6;
+            background: #eff6ff;
+            color: #3b82f6;
+        }
+
+        .approval-levels-content {
+            padding: 0;
+        }
+
+        .approval-level {
+            display: none;
+            background: #fff;
+            padding: 32px;
+            border: none;
+            border-radius: 0;
+            margin: 0;
+            min-height: 400px;
+        }
+
+        .approval-level.active {
+            display: block;
+            animation: fadeInSlide 0.3s ease-out;
+        }
+
+        @keyframes fadeInSlide {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .level-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 32px;
+            margin-top: 24px;
+        }
+
+        @media (max-width: 768px) {
+            .level-content {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+        }
+
+        .level-section {
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 24px;
+            border: 1px solid #e2e8f0;
+            transition: all 0.3s ease;
+        }
+
+        .level-section:hover {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            border-color: #cbd5e1;
+        }
+
+        .level-section h4 {
+            color: #374151;
+            font-size: 1.1rem;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 600;
+        }
+
+        .level-section h4 i {
+            color: #6366f1;
+        }
+
+        /* Enhanced form controls within levels */
+        .approval-level .form-group {
+            margin-bottom: 24px;
+        }
+
+        .approval-level .form-group label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+            font-weight: 600;
+            color: #374151;
+            font-size: 0.95rem;
+        }
+
+        .approval-level .form-group label i {
+            color: #6366f1;
+            font-size: 1rem;
+        }
+
+        /* Responsive layout for approver configuration row */
+        .approver-config-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        @media (max-width: 768px) {
+            .approver-config-row {
+                grid-template-columns: 1fr;
+                gap: 16px;
+            }
+        }
+
+        .approval-level select {
+            background: #fff;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 12px 16px;
+            font-size: 0.95rem;
+            transition: all 0.3s ease;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .approval-level select:focus {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+            outline: none;
+        }
+
+        /* Enhanced approver selection display */
+        .approver-selection {
+            margin-top: 8px;
+        }
+        
+        .approver-dropdown {
+            width: 100%;
+            background: #fff;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 12px 16px;
+            font-size: 0.95rem;
+            transition: all 0.3s ease;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+        
+        .approver-dropdown:focus {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+            outline: none;
+        }
+        
+        .approver-dropdown option {
+            padding: 8px;
+        }
+
+        /* Empty state styling */
+        .approval-levels-empty {
+            text-align: center;
+            padding: 60px 32px;
+            color: #6b7280;
+        }
+
+        .approval-levels-empty i {
+            font-size: 3rem;
+            color: #d1d5db;
+            margin-bottom: 16px;
+        }
+
+        .approval-levels-empty h3 {
+            color: #374151;
+            margin-bottom: 8px;
+        }
+
+        .approval-levels-empty p {
+            margin-bottom: 24px;
+            line-height: 1.6;
+        }
+
+        /* Level indicator badges */
+        .level-indicator {
+            background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+            color: white;
+            border-radius: 50%;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 0.9rem;
+            box-shadow: 0 2px 4px rgba(139, 92, 246, 0.3);
+        }
+
+        .role-selection {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .form-actions {
+            display: flex;
+            gap: 15px;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        /* Enhanced Button Styles */
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.95rem;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            text-decoration: none;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+        }
+
+        .btn-edit {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            color: white;
+        }
+
+        .btn-edit:hover {
+            background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
+        }
+
+        .btn-approve {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+        }
+
+        .btn-approve:hover {
+            background: linear-gradient(135deg, #059669 0%, #047857 100%);
+        }
+
+        .btn-secondary {
+            background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: linear-gradient(135deg, #4b5563 0%, #374151 100%);
+        }
+
+        /* Enhanced Form Actions */
+        .form-actions {
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 24px;
+            margin-top: 32px;
+            border: 1px solid #e2e8f0;
+            display: flex;
+            gap: 16px;
+            align-items: center;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .form-actions .btn {
+            min-width: 140px;
+        }
+
+        /* Enhanced Settings Section */
+        .settings-section {
+            background: #fff;
+            border-radius: 16px;
+            padding: 32px;
+            margin-bottom: 32px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.07), 0 1px 3px rgba(0, 0, 0, 0.1);
+            border: 1px solid #f1f5f9;
+            width: 100%;
+            max-width: none;
+        }
+
+        .settings-section h2 {
+            color: #1e293b;
+            margin-bottom: 32px;
+            font-size: 1.75rem;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-weight: 600;
+            border-bottom: 3px solid #f1f5f9;
+            padding-bottom: 16px;
+        }
+
+        .settings-section h2 i {
+            color: #3b82f6;
+            font-size: 1.5rem;
+        }
+
+        /* Enhanced Form Groups */
+        .form-group {
+            margin-bottom: 24px;
+        }
+
+        .form-group label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+            font-weight: 600;
+            color: #374151;
+            font-size: 0.95rem;
+        }
+
+        .form-group label i {
+            color: #6366f1;
+            font-size: 1rem;
+        }
+
+        .form-group select {
+            background: #fff;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 12px 16px;
+            font-size: 0.95rem;
+            transition: all 0.3s ease;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .form-group select:focus {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+            outline: none;
+        }
+
+        .form-group .form-hint {
+            margin-top: 8px;
+            color: #6b7280;
+            font-size: 0.875rem;
+            line-height: 1.5;
+        }
+
+        /* Horizontal Form Row Layout */
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr auto;
+            gap: 24px;
+            align-items: end;
+            margin-bottom: 32px;
+        }
+
+        .form-row .form-group {
+            margin-bottom: 0;
+        }
+
+        .form-action-group {
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+        }
+
+        .form-action-group .btn {
+            margin-top: auto;
+            white-space: nowrap;
+            min-width: 140px;
+        }
+
+        /* Responsive adjustments for form row */
+        @media (max-width: 1024px) {
+            .form-row {
+                grid-template-columns: 1fr 1fr;
+                gap: 20px;
+            }
+            
+            .form-action-group {
+                grid-column: 1 / -1;
+                margin-top: 16px;
+            }
+            
+            .form-action-group .btn {
+                align-self: flex-start;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .form-row {
+                grid-template-columns: 1fr;
+                gap: 16px;
+            }
+            
+            .form-action-group {
+                margin-top: 8px;
+            }
+        }
+
+        /* Responsive Design Enhancements */
+        @media (max-width: 768px) {
+            .approval-levels-tabs {
+                padding: 0 8px;
+            }
+            
+            .approval-tab {
+                min-width: 120px;
+                padding: 12px 16px;
+            }
+            
+            .approval-tab .tab-subtitle {
+                display: none;
+            }
+            
+            .level-content {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+            
+            .approval-level {
+                padding: 20px;
+            }
+            
+            .settings-section {
+                padding: 20px;
+                margin-bottom: 20px;
+            }
+            
+            .form-actions {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .form-actions .btn {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .approval-tab .tab-label {
+                flex-direction: row;
+                gap: 4px;
+            }
+            
+            .level-indicator {
+                width: 24px;
+                height: 24px;
+                font-size: 0.8rem;
+            }
+        }
+
+        /* Loading and Animation Enhancements */
+        .approval-level {
+            transition: all 0.3s ease;
+        }
+
+        .approval-level.active {
+            animation: levelSlideIn 0.4s ease-out;
+        }
+
+        @keyframes levelSlideIn {
+            from {
+                opacity: 0;
+                transform: translateX(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        /* Enhanced Process Info */
+        .process-info {
+            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 24px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+
+        .process-info h4 {
+            color: #1e293b;
+            margin: 0 0 12px 0;
+            font-size: 1.1rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 600;
+        }
+
+        .process-info p {
+            color: #64748b;
+            margin: 0;
+            font-size: 0.95rem;
+            line-height: 1.6;
+        }
+
+        .leave-request-info {
+            border-left: 4px solid #10b981;
+        }
+
+        .timesheet-info {
+            border-left: 4px solid #3b82f6;
+        }
+
+        /* Loading and Status States */
+        .loading-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #64748b;
+        }
+
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid #e2e8f0;
+            border-top: 3px solid #3b82f6;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .empty-approval-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #64748b;
+        }
+
+        .empty-approval-state .empty-state-icon {
+            font-size: 4rem;
+            color: #cbd5e1;
+            margin-bottom: 20px;
+        }
+
+        .empty-approval-state h3 {
+            color: #374151;
+            margin-bottom: 10px;
+            font-size: 1.5rem;
+        }
+
+        .empty-approval-state p {
+            font-size: 1rem;
+            color: #6b7280;
+        }
+
+        .process-type-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin: 16px 0;
+            font-size: 0.9rem;
+            font-weight: 500;
+            animation: fadeIn 0.3s ease-in;
+        }
+
+        .process-type-status.status-success {
+            background-color: #dcfce7;
+            color: #166534;
+            border: 1px solid #bbf7d0;
+        }
+
+        .process-type-status.status-info {
+            background-color: #dbeafe;
+            color: #1e40af;
+            border: 1px solid #bfdbfe;
+        }
+
+        .process-type-status.status-error {
+            background-color: #fee2e2;
+            color: #dc2626;
+            border: 1px solid #fecaca;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+
+
+        /* Approval Flow Summary Styles */
+        .approval-flow-summary {
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+            border: 1px solid #cbd5e1;
+            border-radius: 12px;
+            margin: 20px 0;
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+
+        .summary-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 24px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .summary-status {
+            display: flex;
+            align-items: center;
+            gap: 24px;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 600;
+            font-size: 0.95rem;
+        }
+
+        .status-indicator.status-draft {
+            color: #f59e0b;
+        }
+
+        .status-indicator.status-live {
+            color: #10b981;
+        }
+
+        .status-indicator.status-inactive {
+            color: #6b7280;
+        }
+
+        .status-indicator i {
+            font-size: 0.8rem;
+        }
+
+        .flow-stats {
+            display: flex;
+            gap: 20px;
+        }
+
+        .stat-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.9rem;
+            color: #64748b;
+        }
+
+        .stat-item i {
+            color: #6366f1;
+            font-size: 0.85rem;
+        }
+
+        .summary-actions {
+            display: flex;
+            gap: 12px;
+        }
+
+        .btn-sm {
+            padding: 8px 16px;
+            font-size: 0.85rem;
+            min-width: auto;
+        }
+
+        .flow-preview {
+            background: #fff;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        .preview-content {
+            padding: 24px;
+        }
+
+        .flow-visualization {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+
+        .flow-step {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-width: 120px;
+            padding: 16px;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .flow-step.start {
+            background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+            border-color: #3b82f6;
+        }
+
+        .flow-step.end {
+            background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%);
+            border-color: #10b981;
+        }
+
+        .flow-step-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: #3b82f6;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        .flow-step.start .flow-step-icon {
+            background: #3b82f6;
+        }
+
+        .flow-step.end .flow-step-icon {
+            background: #10b981;
+        }
+
+        .flow-step-title {
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: #1e293b;
+            margin-bottom: 4px;
+        }
+
+        .flow-step-subtitle {
+            font-size: 0.8rem;
+            color: #64748b;
+        }
+
+        .flow-arrow {
+            font-size: 1.2rem;
+            color: #cbd5e1;
+        }
+
+        @media (max-width: 768px) {
+            .summary-header {
+                flex-direction: column;
+                gap: 16px;
+                align-items: flex-start;
+            }
+
+            .summary-status {
+                flex-direction: column;
+                gap: 16px;
+                align-items: flex-start;
+            }
+
+            .flow-stats {
+                flex-wrap: wrap;
+                gap: 12px;
+            }
+
+            .flow-visualization {
+                flex-direction: column;
+                gap: 12px;
+            }
+
+            .flow-arrow {
+                transform: rotate(90deg);
+            }
+        }
+
+        /* Collaborative Features Styles */
+        .collaborative-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%);
+            color: #3730a3;
+            border: 1px solid #a5b4fc;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            margin: 12px 0;
+            animation: slideInFromTop 0.3s ease-out;
+            box-shadow: 0 2px 4px rgba(79, 70, 229, 0.1);
+        }
+
+        .collaborative-indicator i {
+            font-size: 0.9rem;
+            color: #4338ca;
+        }
+
+        @keyframes slideInFromTop {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Enhanced process type status for collaborative updates */
+        .process-type-status.status-collaborative {
+            background-color: #e0e7ff;
+            color: #3730a3;
+            border: 1px solid #a5b4fc;
+        }
+
+        /* Real-time connection indicator */
+        .realtime-status {
+            position: fixed;
+            top: 70px;
+            right: 20px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            background: #dcfce7;
+            color: #166534;
+            border: 1px solid #bbf7d0;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            z-index: 1000;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+        }
+
+        .realtime-status.connected {
+            background: #dcfce7;
+            color: #166534;
+            border-color: #bbf7d0;
+        }
+
+        .realtime-status.disconnected {
+            background: #fee2e2;
+            color: #dc2626;
+            border-color: #fecaca;
+        }
+
+        .realtime-status .status-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: currentColor;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* Mobile responsive adjustments for collaborative features */
+        @media (max-width: 768px) {
+            .realtime-status {
+                top: auto;
+                bottom: 20px;
+                right: 20px;
+                font-size: 0.75rem;
+                padding: 4px 8px;
+            }
+            
+            .collaborative-indicator {
+                font-size: 0.8rem;
+                padding: 6px 12px;
+            }
+        }
+    </style>
+
+    <!-- Firebase v8 CDN for compatibility -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
+    <!-- GitHub Pages Fix Script -->
+    <script src="github-pages-fix.js"></script>
+</head>
+<body>
+
+    
+    <div class="app-container">
+        <!-- Left Sidebar -->
+        <nav class="sidebar menu-loading">
+            <div class="logo">
+                <h2>Dreamex Datalab</h2>
+            </div>
+            <ul class="menu" id="roleBasedMenu">
+                <li class="menu-item" data-feature="home_view" data-requires-permission="home_view">
+                    <a href="index.html"><i class="fas fa-home"></i> Home</a>
+                </li>
+                <li class="menu-dropdown" data-feature="health_view" data-requires-permission="health_view">
+                    <a href="#"><i class="fas fa-medkit"></i> Health</a>
+                    <ul class="submenu">
+                        <li data-feature="health_assessment_view" data-requires-permission="health_assessment_view">
+                            <a href="health-assessment.html">Assessment</a>
+                        </li>
+                        <li data-feature="health_consultation_view" data-requires-permission="health_consultation_view">
+                            <a href="health-consultation.html">Consultation</a>
+                        </li>
+                        <li data-feature="medical_folder_view" data-requires-permission="medical_folder_view">
+                            <a href="medical-folder.html">Medical Folder</a>
+                        </li>
+                    </ul>
+                </li>
+                <li class="menu-dropdown" data-feature="safety_view" data-requires-permission="safety_view">
+                    <a href="#"><i class="fas fa-shield-alt"></i> Safety</a>
+                    <ul class="submenu">
+                        <li data-feature="training_view" data-requires-permission="training_view"><a href="trainingboard.html">Training</a></li>
+                        <li data-feature="risk_view" data-requires-permission="risk_view"><a href="riskboard.html">Risk Management</a></li>
+                        <li data-feature="jsa_view" data-requires-permission="jsa_view"><a href="jsaboard.html">Job Safety Analysis</a></li>
+                        <li data-feature="ptw_view" data-requires-permission="ptw_view"><a href="ptwboard.html">Permit to Work</a></li>
+                        <li data-feature="incident_view" data-requires-permission="incident_view"><a href="incidentboard.html">Incident Reports</a></li>
+                        <li data-feature="inspection_view" data-requires-permission="inspection_view"><a href="inspectionboard.html">Inspection</a></li>
+                        <li data-feature="audit_view" data-requires-permission="audit_view"><a href="auditboard.html">Audit</a></li>
+                    </ul>
+                </li>
+                <li class="menu-dropdown" data-feature="fuel_management">
+                    <a href="#"><i class="fas fa-gas-pump"></i> Fuel Management</a>
+                    <ul class="submenu">
+                        <li data-feature="vessel_offloading"><a href="vessel-offloading.html">Vessel Offloading</a></li>
+                        <li data-feature="fuel_storage"><a href="fuel-storage-status.html">Fuel Storage Status</a></li>
+                        <li data-feature="tank_transfer"><a href="tank-transfer.html">Tank-to-Tank Transfer</a></li>
+                        <li data-feature="truck_loading"><a href="fuel-truck-loading.html">Fuel Truck Loading</a></li>
+                        <li data-feature="quality_analysis"><a href="fuel-quality-analysis.html">Fuel Quality Analysis</a></li>
+                        <li data-feature="fuel_distribution"><a href="fueldistrib.html">Fuel Distribution</a></li>
+                        <li data-feature="fuel_consumption_analysis"><a href="fuelanalys.html">Consumption Analysis</a></li>
+                    </ul>
+                </li>
+                <li class="menu-dropdown" data-feature="environment_view">
+                    <a href="#"><i class="fas fa-leaf"></i> Environment</a>
+                    <ul class="submenu">
+                        <li data-feature="water_view"><a href="waterboard.html">Water Quality</a></li>
+                    </ul>
+                </li>
+                <li class="menu-dropdown" data-feature="security_view">
+                    <a href="#"><i class="fas fa-lock"></i> Security</a>
+                    <ul class="submenu">
+                        <li data-feature="access_view"><a href="accessboard.html">Access Request</a></li>
+                        <li data-feature="access_daily_view"><a href="accessdaily.html">Daily Access Control</a></li>
+                        <li data-feature="removal_view"><a href="removalboard.html">Property Removal</a></li>
+                    </ul>
+                </li>
+                <li class="menu-dropdown" data-feature="logistics_view" data-requires-permission="logistics_view">
+                    <a href="#"><i class="fas fa-truck"></i> Logistics</a>
+                    <ul class="submenu">
+                        <li data-feature="fleet_view" data-requires-permission="fleet_view"><a href="fleetboard.html">Fleet Management</a></li>
+                    </ul>
+                </li>
+                <li class="menu-dropdown" data-feature="hr_view" data-requires-permission="hr_view">
+                    <a href="#"><i class="fas fa-users"></i> HR</a>
+                    <ul class="submenu">
+                        <li data-feature="human_hr_view" data-requires-permission="human_hr_view"><a href="human-hr.html"><i class="fas fa-user-tie"></i> Human HR</a></li>
+                        <li data-feature="staff_management_view" data-requires-permission="staff_management_view"><a href="staff.html">Staffing</a></li>
+                        <li data-feature="authority_to_recruit_view" data-requires-permission="authority_to_recruit_view"><a href="recruit.html">Authority to Recruit</a></li>
+                        <li data-feature="job_advertising_view" data-requires-permission="job_advertising_view"><a href="jobpost.html">Job Advertising</a></li>
+                        <li data-feature="screening_view" data-requires-permission="screening_view"><a href="jobscreen.html">Screening</a></li>
+                        <li data-feature="interview_view" data-requires-permission="interview_view"><a href="interview.html">Interview</a></li>
+                        <li data-feature="offer_view" data-requires-permission="offer_view"><a href="offer.html">Offer Management</a></li>
+                        <li data-feature="contract_view" data-requires-permission="contract_view"><a href="contract.html">Contract Management</a></li>
+                        <li data-feature="onboarding_view" data-requires-permission="onboarding_view"><a href="onboard.html">Onboarding</a></li>
+                        <li data-feature="kpi_dashboard_view" data-requires-permission="kpi_dashboard_view"><a href="kpi.html">KPI</a></li>
+                    </ul>
+                </li>
+                <li data-feature="communication_view"><a href="info.html"><i class="fas fa-comments"></i> Communication</a></li>
+                <li class="menu-dropdown" data-feature="settings_view">
+                    <a href="#"><i class="fas fa-cog"></i> Settings</a>
+                    <ul class="submenu">
+                        <li data-feature="account_settings_view"><a href="account.html">Account Settings</a></li>
+                        <li data-feature="company_management_view"><a href="companymanagement.html">Company Management</a></li>
+                        <li data-feature="approval_settings_view"><a href="approval-settings.html">Approval Flow Settings</a></li>
+                        <li data-feature="field_setup_view"><a href="fieldsetup.html">Field Setup</a></li>
+                        <li data-feature="preferences_view"><a href="preferences.html">Preferences</a></li>
+                        <li data-feature="notification_settings_view"><a href="notification-settings.html">Notification Settings</a></li>
+                        <li data-feature="audit_log_view"><a href="auditlog.html"><i class="fas fa-history"></i> Audit Log</a></li>
+                        <li data-feature="user_management_view"><a href="users.html">User & Role Management</a></li>
+                        <li data-feature="role_permissions_view"><a href="roles.html">Role Permissions</a></li>
+                    </ul>
+                </li>
+            </ul>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Top Navigation -->
+            <header class="top-nav">
+                <div class="top-nav-left">
+                    <img id="headerCompanyLogo" class="header-company-logo" src="" alt="Company Logo">
+                    <div id="headerLogoPlaceholder" class="header-logo-placeholder">
+                        <i class="fas fa-building"></i>
+                    </div>
+                    <span id="headerCompanyName" class="company-name-header">Loading...</span>
+                </div>
+                <div class="top-nav-right">
+                    <div class="notifications">
+                        <button id="notificationBtn" class="notification-btn">
+                            <i class="fas fa-bell"></i>
+                            <span class="notification-badge">0</span>
+                        </button>
+                        <div class="notification-dropdown">
+                            <div class="notification-header">
+                                <h3>Notifications</h3>
+                                <button class="mark-all-read">Mark all as read</button>
+                            </div>
+                            <div class="notification-list">
+                                <!-- Notifications will be dynamically added here -->
+                            </div>
+                        </div>
+                    </div>
+                    <div class="user-profile">
+                        <button id="userProfileBtn" class="profile-btn">
+                            <img src="assets/default-avatar.png" alt="User Avatar">
+                        </button>
+                        <div class="profile-dropdown">
+                            <ul>
+                                <li><a href="account.html"><i class="fas fa-user"></i> Account Settings</a></li>
+                                <li><a href="#" onclick="logout()"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Page Content -->
+            <div class="content">
+                <div class="settings-container">
+                    <!-- Approval Flow Section -->
+                    <section class="settings-section">
+                        <h2><i class="fas fa-cog"></i> Approval Flow Configuration</h2>
+                        <div class="approval-flows">
+                            <!-- Horizontal Form Row -->
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="processType"><i class="fas fa-tasks"></i> Process Type</label>                                    <select id="processType" name="processType">                                        <option value="company_creation">Company Creation Request</option>
+                                        <option value="training">Training Request</option>
+                                        <option value="removal">Property Removal</option>
+                                        <option value="access">Access Request</option>
+                                        <option value="ptw">Permit to Work</option>
+                                        <option value="inspection">Inspection</option>
+                                        <option value="medical">Medical Records</option>
+                                        <option value="event">Event Report</option>
+                                        <option value="risk">Risk Request</option>
+                                        <option value="lms">Learning Management</option>
+                                        <option value="water">Water Quality</option>
+                                        <option value="jsa">Job Safety Analysis</option>
+                                        <option value="fleet">Fleet Management</option>                                        <option value="waste">Waste Management</option>                                        <option value="audit">Audit</option>                                        <option value="timesheet">Timesheet Request</option>
+                                        <option value="leave_request">Leave Request</option>
+                                        <option value="recruitment">Recruitment Request</option>
+                                        <option value="offer_approval">Offer Approval</option>
+                                        <option value="contract_approval">Contract Approval</option>
+                                        <option value="travel_request">Travel Request</option>
+                                        <option value="staff">Staff Management</option>
+                                    </select>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="approvalOrder"><i class="fas fa-sort-amount-down"></i> Approval Order</label>
+                                    <select id="approvalOrder" name="approvalOrder">
+                                        <option value="sequential">Sequential (Consecutive Order)</option>
+                                        <option value="parallel">Parallel (Anyone Can Sign)</option>
+                                    </select>
+                                </div>
+
+                                <div class="form-group form-action-group">
+                                    <label>&nbsp;</label> <!-- Spacer to align with other labels -->
+                                    <button class="btn btn-edit" id="addApprovalLevelTop" onclick="addApprovalLevelFromButton()">
+                                        <i class="fas fa-plus"></i> Add Level
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Process Information Section -->
+                            <div id="travel_request-info" class="process-info" style="display: none;">
+                                <h4><i class="fas fa-suitcase-rolling"></i> Travel Request Process</h4>
+                                <p>Travel requests require approval for managing business travel, including destination, duration, budget, and required documentation. The approval flow ensures proper authorization and budget compliance for all travel activities.</p>
+                            </div>
+
+                            <!-- Approval Flow Summary -->
+                            <div class="approval-flow-summary" id="approvalFlowSummary" style="display: none;">
+                                <div class="summary-header">
+                                    <div class="summary-status">
+                                        <div class="status-indicator" id="flowStatusIndicator">
+                                            <i class="fas fa-circle"></i>
+                                            <span id="flowStatusText">Draft</span>
+                                        </div>
+                                        <div class="flow-stats" id="flowStats">
+                                            <span class="stat-item">
+                                                <i class="fas fa-layer-group"></i>
+                                                <span id="totalLevelsCount">0</span> levels
+                                            </span>
+                                            <span class="stat-item">
+                                                <i class="fas fa-users"></i>
+                                                <span id="totalApproversCount">0</span> approvers
+                                            </span>
+                                            <span class="stat-item">
+                                                <i class="fas fa-clock"></i>
+                                                <span id="lastModifiedTime">Never</span>
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div class="summary-actions">
+                                        <button class="btn btn-secondary btn-sm" id="previewFlowBtn" onclick="toggleFlowPreview()">
+                                            <i class="fas fa-eye"></i>
+                                            Preview Flow
+                                        </button>
+                                        <button class="btn btn-secondary btn-sm" id="clearFlowBtn" onclick="clearApprovalFlow()">
+                                            <i class="fas fa-trash"></i>
+                                            Clear All
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="flow-preview" id="flowPreview" style="display: none;">
+                                    <div class="preview-content" id="previewContent">
+                                        <!-- Flow preview will be generated here -->
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="approval-levels-container" id="approvalLevelsContainer">
+                                <div class="approval-levels-tabs" id="approvalLevelsTabs">
+                                    <!-- Tabs will be dynamically generated here -->
+                                    <button class="add-level-tab" onclick="addApprovalLevelFromButton()">
+                                        <i class="fas fa-plus"></i>
+                                        Add Level
+                                    </button>
+                                </div>
+                                <div class="approval-levels-content">
+                                    <div class="approval-levels-empty" id="approvalLevelsEmpty">
+                                        <i class="fas fa-layer-group"></i>
+                                        <h3>No Approval Levels Configured</h3>
+                                        <p>Add approval levels to define your workflow process.</p>
+                                        <button class="btn btn-edit" onclick="addApprovalLevelFromButton()">
+                                            <i class="fas fa-plus"></i> Add First Level
+                                        </button>
+                                    </div>
+                                    <div class="approval-levels" id="approvalLevels">
+                                        <!-- Approval levels will be dynamically loaded from Firebase -->
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="form-actions">
+                                <button class="btn btn-approve" id="saveApprovalFlow">Save Changes</button>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script type="module" src="js/auth.js"></script>
+    <script type="module" src="js/roles.js"></script>
+    <script type="module" src="js/notifications.js"></script>
+    <script type="module" src="js/approval-settings.js"></script>
+    <script type="module" src="js/main.js"></script>
+    <script>
+        // Reset all menu items to hidden (exactly as in dashboard.html)
+        function resetMenuVisibility() {
+            // Remove loading class
+            const sidebar = document.querySelector('.sidebar');
+            if (sidebar) {
+                sidebar.classList.remove('menu-loading');
+            }
+            
+            document.querySelectorAll('[data-feature]').forEach(item => {
+                item.classList.remove('menu-visible');
+            });
+            document.querySelectorAll('.menu-dropdown').forEach(dropdown => {
+                dropdown.classList.remove('menu-visible');
+            });
+        }
+
+        // Emergency fallback - show basic menu items (exactly as in dashboard.html)
+        function showBasicMenu() {
+            console.log('🔧 Emergency fallback: Showing basic menu items');
+            resetMenuVisibility();
+            const homeItem = document.querySelector('[data-feature="home_view"]');
+            if (homeItem) {
+                homeItem.classList.add('menu-visible');
+            }
+        }
+
+        // Feature-based authorization system that takes priority over role permissions (exactly as in dashboard.html)
+        async function updateMenuWithFeatureAuthorization() {
+            console.log('🎯 Starting feature-based menu authorization for approval-settings.html...');
+            
+            try {
+                let currentUser = null;
+                let companyId = null;
+                
+                // Get user and company info using authManager first
+                if (window.authManager && window.authManager.currentUser) {
+                    currentUser = window.authManager.currentUser;
+                    companyId = currentUser.companyId;
+                    console.log('👤 Using AuthManager - User:', currentUser.email, 'Company ID:', companyId);
+                } else if (firebase.auth().currentUser) {
+                    currentUser = firebase.auth().currentUser;
+                    console.log('👤 Using Firebase auth - will search for company');
+                } else {
+                    console.log('❌ No authenticated user found');
+                    resetMenuVisibility();
+                    return;
+                }
+                
+                // If no company ID from authManager, search companies collection
+                if (!companyId && currentUser) {
+                    console.log('� Searching for user company...');
+                    const database = firebase.database();
+                    const companiesRef = database.ref('companies');
+                    const companiesSnapshot = await companiesRef.once('value');
+                    
+                    if (companiesSnapshot.exists()) {
+                        const companies = companiesSnapshot.val();
+                        
+                        for (const [cId, company] of Object.entries(companies)) {
+                            if (company.status !== 'active') continue;
+                            
+                            if (company.users && company.users[currentUser.uid]) {
+                                companyId = cId;
+                                console.log(`✅ Found user in company: ${companyId} (${company.name})`);
+                                break;
+                            }
+                        }
+                    }
+                }
+                
+                if (!companyId) {
+                    console.error('❌ No company ID found, cannot determine authorized features');
+                    resetMenuVisibility();
+                    return;
+                }
+                
+                // Apply feature-based authorization
+                await applyFeatureBasedMenuVisibility(companyId);
+                
+            } catch (error) {
+                console.error('❌ Error in feature-based menu authorization:', error);
+                resetMenuVisibility();
+            }
+        }
+
+        // Apply feature-based menu visibility (exactly as in dashboard.html)
+        async function applyFeatureBasedMenuVisibility(companyId) {
+            try {
+                console.log('🔧 Applying feature-based menu visibility for company:', companyId);
+                
+                // Get platform features
+                const database = firebase.database();
+                const featuresSnapshot = await database.ref('/platformFeatures').once('value');
+                
+                if (!featuresSnapshot.exists()) {
+                    console.log('⚠️ No platform features found');
+                    resetMenuVisibility();
+                    return;
+                }
+                
+                const featuresData = featuresSnapshot.val();
+                
+                // Get company's selected features
+                const companySnapshot = await database.ref(`/companies/${companyId}`).once('value');
+                const companyData = companySnapshot.val();
+                
+                if (!companyData) {
+                    console.error('❌ Company data not found');
+                    resetMenuVisibility();
+                    return;
+                }
+                
+                const subscribedFeatureIds = companyData.selectedFeatures || [];
+                console.log('🏢 Company subscribed features:', subscribedFeatureIds);
+                
+                if (subscribedFeatureIds.length === 0) {
+                    console.log('⚠️ Company has no subscribed features');
+                    resetMenuVisibility();
+                    return;
+                }
+                
+                // Collect authorized pages from subscribed features
+                const authorizedPages = [];
+                subscribedFeatureIds.forEach(featureId => {
+                    const feature = featuresData[featureId];
+                    if (feature && feature.status === 'active' && feature.authorizedPages) {
+                        console.log(`📦 Adding pages from feature "${feature.name}":`, feature.authorizedPages);
+                        authorizedPages.push(...feature.authorizedPages);
+                    } else {
+                        console.log(`⚠️ Feature ${featureId} not found or inactive`);
+                    }
+                });
+                
+                console.log('🔐 All authorized pages:', authorizedPages);
+                
+                // Reset all menu items first
+                resetMenuVisibility();
+                
+                // Create set of authorized features
+                const authorizedFeatures = new Set();
+                authorizedPages.forEach(pageInfo => {
+                    if (pageInfo.feature) {
+                        authorizedFeatures.add(pageInfo.feature);
+                    }
+                });
+                
+                console.log('🎯 Authorized features for approval-settings.html:', Array.from(authorizedFeatures));
+                
+                // Apply menu visibility
+                const allMenuItems = document.querySelectorAll('#roleBasedMenu li[data-feature]');
+                let visibleCount = 0;
+                
+                allMenuItems.forEach(menuItem => {
+                    const featureAttribute = menuItem.getAttribute('data-feature');
+                    const isAuthorized = authorizedFeatures.has(featureAttribute);
+                    const isDropdownContainer = menuItem.classList.contains('menu-dropdown');
+                    
+                    if (isDropdownContainer) {
+                        return; // Handle dropdowns separately after all items are processed
+                    }
+                    
+                    if (isAuthorized) {
+                        menuItem.classList.add('menu-visible');
+                        visibleCount++;
+                        console.log(`✅ Feature authorized - showing menu item: ${featureAttribute}`);
+                    } else {
+                        menuItem.classList.remove('menu-visible');
+                        console.log(`❌ Feature not authorized - hiding menu item: ${featureAttribute}`);
+                    }
+                });
+                
+                // Handle dropdown menus - show if they have visible children
+                const dropdownMenus = document.querySelectorAll('#roleBasedMenu li.menu-dropdown');
+                dropdownMenus.forEach(dropdown => {
+                    const dropdownFeature = dropdown.getAttribute('data-feature');
+                    const submenuItems = dropdown.querySelectorAll('.submenu li[data-feature]');
+                    let hasVisibleChildren = false;
+                    
+                    submenuItems.forEach(submenuItem => {
+                        if (submenuItem.classList.contains('menu-visible')) {
+                            hasVisibleChildren = true;
+                        }
+                    });
+                    
+                    if (hasVisibleChildren || authorizedFeatures.has(dropdownFeature)) {
+                        dropdown.classList.add('menu-visible');
+                        console.log(`✅ Showing dropdown menu: ${dropdownFeature} (has visible children or directly authorized)`);
+                    } else {
+                        dropdown.classList.remove('menu-visible');
+                        console.log(`❌ Hiding dropdown menu: ${dropdownFeature} (no visible children and not authorized)`);
+                    }
+                });
+                
+                console.log(`🎯 Feature-based menu authorization completed for approval-settings.html - ${visibleCount} items visible`);
+                
+            } catch (error) {
+                console.error('❌ Error applying feature-based menu visibility:', error);
+                resetMenuVisibility();
+            }
+        }
+
+        // Initialize feature authorization on page load (exactly as in dashboard.html)
+        document.addEventListener('DOMContentLoaded', () => {
+            // Wait for auth manager to be ready
+            setTimeout(async () => {
+                try {
+                    await updateMenuWithFeatureAuthorization();
+                } catch (error) {
+                    console.error('❌ Error initializing feature-based menu:', error);
+                    showBasicMenu();
+                }
+            }, 1500);
+        });
+    </script>
+    <script type="module">
+        // Company-specific approval flow initialization
+        import { getDatabase, ref, get, set } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+        
+        document.addEventListener('DOMContentLoaded', async function() {
+            // Wait for authentication to complete, but don't require it
+            setTimeout(async () => {
+                const currentUser = window.authManager?.currentUser || JSON.parse(localStorage.getItem('currentUser') || '{}');
+                
+                // If no user is logged in, set a default company context or skip Firebase operations
+                if (!currentUser.companyId) {
+                    console.log('No user logged in - approval settings will work in demo mode');
+                    // You can set up demo data or default configurations here if needed
+                    return;
+                }
+                
+                try {
+                    const db = getDatabase();
+                    
+                    // Initialize sample approval flow for leave_request if it doesn't exist
+                    const approvalFlowRef = ref(db, `companies/${currentUser.companyId}/approvalFlows/leave_request`);
+                    const approvalFlowSnapshot = await get(approvalFlowRef);
+                    
+                    if (!approvalFlowSnapshot.exists()) {
+                        console.log('Creating sample approval flow for company:', currentUser.companyId);
+                        
+                        // Define default roles - this matches the ones in accessboard.html
+                        const defaultRoles = [
+                            { key: "supervisor", text: "Supervisor", function: "function_supervisor" },
+                            { key: "manager", text: "Manager", function: "function_manager" },
+                            { key: "admin", text: "Administrator", function: "function_admin" },
+                            { key: "hr", text: "HR Manager", function: "function_hr" }
+                        ];
+                        
+                        const sampleApprovalFlow = {
+                            enabled: true,
+                            approvalOrder: "sequential",
+                            selectedRoles: {
+                                level1: [{
+                                    value: defaultRoles[0].function,
+                                    text: defaultRoles[0].text,
+                                    updatedAt: Date.now()
+                                }],
+                                level2: [{
+                                    value: defaultRoles[1].function,
+                                    text: defaultRoles[1].text,
+                                    updatedAt: Date.now()
+                                }]
+                            },
+                            levels: [
+                                {
+                                    level: 1,
+                                    approverType: "function",
+                                    value: defaultRoles[0].function
+                                },
+                                {
+                                    level: 2,
+                                    approverType: "function", 
+                                    value: defaultRoles[1].function
+                                }
+                            ],
+                            availableRoles: defaultRoles, // Store available roles for UI
+                            companyId: currentUser.companyId,
+                            companyName: currentUser.companyName,
+                            lastModifiedAt: new Date().toISOString()
+                        };
+                        
+                        await set(approvalFlowRef, sampleApprovalFlow);
+                        console.log('Sample approval flow created for company');
+                    }
+                    
+                    // Initialize job titles if they don't exist
+                    const jobTitlesRef = ref(db, `companies/${currentUser.companyId}/configuration/jobTitles`);
+                    const jobTitlesSnapshot = await get(jobTitlesRef);
+                    
+                    if (!jobTitlesSnapshot.exists()) {
+                        console.log('Creating default job titles for company:', currentUser.companyId);
+                        
+                        const defaultJobTitles = {
+                            supervisor: {
+                                label: "Supervisor",
+                                value: "supervisor",
+                                enabled: true
+                            },
+                            manager: {
+                                label: "Manager",
+                                value: "manager",
+                                enabled: true
+                            },
+                            department_head: {
+                                label: "Department Head",
+                                value: "department_head",
+                                enabled: true
+                            },
+                            team_lead: {
+                                label: "Team Lead",
+                                value: "team_lead",
+                                enabled: true
+                            },
+                            admin: {
+                                label: "Administrator",
+                                value: "admin",
+                                enabled: true
+                            },
+                            hr_manager: {
+                                label: "HR Manager",
+                                value: "hr_manager",
+                                enabled: true
+                            }
+                        };
+                        
+                        await set(jobTitlesRef, defaultJobTitles);
+                        console.log('Default job titles created for company');
+                    }
+                    
+                } catch (error) {
+                    console.error('Error initializing company-specific approval data:', error);
+                }
+            }, 1000); // Wait for auth to complete
+        });
+    </script>
+    <script>
+        function updateApproverOptions(selectElement) {
+            const approverDropdown = selectElement.closest('.approval-level').querySelector('.approver-dropdown');
+            if (selectElement.value === 'level') {
+                approverDropdown.innerHTML = `
+                    <option value="">Choose a level...</option>
+                    <option value="L+1">L+1 (One level up)</option>
+                    <option value="L+2">L+2 (Two levels up)</option>
+                    <option value="L+3">L+3 (Three levels up)</option>
+                    <option value="L+4">L+4 (Four levels up)</option>
+                `;
+            } else if (selectElement.value === 'function') {
+                // Load available function roles dynamically
+                const functionRoles = [
+                    { value: "function_supervisor", text: "Supervisor" },
+                    { value: "function_manager", text: "Manager" },
+                    { value: "function_department_head", text: "Department Head" },
+                    { value: "function_admin", text: "Administrator" },
+                    { value: "function_hr", text: "HR Manager" },
+                    { value: "function_finance", text: "Finance Manager" },
+                    { value: "function_it", text: "IT Manager" }
+                ];
+                
+                let options = '<option value="">Choose an approver...</option>';
+                functionRoles.forEach(role => {
+                    options += `<option value="${role.value}">${role.text}</option>`;
+                });
+                approverDropdown.innerHTML = options;
+            } else if (selectElement.value === 'name') {
+                approverDropdown.innerHTML = `
+                    <option value="">Choose a user...</option>
+                    <option value="user_john_doe">John Doe</option>
+                    <option value="user_jane_smith">Jane Smith</option>
+                    <option value="user_mike_wilson">Mike Wilson</option>
+                `;
+            } else {
+                approverDropdown.innerHTML = '<option value="">Choose an approver...</option>';
+            }
+            
+            // Trigger tab update when approver selection changes
+            approverDropdown.addEventListener('change', function() {
+                updateApprovalLevelsDisplay();
+                // Update summary when approver selection changes
+                setTimeout(() => {
+                    updateApprovalFlowSummary();
+                }, 50);
+            });
+        }
+
+        // Show/hide process information based on selected process type
+        document.addEventListener('DOMContentLoaded', function() {
+            const processTypeSelect = document.getElementById('processType');
+
+            function updateProcessInfo() {
+                // Hide all process info sections
+                const processInfoSections = document.querySelectorAll('.process-info');
+                processInfoSections.forEach(section => {
+                    section.style.display = 'none';
+                });
+
+                // Show relevant process info section
+                const processType = processTypeSelect.value;
+                const infoSection = document.getElementById(processType + '-info');
+                if (infoSection) {
+                    infoSection.style.display = 'block';
+                }
+            }
+
+            // Update on page load
+            updateProcessInfo();
+
+            // Update when process type changes
+            processTypeSelect.addEventListener('change', function() {
+                updateProcessInfo();
+                // Update approval flow summary when process type changes
+                setTimeout(() => {
+                    updateApprovalFlowSummary();
+                }, 100);
+            });
+        });
+
+        // Logout function
+        function logout() {
+            if (confirm('Are you sure you want to logout?')) {
+                // Clear any stored authentication data
+                localStorage.removeItem('userToken');
+                sessionStorage.clear();
+                
+                // Redirect to login page
+                window.location.href = 'login.html';
+            }
+        }
+
+        // Make logout function globally available
+        window.logout = logout;
+        
+        // Enhanced Approval Levels Management with Horizontal Tabs
+        let currentActiveLevel = 1;
+        let approvalLevelsData = [];
+
+        // Initialize the approval levels interface
+        function initializeApprovalLevelsInterface() {
+            updateApprovalLevelsDisplay();
+        }
+
+        // Update the entire approval levels display
+        function updateApprovalLevelsDisplay() {
+            const container = document.getElementById('approvalLevelsContainer');
+            const tabsContainer = document.getElementById('approvalLevelsTabs');
+            const levelsContainer = document.getElementById('approvalLevels');
+            const emptyState = document.getElementById('approvalLevelsEmpty');
+
+            if (!container || !tabsContainer || !levelsContainer) return;
+
+            const existingLevels = levelsContainer.querySelectorAll('.approval-level');
+            const levelCount = existingLevels.length;
+
+            if (levelCount === 0) {
+                emptyState.style.display = 'block';
+                tabsContainer.style.display = 'none';
+                levelsContainer.style.display = 'none';
+                return;
+            } else {
+                emptyState.style.display = 'none';
+                tabsContainer.style.display = 'flex';
+                levelsContainer.style.display = 'block';
+            }
+
+            // Generate tabs
+            generateApprovalTabs();
+            
+            // Show the active level
+            showApprovalLevel(currentActiveLevel);
+        }
+
+        // Generate tabs for approval levels
+        function generateApprovalTabs() {
+            const tabsContainer = document.getElementById('approvalLevelsTabs');
+            const levelsContainer = document.getElementById('approvalLevels');
+            const existingLevels = levelsContainer.querySelectorAll('.approval-level');
+
+            // Clear existing tabs except add button
+            const addButton = tabsContainer.querySelector('.add-level-tab');
+            tabsContainer.innerHTML = '';
+
+            // Generate tabs for each level
+            existingLevels.forEach((level, index) => {
+                const levelNumber = index + 1;
+                const tab = document.createElement('button');
+                tab.className = `approval-tab ${levelNumber === currentActiveLevel ? 'active' : ''}`;
+                tab.onclick = () => switchToLevel(levelNumber);
+                
+                // Get approver info for tab subtitle
+                const approverDropdown = level.querySelector('.approver-dropdown');
+                const selectedOption = approverDropdown ? approverDropdown.selectedOptions[0] : null;
+                const approverText = selectedOption && selectedOption.value ? selectedOption.text : 'No approver';
+                const hasApprover = selectedOption && selectedOption.value ? 1 : 0;
+                
+                tab.innerHTML = `
+                    <div class="level-indicator">${levelNumber}</div>
+                    <div class="tab-label">
+                        <span class="tab-title">Level ${levelNumber}</span>
+                        <span class="tab-subtitle">${approverText}</span>
+                    </div>
+                    <button class="remove-level" onclick="removeLevelTab(${levelNumber}, event)">
+                        <i class="fas fa-times"></i>
+                    </button>
+                `;
+                
+                tabsContainer.appendChild(tab);
+            });
+
+            // Re-add the add button
+            tabsContainer.appendChild(addButton);
+        }
+
+        // Switch to a specific approval level
+        function switchToLevel(levelNumber) {
+            currentActiveLevel = levelNumber;
+            
+            // Update tab active states
+            const tabs = document.querySelectorAll('.approval-tab');
+            tabs.forEach((tab, index) => {
+                tab.classList.toggle('active', index + 1 === levelNumber);
+            });
+            
+            // Update level content active states
+            showApprovalLevel(levelNumber);
+        }
+
+        // Show specific approval level content
+        function showApprovalLevel(levelNumber) {
+            const levels = document.querySelectorAll('.approval-level');
+            levels.forEach((level, index) => {
+                level.classList.toggle('active', index + 1 === levelNumber);
+            });
+        }
+
+        // Remove a level tab and its content
+        function removeLevelTab(levelNumber, event) {
+            event.stopPropagation();
+            
+            if (confirm(`Are you sure you want to remove Level ${levelNumber}?`)) {
+                const levelsContainer = document.getElementById('approvalLevels');
+                const levels = levelsContainer.querySelectorAll('.approval-level');
+                
+                if (levels[levelNumber - 1]) {
+                    levels[levelNumber - 1].remove();
+                }
+                
+                // Renumber remaining levels
+                renumberApprovalLevels();
+                
+                // Update display
+                updateApprovalLevelsDisplay();
+                
+                // Adjust current active level if needed
+                const remainingCount = levelsContainer.querySelectorAll('.approval-level').length;
+                if (currentActiveLevel > remainingCount && remainingCount > 0) {
+                    currentActiveLevel = remainingCount;
+                } else if (remainingCount === 0) {
+                    currentActiveLevel = 1;
+                }
+                
+                updateApprovalLevelsDisplay();
+            }
+        }
+
+        // Renumber approval levels after removal
+        function renumberApprovalLevels() {
+            const levels = document.querySelectorAll('.approval-level');
+            levels.forEach((level, index) => {
+                const levelNumber = index + 1;
+                
+                // Update any data attributes or IDs that reference level numbers
+                level.setAttribute('data-level', levelNumber);
+            });
+        }
+
+        // Initialize when DOM is loaded
+        document.addEventListener('DOMContentLoaded', function() {
+            // Load company logo and display
+            setTimeout(async () => {
+                try {
+                    // Simple company data loading for header
+                    const currentUser = window.authManager?.currentUser || JSON.parse(localStorage.getItem('currentUser') || '{}');
+                    
+                    if (currentUser.companyName) {
+                        const headerCompanyName = document.getElementById('headerCompanyName');
+                        if (headerCompanyName) {
+                            headerCompanyName.textContent = currentUser.companyName;
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error loading company data:', error);
+                }
+            }, 500);
+            
+            // Wait a bit for other scripts to load
+            setTimeout(() => {
+                initializeApprovalLevelsInterface();
+                
+                // If there are existing levels, show the first one
+                const existingLevels = document.querySelectorAll('.approval-level');
+                if (existingLevels.length > 0) {
+                    currentActiveLevel = 1;
+                    updateApprovalLevelsDisplay();
+                }
+            }, 500);
+        });
+
+        // Enhanced approval flow summary and preview functions
+        function updateApprovalFlowSummary() {
+            const summaryContainer = document.getElementById('approvalFlowSummary');
+            const processType = document.getElementById('processType').value;
+            const approvalLevels = document.querySelectorAll('.approval-level');
+            
+            if (!processType || approvalLevels.length === 0) {
+                summaryContainer.style.display = 'none';
+                return;
+            }
+            
+            summaryContainer.style.display = 'block';
+            
+            // Update status indicator
+            const statusIndicator = document.getElementById('flowStatusIndicator');
+            const statusText = document.getElementById('flowStatusText');
+            const hasConfiguredApprovers = Array.from(approvalLevels).some(level => {
+                const dropdown = level.querySelector('.approver-dropdown');
+                return dropdown && dropdown.value && dropdown.value.trim() !== '';
+            });
+            
+            if (hasConfiguredApprovers) {
+                statusIndicator.className = 'status-indicator status-live';
+                statusText.textContent = 'Configured';
+            } else {
+                statusIndicator.className = 'status-indicator status-draft';
+                statusText.textContent = 'Draft';
+            }
+            
+            // Update statistics
+            const totalLevels = approvalLevels.length;
+            const configuredApprovers = Array.from(approvalLevels).filter(level => {
+                const dropdown = level.querySelector('.approver-dropdown');
+                return dropdown && dropdown.value && dropdown.value.trim() !== '';
+            }).length;
+            
+            document.getElementById('totalLevelsCount').textContent = totalLevels;
+            document.getElementById('totalApproversCount').textContent = configuredApprovers;
+            
+            // Update last modified time (for now, show "Just now" for live editing)
+            document.getElementById('lastModifiedTime').textContent = 'Just now';
+        }
+        
+        function toggleFlowPreview() {
+            const previewContainer = document.getElementById('flowPreview');
+            const previewBtn = document.getElementById('previewFlowBtn');
+            
+            if (previewContainer.style.display === 'none' || !previewContainer.style.display) {
+                generateFlowPreview();
+                previewContainer.style.display = 'block';
+                previewBtn.innerHTML = '<i class="fas fa-eye-slash"></i> Hide Preview';
+            } else {
+                previewContainer.style.display = 'none';
+                previewBtn.innerHTML = '<i class="fas fa-eye"></i> Preview Flow';
+            }
+        }
+        
+        function generateFlowPreview() {
+            const previewContent = document.getElementById('previewContent');
+            const processType = document.getElementById('processType').value;
+            const approvalOrder = document.getElementById('approvalOrder').value;
+            const approvalLevels = document.querySelectorAll('.approval-level');
+            
+            if (!processType) {
+                previewContent.innerHTML = '<p>Please select a process type first.</p>';
+                return;
+            }
+            
+            let previewHTML = `
+                <h4><i class="fas fa-sitemap"></i> Approval Flow Preview</h4>
+                <p><strong>Process:</strong> ${getProcessTypeDisplayName(processType)}</p>
+                <p><strong>Order:</strong> ${approvalOrder === 'sequential' ? 'Sequential (one after another)' : 'Parallel (anyone can approve)'}</p>
+                <div class="flow-visualization">
+            `;
+            
+            // Start step
+            previewHTML += `
+                <div class="flow-step start">
+                    <div class="flow-step-icon">
+                        <i class="fas fa-play"></i>
+                    </div>
+                    <div class="flow-step-title">Request</div>
+                    <div class="flow-step-subtitle">Submitted</div>
+                </div>
+            `;
+            
+            // Add approval levels
+            Array.from(approvalLevels).forEach((level, index) => {
+                const dropdown = level.querySelector('.approver-dropdown');
+                const approverType = level.querySelector('.approver-type-select').value;
+                const approverText = dropdown && dropdown.selectedOptions[0] ? dropdown.selectedOptions[0].text : 'Not configured';
+                const levelNumber = index + 1;
+                
+                if (approvalOrder === 'sequential' || index === 0) {
+                    previewHTML += `<div class="flow-arrow"><i class="fas fa-arrow-right"></i></div>`;
+                }
+                
+                previewHTML += `
+                    <div class="flow-step">
+                        <div class="flow-step-icon">${levelNumber}</div>
+                        <div class="flow-step-title">Level ${levelNumber}</div>
+                        <div class="flow-step-subtitle">${approverText}</div>
+                    </div>
+                `;
+            });
+            
+            // End step
+            if (approvalLevels.length > 0) {
+
+
+
+                previewHTML += `<div class="flow-arrow"><i class="fas fa-arrow-right"></i></div>`;
+            }
+            
+            previewHTML += `
+                <div class="flow-step end">
+                    <div class="flow-step-icon">
+                        <i class="fas fa-check"></i>
+                    </div>
+                    <div class="flow-step-title">Approved</div>
+                    <div class="flow-step-subtitle">Complete</div>
+                </div>
+            `;
+            
+            previewHTML += '</div>';
+            
+            if (approvalLevels.length === 0) {
+                previewHTML += '<p><em>No approval levels configured yet. Add a level to see the flow.</em></p>';
+            }
+            
+            previewContent.innerHTML = previewHTML;
+        }
+        
+        function clearApprovalFlow() {
+            if (confirm('Are you sure you want to clear all approval levels? This cannot be undone.')) {
+                const levelsContainer = document.getElementById('approvalLevels');
+                levelsContainer.innerHTML = '';
+                updateApprovalLevelsDisplay();
+                updateApprovalFlowSummary();
+                
+                // Hide preview
+                const previewContainer = document.getElementById('flowPreview');
+                const previewBtn = document.getElementById('previewFlowBtn');
+                previewContainer.style.display = 'none';
+                previewBtn.innerHTML = '<i class="fas fa-eye"></i> Preview Flow';
+            }
+        }
+        
+        function getProcessTypeDisplayName(processType) {
+            const select = document.getElementById('processType');
+            const option = select.querySelector(`option[value="${processType}"]`);
+            return option ? option.textContent : processType;
+        }
+
+        // Make functions globally available
+        window.toggleFlowPreview = toggleFlowPreview;
+        window.clearApprovalFlow = clearApprovalFlow;
+        window.updateApprovalFlowSummary = updateApprovalFlowSummary;
+    </script>
+
+    <!-- Authentication Script -->
+    <script type="module">
+        // Authentication is automatically initialized by auth.js
+        // The AuthManager constructor handles login verification and page access checks
+        document.addEventListener('DOMContentLoaded', () => {
+            // Initialize dropdown functionality
+            initializeNotificationDropdown();
+            initializeProfileDropdown();
+            
+            // Load company logo
+            loadCompanyLogo();
+            
+            // Note: Feature authorization is handled by the dedicated script above
+            // No need to call updateMenuVisibility here as it conflicts with feature authorization
+            
+            // Add role-based access message
+            if (window.authManager && window.authManager.currentUser) {
+                const userRole = window.authManager.currentUser.role;
+                console.log(`Approval Settings page accessed by user with role: ${userRole}`);
+                
+                // Check if user has appropriate role for approval settings management
+                const allowedRoles = ['admin', 'super user'];
+                if (!allowedRoles.includes(userRole)) {
+                    console.warn('User does not have sufficient privileges for approval settings management');
+                }
+            }
+        });
+
+        // Initialize notification dropdown functionality
+        function initializeNotificationDropdown() {
+            console.log('Initializing notification dropdown...');
+            const notificationBtn = document.getElementById('notificationBtn');
+            const notificationDropdown = document.querySelector('.notification-dropdown');
+            
+            console.log('Notification button:', notificationBtn);
+            console.log('Notification dropdown:', notificationDropdown);
+            
+            if (notificationBtn && notificationDropdown) {
+                console.log('Setting up notification dropdown event listeners');
+                
+                // Add click event listener to toggle dropdown
+                notificationBtn.addEventListener('click', (e) => {
+                    console.log('Notification button clicked');
+                    e.stopPropagation();
+                    notificationDropdown.classList.toggle('show');
+                    console.log('Notification dropdown show class:', notificationDropdown.classList.contains('show'));
+                });
+
+                // Close dropdown when clicking outside
+                document.addEventListener('click', (e) => {
+                    if (!notificationBtn.contains(e.target) && !notificationDropdown.contains(e.target)) {
+                        notificationDropdown.classList.remove('show');
+                    }
+                });
+
+                // Close dropdown when pressing escape key
+                document.addEventListener('keydown', (e) => {
+                    if (e.key === 'Escape') {
+                        notificationDropdown.classList.remove('show');
+                    }
+                });
+            } else {
+                console.warn('Notification dropdown elements not found');
+            }
+        }
+
+        // Initialize profile dropdown functionality
+        function initializeProfileDropdown() {
+            console.log('Initializing profile dropdown...');
+            const userProfileBtn = document.getElementById('userProfileBtn');
+            const profileDropdown = document.querySelector('.profile-dropdown');
+            
+            console.log('Profile button:', userProfileBtn);
+            console.log('Profile dropdown:', profileDropdown);
+            
+            if (userProfileBtn && profileDropdown) {
+                console.log('Setting up profile dropdown event listeners');
+                
+                // Add click event listener to toggle dropdown
+                userProfileBtn.addEventListener('click', (e) => {
+                    console.log('Profile button clicked');
+                    e.stopPropagation();
+                    profileDropdown.classList.toggle('show');
+                    console.log('Dropdown show class:', profileDropdown.classList.contains('show'));
+                });
+
+                // Close dropdown when clicking outside
+                document.addEventListener('click', (e) => {
+                    if (!userProfileBtn.contains(e.target) && !profileDropdown.contains(e.target)) {
+                        profileDropdown.classList.remove('show');
+                    }
+                });
+
+                // Close dropdown when pressing escape key
+                document.addEventListener('keydown', (e) => {
+                    if (e.key === 'Escape') {
+                        profileDropdown.classList.remove('show');
+                    }
+                });
+            } else {
+                console.warn('Profile dropdown elements not found');
+            }
+        }
+
+        // Company logo functions
+        async function loadCompanyLogo() {
+            try {
+                const currentUser = await getCurrentUserCompany();
+                if (!currentUser || !currentUser.currentCompanyId) {
+                    console.log('No current company found for logo loading - setting default display');
+                    // Set default display for non-authenticated users
+                    const headerCompanyName = document.getElementById('headerCompanyName');
+                    if (headerCompanyName) {
+                        headerCompanyName.textContent = 'Approval Settings';
+                    }
+                    return;
+                }
+
+                const companyData = await getCompanyData(currentUser.currentCompanyId);
+                if (companyData) {
+                    updateHeaderDisplay(companyData);
+                } else {
+                    // Fallback to default display
+                    const headerCompanyName = document.getElementById('headerCompanyName');
+                    if (headerCompanyName) {
+                        headerCompanyName.textContent = 'Approval Settings';
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading company logo:', error);
+                // Set default display
+                const headerCompanyName = document.getElementById('headerCompanyName');
+                if (headerCompanyName) {
+                    headerCompanyName.textContent = 'Approval Settings';
+                }
+            }
+        }
+
+        function updateHeaderDisplay(companyData) {
+            const headerLogo = document.getElementById('headerCompanyLogo');
+            const headerPlaceholder = document.getElementById('headerLogoPlaceholder');
+            const headerCompanyName = document.getElementById('headerCompanyName');
+
+            // Update company name
+            if (headerCompanyName) {
+                headerCompanyName.textContent = companyData.companyName || 'Approval Settings';
+            }
+
+            // Update logo
+            if (companyData.logo && companyData.logo !== '') {
+                if (headerLogo) {
+                    headerLogo.src = companyData.logo;
+                    headerLogo.classList.add('visible');
+                }
+                if (headerPlaceholder) {
+                    headerPlaceholder.style.display = 'none';
+                }
+            } else {
+                // Show placeholder
+                if (headerLogo) {
+                    headerLogo.classList.remove('visible');
+                }
+                if (headerPlaceholder) {
+                    headerPlaceholder.style.display = 'flex';
+                }
+            }
+        }
+
+        async function getCurrentUserCompany() {
+            return new Promise((resolve) => {
+                const checkUser = () => {
+                    if (window.authManager && window.authManager.currentUser) {
+                        resolve({
+                            currentCompanyId: window.authManager.currentUser.companyId,
+                            user: window.authManager.currentUser
+                        });
+                    } else {
+                        // After a reasonable timeout, resolve with null for non-authenticated users
+                        setTimeout(() => {
+                            console.log('No authenticated user found - proceeding without authentication');
+                            resolve(null);
+                        }, 2000); // Give 2 seconds for auth to load
+                    }
+                };
+                checkUser();
+            });
+        }
+
+        async function getCompanyData(companyId) {
+            try {
+                if (typeof firebase === 'undefined') {
+                    console.warn('Firebase not available for company data loading');
+                    return null;
+                }
+
+                const snapshot = await firebase.database().ref(`companies/${companyId}`).once('value');
+                return snapshot.val();
+            } catch (error) {
+                console.error('Error fetching company data:', error);
+                return null;
+            }
+        }
+    </script>
+
+<script>
+// Error handling for missing resources
+window.addEventListener('error', function(e) {
+  console.error('Resource loading error:', e.target.src || e.target.href);
+  
+  // Handle missing CSS files
+  if (e.target.tagName === 'LINK' && e.target.rel === 'stylesheet') {
+    console.warn('CSS file not found:', e.target.href);
+  }
+  
+  // Handle missing JS files
+  if (e.target.tagName === 'SCRIPT') {
+    console.warn('JavaScript file not found:', e.target.src);
+  }
+});
+
+// Check if critical files are loaded
+document.addEventListener('DOMContentLoaded', function() {
+  // Check if main CSS is loaded
+  const stylesheets = document.querySelectorAll('link[rel="stylesheet"]');
+  let mainCssLoaded = false;
+  
+  stylesheets.forEach(function(link) {
+    if (link.href.includes('css/styles.css')) {
+      mainCssLoaded = true;
+    }
+  });
+  
+  if (!mainCssLoaded) {
+    console.warn('Main CSS file (css/styles.css) may not be loaded properly');
+  }
+});
+</script>
+</body>
+</html>

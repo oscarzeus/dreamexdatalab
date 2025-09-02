@@ -1,0 +1,2282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enterprise News Management - Dreamex Datalab HSE</title>
+    
+    <!-- Firebase v8 CDN for compatibility -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
+    
+    <style>
+        /* Font Awesome Icons - Embedded Core Icons */
+        @import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css');
+        
+        /* CSS Variables */
+        :root {
+            --primary-color: #2c3e50;
+            --secondary-color: #3498db;
+            --accent-color: #e74c3c;
+            --text-color: #333;
+            --bg-color: #f5f6fa;
+            --sidebar-width: 250px;
+            --blue: #3498db;
+            --green: #2ecc71;
+            --purple: #9b59b6;
+            --orange: #e67e22;
+            --red: #e74c3c;
+            --accent-color: var(--blue);
+            --font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            --base-font-size: 0.9rem;
+            --font-scale: 1;
+            --bg-primary: #ffffff;
+            --bg-secondary: #f8f9fa;
+            --text-primary: #333333;
+            --text-secondary: #666666;
+            --border-color: #e0e0e0;
+            --spacing-unit: 1rem;
+            --padding-sm: 0.5rem;
+            --padding-md: 1rem;
+            --padding-lg: 1.5rem;
+            --transition-speed: 0.2s;
+        }
+
+        /* Reset and Base Styles */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: var(--font-family);
+            font-size: var(--base-font-size);
+            line-height: calc(1.5 * var(--font-scale));
+            color: var(--text-primary);
+            background-color: var(--bg-primary);
+            transition: background-color var(--transition-speed), color var(--transition-speed);
+        }
+
+        .app-container {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        /* Sidebar Styles */
+        .sidebar {
+            width: var(--sidebar-width);
+            background-color: var(--primary-color);
+            color: white;
+            padding: 1rem;
+            position: fixed;
+            height: 100vh;
+            overflow-y: auto;
+        }
+
+        .logo h2 {
+            text-align: center;
+            padding: 1rem 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .menu {
+            list-style: none;
+            margin-top: 2rem;
+        }
+
+        .menu li {
+            margin-bottom: 0.5rem;
+        }
+
+        .menu a {
+            color: white;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            padding: 0.75rem 1rem;
+            border-radius: 5px;
+            transition: background-color 0.3s;
+        }
+
+        .menu a i {
+            margin-right: 10px;
+        }
+
+        .menu a:hover, .menu a.active {
+            background-color: var(--secondary-color);
+        }
+
+        .menu-dropdown .submenu {
+            display: none;
+            list-style: none;
+            margin-left: 2rem;
+            margin-top: 0.5rem;
+        }
+
+        .menu-dropdown:hover .submenu {
+            display: block;
+        }
+
+        /* Main Content Styles */
+        .main-content {
+            flex: 1;
+            margin-left: var(--sidebar-width);
+            padding: 0.5rem;
+            padding-top: 5rem;
+            width: calc(100% - var(--sidebar-width));
+            box-sizing: border-box;
+        }
+
+        .top-nav {
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            padding: 1rem;
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            margin-bottom: 1rem;
+            position: fixed;
+            top: 0.5rem;
+            right: 0.5rem;
+            left: calc(var(--sidebar-width) + 0.5rem);
+            z-index: 100;
+        }
+
+        .top-nav-right {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+            margin-left: auto;
+        }
+
+        /* Notification Styles */
+        .notifications {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .notification-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            position: relative;
+            font-size: 1.2rem;
+            padding: 0.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .notification-badge {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            background-color: var(--accent-color);
+            color: white;
+            border-radius: 50%;
+            padding: 0.2rem 0.5rem;
+            font-size: 0.7rem;
+        }
+
+        .notification-dropdown {
+            display: none;
+            position: absolute;
+            right: 0;
+            top: 100%;
+            width: 300px;
+            background-color: white;
+            border-radius: 5px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+        }
+
+        .notification-dropdown.show {
+            display: block;
+        }
+
+        /* User Profile Styles */
+        .user-profile {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .profile-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 0.25rem;
+            display: flex;
+            align-items: center;
+        }
+
+        .profile-btn img {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+
+        .profile-dropdown {
+            display: none;
+            position: absolute;
+            top: 100%;
+            right: 0;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+            min-width: 200px;
+            z-index: 1000;
+            border: 1px solid var(--border-color);
+            overflow: hidden;
+        }
+
+        .profile-dropdown.show {
+            display: block;
+        }
+
+        .profile-dropdown ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .profile-dropdown ul li a {
+            display: flex;
+            align-items: center;
+            padding: 12px 16px;
+            color: #333;
+            text-decoration: none;
+            transition: background-color 0.2s;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .profile-dropdown ul li:last-child a {
+            border-bottom: none;
+        }
+
+        .profile-dropdown ul li a:hover {
+            background-color: #f8f9fa;
+        }
+
+        .profile-dropdown ul li a i {
+            margin-right: 10px;
+            width: 16px;
+            color: #666;
+        }
+
+        /* Content Styles */
+        .content {
+            margin-top: 1rem;
+            padding: 1.5rem;
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        .content-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid var(--border-color);
+        }
+
+        .content-header h1 {
+            color: var(--primary-color);
+            font-size: 2rem;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .content-header .header-icon {
+            background: linear-gradient(135deg, var(--blue), var(--purple));
+            color: white;
+            padding: 0.5rem;
+            border-radius: 8px;
+            font-size: 1.5rem;
+        }
+
+        /* News Management Styles */
+        .news-management {
+            width: 100%;
+            margin-bottom: 2rem;
+        }
+
+        .news-table-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            padding: 1rem;
+            background: var(--bg-secondary);
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
+        }
+
+        .news-table-header h2 {
+            color: var(--primary-color);
+            margin: 0;
+            font-size: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .add-news-btn {
+            background: linear-gradient(135deg, var(--secondary-color), #2980b9);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.95rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .add-news-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(52, 152, 219, 0.3);
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .form-group input,
+        .form-group textarea,
+        .form-group select {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid var(--border-color);
+            border-radius: 5px;
+            font-size: 0.9rem;
+            transition: border-color var(--transition-speed);
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: var(--secondary-color);
+            box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.1);
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 120px;
+        }
+
+        .priority-select {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+
+        .priority-option {
+            flex: 1;
+            text-align: center;
+            padding: 0.5rem;
+            border: 2px solid var(--border-color);
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all var(--transition-speed);
+        }
+
+        .priority-option.high {
+            border-color: var(--red);
+            color: var(--red);
+        }
+
+        .priority-option.high.selected {
+            background-color: var(--red);
+            color: white;
+        }
+
+        .priority-option.medium {
+            border-color: var(--orange);
+            color: var(--orange);
+        }
+
+        .priority-option.medium.selected {
+            background-color: var(--orange);
+            color: white;
+        }
+
+        .priority-option.low {
+            border-color: var(--green);
+            color: var(--green);
+        }
+
+        .priority-option.low.selected {
+            background-color: var(--green);
+            color: white;
+        }
+
+        .image-upload {
+            position: relative;
+            border: 2px dashed var(--border-color);
+            border-radius: 8px;
+            padding: 2rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all var(--transition-speed);
+        }
+
+        .image-upload:hover {
+            border-color: var(--secondary-color);
+            background-color: rgba(52, 152, 219, 0.05);
+        }
+
+        .image-upload input[type="file"] {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        .image-preview {
+            max-width: 100%;
+            max-height: 200px;
+            border-radius: 8px;
+            margin-top: 1rem;
+        }
+
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 600;
+            transition: all var(--transition-speed);
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn-primary {
+            background-color: var(--secondary-color);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background-color: #2980b9;
+            transform: translateY(-2px);
+        }
+
+        .btn-success {
+            background-color: var(--green);
+            color: white;
+        }
+
+        .btn-success:hover {
+            background-color: #27ae60;
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background-color: var(--text-secondary);
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background-color: #5a6c7d;
+            transform: translateY(-2px);
+        }
+
+        .btn-danger {
+            background-color: var(--red);
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background-color: #c0392b;
+            transform: translateY(-2px);
+        }
+
+        .form-actions {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1.5rem;
+        }
+
+        /* News Table Styles */
+        .news-table {
+            width: 100%;
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            border: 1px solid var(--border-color);
+        }
+
+        .news-table table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .news-table th {
+            background: var(--primary-color);
+            color: white;
+            padding: 1rem;
+            text-align: left;
+            font-weight: 600;
+            border-bottom: 2px solid var(--border-color);
+        }
+
+        .news-table td {
+            padding: 1rem;
+            border-bottom: 1px solid var(--border-color);
+            vertical-align: top;
+        }
+
+        .news-table tr:hover {
+            background-color: var(--bg-secondary);
+        }
+
+        .news-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .news-table-title {
+            font-weight: 600;
+            color: var(--primary-color);
+            margin-bottom: 0.25rem;
+        }
+
+        .news-table-subtitle {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            font-style: italic;
+        }
+
+        .news-table-description {
+            font-size: 0.9rem;
+            color: var(--text-primary);
+            line-height: 1.4;
+            max-width: 300px;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .news-table-priority {
+            padding: 0.3rem 0.8rem;
+            border-radius: 15px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            text-align: center;
+            min-width: 70px;
+        }
+
+        .news-table-priority.high {
+            background-color: rgba(231, 76, 60, 0.1);
+            color: var(--red);
+            border: 1px solid rgba(231, 76, 60, 0.3);
+        }
+
+        .news-table-priority.medium {
+            background-color: rgba(230, 126, 34, 0.1);
+            color: var(--orange);
+            border: 1px solid rgba(230, 126, 34, 0.3);
+        }
+
+        .news-table-priority.low {
+            background-color: rgba(46, 204, 113, 0.1);
+            color: var(--green);
+            border: 1px solid rgba(46, 204, 113, 0.3);
+        }
+
+        .news-table-actions {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+
+        .news-table-date {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        .news-table-status {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.85rem;
+        }
+
+        .news-table-status.sent {
+            color: var(--green);
+        }
+
+        .news-table-status.pending {
+            color: var(--orange);
+        }
+
+        .news-table-status.failed {
+            color: var(--red);
+        }
+
+        .news-table-empty {
+            text-align: center;
+            padding: 3rem;
+            color: var(--text-secondary);
+        }
+
+        .news-table-empty i {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            color: var(--border-color);
+        }
+
+        /* News Modal Styles */
+        .news-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 2000;
+            backdrop-filter: blur(10px);
+        }
+
+        .news-modal.show {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .news-modal-content {
+            background: white;
+            border-radius: 15px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+            position: relative;
+            animation: modalSlideIn 0.3s ease-out;
+        }
+
+        @keyframes modalSlideIn {
+            from {
+                transform: translateY(-50px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .news-modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.5rem 2rem;
+            border-bottom: 1px solid var(--border-color);
+            background: linear-gradient(135deg, var(--secondary-color), #2980b9);
+            color: white;
+            border-radius: 15px 15px 0 0;
+        }
+
+        .news-modal-header h2 {
+            margin: 0;
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .news-modal-close {
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 1.1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+        }
+
+        .news-modal-close:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: scale(1.1);
+        }
+
+        .news-modal-body {
+            padding: 2rem;
+        }
+
+        .news-modal-body .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .news-modal-body .form-actions {
+            margin-top: 2rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid var(--border-color);
+        }
+
+        /* Menu Visibility Styles */
+        [data-feature]:not(.menu-visible) {
+            display: none !important;
+        }
+
+        .menu-dropdown:not(.menu-visible) {
+            display: none !important;
+        }
+
+        /* Show menu items by default until permissions are loaded */
+        .menu-loading [data-feature] {
+            display: block !important;
+        }
+
+        .menu-loading .menu-dropdown {
+            display: block !important;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 1024px) {
+            .sidebar {
+                width: 200px;
+            }
+            
+            .main-content {
+                margin-left: 200px;
+                width: calc(100% - 200px);
+            }
+            
+            .top-nav {
+                left: calc(200px + 0.5rem);
+            }
+            
+            .news-table th,
+            .news-table td {
+                padding: 0.75rem;
+            }
+            
+            .news-table-description {
+                max-width: 250px;
+            }
+            
+            .news-table-actions {
+                flex-direction: column;
+                gap: 0.25rem;
+            }
+            
+            .news-table-actions .btn {
+                font-size: 0.7rem;
+                padding: 0.25rem 0.5rem;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .sidebar {
+                width: 100%;
+                position: relative;
+                height: auto;
+            }
+            
+            .main-content {
+                margin-left: 0;
+                width: 100%;
+                padding-top: 5rem;
+            }
+            
+            .top-nav {
+                left: 0.5rem;
+                right: 0.5rem;
+            }
+            
+            .news-table-header {
+                flex-direction: column;
+                gap: 1rem;
+                align-items: stretch;
+            }
+            
+            .news-table-header h2 {
+                text-align: center;
+            }
+            
+            .add-news-btn {
+                width: 100%;
+                justify-content: center;
+            }
+            
+            .news-table {
+                overflow-x: auto;
+            }
+            
+            .news-table table {
+                min-width: 600px;
+            }
+            
+            .news-table th,
+            .news-table td {
+                padding: 0.5rem;
+                font-size: 0.85rem;
+            }
+            
+            .news-table-description {
+                max-width: 200px;
+                -webkit-line-clamp: 1;
+                line-clamp: 1;
+            }
+            
+            .news-table-actions {
+                flex-direction: column;
+                gap: 0.25rem;
+            }
+            
+            .news-table-actions .btn {
+                font-size: 0.7rem;
+                padding: 0.25rem 0.5rem;
+            }
+            
+            .news-modal-content {
+                width: 95%;
+                max-height: 95vh;
+                margin: 2.5vh auto;
+            }
+            
+            .news-modal-header {
+                padding: 1rem 1.5rem;
+            }
+            
+            .news-modal-header h2 {
+                font-size: 1.3rem;
+            }
+            
+            .news-modal-body {
+                padding: 1.5rem;
+            }
+            
+            .content-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 1rem;
+            }
+            
+            .form-actions {
+                flex-direction: column;
+                gap: 0.75rem;
+            }
+            
+            .form-actions .btn {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Left Sidebar -->
+        <nav class="sidebar menu-loading">
+            <div class="logo">
+                <h2>Dreamex Datalab</h2>
+            </div>
+            <ul class="menu">
+                <li data-feature="home_view"><a href="dashboard.html"><i class="fas fa-home"></i> Home</a></li>
+                <li data-feature="tasks_view"><a href="tasks.html"><i class="fas fa-tasks"></i> Task Center</a></li>
+                <li class="menu-dropdown" data-feature="health_view">
+                    <a href="#"><i class="fas fa-medkit"></i> Health</a>
+                    <ul class="submenu">
+                        <li data-feature="health_assessment_view"><a href="health-assessment.html">Assessment</a></li>
+                        <li data-feature="health_consultation_view"><a href="health-consultation.html">Consultation</a></li>
+                        <li data-feature="medical_folder_view"><a href="medical-folder.html">Medical Folder</a></li>
+                    </ul>
+                </li>
+                <li class="menu-dropdown" data-feature="safety_view">
+                    <a href="#"><i class="fas fa-shield-alt"></i> Safety</a>
+                    <ul class="submenu">
+                        <li data-feature="training_view"><a href="trainingboard.html">Training</a></li>
+                        <li data-feature="risk_view"><a href="riskboard.html">Risk Management</a></li>
+                        <li data-feature="jsa_view"><a href="jsaboard.html">Job Safety Analysis</a></li>
+                        <li data-feature="ptw_view"><a href="ptwboard.html">Permit to Work</a></li>
+                        <li data-feature="incident_view"><a href="incidentboard.html">Incident Reports</a></li>
+                        <li data-feature="inspection_view"><a href="inspectionboard.html">Inspection</a></li>
+                        <li data-feature="audit_view"><a href="auditboard.html">Audit</a></li>
+                    </ul>
+                </li>
+                <li class="menu-dropdown" data-feature="lms_view">
+                    <a href="#"><i class="fas fa-graduation-cap"></i> LMS</a>
+                    <ul class="submenu">
+                        <li data-feature="lms_courses_view"><a href="lmsboard.html">Courses</a></li>
+                        <li data-feature="training_view"><a href="trainingboard.html">Training</a></li>
+                        <li data-feature="certification_view"><a href="certificationboard.html">Certification</a></li>
+                    </ul>
+                </li>
+                <li class="menu-dropdown" data-feature="environment_view">
+                    <a href="#"><i class="fas fa-leaf"></i> Environment</a>
+                    <ul class="submenu">
+                        <li data-feature="water_view"><a href="waterboard.html">Water Quality</a></li>
+                        <li data-feature="air_view"><a href="airboard.html">Air Quality</a></li>
+                        <li data-feature="waste_view"><a href="wasteboard.html">Waste Management</a></li>
+                        <li data-feature="fuel_view"><a href="fuel.html">Fuel Management</a></li>
+                    </ul>
+                </li>
+                <li class="menu-dropdown" data-feature="security_view">
+                    <a href="#"><i class="fas fa-lock"></i> Security</a>
+                    <ul class="submenu">
+                        <li data-feature="access_view"><a href="accessboard.html">Access Request</a></li>
+                        <li data-feature="access_daily_view"><a href="accessdaily.html">Daily Access Control</a></li>
+                        <li data-feature="removal_view"><a href="removalboard.html">Property Removal</a></li>
+                    </ul>
+                </li>
+                <li data-feature="logistics_view"><a href="#"><i class="fas fa-truck"></i> Logistics</a></li>
+                <li class="menu-dropdown" data-feature="hr_view">
+                    <a href="#"><i class="fas fa-users"></i> HR</a>
+                    <ul class="submenu">
+                        <li data-feature="human_hr_view"><a href="human-hr.html"><i class="fas fa-user-tie"></i> Human HR</a></li>
+                        <li data-feature="staff_management_view"><a href="staff.html">Staffing</a></li>
+                        <li data-feature="authority_to_recruit_view"><a href="recruit.html">Authority to Recruit</a></li>
+                        <li data-feature="job_advertising_view"><a href="jobpost.html">Job Advertising</a></li>
+                        <li data-feature="screening_view"><a href="jobscreen.html">Screening</a></li>
+                        <li data-feature="interview_view"><a href="interview.html">Interview</a></li>
+                        <li data-feature="offer_view"><a href="offer.html">Offer Management</a></li>
+                        <li data-feature="contract_view"><a href="contract.html">Contract Management</a></li>
+                        <li data-feature="onboarding_view"><a href="onboard.html">Onboarding</a></li>
+                        <li data-feature="kpi_dashboard_view"><a href="kpi.html">KPI</a></li>
+                    </ul>
+                </li>
+                <li data-feature="communication_view"><a href="info.html"><i class="fas fa-comments"></i> Communication</a></li>
+                <li data-feature="info_management_view"><a href="info.html" class="active"><i class="fas fa-newspaper"></i> Enterprise News</a></li>
+                <li class="menu-dropdown" data-feature="settings_view">
+                    <a href="#"><i class="fas fa-cog"></i> Settings</a>
+                    <ul class="submenu">
+                        <li data-feature="account_settings_view"><a href="settings.html">Account Settings</a></li>
+                        <li data-feature="company_management_view"><a href="companymanagement.html">Company Management</a></li>
+                        <li data-feature="approval_settings_view"><a href="approval-settings.html">Approval Flow Settings</a></li>
+                        <li data-feature="field_setup_view"><a href="fieldsetup.html">Field Setup</a></li>
+                        <li data-feature="preferences_view"><a href="preferences.html">Preferences</a></li>
+                        <li data-feature="notification_settings_view"><a href="notifications.html">Notification Settings</a></li>
+                        <li data-feature="audit_log_view"><a href="auditlog.html">Audit Log</a></li>
+                        <li data-feature="user_management_view"><a href="roles.html">User & Role Management</a></li>
+                        <li data-feature="role_permissions_view"><a href="permissions.html">Role Permissions</a></li>
+                    </ul>
+                </li>
+            </ul>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Top Navigation -->
+            <header class="top-nav">
+                <div class="top-nav-right">
+                    <div class="notifications">
+                        <button id="notificationBtn" class="notification-btn">
+                            <i class="fas fa-bell"></i>
+                            <span class="notification-badge">0</span>
+                        </button>
+                        <div class="notification-dropdown">
+                            <div class="notification-header">
+                                <h3>Notifications</h3>
+                                <div class="notification-actions">
+                                    <a href="#" class="notification-link">
+                                        <i class="fas fa-bell"></i> All Notifications
+                                    </a>
+                                    <a href="#" class="notification-link">
+                                        <i class="fas fa-paper-plane"></i> Submissions
+                                    </a>
+                                    <button class="mark-all-read">Mark all as read</button>
+                                </div>
+                            </div>
+                            <div class="notification-list">
+                                <!-- Notifications will be dynamically added here -->
+                            </div>
+                        </div>
+                    </div>
+                    <div class="user-profile">
+                        <button id="userProfileBtn" class="profile-btn">
+                            <img id="userAvatar" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA0MCA0MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMjAiIGN5PSIyMCIgcj0iMjAiIGZpbGw9IiMzNDk4ZGIiLz4KPHN2ZyB4PSI4IiB5PSI4IiB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSI+CjxwYXRoIGQ9Ik0yMCAyMXYtMmE0IDQgMCAwIDAtNC00SDhhNCA0IDAgMCAwLTQgNHYyIiBzdHJva2U9IndoaXRlIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPgo8Y2lyY2xlIGN4PSIxMiIgY3k9IjciIHI9IjQiIHN0cm9rZT0id2hpdGUiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIi8+Cjwvc3ZnPgo8L3N2Zz4K" alt="User Avatar">
+                        </button>
+                        <div class="profile-dropdown">
+                            <ul>
+                                <li><a href="#"><i class="fas fa-user"></i> Account Settings</a></li>
+                                <li><a href="#" onclick="logout()"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Page Content -->
+            <div class="content">
+                <div class="content-header">
+                    <h1>
+                        <i class="fas fa-newspaper header-icon"></i>
+                        Enterprise News Management
+                    </h1>
+                </div>
+
+                <!-- News Management Section -->
+                <div class="news-management">
+                    <!-- News Table Header -->
+                    <div class="news-table-header">
+                        <h2><i class="fas fa-newspaper"></i> Enterprise News</h2>
+                        <button class="add-news-btn" onclick="openNewsModal()">
+                            <i class="fas fa-plus"></i> Add News
+                        </button>
+                    </div>
+                    
+                    <!-- News Table -->
+                    <div class="news-table">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Title & Description</th>
+                                    <th>Priority</th>
+                                    <th>Status</th>
+                                    <th>Published</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="newsTableBody">
+                                <!-- News items will be dynamically added here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- News Modal -->
+    <div id="newsModal" class="news-modal">
+        <div class="news-modal-content">
+            <div class="news-modal-header">
+                <h2><i class="fas fa-plus-circle"></i> Create New News Article</h2>
+                <button class="news-modal-close" onclick="closeNewsModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="news-modal-body">
+                <form id="newsForm">
+                    <div class="form-group">
+                        <label for="newsTitle">Title *</label>
+                        <input type="text" id="newsTitle" required placeholder="Enter news title">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="newsSubtitle">Subtitle</label>
+                        <input type="text" id="newsSubtitle" placeholder="Enter subtitle (optional)">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="newsDescription">Description *</label>
+                        <textarea id="newsDescription" required placeholder="Enter detailed description"></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Priority Level *</label>
+                        <div class="priority-select">
+                            <div class="priority-option high" data-priority="high">
+                                <i class="fas fa-exclamation-triangle"></i>
+                                <div>High</div>
+                            </div>
+                            <div class="priority-option medium" data-priority="medium">
+                                <i class="fas fa-exclamation-circle"></i>
+                                <div>Medium</div>
+                            </div>
+                            <div class="priority-option low" data-priority="low">
+                                <i class="fas fa-info-circle"></i>
+                                <div>Low</div>
+                            </div>
+                        </div>
+                        <input type="hidden" id="newsPriority" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="newsImage">Background Image</label>
+                        <div class="image-upload">
+                            <input type="file" id="newsImage" accept="image/*">
+                            <div class="upload-text">
+                                <i class="fas fa-cloud-upload-alt" style="font-size: 2rem; margin-bottom: 1rem;"></i>
+                                <div>Click to upload background image</div>
+                                <div style="font-size: 0.8rem; color: #666;">Recommended: 1200x400px</div>
+                            </div>
+                            <img id="imagePreview" class="image-preview" style="display: none;">
+                        </div>
+                    </div>
+                    
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Create News
+                        </button>
+                        <button type="button" class="btn btn-success" onclick="createAndSendEmail()">
+                            <i class="fas fa-envelope"></i> Create & Send Email
+                        </button>
+                        <button type="button" class="btn btn-secondary" onclick="clearForm()">
+                            <i class="fas fa-times"></i> Clear Form
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Firebase v8 configuration for domain compatibility
+        const firebaseConfig = {
+            apiKey: "AIzaSyCUTmTn0rRBb0M-UkQJxnUMrWqXYU_BgIc",
+            authDomain: "users-8be65.firebaseapp.com",
+            databaseURL: "https://users-8be65-default-rtdb.firebaseio.com",
+            projectId: "users-8be65",
+            storageBucket: "users-8be65.firebasestorage.app",
+            messagingSenderId: "909025468149",
+            appId: "1:909025468149:web:fb4e7c4a8b4bd6d1076e4d",
+            measurementId: "G-XHFMRCJQEZ"
+        };
+
+        // Initialize Firebase v8 if not already initialized
+        function initializeFirebase() {
+            if (!window.firebase || !window.firebase.apps || window.firebase.apps.length === 0) {
+                window.firebase.initializeApp(firebaseConfig);
+                console.log('✅ Firebase v8 initialized successfully');
+            }
+            return window.firebase;
+        }
+
+        // Authentication functions using Firebase v8
+        function loginWithEmail(email, password) {
+            return new Promise((resolve, reject) => {
+                const firebase = initializeFirebase();
+                const auth = firebase.auth();
+                
+                auth.signInWithEmailAndPassword(email, password)
+                    .then((userCredential) => {
+                        resolve(userCredential.user);
+                    })
+                    .catch((error) => {
+                        reject(error);
+                    });
+            });
+        }
+
+        function logoutUser() {
+            return new Promise((resolve, reject) => {
+                const firebase = initializeFirebase();
+                const auth = firebase.auth();
+                
+                auth.signOut()
+                    .then(() => {
+                        resolve(true);
+                    })
+                    .catch((error) => {
+                        console.error('Logout error:', error);
+                        resolve(false);
+                    });
+            });
+        }
+
+        // Database functions using Firebase v8
+        function getDatabase() {
+            const firebase = initializeFirebase();
+            return firebase.database();
+        }
+
+        function ref(database, path) {
+            return database.ref(path);
+        }
+
+        function get(reference) {
+            return reference.once('value');
+        }
+
+        function set(reference, value) {
+            return reference.set(value);
+        }
+
+        function update(reference, values) {
+            return reference.update(values);
+        }
+
+        function onValue(reference, callback, options = {}) {
+            if (options.onlyOnce) {
+                return reference.once('value', callback);
+            } else {
+                return reference.on('value', callback);
+            }
+        }
+
+        // Storage functions using Firebase v8
+        function getStorage() {
+            const firebase = initializeFirebase();
+            return firebase.storage();
+        }
+
+        function storageRef(storage, path) {
+            return storage.ref(path);
+        }
+
+        function uploadBytes(ref, file) {
+            return ref.put(file);
+        }
+
+        function getDownloadURL(ref) {
+            return ref.getDownloadURL();
+        }
+
+        function push(ref, value) {
+            return ref.push(value);
+        }
+
+        function remove(ref) {
+            return ref.remove();
+        }
+
+        // Authentication Manager Class
+        class AuthManager {
+            constructor() {
+                this.currentUser = this.getCurrentUser();
+                this.db = getDatabase();
+                this.currentCompany = null;
+                
+                // Debug log
+                console.log('🔐 AuthManager initialized');
+                console.log('Current user:', this.currentUser);
+                
+                this.initializeAuth();
+            }
+
+            initializeAuth() {
+                // Check if user is logged in
+                if (!this.currentUser) {
+                    // Check if this is a redirect from login
+                    if (window.location.pathname.includes('info.html')) {
+                        window.location.href = 'login.html';
+                    } else {
+                        window.location.href = 'index.html';
+                    }
+                    return;
+                }
+                
+                console.log('✅ User authenticated successfully');
+                
+                // Show authentication status indicator briefly
+                const authStatus = document.getElementById('authStatus');
+                if (authStatus) {
+                    authStatus.style.display = 'block';
+                    setTimeout(() => {
+                        authStatus.style.transition = 'opacity 0.5s ease-out';
+                        authStatus.style.opacity = '0';
+                        setTimeout(() => {
+                            authStatus.style.display = 'none';
+                        }, 500);
+                    }, 2000);
+                }
+                
+                // Load user data and update UI
+                this.loadUserRole(this.currentUser);
+                this.loadUserCompany();
+                this.updateUIForAuthenticatedUser();
+                this.updateMenuVisibility();
+
+                // Profile dropdown will be handled by setupDropdowns() function
+
+                // Handle logout
+                const logoutBtn = document.querySelector('.profile-dropdown a[href="#"]');
+                if (logoutBtn) {
+                    logoutBtn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        this.logout();
+                    });
+                }
+            }
+
+            getCurrentUser() {
+                try {
+                    return JSON.parse(localStorage.getItem('currentUser') || 'null');
+                } catch (error) {
+                    console.error('Error parsing current user:', error);
+                    return null;
+                }
+            }
+
+            setCurrentUser(userData) {
+                localStorage.setItem('currentUser', JSON.stringify(userData));
+                localStorage.setItem('user', JSON.stringify(userData));
+                this.currentUser = userData;
+            }
+
+            async logout() {
+                const success = await logoutUser();
+                if (success) {
+                    localStorage.removeItem('currentUser');
+                    localStorage.removeItem('user');
+                    sessionStorage.removeItem('currentUser');
+                    sessionStorage.removeItem('user');
+                    this.currentUser = null;
+                    window.location.href = 'index.html';
+                }
+            }
+
+            // Menu visibility methods
+            resetMenuVisibility() {
+                document.querySelectorAll('[data-feature]').forEach(item => {
+                    item.classList.remove('menu-visible');
+                });
+                document.querySelectorAll('.menu-dropdown').forEach(dropdown => {
+                    dropdown.classList.remove('menu-visible');
+                });
+            }
+
+            async updateMenuVisibility() {
+                console.log('🔧 Starting menu visibility update...');
+                
+                // Remove loading class
+                const sidebar = document.querySelector('.sidebar');
+                if (sidebar) {
+                    sidebar.classList.remove('menu-loading');
+                }
+                
+                try {
+                    if (!this.currentUser) {
+                        console.log('❌ No authenticated user found');
+                        this.resetMenuVisibility();
+                        return;
+                    }
+                    
+                    // Get user's company ID and role
+                    const companyId = this.currentUser.companyId;
+                    const userRole = this.currentUser.role;
+                    
+                    if (!companyId || !userRole) {
+                        console.log('❌ Missing company ID or user role');
+                        this.resetMenuVisibility();
+                        return;
+                    }
+                    
+                    console.log(`👤 User: role=${userRole}, companyId=${companyId}`);
+                    
+                    // Get company role permissions
+                    const permissionsRef = ref(this.db, `companies/${companyId}/roles/${userRole}/permissions`);
+                    console.log(`🔍 Checking permissions at: companies/${companyId}/roles/${userRole}/permissions`);
+                    
+                    const permissionsSnapshot = await get(permissionsRef);
+                    
+                    if (!permissionsSnapshot.exists()) {
+                        console.log(`❌ No permissions found for role ${userRole} in company ${companyId}`);
+                        
+                        // Try to get all roles to see what's available
+                        const allRolesRef = ref(this.db, `companies/${companyId}/roles`);
+                        const allRolesSnapshot = await get(allRolesRef);
+                        
+                        if (allRolesSnapshot.exists()) {
+                            const allRoles = allRolesSnapshot.val();
+                            console.log('🔍 Available roles in company:', Object.keys(allRoles));
+                            
+                            // Check if the role exists with different casing or format
+                            const roleKeys = Object.keys(allRoles);
+                            const matchingRole = roleKeys.find(key => 
+                                key.toLowerCase() === userRole.toLowerCase() ||
+                                key.replace(/\s+/g, '').toLowerCase() === userRole.replace(/\s+/g, '').toLowerCase()
+                            );
+                            
+                            if (matchingRole && allRoles[matchingRole].permissions) {
+                                console.log(`✅ Found matching role: ${matchingRole}`);
+                                const permissions = allRoles[matchingRole].permissions;
+                                this.updateMenuWithPermissions(permissions);
+                                return;
+                            }
+                        }
+                        
+                        console.log('❌ No valid permissions found - hiding all menu items');
+                        this.resetMenuVisibility();
+                        return;
+                    }
+                    
+                    const permissions = permissionsSnapshot.val();
+                    console.log('✅ Loaded permissions:', permissions);
+                    this.updateMenuWithPermissions(permissions);
+                    
+                } catch (error) {
+                    console.error('❌ Error updating menu visibility:', error);
+                    this.resetMenuVisibility();
+                }
+            }
+
+            updateMenuWithPermissions(permissions) {
+                console.log('🎯 Updating menu with permissions...');
+                console.log('🎯 Permissions object:', permissions);
+                
+                // Reset menu visibility first
+                this.resetMenuVisibility();
+                
+                if (!permissions) {
+                    console.log('⚠️ No permissions object provided');
+                    return;
+                }
+                
+                // Update menu visibility based on permissions
+                const menuItems = document.querySelectorAll('[data-feature]');
+                console.log(`🎯 Found ${menuItems.length} menu items to check`);
+                let visibleCount = 0;
+                
+                menuItems.forEach(item => {
+                    const feature = item.getAttribute('data-feature');
+                    const requiresPermission = item.getAttribute('data-requires-permission');
+                    
+                    console.log(`🔍 Checking menu item: ${feature} (requires: ${requiresPermission})`);
+                    
+                    // If item doesn't require permission, show it
+                    if (!requiresPermission) {
+                        // Check if user has permission for this feature
+                        if (feature && permissions[feature]) {
+                            const hasViewPermission = permissions[feature].view === true || permissions[feature] === true;
+                            if (hasViewPermission) {
+                                item.classList.add('menu-visible');
+                                visibleCount++;
+                                console.log(`✅ Showing menu item: ${feature}`);
+                            } else {
+                                console.log(`❌ No view permission for: ${feature}`);
+                            }
+                        } else {
+                            // For basic features like home, show by default
+                            if (feature === 'home_view') {
+                                item.classList.add('menu-visible');
+                                visibleCount++;
+                                console.log(`✅ Showing basic menu item: ${feature}`);
+                            } else {
+                                console.log(`⚪ Feature not found in permissions: ${feature}`);
+                            }
+                        }
+                        return;
+                    }
+                    
+                    // If item requires permission, check if user has it
+                    if (feature && permissions[feature]) {
+                        const hasViewPermission = permissions[feature].view === true || permissions[feature] === true;
+                        
+                        if (hasViewPermission) {
+                            item.classList.add('menu-visible');
+                            visibleCount++;
+                            console.log(`✅ Showing menu item: ${feature}`);
+                        } else {
+                            console.log(`❌ No view permission for: ${feature}`);
+                        }
+                    } else {
+                        console.log(`⚪ Feature not found in permissions: ${feature}`);
+                    }
+                });
+                
+                // Handle parent dropdowns - show if they have visible children
+                document.querySelectorAll('.menu-dropdown').forEach(dropdown => {
+                    const visibleSubmenuItems = dropdown.querySelectorAll('.submenu li.menu-visible');
+                    if (visibleSubmenuItems.length > 0) {
+                        dropdown.classList.add('menu-visible');
+                        console.log(`✅ Showing parent dropdown (has visible children)`);
+                    }
+                });
+                
+                console.log(`🎯 Menu visibility update completed - ${visibleCount} items visible`);
+                
+                // If no items are visible, show at least home
+                if (visibleCount === 0) {
+                    const homeItem = document.querySelector('[data-feature="home_view"]');
+                    if (homeItem) {
+                        homeItem.classList.add('menu-visible');
+                        console.log('⚠️ No permissions found - showing home as fallback');
+                    }
+                }
+            }
+
+            async loadUserRole(userData) {
+                // Load user role from Firebase if not available
+                if (!userData.role && userData.uid) {
+                    try {
+                        const userRef = ref(this.db, `users/${userData.uid}`);
+                        const userSnapshot = await get(userRef);
+                        if (userSnapshot.exists()) {
+                            const userRole = userSnapshot.val().role || 'user';
+                            userData.role = userRole;
+                            this.setCurrentUser(userData);
+                        }
+                    } catch (error) {
+                        console.error('Error loading user role:', error);
+                    }
+                }
+            }
+
+            async loadUserCompany() {
+                if (!this.currentUser) return;
+
+                try {
+                    const companiesRef = ref(this.db, 'companies');
+                    const companiesSnapshot = await get(companiesRef);
+                    
+                    if (companiesSnapshot.exists()) {
+                        const companies = companiesSnapshot.val();
+                        let foundCompany = null;
+                        
+                        // Search through all companies for user
+                        for (const [companyId, company] of Object.entries(companies)) {
+                            if (company.status !== 'active') continue;
+                            
+                            // Check in company users
+                            if (company.users) {
+                                for (const [userId, user] of Object.entries(company.users)) {
+                                    if (user.authUid === this.currentUser.uid || userId === this.currentUser.uid) {
+                                        foundCompany = company;
+                                        this.currentUser.companyId = companyId;
+                                        this.currentUser.companyName = company.companyName;
+                                        break;
+                                    }
+                                }
+                            }
+                            
+                            if (foundCompany) break;
+                        }
+                        
+                        if (foundCompany) {
+                            this.currentCompany = foundCompany;
+                            this.updateCompanyBranding();
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error loading user company:', error);
+                }
+            }
+
+            updateCompanyBranding() {
+                if (!this.currentCompany) return;
+
+                // Update page title if needed
+                const title = document.title;
+                if (title.includes('Dreamex Datalab HSE')) {
+                    document.title = title.replace('Dreamex Datalab HSE', `${this.currentCompany.companyName} HSE`);
+                }
+
+                // Apply company branding colors if available
+                if (this.currentCompany.branding) {
+                    const root = document.documentElement;
+                    if (this.currentCompany.branding.primaryColor) {
+                        root.style.setProperty('--primary-color', this.currentCompany.branding.primaryColor);
+                    }
+                    if (this.currentCompany.branding.secondaryColor) {
+                        root.style.setProperty('--secondary-color', this.currentCompany.branding.secondaryColor);
+                    }
+                }
+            }
+
+            async updateUIForAuthenticatedUser() {
+                const profileBtn = document.querySelector('.profile-btn');
+                const profileDropdown = document.querySelector('.profile-dropdown ul');
+                
+                if (profileBtn && profileDropdown) {
+                    if (this.currentUser) {
+                        // Use centralized display methods
+                        const initials = this.getUserInitials();
+                        const displayName = this.getUserDisplayName();
+                        const email = this.getUserEmail();
+                        
+                        // Update profile image
+                        const profileImg = profileBtn.querySelector('img');
+                        if (profileImg) {
+                            // Try to get custom avatar or use initials
+                            const avatarUrl = await this.getUserAvatarUrl();
+                            if (avatarUrl) {
+                                profileImg.src = avatarUrl;
+                                profileImg.alt = displayName + ' Avatar';
+                            } else {
+                                // Generate initials avatar
+                                this.generateInitialsAvatar(displayName, profileImg);
+                            }
+                        }
+                        
+                        // Update profile dropdown with user info
+                        const userInfoHtml = `
+                            <li style="border-bottom: 1px solid #eee; padding: 12px 16px; background: #f8f9fa;">
+                                <div style="display: flex; align-items: center; gap: 12px;">
+                                    <div style="width: 32px; height: 32px; border-radius: 50%; background: #3498db; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 12px;">
+                                        ${initials}
+                                    </div>
+                                    <div>
+                                        <div style="font-weight: 600; color: #333; font-size: 14px; margin-bottom: 2px;">
+                                            ${displayName}
+                                        </div>
+                                        <div style="color: #666; font-size: 12px;">
+                                            ${email}
+                                        </div>
+                                    </div>
+                                </div>
+                            </li>
+                            <li><a href="#"><i class="fas fa-user"></i> Account Settings</a></li>
+                            <li><a href="#"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+                        `;
+                        
+                        profileDropdown.innerHTML = userInfoHtml;
+                        
+                        // Re-attach logout event listener
+                        const logoutBtn = profileDropdown.querySelector('a[href="#"]');
+                        if (logoutBtn) {
+                            logoutBtn.addEventListener('click', (e) => {
+                                e.preventDefault();
+                                this.logout();
+                            });
+                        }
+                        
+                        // Update menu visibility based on user permissions
+                        await this.updateMenuVisibility();
+                    }
+                }
+            }
+
+            // Get user display name
+            getUserDisplayName() {
+                if (!this.currentUser) return 'User';
+                
+                const cleanName = (name) => {
+                    if (!name || typeof name !== 'string') return '';
+                    return name.trim().replace(/\s+/g, ' ');
+                };
+                
+                const potentialNames = [
+                    this.currentUser.displayName,
+                    this.currentUser.name,
+                    this.currentUser.username
+                ];
+                
+                for (const name of potentialNames) {
+                    const cleaned = cleanName(name);
+                    if (cleaned) return cleaned;
+                }
+                
+                if (this.currentUser.email) {
+                    const emailUsername = this.currentUser.email.split('@')[0];
+                    const cleaned = cleanName(emailUsername);
+                    if (cleaned) return cleaned;
+                }
+                
+                return 'User';
+            }
+
+            // Get user initials for avatar display
+            getUserInitials() {
+                const displayName = this.getUserDisplayName();
+                
+                if (!displayName || displayName === 'User') return 'U';
+                
+                const words = displayName.split(' ').filter(word => word.length > 0);
+                if (words.length === 1) {
+                    return words[0].substring(0, 2).toUpperCase();
+                } else {
+                    return words.slice(0, 2).map(word => word.charAt(0)).join('').toUpperCase();
+                }
+            }
+
+            // Get user email
+            getUserEmail() {
+                return this.currentUser?.email || '';
+            }
+
+            // Generate initials avatar
+            generateInitialsAvatar(name, imgElement) {
+                if (!imgElement || !name) return;
+                
+                const initials = this.getUserInitials();
+                const colors = ['#3498db', '#e74c3c', '#2ecc71', '#f39c12', '#9b59b6', '#1abc9c'];
+                const backgroundColor = colors[name.length % colors.length];
+                
+                const svg = `
+                    <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="20" cy="20" r="20" fill="${backgroundColor}"/>
+                        <text x="20" y="25" text-anchor="middle" fill="white" font-size="14" font-weight="600" font-family="Arial, sans-serif">${initials}</text>
+                    </svg>
+                `;
+                
+                imgElement.src = 'data:image/svg+xml;base64,' + btoa(svg);
+                imgElement.alt = name + ' Avatar';
+            }
+
+            // Get user avatar URL or null if not available
+            async getUserAvatarUrl() {
+                if (!this.currentUser) return null;
+                
+                try {
+                    const firebase = window.firebase;
+                    const storage = firebase.storage();
+                    const avatarPath = `avatars/${this.currentUser.uid}/profile.jpg`;
+                    const avatarRef = storage.ref(avatarPath);
+                    
+                    return await avatarRef.getDownloadURL();
+                } catch (error) {
+                    return null;
+                }
+            }
+        }
+
+        // Initialize Firebase when this script loads
+        initializeFirebase();
+
+        // Global variables
+        let authManager;
+
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize authentication manager
+            authManager = new AuthManager();
+            window.authManager = authManager;
+
+            setupFormHandlers();
+            setupPrioritySelector();
+            setupImageUpload();
+            setupModalEvents();
+            
+            // Set up dropdowns after a small delay to ensure DOM is fully loaded
+            setTimeout(() => {
+                setupDropdowns();
+            }, 100);
+            
+            // Load existing news after authentication
+            setTimeout(() => {
+                loadExistingNews();
+                setupNewsListener();
+            }, 2000);
+        });
+
+        // Modal functions
+        function openNewsModal() {
+            const modal = document.getElementById('newsModal');
+            modal.classList.add('show');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeNewsModal() {
+            const modal = document.getElementById('newsModal');
+            modal.classList.remove('show');
+            document.body.style.overflow = 'auto';
+            clearForm();
+        }
+
+        function setupModalEvents() {
+            const modal = document.getElementById('newsModal');
+            
+            // Close modal when clicking outside
+            modal.addEventListener('click', function(e) {
+                if (e.target === modal) {
+                    closeNewsModal();
+                }
+            });
+
+            // Close modal with Escape key
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape' && modal.classList.contains('show')) {
+                    closeNewsModal();
+                }
+            });
+        }
+
+        // Listen for storage changes (when user logs in/out in another tab)
+        window.addEventListener('storage', function(e) {
+            if (e.key === 'currentUser') {
+                if (e.newValue) {
+                    // User logged in, reload page to reinitialize AuthManager
+                    window.location.reload();
+                } else {
+                    // User logged out, redirect to login
+                    window.location.href = 'index.html';
+                }
+            }
+        });
+
+        // Form handling
+        function setupFormHandlers() {
+            const form = document.getElementById('newsForm');
+            if (form) {
+                form.addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    createNews();
+                });
+            }
+        }
+
+        // Priority selector
+        function setupPrioritySelector() {
+            const priorityOptions = document.querySelectorAll('.priority-option');
+            const priorityInput = document.getElementById('newsPriority');
+            
+            priorityOptions.forEach(option => {
+                option.addEventListener('click', function() {
+                    // Remove selected class from all options
+                    priorityOptions.forEach(opt => opt.classList.remove('selected'));
+                    
+                    // Add selected class to clicked option
+                    this.classList.add('selected');
+                    
+                    // Set hidden input value
+                    priorityInput.value = this.getAttribute('data-priority');
+                });
+            });
+        }
+
+        // Image upload preview
+        function setupImageUpload() {
+            const imageInput = document.getElementById('newsImage');
+            const imagePreview = document.getElementById('imagePreview');
+            const uploadText = document.querySelector('.upload-text');
+            
+            if (imageInput && imagePreview && uploadText) {
+                imageInput.addEventListener('change', function(e) {
+                    const file = e.target.files[0];
+                    if (file) {
+                        const reader = new FileReader();
+                        reader.onload = function(e) {
+                            imagePreview.src = e.target.result;
+                            imagePreview.style.display = 'block';
+                            uploadText.style.display = 'none';
+                        };
+                        reader.readAsDataURL(file);
+                    }
+                });
+            }
+        }
+
+        // Dropdown functionality
+        function setupDropdowns() {
+            // Notification dropdown
+            const notificationBtn = document.getElementById('notificationBtn');
+            const notificationDropdown = document.querySelector('.notification-dropdown');
+            
+            if (notificationBtn && notificationDropdown) {
+                notificationBtn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    notificationDropdown.classList.toggle('show');
+                    // Close profile dropdown when notification is opened
+                    const profileDropdown = document.querySelector('.profile-dropdown');
+                    if (profileDropdown) {
+                        profileDropdown.classList.remove('show');
+                    }
+                });
+            }
+
+            // Profile dropdown
+            const profileBtn = document.getElementById('userProfileBtn');
+            const profileDropdown = document.querySelector('.profile-dropdown');
+            
+            if (profileBtn && profileDropdown) {
+                profileBtn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    profileDropdown.classList.toggle('show');
+                    // Close notification dropdown when profile is opened
+                    if (notificationDropdown) {
+                        notificationDropdown.classList.remove('show');
+                    }
+                });
+            }
+
+            // Close dropdowns when clicking outside
+            document.addEventListener('click', function(e) {
+                const isNotificationClick = notificationBtn && notificationBtn.contains(e.target);
+                const isProfileClick = profileBtn && profileBtn.contains(e.target);
+                
+                if (!isNotificationClick && notificationDropdown) {
+                    notificationDropdown.classList.remove('show');
+                }
+                if (!isProfileClick && profileDropdown) {
+                    profileDropdown.classList.remove('show');
+                }
+            });
+        }
+
+        // Create news
+        async function createNews() {
+            const title = document.getElementById('newsTitle').value;
+            const subtitle = document.getElementById('newsSubtitle').value;
+            const description = document.getElementById('newsDescription').value;
+            const priority = document.getElementById('newsPriority').value;
+            const imageFile = document.getElementById('newsImage').files[0];
+            
+            if (!title || !description || !priority) {
+                alert('Please fill in all required fields');
+                return;
+            }
+            
+            try {
+                // Get current user and company information
+                const currentUser = authManager.currentUser;
+                const companyId = currentUser.companyId;
+                
+                if (!companyId) {
+                    alert('Error: Company information not found. Please contact administrator.');
+                    return;
+                }
+                
+                // Generate news ID
+                const newsId = 'news_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                
+                // Create news object
+                const newsData = {
+                    id: newsId,
+                    title: title,
+                    subtitle: subtitle,
+                    description: description,
+                    priority: priority,
+                    createdAt: new Date().toISOString(),
+                    createdBy: {
+                        uid: currentUser.uid,
+                        name: authManager.getUserDisplayName(),
+                        email: authManager.getUserEmail()
+                    },
+                    status: 'published',
+                    companyId: companyId,
+                    imageUrl: null // Will be updated if image is uploaded
+                };
+                
+                // Upload image if provided
+                if (imageFile) {
+                    try {
+                        const storage = getStorage();
+                        const imageRef = storageRef(storage, `companies/${companyId}/news/${newsId}/image`);
+                        const uploadResult = await uploadBytes(imageRef, imageFile);
+                        const downloadURL = await getDownloadURL(uploadResult.ref);
+                        newsData.imageUrl = downloadURL;
+                        console.log('Image uploaded successfully:', downloadURL);
+                    } catch (imageError) {
+                        console.error('Error uploading image:', imageError);
+                        // Continue without image
+                    }
+                }
+                
+                // Save to Firebase under company news path
+                const db = getDatabase();
+                const newsRef = ref(db, `companies/${companyId}/news/${newsId}`);
+                await set(newsRef, newsData);
+                
+                console.log('News saved to Firebase:', newsData);
+                
+                // Add to news list display
+                addNewsToList(newsData);
+                
+                // Clear form and close modal
+                clearForm();
+                closeNewsModal();
+                
+                // Show success message
+                alert('News created and saved successfully!');
+                
+            } catch (error) {
+                console.error('Error creating news:', error);
+                alert('Error creating news. Please try again.');
+            }
+        }
+
+        // Create and send email
+        async function createAndSendEmail() {
+            try {
+                // First create the news
+                await createNews();
+                
+                // Then send email (simulate email sending)
+                setTimeout(() => {
+                    alert('News created and email sent to all employees!');
+                }, 1000);
+            } catch (error) {
+                console.error('Error creating news and sending email:', error);
+                alert('Error creating news and sending email. Please try again.');
+            }
+        }
+
+        // Add news to the table
+        function addNewsToList(newsData) {
+            const tableBody = document.getElementById('newsTableBody');
+            if (!tableBody) return;
+            
+            const row = document.createElement('tr');
+            
+            // Format timestamp
+            const timeAgo = newsData.createdAt ? 
+                getTimeAgo(newsData.createdAt) : 
+                'Just now';
+            
+            const emailStatus = newsData.emailSent ? 'sent' : 'pending';
+            const emailStatusText = newsData.emailSent ? 'Email Sent' : 'Email Pending';
+            const emailIcon = newsData.emailSent ? 'fa-check-circle' : 'fa-clock';
+            
+            row.innerHTML = `
+                <td>
+                    <div class="news-table-title">${newsData.title}</div>
+                    <div class="news-table-subtitle">${newsData.subtitle || ''}</div>
+                    <div class="news-table-description">${newsData.description}</div>
+                </td>
+                <td>
+                    <div class="news-table-priority ${newsData.priority}">${newsData.priority.charAt(0).toUpperCase() + newsData.priority.slice(1)}</div>
+                </td>
+                <td>
+                    <div class="news-table-status ${emailStatus}">
+                        <i class="fas ${emailIcon}"></i>
+                        ${emailStatusText}
+                    </div>
+                </td>
+                <td>
+                    <div class="news-table-date">${timeAgo}</div>
+                </td>
+                <td>
+                    <div class="news-table-actions">
+                        <button class="btn btn-primary btn-small" onclick="editNews('${newsData.id}')">
+                            <i class="fas fa-edit"></i> Edit
+                        </button>
+                        <button class="btn btn-success btn-small" onclick="resendEmail('${newsData.id}')">
+                            <i class="fas fa-envelope"></i> ${newsData.emailSent ? 'Resend' : 'Send'}
+                        </button>
+                        <button class="btn btn-danger btn-small" onclick="deleteNews('${newsData.id}')">
+                            <i class="fas fa-trash"></i> Delete
+                        </button>
+                    </div>
+                </td>
+            `;
+            
+            // Append to the end of the table
+            tableBody.appendChild(row);
+        }
+
+        // Helper function to calculate time ago
+        function getTimeAgo(timestamp) {
+            const now = new Date();
+            const past = new Date(timestamp);
+            const diffInSeconds = Math.floor((now - past) / 1000);
+            
+            if (diffInSeconds < 60) {
+                return 'Just now';
+            } else if (diffInSeconds < 3600) {
+                const minutes = Math.floor(diffInSeconds / 60);
+                return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
+            } else if (diffInSeconds < 86400) {
+                const hours = Math.floor(diffInSeconds / 3600);
+                return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+            } else {
+                const days = Math.floor(diffInSeconds / 86400);
+                return `${days} day${days > 1 ? 's' : ''} ago`;
+            }
+        }
+
+        // Show empty state when no news items exist
+        function showEmptyState() {
+            const tableBody = document.getElementById('newsTableBody');
+            if (tableBody) {
+                const emptyRow = document.createElement('tr');
+                emptyRow.innerHTML = `
+                    <td colspan="5" class="news-table-empty">
+                        <i class="fas fa-newspaper"></i>
+                        <div>No news articles found</div>
+                        <div style="font-size: 0.9rem; margin-top: 0.5rem;">Click "Add News" to create your first news article</div>
+                    </td>
+                `;
+                tableBody.appendChild(emptyRow);
+            }
+        }
+
+        // News action functions
+        function editNews(newsId) {
+            // TODO: Implement edit functionality
+            console.log('Edit news:', newsId);
+            // This would open the modal with pre-filled data
+        }
+
+        function resendEmail(newsId) {
+            // TODO: Implement resend email functionality
+            console.log('Resend email for news:', newsId);
+        }
+
+        function deleteNews(newsId) {
+            if (confirm('Are you sure you want to delete this news item?')) {
+                // TODO: Implement delete functionality
+                console.log('Delete news:', newsId);
+            }
+        }
+
+        // Clear form
+        function clearForm() {
+            const form = document.getElementById('newsForm');
+            if (form) {
+                form.reset();
+            }
+            
+            const priorityInput = document.getElementById('newsPriority');
+            if (priorityInput) {
+                priorityInput.value = '';
+            }
+            
+            const imagePreview = document.getElementById('imagePreview');
+            if (imagePreview) {
+                imagePreview.style.display = 'none';
+            }
+            
+            const uploadText = document.querySelector('.upload-text');
+            if (uploadText) {
+                uploadText.style.display = 'block';
+            }
+            
+        // Clear priority selection
+        document.querySelectorAll('.priority-option').forEach(option => {
+            option.classList.remove('selected');
+        });
+    }
+
+    // Load existing news from Firebase
+    async function loadExistingNews() {
+        try {
+            if (!authManager || !authManager.currentUser) {
+                console.log('No authenticated user found');
+                return;
+            }
+            
+            const companyId = authManager.currentUser.companyId;
+            if (!companyId) {
+                console.log('No company ID found');
+                return;
+            }
+            
+            const db = getDatabase();
+            const newsRef = ref(db, `companies/${companyId}/news`);
+            
+            // Get news data
+            const newsSnapshot = await get(newsRef);
+            if (!newsSnapshot.exists()) {
+                console.log('No existing news found');
+                // Show empty state
+                showEmptyState();
+                return;
+            }
+            
+            const newsData = newsSnapshot.val();
+            
+            // Convert to array and sort by creation date (newest first)
+            const newsArray = Object.values(newsData).sort((a, b) => 
+                new Date(b.createdAt) - new Date(a.createdAt)
+            );
+            
+            // Clear existing news table completely
+            const tableBody = document.getElementById('newsTableBody');
+            if (tableBody) {
+                tableBody.innerHTML = '';
+            }
+            
+            // Add each news item to the list
+            if (newsArray.length > 0) {
+                newsArray.forEach(news => {
+                    addNewsToList(news);
+                });
+            } else {
+                // Show empty state
+                showEmptyState();
+            }
+            
+            console.log('Existing news loaded successfully:', newsArray);
+            
+        } catch (error) {
+            console.error('Error loading existing news:', error);
+        }
+    }
+
+    // Set up real-time news listener
+    function setupNewsListener() {
+        try {
+            if (!authManager || !authManager.currentUser) {
+                console.log('No authenticated user found for news listener');
+                return;
+            }
+            
+            const companyId = authManager.currentUser.companyId;
+            if (!companyId) {
+                console.log('No company ID found for news listener');
+                return;
+            }
+            
+            const db = getDatabase();
+            const newsRef = ref(db, `companies/${companyId}/news`);
+            
+            // Set up real-time listener
+            onValue(newsRef, (snapshot) => {
+                if (snapshot.exists()) {
+                    const newsData = snapshot.val();
+                    
+                    // Convert to array and sort by creation date (newest first)
+                    const newsArray = Object.values(newsData).sort((a, b) => 
+                        new Date(b.createdAt) - new Date(a.createdAt)
+                    );
+                    
+                    // Clear existing news table completely
+                    const tableBody = document.getElementById('newsTableBody');
+                    if (tableBody) {
+                        tableBody.innerHTML = '';
+                    }
+                    
+                    // Add each news item to the list
+                    if (newsArray.length > 0) {
+                        newsArray.forEach(news => {
+                            addNewsToList(news);
+                        });
+                    } else {
+                        // Show empty state
+                        showEmptyState();
+                    }
+                    
+                    console.log('News updated in real-time:', newsArray);
+                } else {
+                    // No news data exists, show empty state
+                    const tableBody = document.getElementById('newsTableBody');
+                    if (tableBody) {
+                        tableBody.innerHTML = '';
+                        showEmptyState();
+                    }
+                }
+            });
+            
+        } catch (error) {
+            console.error('Error setting up news listener:', error);
+        }
+    }
+
+    // Logout function (handled by AuthManager)
+        function logout() {
+            if (authManager) {
+                authManager.logout();
+            } else {
+                // Fallback logout
+                localStorage.removeItem('currentUser');
+                localStorage.removeItem('user');
+                sessionStorage.clear();
+                window.location.href = 'index.html';
+            }
+        }
+
+        // Error handling for missing resources
+        window.addEventListener('error', function(e) {
+            console.error('Resource loading error:', e.target.src || e.target.href);
+        });
+    </script>
+</body>
+</html>

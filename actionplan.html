@@ -1,0 +1,3904 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Action Plan Board - Dreamex Datalab HSE</title>
+    
+    <!-- Firebase v8 CDN for compatibility -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
+    
+    <!-- EmailJS CDN for production email service -->
+    <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+    
+    <style>
+        /* Font Awesome Icons */
+        @import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css');
+        
+        :root {
+            --primary-color: #2c3e50;
+            --secondary-color: #3498db;
+            --accent-color: #e74c3c;
+            --success-color: #27ae60;
+            --warning-color: #f39c12;
+            --danger-color: #e74c3c;
+            --text-color: #333;
+            --bg-color: #f5f6fa;
+            --sidebar-width: 250px;
+            --border-radius: 8px;
+            --box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            --transition: all 0.3s ease;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: var(--text-color);
+            background-color: var(--bg-color);
+        }
+
+        .app-container {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        /* Sidebar Styles */
+        .sidebar {
+            width: var(--sidebar-width);
+            background-color: var(--primary-color);
+            color: white;
+            padding: 1rem;
+            position: fixed;
+            height: 100vh;
+            overflow-y: auto;
+            z-index: 1000;
+            transition: transform 0.3s ease;
+        }
+
+        /* Sidebar collapsed state */
+        .sidebar.collapsed {
+            transform: translateX(-100%);
+        }
+
+        /* Main content adjustments when sidebar is collapsed */
+        .main-content.sidebar-collapsed {
+            margin-left: 0;
+        }
+
+        .main-content.sidebar-collapsed .top-nav {
+            left: 0.5rem;
+        }
+
+        .logo h2 {
+            text-align: center;
+            padding: 1rem 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .menu {
+            list-style: none;
+            margin-top: 2rem;
+        }
+
+        .menu li {
+            margin-bottom: 0.5rem;
+            display: none !important; /* Force hide all menu items by default */
+        }
+
+        .menu li.menu-visible {
+            display: block !important; /* Show only when explicitly marked visible */
+        }
+
+        .menu a {
+            color: white;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            padding: 0.75rem 1rem;
+            border-radius: 5px;
+            transition: background-color 0.3s;
+        }
+
+        .menu a i {
+            margin-right: 10px;
+        }
+
+        .menu a:hover, .menu a.active {
+            background-color: var(--secondary-color);
+        }
+
+        .menu-dropdown .submenu {
+            display: none;
+            list-style: none;
+            margin-left: 2rem;
+            margin-top: 0.5rem;
+        }
+
+        .menu-dropdown:hover .submenu {
+            display: block;
+        }
+
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            margin-left: var(--sidebar-width);
+            min-height: 100vh;
+            padding: 0;
+            padding-top: 3rem;
+            width: calc(100% - var(--sidebar-width));
+            box-sizing: border-box;
+        }
+
+        /* Top Navigation */
+        .top-nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.5rem 0.75rem;
+            background-color: white;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            margin-bottom: 0.3rem;
+            position: fixed;
+            top: 0.25rem;
+            right: 0.5rem;
+            left: calc(var(--sidebar-width) + 0.5rem);
+            height: 50px;
+            min-height: 50px;
+            z-index: 100;
+            transition: left 0.3s ease;
+        }
+
+        .top-nav-left {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .sidebar-toggle-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 1.2rem;
+            padding: 0.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-color);
+            transition: background-color 0.3s ease;
+        }
+
+        .sidebar-toggle-btn:hover {
+            background-color: #f8f9fa;
+        }
+
+        .top-nav-right {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+            margin-left: auto;
+        }
+
+        .header-company-logo {
+            height: 32px;
+            width: auto;
+            object-fit: contain;
+        }
+
+        .company-name-header {
+            font-weight: 600;
+            color: var(--primary-color);
+        }
+
+        /* Notification Styles */
+        .notifications {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .notification-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            position: relative;
+            font-size: 1.2rem;
+            padding: 0.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .notification-badge {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            background-color: var(--accent-color);
+            color: white;
+            border-radius: 50%;
+            padding: 0.2rem 0.5rem;
+            font-size: 0.7rem;
+        }
+
+        .notification-dropdown {
+            display: none;
+            position: absolute;
+            right: 0;
+            top: 100%;
+            width: 320px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+            z-index: 1000;
+            border: 1px solid #e9ecef;
+            max-height: 400px;
+            overflow: hidden;
+        }
+
+        .notification-dropdown.show {
+            display: block;
+            animation: slideDown 0.2s ease-out;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .notification-header {
+            padding: 12px 16px;
+            border-bottom: 1px solid #e9ecef;
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .notification-header h3 {
+            margin: 0;
+            color: #333;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .notification-header button {
+            background: none;
+            border: none;
+            color: #6c757d;
+            cursor: pointer;
+            font-size: 12px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            transition: background-color 0.2s;
+        }
+
+        .notification-header button:hover {
+            background-color: rgba(0,0,0,0.1);
+        }
+
+        .notification-list {
+            max-height: 350px;
+            overflow-y: auto;
+        }
+
+        .notification-empty {
+            padding: 40px 20px;
+            text-align: center;
+            color: #6c757d;
+        }
+
+        .notification-empty i {
+            font-size: 2rem;
+            margin-bottom: 1rem;
+            opacity: 0.5;
+        }
+
+        .notification-empty-title {
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .notification-empty-message {
+            font-size: 0.9rem;
+        }
+
+        /* User Profile Styles */
+        .user-profile {
+            position: relative;
+        }
+
+        .profile-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 0;
+            border-radius: 50%;
+            overflow: hidden;
+        }
+
+        .profile-btn img {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+
+        .profile-dropdown {
+            display: none;
+            position: absolute;
+            right: 0;
+            top: 100%;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+            z-index: 1000;
+            border: 1px solid #e9ecef;
+            min-width: 150px;
+            margin-top: 0.5rem;
+        }
+
+        .profile-dropdown.show {
+            display: block;
+            animation: slideDown 0.2s ease-out;
+        }
+
+        .profile-dropdown ul {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        .profile-dropdown li {
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .profile-dropdown li:last-child {
+            border-bottom: none;
+        }
+
+        .profile-dropdown a {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 12px 16px;
+            color: #333;
+            text-decoration: none;
+            transition: background-color 0.2s;
+        }
+
+        .profile-dropdown a:hover {
+            background-color: #f8f9fa;
+        }
+
+        .profile-dropdown i {
+            width: 16px;
+            text-align: center;
+        }
+
+        /* Company Logo and Name Styles */
+        .header-company-logo {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            object-fit: cover;
+            border: 2px solid #e9ecef;
+            display: none;
+        }
+
+        .header-company-logo.visible {
+            display: block;
+        }
+
+        .header-logo-placeholder {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            background: #f8f9fa;
+            border: 2px dashed #ced4da;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            color: #6c757d;
+            font-size: 1.2rem;
+        }
+
+        .company-name-header {
+            font-weight: 600;
+            color: #2c3e50;
+            font-size: 1.1rem;
+            display: inline-block;
+        }
+
+        /* Menu visibility classes */
+        .menu-visible {
+            display: block !important;
+        }
+
+        .menu-dropdown:not(.menu-visible) {
+            display: none !important;
+        }
+
+        .menu-loading [data-feature] {
+            display: none !important;
+        }
+
+        .menu-loading .menu-dropdown {
+            display: none !important;
+        }
+
+        /* Content Area */
+        .content {
+            padding: 2rem;
+        }
+
+        /* Action Plan Dashboard */
+        .dashboard-header {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: #fff;
+            padding: 0.55rem 0.75rem;
+            border-radius: 0;
+            margin: 0.35rem 0 0.5rem 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 10px 28px rgba(0,0,0,0.18), 0 6px 16px rgba(0,0,0,0.14);
+            font-size: 0.9rem;
+            margin-bottom: 2rem;
+        }
+
+        .dashboard-header h2 {
+            color: #fff;
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            font-size: 0.9rem;
+            margin: 0;
+            font-weight: 600;
+        }
+
+        .dashboard-header .btn {
+            background: none;
+            border: none;
+            color: #fff;
+            padding: 0.4rem;
+            font-size: 1.2rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-decoration: none;
+            border-radius: 4px;
+        }
+
+        .dashboard-header .btn:hover {
+            color: rgba(255,255,255,0.8);
+            transform: scale(1.1);
+        }
+
+        .dashboard-header .btn i {
+            font-size: 1.2rem;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(75px, 1fr)); /* Even smaller minimum width */
+            gap: 0.2rem; /* Further reduced gap */
+            margin-bottom: 0.3rem; /* Further reduced margin */
+            margin-top: 0.1rem; /* Minimal top margin */
+        }
+
+        .stat-card {
+            background: white;
+            padding: 0.2rem; /* Further reduced padding */
+            border-radius: 3px; /* Smaller radius */
+            text-align: center;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.06); /* Lighter shadow */
+            transition: all 0.2s ease;
+            min-height: 35px; /* Further reduced height */
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+        }
+
+        .stat-card .icon {
+            display: none; /* Hide icons to match recruitboard */
+        }
+
+        .stat-card .number {
+            font-size: 0.75rem; /* Further reduced font size */
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 0.05rem; /* Further reduced margin */
+            line-height: 1;
+        }
+
+        .stat-card .label {
+            font-size: 0.55rem; /* Further reduced font */
+            color: #6c757d;
+            font-weight: 500;
+            line-height: 1; /* Even tighter line height */
+        }
+
+        .stat-card.total { color: var(--primary-color); }
+        .stat-card.pending { color: var(--warning-color); }
+        .stat-card.in-progress { color: var(--secondary-color); }
+        .stat-card.completed { color: var(--success-color); }
+        .stat-card.overdue { color: var(--danger-color); }
+
+        /* Action Board */
+        .action-board {
+            background: white;
+            border-radius: var(--border-radius);
+            box-shadow: var(--box-shadow);
+            overflow: hidden;
+        }
+
+        .board-header {
+            background: var(--primary-color);
+            color: white;
+            padding: 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .board-title {
+            font-size: 1.3rem;
+            font-weight: 600;
+        }
+
+        .board-controls {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        .btn {
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: var(--transition);
+            font-weight: 500;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn-primary {
+            background: var(--secondary-color);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #2980b9;
+        }
+
+        .btn-success {
+            background: var(--success-color);
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #229954;
+        }
+
+        /* Filters */
+        .filters {
+            padding: 1.5rem;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.3rem;
+        }
+
+        .filter-label {
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: #666;
+        }
+
+        .filter-input {
+            padding: 0.5rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 0.85rem; /* Match filter label (field head) size */
+        }
+
+        /* Action Items */
+        .actions-container {
+            max-height: 600px;
+            overflow-y: auto;
+        }
+
+        .actions-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+        }
+
+        .actions-table th {
+            background: #f8f9fa;
+            padding: 0.75rem 0.5rem;
+            text-align: left;
+            font-weight: 600;
+            font-size: 0.85rem;
+            border-bottom: 2px solid #dee2e6;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        .actions-table th:last-child {
+            border-right: none;
+        }
+
+        .actions-table td {
+            padding: 0.75rem 0.5rem;
+            border-bottom: 1px solid #dee2e6;
+            font-size: 0.85rem;
+            vertical-align: top;
+        }
+
+        .actions-table tbody tr {
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+
+        .actions-table tbody tr:hover {
+            background-color: #f8f9fa;
+        }
+
+        .action-details-content {
+            padding: 1.5rem;
+            background: white;
+            border-radius: 8px;
+            margin: 0.5rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .action-details-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .action-details-section {
+            background: #f8f9fa;
+            padding: 1rem;
+            border-radius: 6px;
+        }
+
+        .action-details-section h4 {
+            margin: 0 0 0.75rem 0;
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--primary-color);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        /* Action Details Modal - Smaller Text Sizes */
+        #actionDetailsModal .modal-content {
+            font-size: 0.85rem;
+        }
+
+        #actionDetailsModal .modal-body {
+            padding: 1rem !important;
+        }
+
+        #actionDetailsModal .modal-header {
+            padding: 0.75rem 1rem !important;
+        }
+
+        #actionDetailsModal .modal-footer {
+            padding: 0.75rem 1rem !important;
+        }
+
+        #actionDetailsModal .action-details-section {
+            padding: 0.75rem !important;
+            margin-bottom: 0.75rem !important;
+        }
+
+        #actionDetailsModal .action-details-grid {
+            margin-bottom: 1rem !important;
+        }
+
+        #actionDetailsModal h3 {
+            font-size: 1.1rem !important;
+            margin-bottom: 0.75rem !important;
+        }
+
+        #actionDetailsModal h4 {
+            font-size: 0.8rem !important;
+            margin-bottom: 0.5rem !important;
+        }
+
+        #actionDetailsModal p {
+            font-size: 0.8rem !important;
+            margin-bottom: 1rem !important;
+        }
+
+        #actionDetailsModal span,
+        #actionDetailsModal strong {
+            font-size: 0.75rem !important;
+        }
+
+        #actionDetailsModal .status-badge {
+            font-size: 0.7rem !important;
+            padding: 0.2rem 0.4rem !important;
+        }
+
+        #actionDetailsModal .comment-item {
+            font-size: 0.75rem !important;
+            padding: 0.75rem 0 !important;
+        }
+
+        #actionDetailsModal .comment-item strong {
+            font-size: 0.75rem !important;
+        }
+
+        #actionDetailsModal .comment-item small {
+            font-size: 0.65rem !important;
+        }
+
+        #actionDetailsModal .attachment-chip {
+            font-size: 0.7rem !important;
+        }
+
+        #actionDetailsModal .btn-small {
+            font-size: 0.7rem !important;
+            padding: 0.3rem 0.6rem !important;
+        }
+
+        /* Action Details Modal Footer - Match Staff Modal Design */
+        #actionDetailsModal .modal-footer .btn {
+            background-color: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+            padding: 0.4rem !important;
+            border-radius: 6px !important;
+            width: 2.25rem !important;
+            height: 2.25rem !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            transition: all 0.2s ease !important;
+            cursor: pointer !important;
+        }
+
+        #actionDetailsModal .modal-footer .btn i {
+            font-size: 0.875rem !important;
+        }
+
+        #actionDetailsModal .modal-footer .btn-secondary {
+            color: #6b7280 !important;
+        }
+
+        #actionDetailsModal .modal-footer .btn-secondary:hover {
+            background-color: #f9fafb !important;
+            color: #374151 !important;
+            transform: translateY(-1px) !important;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15) !important;
+        }
+
+        #actionDetailsModal .modal-footer .btn-primary {
+            color: #3b82f6 !important;
+        }
+
+        #actionDetailsModal .modal-footer .btn-primary:hover {
+            background-color: #dbeafe !important;
+            color: #2563eb !important;
+            transform: translateY(-1px) !important;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15) !important;
+        }
+
+        #actionDetailsModal .modal-footer .btn-danger {
+            color: #ef4444 !important;
+        }
+
+        #actionDetailsModal .modal-footer .btn-danger:hover {
+            background-color: #fee2e2 !important;
+            color: #dc2626 !important;
+            transform: translateY(-1px) !important;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15) !important;
+        }
+
+        /* Custom colors for comment, duplicate, and history buttons */
+        #actionDetailsModal .modal-footer #commentActionFromDetails {
+            color: #17a2b8 !important;
+        }
+
+        #actionDetailsModal .modal-footer #commentActionFromDetails:hover {
+            background-color: #d1ecf1 !important;
+            color: #138496 !important;
+            transform: translateY(-1px) !important;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15) !important;
+        }
+
+        #actionDetailsModal .modal-footer #duplicateActionFromDetails {
+            color: #6c757d !important;
+        }
+
+        #actionDetailsModal .modal-footer #duplicateActionFromDetails:hover {
+            background-color: #e2e6ea !important;
+            color: #5a6268 !important;
+            transform: translateY(-1px) !important;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15) !important;
+        }
+
+        #actionDetailsModal .modal-footer #historyActionFromDetails {
+            color: #6f42c1 !important;
+        }
+
+        #actionDetailsModal .modal-footer #historyActionFromDetails:hover {
+            background-color: #e2d9f3 !important;
+            color: #5a32a3 !important;
+            transform: translateY(-1px) !important;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15) !important;
+        }
+
+        /* Reduce gaps and margins */
+        #actionDetailsModal div[style*="gap: 0.75rem"] {
+            gap: 0.5rem !important;
+        }
+
+        #actionDetailsModal div[style*="margin-top: 0.75rem"] {
+            margin-top: 0.5rem !important;
+        }
+
+        #actionDetailsModal div[style*="margin-bottom: 1rem"] {
+            margin-bottom: 0.75rem !important;
+        }
+
+        .action-details-meta {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .action-item {
+            border-bottom: 1px solid #eee;
+            padding: 0.8rem; /* Reduced from 1.5rem */
+            transition: var(--transition);
+        }
+
+        .action-item:hover {
+            background-color: #f8f9fa;
+        }
+
+        .action-header {
+            display: flex;
+            justify-content: between;
+            align-items: flex-start;
+            margin-bottom: 0.6rem; /* Reduced from 1rem */
+        }
+
+        .action-title {
+            font-size: 0.9rem; /* Reduced from 1.1rem to match recruitboard */
+            font-weight: 600;
+            margin-bottom: 0.3rem; /* Reduced from 0.5rem */
+            color: var(--primary-color);
+        }
+
+        .action-description {
+            color: #666;
+            margin-bottom: 0.6rem; /* Reduced from 1rem */
+            line-height: 1.4; /* Reduced from 1.5 */
+            font-size: 0.8rem; /* Added smaller font size */
+        }
+
+        .action-meta {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); /* Reduced from 150px */
+            gap: 0.6rem; /* Reduced from 1rem */
+            margin-bottom: 0.6rem; /* Reduced from 1rem */
+        }
+
+        .meta-item {
+            display: flex;
+            align-items: center;
+            gap: 0.3rem; /* Reduced from 0.5rem */
+            font-size: 0.75rem; /* Reduced from 0.9rem to match recruitboard */
+        }
+
+        .meta-item i {
+            width: 16px;
+            text-align: center;
+            color: #666;
+        }
+
+        .status-badge {
+            padding: 0.2rem 0.6rem; /* Reduced from 0.3rem 0.8rem */
+            border-radius: 12px; /* Reduced from 15px */
+            font-size: 0.7rem; /* Reduced from 0.8rem */
+            font-weight: 500;
+            text-transform: uppercase;
+        }
+
+        .status-pending {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .status-in-progress {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+
+        .status-completed {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-overdue {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .priority-high {
+            color: var(--danger-color);
+            font-weight: bold;
+        }
+
+        .priority-medium {
+            color: var(--warning-color);
+            font-weight: bold;
+        }
+
+        .priority-low {
+            color: var(--success-color);
+            font-weight: bold;
+        }
+
+        .action-actions {
+            display: flex;
+            gap: 0.3rem; /* Reduced from 0.5rem */
+            margin-top: 0.6rem; /* Reduced from 1rem */
+        }
+
+        .btn-small {
+            padding: 0.25rem 0.5rem; /* Reduced from 0.3rem 0.6rem */
+            font-size: 0.7rem; /* Reduced from 0.8rem */
+        }
+
+        /* Modal Styles - align with Position Details modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(5px);
+            z-index: 2000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease-in-out;
+        }
+
+        .modal.show {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .modal-content {
+            background: linear-gradient(to bottom right, #ffffff, #f8f9fa);
+            border-radius: 16px;
+            width: 95%;
+            max-width: 900px;
+            max-height: 80vh;
+            overflow: hidden;
+            position: relative;
+            transform: scale(0.7);
+            opacity: 0;
+            transition: all 0.3s ease-in-out;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .modal.show .modal-content {
+            transform: scale(1);
+            opacity: 1;
+        }
+
+        .modal-header {
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(255, 255, 255, 0.95);
+            position: sticky;
+            top: 0;
+            z-index: 2;
+            box-shadow: 0 2px 15px rgba(0, 0, 0, 0.03);
+        }
+
+        .modal-header h5 {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #1a1a1a;
+            margin: 0;
+            position: relative;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .modal-header h5::after {
+            content: '';
+            position: absolute;
+            bottom: -8px;
+            left: 0;
+            width: 40px;
+            height: 3px;
+            background: #3b82f6;
+            border-radius: 2px;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            color: #666;
+            cursor: pointer;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }
+
+        .close-btn:hover {
+            background-color: #f0f0f0;
+            color: #333;
+            transform: rotate(90deg);
+        }
+
+        .modal-body {
+            padding: 1rem;
+            overflow-y: auto;
+            max-height: calc(75vh - 100px);
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+            position: relative;
+        }
+
+        .modal-body::-webkit-scrollbar { display: none; }
+
+        .modal-footer {
+            padding: 0.75rem 1rem;
+            border-top: 1px solid rgba(0, 0, 0, 0.08);
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+            background: rgba(255, 255, 255, 0.95);
+            position: sticky;
+            bottom: 0;
+            z-index: 2;
+            box-shadow: 0 -2px 15px rgba(0, 0, 0, 0.03);
+        }
+
+        .modal-footer .btn-secondary { background-color: #6b7280; color: #fff; }
+        .modal-footer .btn-secondary:hover { background-color: #4b5563; transform: translateY(-1px); }
+        .modal-footer .btn-primary { background-color: #3b82f6; color: #fff; }
+        .modal-footer .btn-primary:hover { background-color: #2563eb; transform: translateY(-1px); }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: var(--text-color);
+        }
+
+        .form-input, .form-select, .form-textarea {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-input:focus, .form-select:focus, .form-textarea:focus {
+            outline: none;
+            border-color: var(--secondary-color);
+        }
+
+        .form-textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+
+        /* Two-column row for related fields */
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        .form-row .form-group { margin-bottom: 0; }
+        @media (max-width: 768px) { .form-row { grid-template-columns: 1fr; } }
+
+        /* Progress Bar */
+        .progress-container {
+            margin: 1rem 0;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #eee;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: var(--success-color);
+            transition: width 0.3s ease;
+        }
+
+        .progress-text {
+            font-size: 0.8rem;
+            color: #666;
+            margin-top: 0.3rem;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .sidebar {
+                transform: translateX(-100%);
+                transition: transform 0.3s ease;
+            }
+
+            .sidebar.mobile-open {
+                transform: translateX(0);
+            }
+
+            .main-content {
+                margin-left: 0;
+            }
+
+            .stats-grid {
+                gap: 0.1rem;
+                margin-bottom: 0.2rem;
+            }
+
+            .stat-card {
+                min-height: 30px;
+                padding: 0.15rem;
+            }
+
+            .stat-card .number {
+                font-size: 0.7rem;
+            }
+
+            .stat-card .label {
+                font-size: 0.5rem;
+            }
+
+            /* Mobile responsive adjustments for header branding */
+            .top-nav {
+                padding: 0.75rem 1rem;
+                border-radius: 0;
+            }
+            
+            .top-nav-left {
+                gap: 0.5rem;
+            }
+            
+            .company-name-header {
+                font-size: 1rem;
+            }
+            
+            .header-company-logo, .header-logo-placeholder {
+                width: 32px;
+                height: 32px;
+            }
+
+            .action-meta {
+                grid-template-columns: 1fr;
+            }
+
+            .filters {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .board-controls {
+                flex-direction: column;
+                gap: 0.5rem;
+            }
+
+            /* Table responsive adjustments */
+            .actions-table {
+                font-size: 0.75rem;
+            }
+
+            .actions-table th,
+            .actions-table td {
+                padding: 0.5rem 0.25rem;
+            }
+
+            .actions-table th:nth-child(n+4):nth-child(-n+6) {
+                display: none; /* Hide Assignee, Priority, Status on mobile */
+            }
+
+            .actions-table td:nth-child(n+4):nth-child(-n+6) {
+                display: none;
+            }
+
+            .action-details-grid {
+                grid-template-columns: 1fr;
+                gap: 1rem;
+            }
+
+            .action-details-content {
+                margin: 0.25rem;
+                padding: 1rem;
+            }
+        }
+
+        /* Loading Styles */
+        .loading {
+            text-align: center;
+            padding: 3rem;
+            color: #666;
+        }
+
+        .loading i {
+            font-size: 2rem;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: #666;
+        }
+
+        .empty-state i {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            color: #ddd;
+        }
+
+        /* Department Colors */
+        .dept-hr { border-left: 4px solid #3498db; }
+        .dept-safety { border-left: 4px solid #e74c3c; }
+        .dept-logistics { border-left: 4px solid #f39c12; }
+        .dept-finance { border-left: 4px solid #27ae60; }
+        .dept-operations { border-left: 4px solid #9b59b6; }
+        .dept-maintenance { border-left: 4px solid #34495e; }
+
+        /* Feature-Role Menu Visibility System */
+        .sidebar.menu-loading li[data-feature] {
+            opacity: 0.3;
+            pointer-events: none;
+        }
+
+        li[data-feature]:not(.menu-visible) {
+            display: none !important;
+        }
+
+        li[data-feature].menu-visible {
+            display: block !important;
+        }
+
+        .menu-dropdown:not(.menu-visible) {
+            display: none !important;
+        }
+
+        .menu-dropdown.menu-visible {
+            display: block !important;
+        }
+
+        /* Loading state for menu */
+        .sidebar.menu-loading {
+            position: relative;
+        }
+
+        .sidebar.menu-loading::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.1);
+            z-index: 1;
+        }
+
+        /* Compact Table Text (aligns with recruitboard.html) */
+        .content table {
+            font-size: 0.85rem; /* Smaller base */
+        }
+
+        .content table th,
+        .content table td {
+            font-size: 0.85rem; /* Ensure cells inherit compact size */
+            padding: 0.35rem 0.5rem; /* Tighter spacing */
+            line-height: 1.2;
+        }
+
+        .content table .action-title {
+            font-size: 0.9rem; /* Compact heading inside table cells */
+        }
+
+        .content table .meta-item {
+            font-size: 0.75rem; /* Meta text smaller */
+        }
+
+        .content table .status-badge {
+            font-size: 0.7rem;
+            padding: 0.15rem 0.5rem;
+            border-radius: 10px;
+        }
+
+        .content table .btn,
+        .content table .btn-small,
+        .content table .btn-icon {
+            font-size: 0.75rem;
+            padding: 0.25rem 0.4rem; /* Compact buttons in tables */
+        }
+
+        /* Attachment chips */
+        .attachment-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 8px;
+            background: #f1f5f9;
+            color: #0f172a;
+            border-radius: 6px;
+            text-decoration: none;
+            font-size: 0.75rem;
+            border: 1px solid #e2e8f0;
+            transition: background-color 0.2s ease, transform 0.1s ease;
+            max-width: 220px;
+        }
+        .attachment-chip:hover { background: #e2e8f0; transform: translateY(-1px); }
+        .attachment-chip .attachment-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 150px; }
+        .attachment-chip .attachment-meta { color: #64748b; font-size: 0.7rem; }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Left Sidebar -->
+        <nav class="sidebar menu-loading">
+            <div class="logo">
+                <h2>Dreamex Datalab</h2>
+            </div>
+            <ul class="menu" id="roleBasedMenu">
+                <li class="menu-item" data-feature="home_view" data-requires-permission="home_view">
+                    <a href="index.html"><i class="fas fa-home"></i> Home</a>
+                </li>
+                <li class="menu-dropdown" data-feature="health_view" data-requires-permission="health_view">
+                    <a href="#"><i class="fas fa-medkit"></i> Health</a>
+                    <ul class="submenu">
+                        <li data-feature="health_assessment_view" data-requires-permission="health_assessment_view">
+                            <a href="health-assessment.html">Assessment</a>
+                        </li>
+                        <li data-feature="health_consultation_view" data-requires-permission="health_consultation_view">
+                            <a href="health-consultation.html">Consultation</a>
+                        </li>
+                        <li data-feature="medical_folder_view" data-requires-permission="medical_folder_view">
+                            <a href="medical-folder.html">Medical Folder</a>
+                        </li>
+                    </ul>
+                </li>
+                <li class="menu-dropdown" data-feature="safety_view" data-requires-permission="safety_view">
+                    <a href="#"><i class="fas fa-shield-alt"></i> Safety</a>
+                    <ul class="submenu">
+                        <li data-feature="training_view" data-requires-permission="training_view"><a href="trainingboard.html">Training</a></li>
+                        <li data-feature="risk_view" data-requires-permission="risk_view"><a href="riskboard.html">Risk Management</a></li>
+                        <li data-feature="jsa_view" data-requires-permission="jsa_view"><a href="jsaboard.html">Job Safety Analysis</a></li>
+                        <li data-feature="ptw_view" data-requires-permission="ptw_view"><a href="ptwboard.html">Permit to Work</a></li>
+                        <li data-feature="incident_view" data-requires-permission="incident_view"><a href="incidentboard.html">Incident Reports</a></li>
+                        <li data-feature="inspection_view" data-requires-permission="inspection_view"><a href="inspectionboard.html">Inspection</a></li>
+                        <li data-feature="audit_view" data-requires-permission="audit_view"><a href="auditboard.html">Audit</a></li>
+                    </ul>
+                </li>
+                <li class="menu-dropdown" data-feature="fuel_management">
+                    <a href="#"><i class="fas fa-gas-pump"></i> Fuel Management</a>
+                    <ul class="submenu">
+                        <li data-feature="vessel_offloading"><a href="vessel-offloading.html">Vessel Offloading</a></li>
+                        <li data-feature="fuel_storage"><a href="fuel-storage-status.html">Fuel Storage Status</a></li>
+                        <li data-feature="tank_transfer"><a href="tank-transfer.html">Tank-to-Tank Transfer</a></li>
+                        <li data-feature="truck_loading"><a href="fuel-truck-loading.html">Fuel Truck Loading</a></li>
+                        <li data-feature="quality_analysis"><a href="fuel-quality-analysis.html">Fuel Quality Analysis</a></li>
+                        <li data-feature="fuel_distribution"><a href="fueldistrib.html">Fuel Distribution</a></li>
+                        <li data-feature="fuel_consumption_analysis"><a href="fuelanalys.html">Consumption Analysis</a></li>
+                    </ul>
+                </li>
+                <li class="menu-dropdown" data-feature="environment_view">
+                    <a href="#"><i class="fas fa-leaf"></i> Environment</a>
+                    <ul class="submenu">
+                        <li data-feature="water_view"><a href="waterboard.html">Water Quality</a></li>
+                    </ul>
+                </li>
+                <li class="menu-dropdown" data-feature="security_view">
+                    <a href="#"><i class="fas fa-lock"></i> Security</a>
+                    <ul class="submenu">
+                        <li data-feature="access_view"><a href="accessboard.html">Access Request</a></li>
+                        <li data-feature="access_daily_view"><a href="accessdaily.html">Daily Access Control</a></li>
+                        <li data-feature="removal_view"><a href="removalboard.html">Property Removal</a></li>
+                    </ul>
+                </li>
+                <li class="menu-dropdown" data-feature="logistics_view" data-requires-permission="logistics_view">
+                    <a href="#"><i class="fas fa-truck"></i> Logistics</a>
+                    <ul class="submenu">
+                        <li data-feature="fleet_view" data-requires-permission="fleet_view"><a href="fleet.html">Fleet Management</a></li>
+                    </ul>
+                </li>
+                <li class="menu-dropdown" data-feature="accommodation_view" data-requires-permission="accommodation_view">
+                    <a href="#"><i class="fas fa-bed"></i> Accommodation</a>
+                    <ul class="submenu">
+                        <li data-feature="camp_view" data-requires-permission="camp_view"><a href="camp.html">Camp Management</a></li>
+                        <li data-feature="camp_settings_view" data-requires-permission="camp_settings_view"><a href="campset.html">Camp Settings</a></li>
+                    </ul>
+                </li>
+                <li class="menu-dropdown" data-feature="hr_view" data-requires-permission="hr_view">
+                    <a href="#"><i class="fas fa-users"></i> HR</a>
+                    <ul class="submenu">
+                        <li data-feature="human_hr_view" data-requires-permission="human_hr_view"><a href="human-hr.html"><i class="fas fa-user-tie"></i> Human HR</a></li>
+                        <li data-feature="staff_management_view" data-requires-permission="staff_management_view"><a href="staff.html">Staffing</a></li>
+                        <li data-feature="authority_to_recruit_view" data-requires-permission="authority_to_recruit_view"><a href="recruit.html">Authority to Recruit</a></li>
+                        <li data-feature="job_advertising_view" data-requires-permission="job_advertising_view"><a href="jobpost.html">Job Advertising</a></li>
+                        <li data-feature="screening_view" data-requires-permission="screening_view"><a href="jobscreen.html">Screening</a></li>
+                        <li data-feature="interview_view" data-requires-permission="interview_view"><a href="interview.html">Interview</a></li>
+                        <li data-feature="offer_view" data-requires-permission="offer_view"><a href="offer.html">Offer Management</a></li>
+                        <li data-feature="contract_view" data-requires-permission="contract_view"><a href="contract.html">Contract Management</a></li>
+                        <li data-feature="onboarding_view" data-requires-permission="onboarding_view"><a href="onboard.html">Onboarding</a></li>
+                        <li data-feature="chart_view" data-requires-permission="chart_view"><a href="chart.html">Chart Setup</a></li>
+                        <li data-feature="chartboard_view" data-requires-permission="chartboard_view"><a href="chartboard.html">Org Chart</a></li>
+                        <li data-feature="kpi_dashboard_view" data-requires-permission="kpi_dashboard_view"><a href="kpi.html">KPI</a></li>
+                    </ul>
+                </li>
+                <li class="menu-dropdown" data-feature="project_view" data-requires-permission="project_view">
+                    <a href="#"><i class="fas fa-project-diagram"></i> Project</a>
+                    <ul class="submenu">
+                        <li data-feature="task_management_view" data-requires-permission="task_management_view"><a href="actionplan.html" style="background: rgba(255,255,255,0.1);"><i class="fas fa-tasks"></i> Tasks</a></li>
+                    </ul>
+                </li>
+                <li data-feature="communication_view"><a href="info.html"><i class="fas fa-comments"></i> Communication</a></li>
+                <li class="menu-dropdown" data-feature="settings_view">
+                    <a href="#"><i class="fas fa-cog"></i> Settings</a>
+                    <ul class="submenu">
+                        <li data-feature="account_settings_view"><a href="account.html">Account Settings</a></li>
+                        <li data-feature="company_management_view"><a href="companymanagement.html">Company Management</a></li>
+                        <li data-feature="approval_settings_view"><a href="approval-settings.html">Approval Flow Settings</a></li>
+                        <li data-feature="field_setup_view"><a href="fieldsetup.html">Field Setup</a></li>
+                        <li data-feature="preferences_view"><a href="preferences.html">Preferences</a></li>
+                        <li data-feature="notification_settings_view"><a href="notification-settings.html">Notification Settings</a></li>
+                        <li data-feature="audit_log_view"><a href="auditlog.html"><i class="fas fa-history"></i> Audit Log</a></li>
+                        <li data-feature="user_management_view"><a href="users.html">User & Role Management</a></li>
+                        <li data-feature="role_permissions_view"><a href="roles.html">Role Permissions</a></li>
+                    </ul>
+                </li>
+            </ul>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Top Navigation -->
+            <header class="top-nav">
+                <div class="top-nav-left">
+                    <button id="sidebarToggle" class="sidebar-toggle-btn">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <img id="headerCompanyLogo" class="header-company-logo" alt="Company Logo">
+                    <span id="headerCompanyName" class="company-name-header"></span>
+                </div>
+                <div class="top-nav-right">
+                    <div class="notifications">
+                        <button id="notificationBtn" class="notification-btn">
+                            <i class="fas fa-bell"></i>
+                            <span class="notification-badge">0</span>
+                        </button>
+                        <div class="notification-dropdown">
+                            <div class="notification-header">
+                                <h3><i class="fas fa-bell" style="margin-right: 6px; color: #3498db;"></i>Notifications</h3>
+                                <div>
+                                    <button class="mark-all-read">Mark all as read</button>
+                                    <button class="clear-all-notifications">Clear all</button>
+                                </div>
+                            </div>
+                            <div class="notification-list" id="notificationList">
+                                <!-- Empty state -->
+                                <div class="notification-empty" id="notificationEmpty">
+                                    <i class="fas fa-bell-slash"></i>
+                                    <div class="notification-empty-title">No notifications</div>
+                                    <div class="notification-empty-message">You're all caught up!</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="user-profile">
+                        <button id="userProfileBtn" class="profile-btn">
+                            <img src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA0MCA0MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMjAiIGN5PSIyMCIgcj0iMjAiIGZpbGw9IiMzNDk4ZGIiLz4KPHR4dCB4PSIyMCIgeT0iMjUiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZpbGw9IndoaXRlIiBmb250LXNpemU9IjE0IiBmb250LXdlaWdodD0iNjAwIiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiPlU8L3R4dD4KPHN2Zz4K" alt="User Avatar">
+                        </button>
+                        <div class="profile-dropdown">
+                            <ul>
+                                <li><a href="profile.html"><i class="fas fa-id-card"></i> Profile</a></li>
+                                <li><a href="#" id="logoutBtn"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Content -->
+            <div class="content">
+                <!-- Dashboard Header -->
+                <div class="dashboard-header">
+                    <div>
+                        <h2>
+                            <i class="fas fa-tasks"></i>
+                            Action Plan Dashboard
+                        </h2>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        <button class="btn btn-success" onclick="exportActions()">
+                            <i class="fas fa-download"></i>
+                        </button>
+                        <button class="btn btn-primary" onclick="openActionModal()">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Statistics Grid -->
+                <div class="stats-grid">
+                    <div class="stat-card total">
+                        <div class="icon"><i class="fas fa-clipboard-list"></i></div>
+                        <div class="number" id="totalActions">0</div>
+                        <div class="label">Total Actions</div>
+                    </div>
+                    <div class="stat-card pending">
+                        <div class="icon"><i class="fas fa-clock"></i></div>
+                        <div class="number" id="pendingActions">0</div>
+                        <div class="label">Pending</div>
+                    </div>
+                    <div class="stat-card in-progress">
+                        <div class="icon"><i class="fas fa-spinner"></i></div>
+                        <div class="number" id="inProgressActions">0</div>
+                        <div class="label">In Progress</div>
+                    </div>
+                    <div class="stat-card completed">
+                        <div class="icon"><i class="fas fa-check-circle"></i></div>
+                        <div class="number" id="completedActions">0</div>
+                        <div class="label">Completed</div>
+                    </div>
+                    <div class="stat-card overdue">
+                        <div class="icon"><i class="fas fa-exclamation-triangle"></i></div>
+                        <div class="number" id="overdueActions">0</div>
+                        <div class="label">Overdue</div>
+                    </div>
+                </div>
+
+                <!-- Action Board -->
+                <div class="action-board">
+                    <!-- Filters -->
+                    <div class="filters">
+                        <div class="filter-group">
+                            <input type="text" class="filter-input" id="searchInput" placeholder="Search actions..." onkeyup="filterActions()">
+                        </div>
+                        <div class="filter-group">
+                            <select class="filter-input" id="departmentFilter" onchange="filterActions()">
+                                <option value="">All Departments</option>
+                                <option value="HR">Human Resources</option>
+                                <option value="Safety">Safety</option>
+                                <option value="Logistics">Logistics</option>
+                                <option value="Finance">Finance</option>
+                                <option value="Operations">Operations</option>
+                                <option value="Maintenance">Maintenance</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <select class="filter-input" id="statusFilter" onchange="filterActions()">
+                                <option value="">All Status</option>
+                                <option value="Pending">Pending</option>
+                                <option value="In Progress">In Progress</option>
+                                <option value="Completed">Completed</option>
+                                <option value="Overdue">Overdue</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <select class="filter-input" id="priorityFilter" onchange="filterActions()">
+                                <option value="">All Priorities</option>
+                                <option value="High">High</option>
+                                <option value="Medium">Medium</option>
+                                <option value="Low">Low</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <select class="filter-input" id="assigneeFilter" onchange="filterActions()">
+                                <option value="">All Assignees</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Actions Container -->
+                    <div class="actions-container" id="actionsContainer">
+                        <table class="actions-table" id="actionsTable" style="display: none;">
+                            <thead>
+                                <tr>
+                                    <th style="width: 40px;">
+                                        <input type="checkbox" id="selectAllActions" onchange="toggleAllActions(this)">
+                                    </th>
+                                    <th>Title</th>
+                                    <th>Department</th>
+                                    <th>Assignee</th>
+                                    <th>Priority</th>
+                                    <th>Status</th>
+                                    <th>Due Date</th>
+                                    <th>Progress</th>
+                                    <th style="width: 100px;">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="actionsTableBody">
+                            </tbody>
+                        </table>
+                        <div class="loading" id="actionsLoading">
+                            <i class="fas fa-spinner"></i>
+                            <p>Loading actions...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Action Modal -->
+    <div id="actionModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5><i class="fas fa-tasks"></i> <span id="modalTitle">New Action</span></h5>
+                <button class="close-btn" onclick="closeActionModal()" aria-label="Close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="actionForm">
+                    <div class="form-group">
+                        <label class="form-label">Title *</label>
+                        <input type="text" class="form-input" id="actionTitle" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Description</label>
+                        <textarea class="form-textarea" id="actionDescription" placeholder="Describe the action in detail..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Attachments</label>
+                        <input type="file" id="actionAttachments" class="form-input" multiple>
+                        <small class="text-muted">You can attach multiple files. Max size depends on your plan.</small>
+                        
+                        <!-- Existing attachments container -->
+                        <div id="existingAttachments" style="margin-top: 10px; display: none;">
+                            <small class="text-muted" style="display: block; margin-bottom: 8px;">
+                                <strong>Current attachments:</strong>
+                            </small>
+                            <div id="existingAttachmentsContainer" style="display: flex; gap: 8px; flex-wrap: wrap;">
+                                <!-- Existing attachments will be displayed here -->
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Department *</label>
+                            <select class="form-select" id="actionDepartment" required>
+                                <option value="">Select Department</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Assignee *</label>
+                            <input type="text" class="form-input" id="actionAssignee" placeholder="Type assignee name" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Priority *</label>
+                            <select class="form-select" id="actionPriority" required>
+                                <option value="">Select Priority</option>
+                                <option value="High">High</option>
+                                <option value="Medium">Medium</option>
+                                <option value="Low">Low</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Due Date *</label>
+                            <input type="date" class="form-input" id="actionDueDate" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Status</label>
+                            <select class="form-select" id="actionStatus">
+                                <option value="Pending">Pending</option>
+                                <option value="In Progress">In Progress</option>
+                                <option value="Completed">Completed</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Progress (%)</label>
+                            <input type="number" class="form-input" id="actionProgress" min="0" max="100" value="0">
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeActionModal()">
+                    <i class="fas fa-times"></i> Cancel
+                </button>
+                <button type="submit" form="actionForm" class="btn btn-primary">
+                    <i class="fas fa-save"></i> Save Action
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Action Details Modal -->
+    <div id="actionDetailsModal" class="modal">
+        <div class="modal-content" style="max-width: 1000px;">
+            <div class="modal-header">
+                <h5><i class="fas fa-eye"></i> Action Details</h5>
+                <button class="close-btn" onclick="closeActionDetailsModal()" aria-label="Close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="actionDetailsContent">
+                    <!-- Dynamic content will be loaded here -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeActionDetailsModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+                <button type="button" class="btn" id="commentActionFromDetails">
+                    <i class="fas fa-comment"></i>
+                </button>
+                <button type="button" class="btn" id="duplicateActionFromDetails">
+                    <i class="fas fa-copy"></i>
+                </button>
+                <button type="button" class="btn" id="historyActionFromDetails">
+                    <i class="fas fa-history"></i>
+                </button>
+                <button type="button" class="btn btn-danger" id="deleteActionFromDetails">
+                    <i class="fas fa-trash"></i>
+                </button>
+                <button type="button" class="btn btn-primary" id="editActionFromDetails">
+                    <i class="fas fa-edit"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Firebase Configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyCUTmTn0rRBb0M-UkQJxnUMrWqXYU_BgIc",
+            authDomain: "users-8be65.firebaseapp.com",
+            databaseURL: "https://users-8be65-default-rtdb.firebaseio.com",
+            projectId: "users-8be65",
+            storageBucket: "users-8be65.firebasestorage.app",
+            messagingSenderId: "909025468149",
+            appId: "1:909025468149:web:fb4e7c4a8b4bd6d1076e4d",
+            measurementId: "G-XHFMRCJQEZ"
+        };
+
+        // Initialize Firebase v8 if not already initialized
+        function initializeFirebase() {
+            if (!window.firebase || !window.firebase.apps || window.firebase.apps.length === 0) {
+                window.firebase.initializeApp(firebaseConfig);
+                console.log('✅ Firebase v8 initialized successfully');
+            }
+            return window.firebase;
+        }
+
+        // Initialize Firebase
+        initializeFirebase();
+        const database = firebase.database();
+        const auth = firebase.auth();
+
+        // Global Variables
+        let currentUser = null;
+        let actions = [];
+        let filteredActions = [];
+        let editingActionId = null;
+
+        // Authentication State Observer
+        auth.onAuthStateChanged(async (user) => {
+            if (user) {
+                currentUser = user;
+                await updateUserProfile(user);
+                await loadUserCompany(); // Load company data and update branding
+                await loadCompanyDepartments();
+                loadActions();
+                loadStaffList();
+                
+                // Apply feature-based menu authorization
+                await updateMenuWithFeatureAuthorization();
+            } else {
+                // User not authenticated
+                console.log('User not authenticated');
+                // Show basic menu if not authenticated (for demo purposes)
+                showBasicMenu();
+                // Clear company branding
+                showFallbackBranding();
+            }
+        });
+
+        // Update user profile in header
+        async function updateUserProfile(user) {
+            const profileBtn = document.querySelector('.profile-btn');
+            const profileDropdown = document.querySelector('.profile-dropdown ul');
+            
+            if (profileBtn && profileDropdown) {
+                // Get user display information
+                const initials = getUserInitials(user);
+                const displayName = getUserDisplayName(user);
+                const email = getUserEmail(user);
+                
+                // Try to load avatar URL
+                const avatarUrl = await getUserAvatarUrl(user);
+                
+                // Update profile image
+                const profileImg = profileBtn.querySelector('img');
+                if (profileImg) {
+                    if (avatarUrl) {
+                        profileImg.src = avatarUrl;
+                        profileImg.alt = displayName + ' Avatar';
+                    } else {
+                        // Generate initials avatar
+                        generateInitialsAvatar(displayName, profileImg);
+                    }
+                }
+                
+                // Create avatar for dropdown
+                let dropdownAvatarHtml;
+                if (avatarUrl) {
+                    dropdownAvatarHtml = `<img src="${avatarUrl}" alt="${displayName} Avatar" style="width: 24px; height: 24px; border-radius: 50%; object-fit: cover;">`;
+                } else {
+                    dropdownAvatarHtml = `<div style="width: 24px; height: 24px; border-radius: 50%; background: #3498db; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 10px;">${initials}</div>`;
+                }
+                
+                // Update profile dropdown with user info
+                const userInfoHtml = `
+                    <li style="border-bottom: 1px solid #eee; padding: 6px 10px; background: #f8f9fa;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            ${dropdownAvatarHtml}
+                            <div style="flex: 1; min-width: 0;">
+                                <div style="font-weight: 600; font-size: 12px; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${displayName}</div>
+                                <div style="font-size: 10px; color: #666; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${email}</div>
+                            </div>
+                        </div>
+                    </li>
+                    <li><a href="profile.html"><i class="fas fa-id-card"></i> Profile</a></li>
+                    <li><a href="#" id="logoutBtn"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+                `;
+                
+                profileDropdown.innerHTML = userInfoHtml;
+                
+                // Re-attach logout event listener
+                const newLogoutBtn = document.getElementById('logoutBtn');
+                if (newLogoutBtn) {
+                    newLogoutBtn.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        logout();
+                    });
+                }
+            }
+        }
+
+        // Helper functions for user profile
+        function getUserInitials(user) {
+            if (!user) return 'U';
+            const displayName = user.displayName || user.email || 'User';
+            return displayName.split(' ').map(word => word.charAt(0).toUpperCase()).slice(0, 2).join('');
+        }
+
+        function getUserDisplayName(user) {
+            if (!user) return 'User';
+            return user.displayName || user.email?.split('@')[0] || 'User';
+        }
+
+        function getUserEmail(user) {
+            return user?.email || '';
+        }
+
+        // Get user avatar URL or null if not available
+        async function getUserAvatarUrl(user) {
+            if (!user) return null;
+            
+            try {
+                const storage = firebase.storage();
+                const avatarPath = `avatars/${user.uid}/profile.jpg`;
+                const avatarRef = storage.ref(avatarPath);
+                
+                return await avatarRef.getDownloadURL();
+            } catch (error) {
+                return null;
+            }
+        }
+
+        // Generate initials avatar
+        function generateInitialsAvatar(displayName, imgElement) {
+            const initials = displayName.split(' ').map(word => word.charAt(0).toUpperCase()).slice(0, 2).join('');
+            
+            // Create SVG for initials
+            const svg = `
+                <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="20" cy="20" r="20" fill="#3498db"/>
+                    <text x="20" y="25" text-anchor="middle" fill="white" font-size="14" font-weight="600" font-family="Arial, sans-serif">${initials}</text>
+                </svg>
+            `;
+            
+            const svgBase64 = btoa(svg);
+            imgElement.src = `data:image/svg+xml;base64,${svgBase64}`;
+            imgElement.alt = `${displayName} Avatar`;
+        }
+
+        // Company Loading and Branding Functions
+        let currentCompany = null;
+
+        // Load user company and update branding
+        async function loadUserCompany() {
+            if (!currentUser) {
+                console.log('❌ No authenticated user found');
+                return;
+            }
+
+            try {
+                console.log('🔍 Searching for user company...');
+                const database = firebase.database();
+                const companiesRef = database.ref('companies');
+                const companiesSnapshot = await companiesRef.once('value');
+                
+                if (companiesSnapshot.exists()) {
+                    const companies = companiesSnapshot.val();
+                    
+                    for (const [cId, company] of Object.entries(companies)) {
+                        if (company.status !== 'active') continue;
+                        
+                        if (company.users && company.users[currentUser.uid]) {
+                            const compName = company.companyName || company.name || '';
+                            currentCompany = {
+                                id: cId,
+                                companyName: compName,
+                                logo: company.logo || company.logoUrl,
+                                branding: company.branding
+                            };
+                            // Keep parity with staff.html by setting the user's companyName too
+                            try {
+                                if (currentUser) {
+                                    currentUser.companyName = compName;
+                                }
+                            } catch (e) {
+                                // non-fatal
+                            }
+                            console.log(`✅ Found user in company: ${cId} (${compName})`);
+                            updateCompanyBranding();
+                            return;
+                        }
+                    }
+                }
+                
+                console.log('⚠️ No company found for user');
+                showFallbackBranding();
+            } catch (error) {
+                console.error('❌ Error loading user company:', error);
+                showFallbackBranding();
+            }
+        }
+
+        // Update company branding in the header
+        function updateCompanyBranding() {
+            if (!currentCompany) {
+                console.log('❌ No company data available');
+                return;
+            }
+
+            console.log('🎯 Updating company branding...');
+
+            // Update page title
+            const title = document.title;
+            if (title && currentCompany.companyName) {
+                document.title = title.replace('Dreamex Datalab HSE', `${currentCompany.companyName} HSE`);
+            }
+
+            // Update header branding elements
+            const headerLogo = document.getElementById('headerCompanyLogo');
+            const headerName = document.getElementById('headerCompanyName');
+
+            console.log('🎯 Header elements found:');
+            console.log('- headerLogo:', headerLogo ? '✅' : '❌');
+            console.log('- headerName:', headerName ? '✅' : '❌');
+
+            // Update company name first
+            if (headerName && currentCompany.companyName) {
+                headerName.textContent = currentCompany.companyName;
+                console.log('✅ Company name updated in header:', currentCompany.companyName);
+            }
+
+            // Check if company has a logo
+            const logoUrl = currentCompany.logo;
+            if (logoUrl && logoUrl.trim() !== '') {
+                console.log('🖼️ Company has logo URL:', logoUrl);
+                // Show the logo
+                if (headerLogo) {
+                    headerLogo.src = logoUrl;
+                    headerLogo.style.display = 'block';
+                    headerLogo.classList.add('visible');
+                    console.log('✅ Company logo displayed');
+                }
+            } else {
+                console.log('🏢 No logo URL available');
+                // Hide logo if no URL
+                if (headerLogo) {
+                    headerLogo.style.display = 'none';
+                    headerLogo.classList.remove('visible');
+                    console.log('✅ Company logo hidden (no URL)');
+                }
+            }
+
+            // Apply company branding colors if available
+            if (currentCompany.branding) {
+                const root = document.documentElement;
+                if (currentCompany.branding.primaryColor) {
+                    root.style.setProperty('--primary-color', currentCompany.branding.primaryColor);
+                }
+                if (currentCompany.branding.secondaryColor) {
+                    root.style.setProperty('--secondary-color', currentCompany.branding.secondaryColor);
+                }
+            }
+        }
+
+        // Show fallback branding
+        function showFallbackBranding() {
+            console.log('🏢 showFallbackBranding() called - clearing branding');
+            
+            // Reset all header branding elements
+            resetHeaderBranding();
+            
+            const headerCompanyName = document.getElementById('headerCompanyName');
+            
+            // Clear company name
+            if (headerCompanyName) {
+                headerCompanyName.textContent = '';
+                console.log('✅ Fallback company name cleared');
+            }
+        }
+
+        // Reset header branding
+        function resetHeaderBranding() {
+            console.log('🔄 resetHeaderBranding() - clearing all branding elements');
+            
+            const headerCompanyLogo = document.getElementById('headerCompanyLogo');
+            const headerCompanyName = document.getElementById('headerCompanyName');
+            
+            // Hide all elements first
+            if (headerCompanyLogo) {
+                headerCompanyLogo.style.display = 'none';
+                headerCompanyLogo.classList.remove('visible');
+                headerCompanyLogo.src = '';
+            }
+            
+            if (headerCompanyName) {
+                headerCompanyName.textContent = '';
+            }
+        }
+
+        // Action Plan Manager Class
+        class ActionPlanManager {
+            constructor() {
+                this.actions = [];
+                this.db = firebase.database();
+                this.setupRealtimeListeners();
+            }
+
+            setupRealtimeListeners() {
+                // Listen for changes in action plans under company scope
+                if (currentUser && currentCompany) {
+                    const companyActionsRef = this.db.ref(`companies/${currentCompany.id}/actionPlans`);
+                    companyActionsRef.on('value', (snapshot) => {
+                        this.actions = [];
+                        if (snapshot.exists()) {
+                            snapshot.forEach((child) => {
+                                this.actions.push({
+                                    id: child.key,
+                                    ...child.val()
+                                });
+                            });
+                        }
+                        // Sort by creation date (newest first)
+                        this.actions.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+                        this.renderActions();
+                        this.updateStatistics();
+                    });
+                    console.log(`✅ Real-time listener set up for company ${currentCompany.id} action plans`);
+                } else {
+                    console.log('⚠️ Cannot set up listeners - missing user or company data');
+                }
+            }
+
+            async loadActions() {
+                try {
+                    if (!currentUser) return;
+                    // Real-time listener is already set up in setupRealtimeListeners
+                } catch (error) {
+                    console.error('Error loading actions:', error);
+                    this.showError('Failed to load actions');
+                }
+            }
+
+            async saveAction(actionData) {
+                try {
+                    if (!currentCompany) {
+                        this.showError('Company information not available');
+                        return;
+                    }
+
+                    const timestamp = Date.now();
+                    const actionWithMeta = {
+                        ...actionData,
+                        createdBy: currentUser.uid,
+                        createdByName: currentUser.displayName || currentUser.email,
+                        createdAt: timestamp,
+                        updatedAt: timestamp,
+                        companyId: currentCompany.id
+                    };
+
+                    // Handle attachments upload if any are queued on the form
+                    const filesInput = document.getElementById('actionAttachments');
+                    let uploadedAttachments = {};
+                    if (filesInput && filesInput.files && filesInput.files.length > 0) {
+                        const storage = firebase.storage();
+                        const folder = `companies/${currentCompany.id}/actionPlans`;
+                        const uploadPromises = Array.from(filesInput.files).map(async (file, index) => {
+                            const safeName = `${timestamp}_${file.name.replace(/[^a-zA-Z0-9_.-]/g, '_')}`;
+                            const fileRef = storage.ref(`${folder}/${safeName}`);
+                            await fileRef.put(file);
+                            const url = await fileRef.getDownloadURL();
+                            const key = `new_${timestamp}_${index}`;
+                            return { 
+                                key, 
+                                data: { name: file.name, url, path: `${folder}/${safeName}`, size: file.size, type: file.type }
+                            };
+                        });
+                        const uploadResults = await Promise.all(uploadPromises);
+                        uploadResults.forEach(result => {
+                            uploadedAttachments[result.key] = result.data;
+                        });
+                        actionWithMeta.attachments = uploadedAttachments;
+                    }
+
+                    if (editingActionId) {
+                        // If editing, handle existing attachments and removals
+                        try {
+                            const existingSnap = await this.db.ref(`companies/${currentCompany.id}/actionPlans/${editingActionId}/attachments`).once('value');
+                            let existingAttachments = {};
+                            
+                            if (existingSnap.exists()) {
+                                const attachmentData = existingSnap.val();
+                                if (Array.isArray(attachmentData)) {
+                                    // Convert array to object format
+                                    attachmentData.forEach((att, index) => {
+                                        if (att) existingAttachments[`existing_${index}`] = att;
+                                    });
+                                } else {
+                                    existingAttachments = attachmentData || {};
+                                }
+                            }
+                            
+                            // Remove attachments marked for deletion
+                            if (actionData.attachmentsToRemove && actionData.attachmentsToRemove.length > 0) {
+                                const storage = firebase.storage();
+                                const toRemove = actionData.attachmentsToRemove;
+                                
+                                for (const attachmentId of toRemove) {
+                                    const attachment = existingAttachments[attachmentId];
+                                    if (attachment && attachment.path) {
+                                        try {
+                                            await storage.ref(attachment.path).delete();
+                                            console.log('Deleted file from storage:', attachment.path);
+                                        } catch (deleteError) {
+                                            console.warn('Could not delete file from storage:', attachment.path, deleteError);
+                                        }
+                                    }
+                                    // Remove from existing attachments
+                                    delete existingAttachments[attachmentId];
+                                }
+                            }
+                            
+                            // Merge existing and newly uploaded attachments
+                            const newlyUploaded = actionWithMeta.attachments || {};
+                            const mergedAttachments = { ...existingAttachments, ...newlyUploaded };
+                            
+                            if (Object.keys(mergedAttachments).length > 0) {
+                                actionWithMeta.attachments = mergedAttachments;
+                            } else {
+                                actionWithMeta.attachments = null;
+                            }
+                        } catch (e) { 
+                            console.error('Error handling attachments:', e);
+                        }
+                        
+                        const { createdAt: _omit, attachmentsToRemove: _omitRemove, ...updatePayload } = actionWithMeta;
+                        updatePayload.updatedAt = timestamp;
+                        await this.db.ref(`companies/${currentCompany.id}/actionPlans/${editingActionId}`).update(updatePayload);
+                        this.showSuccess('Action updated successfully');
+                        
+                        // Create audit log entry
+                        this.createAuditLog('UPDATE_ACTION', `Updated action: ${actionData.title}`);
+                    } else {
+                        const newActionRef = await this.db.ref(`companies/${currentCompany.id}/actionPlans`).push(actionWithMeta);
+                        this.showSuccess('Action created successfully');
+                        
+                        // Create audit log entry
+                        this.createAuditLog('CREATE_ACTION', `Created new action: ${actionData.title}`);
+                        
+                        // Send notification to assignee
+                        this.sendNotificationToAssignee(newActionRef.key, actionData);
+                    }
+
+                    // Clear attachments input after save
+                    const filesInputAfter = document.getElementById('actionAttachments');
+                    if (filesInputAfter) filesInputAfter.value = '';
+                    closeActionModal();
+                } catch (error) {
+                    console.error('Error saving action:', error);
+                    this.showError('Failed to save action');
+                }
+            }
+
+            async deleteAction(actionId) {
+                try {
+                    if (!currentCompany) {
+                        this.showError('Company information not available');
+                        return;
+                    }
+
+                    if (confirm('Are you sure you want to delete this action?')) {
+                        const action = this.actions.find(a => a.id === actionId);
+                        await this.db.ref(`companies/${currentCompany.id}/actionPlans/${actionId}`).remove();
+                        this.showSuccess('Action deleted successfully');
+                        
+                        // Create audit log entry
+                        this.createAuditLog('DELETE_ACTION', `Deleted action: ${action?.title || 'Unknown'}`);
+                    }
+                } catch (error) {
+                    console.error('Error deleting action:', error);
+                    this.showError('Failed to delete action');
+                }
+            }
+
+            async updateActionProgress(actionId, progress, status = null) {
+                try {
+                    const updateData = {
+                        progress: progress,
+                        updatedAt: Date.now()
+                    };
+
+                    if (status) {
+                        updateData.status = status;
+                    } else {
+                        // Auto-determine status based on progress
+                        if (progress === 100) {
+                            updateData.status = 'Completed';
+                            updateData.completedAt = Date.now();
+                        } else if (progress > 0) {
+                            updateData.status = 'In Progress';
+                        } else {
+                            updateData.status = 'Pending';
+                        }
+                    }
+
+                    await this.db.ref(`actionPlans/${actionId}`).update(updateData);
+                    
+                    const action = this.actions.find(a => a.id === actionId);
+                    this.createAuditLog('UPDATE_PROGRESS', `Updated progress for "${action?.title}": ${progress}%`);
+                    
+                    this.showSuccess('Progress updated successfully');
+                } catch (error) {
+                    console.error('Error updating progress:', error);
+                    this.showError('Failed to update progress');
+                }
+            }
+
+            async sendNotificationToAssignee(actionId, actionData) {
+                try {
+                    const notificationData = {
+                        type: 'action_assigned',
+                        title: 'New Action Assigned',
+                        message: `You have been assigned a new action: "${actionData.title}"`,
+                        data: {
+                            actionId: actionId,
+                            actionTitle: actionData.title,
+                            department: actionData.department,
+                            priority: actionData.priority,
+                            dueDate: actionData.dueDate
+                        },
+                        timestamp: Date.now(),
+                        read: false
+                    };
+
+                    await this.db.ref(`notifications/${actionData.assignee}`).push(notificationData);
+                } catch (error) {
+                    console.error('Error sending notification:', error);
+                }
+            }
+
+            async createAuditLog(action, description) {
+                try {
+                    const auditData = {
+                        userId: currentUser.uid,
+                        userEmail: currentUser.email,
+                        action: action,
+                        description: description,
+                        timestamp: Date.now(),
+                        ipAddress: 'unknown', // Could be enhanced to get real IP
+                        companyId: currentCompany ? currentCompany.id : 'unknown'
+                    };
+
+                    // Store audit logs under company scope too
+                    const logPath = currentCompany ? 
+                        `companies/${currentCompany.id}/auditLogs` : 
+                        'auditLogs';
+                    
+                    await this.db.ref(logPath).push(auditData);
+                } catch (error) {
+                    console.error('Error creating audit log:', error);
+                }
+            }
+
+            renderActions() {
+                const container = document.getElementById('actionsContainer');
+                const table = document.getElementById('actionsTable');
+                const tableBody = document.getElementById('actionsTableBody');
+                const loading = document.getElementById('actionsLoading');
+                
+                if (this.actions.length === 0) {
+                    table.style.display = 'none';
+                    loading.style.display = 'block';
+                    loading.innerHTML = `
+                        <div class="empty-state">
+                            <i class="fas fa-clipboard-list"></i>
+                            <h3>No actions found</h3>
+                            <p>Start by creating your first action plan</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                loading.style.display = 'none';
+                table.style.display = 'table';
+                tableBody.innerHTML = this.actions.map(action => this.renderActionItem(action)).join('');
+            }
+
+            renderActionItem(action) {
+                const isOverdue = new Date(action.dueDate) < new Date() && action.status !== 'Completed';
+                const statusClass = isOverdue ? 'overdue' : action.status.toLowerCase().replace(' ', '-');
+                const priorityClass = `priority-${action.priority.toLowerCase()}`;
+                const deptClass = `dept-${action.department.toLowerCase()}`;
+
+                // Calculate days until due
+                const dueDate = new Date(action.dueDate);
+                const today = new Date();
+                const diffTime = dueDate - today;
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                let dueDateDisplay = this.formatDate(action.dueDate);
+                
+                if (diffDays < 0) {
+                    dueDateDisplay += ` (${Math.abs(diffDays)} days overdue)`;
+                } else if (diffDays === 0) {
+                    dueDateDisplay += ' (Due today)';
+                } else if (diffDays <= 3) {
+                    dueDateDisplay += ` (Due in ${diffDays} day${diffDays > 1 ? 's' : ''})`;
+                }
+
+                return `
+                    <tr class="action-row-main ${deptClass}" data-action-id="${action.id}" onclick="openActionDetailsModal('${action.id}')" style="cursor: pointer;">
+                        <td onclick="event.stopPropagation();">
+                            <input type="checkbox" class="action-checkbox" data-action-id="${action.id}" onchange="updateBulkActionButtons()">
+                        </td>
+                        <td>
+                            <div class="action-title" style="font-weight: 600;">${action.title}</div>
+                        </td>
+                        <td>${action.department}</td>
+                        <td>${action.assigneeName || action.assignee}</td>
+                        <td>
+                            <span class="${priorityClass}" style="font-weight: 600;">${action.priority}</span>
+                        </td>
+                        <td>
+                            <span class="status-badge status-${statusClass}">${isOverdue ? 'Overdue' : action.status}</span>
+                        </td>
+                        <td style="font-size: 0.8rem;">
+                            ${dueDateDisplay}
+                        </td>
+                        <td>
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                <div class="progress-bar" style="flex: 1; height: 6px; background: #eee; border-radius: 3px; overflow: hidden;">
+                                    <div class="progress-fill" style="width: ${action.progress || 0}%; height: 100%; background: var(--success-color);"></div>
+                                </div>
+                                <span style="font-size: 0.75rem; font-weight: 600;">${action.progress || 0}%</span>
+                            </div>
+                        </td>
+                        <td onclick="event.stopPropagation();">
+                            <div style="display: flex; gap: 0.25rem;">
+                                <button class="btn btn-primary btn-small" onclick="editAction('${action.id}')" title="Edit">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button class="btn btn-small" onclick="deleteAction('${action.id}')" style="background: var(--danger-color); color: white;" title="Delete">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }
+
+            formatDate(dateString) {
+                const date = new Date(dateString);
+                return date.toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric'
+                });
+            }
+
+            getTimeAgo(date) {
+                const now = new Date();
+                const diffMs = now - date;
+                const diffSeconds = Math.floor(diffMs / 1000);
+                const diffMinutes = Math.floor(diffSeconds / 60);
+                const diffHours = Math.floor(diffMinutes / 60);
+                const diffDays = Math.floor(diffHours / 24);
+
+                if (diffSeconds < 60) return 'Just now';
+                if (diffMinutes < 60) return `${diffMinutes} minute${diffMinutes > 1 ? 's' : ''} ago`;
+                if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+                if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+                if (diffDays < 30) {
+                    const weeks = Math.floor(diffDays / 7);
+                    return `${weeks} week${weeks > 1 ? 's' : ''} ago`;
+                }
+                if (diffDays < 365) {
+                    const months = Math.floor(diffDays / 30);
+                    return `${months} month${months > 1 ? 's' : ''} ago`;
+                }
+                const years = Math.floor(diffDays / 365);
+                return `${years} year${years > 1 ? 's' : ''} ago`;
+            }
+
+            formatFileSize(bytes) {
+                if (!bytes && bytes !== 0) return '';
+                const sizes = ['B', 'KB', 'MB', 'GB'];
+                if (bytes === 0) return '0 B';
+                const i = Math.floor(Math.log(bytes) / Math.log(1024));
+                return `${(bytes / Math.pow(1024, i)).toFixed(i === 0 ? 0 : 1)} ${sizes[i]}`;
+            }
+
+            fileIconClass(mime, name = '') {
+                const ext = (name.split('.').pop() || '').toLowerCase();
+                if (mime) {
+                    if (mime.includes('image')) return 'fas fa-file-image';
+                    if (mime.includes('pdf')) return 'fas fa-file-pdf';
+                    if (mime.includes('word')) return 'fas fa-file-word';
+                    if (mime.includes('excel') || mime.includes('spreadsheet')) return 'fas fa-file-excel';
+                    if (mime.includes('powerpoint') || mime.includes('presentation')) return 'fas fa-file-powerpoint';
+                    if (mime.includes('zip') || mime.includes('compressed')) return 'fas fa-file-archive';
+                    if (mime.includes('audio')) return 'fas fa-file-audio';
+                    if (mime.includes('video')) return 'fas fa-file-video';
+                    if (mime.includes('text')) return 'fas fa-file-alt';
+                }
+                // fallback by extension
+                if (['jpg','jpeg','png','gif','webp','bmp','svg'].includes(ext)) return 'fas fa-file-image';
+                if (ext === 'pdf') return 'fas fa-file-pdf';
+                if (['doc','docx','rtf'].includes(ext)) return 'fas fa-file-word';
+                if (['xls','xlsx','csv'].includes(ext)) return 'fas fa-file-excel';
+                if (['ppt','pptx'].includes(ext)) return 'fas fa-file-powerpoint';
+                if (['zip','rar','7z','gz','tar'].includes(ext)) return 'fas fa-file-archive';
+                if (['mp3','wav','aac','ogg','flac'].includes(ext)) return 'fas fa-file-audio';
+                if (['mp4','mov','avi','mkv','webm'].includes(ext)) return 'fas fa-file-video';
+                if (['txt','md','log'].includes(ext)) return 'fas fa-file-alt';
+                return 'fas fa-file';
+            }
+
+            updateStatistics() {
+                const total = this.actions.length;
+                const pending = this.actions.filter(a => a.status === 'Pending').length;
+                const inProgress = this.actions.filter(a => a.status === 'In Progress').length;
+                const completed = this.actions.filter(a => a.status === 'Completed').length;
+                const overdue = this.actions.filter(a => 
+                    new Date(a.dueDate) < new Date() && a.status !== 'Completed'
+                ).length;
+
+                document.getElementById('totalActions').textContent = total;
+                document.getElementById('pendingActions').textContent = pending;
+                document.getElementById('inProgressActions').textContent = inProgress;
+                document.getElementById('completedActions').textContent = completed;
+                document.getElementById('overdueActions').textContent = overdue;
+            }
+
+            showSuccess(message) {
+                // Implement notification system
+                alert(message);
+            }
+
+            showError(message) {
+                // Implement notification system
+                alert(message);
+            }
+        }
+
+        // Load company-scoped departments from settings and populate the Department select
+        async function loadCompanyDepartments() {
+            try {
+                const deptSelect = document.getElementById('actionDepartment');
+                if (!deptSelect) return;
+                if (!currentCompany || !currentCompany.id) {
+                    console.warn('Company not loaded yet; delaying departments load');
+                    return;
+                }
+
+                // Show loading option
+                deptSelect.innerHTML = '<option value="">Loading departments...</option>';
+
+                const deptSet = new Set();
+
+                // 1) Preferred path: companies/{id}/fieldOptions/department
+                const fieldOptsRef = database.ref(`companies/${currentCompany.id}/fieldOptions/department`);
+                const fieldSnap = await fieldOptsRef.once('value');
+                if (fieldSnap.exists()) {
+                    const data = fieldSnap.val();
+                    if (Array.isArray(data)) {
+                        data.forEach(val => {
+                            if (val && val.enabled === false) return;
+                            const name = typeof val === 'string' ? val : (val?.name || val?.label || val?.value);
+                            if (name) deptSet.add(name);
+                        });
+                    } else if (typeof data === 'object' && data) {
+                        Object.values(data).forEach(val => {
+                            if (val && val.enabled === false) return;
+                            const name = typeof val === 'string' ? val : (val?.name || val?.label || val?.value);
+                            if (name) deptSet.add(name);
+                        });
+                    }
+                }
+
+                // 2) Secondary path: companies/{id}/settings/fieldOptions/department
+                if (deptSet.size === 0) {
+                    const settingsFieldOptsRef = database.ref(`companies/${currentCompany.id}/settings/fieldOptions/department`);
+                    const settingsSnap = await settingsFieldOptsRef.once('value');
+                    if (settingsSnap.exists()) {
+                        const data = settingsSnap.val();
+                        if (Array.isArray(data)) {
+                            data.forEach(val => {
+                                if (val && val.enabled === false) return;
+                                const name = typeof val === 'string' ? val : (val?.name || val?.label || val?.value);
+                                if (name) deptSet.add(name);
+                            });
+                        } else if (typeof data === 'object' && data) {
+                            Object.values(data).forEach(val => {
+                                if (val && val.enabled === false) return;
+                                const name = typeof val === 'string' ? val : (val?.name || val?.label || val?.value);
+                                if (name) deptSet.add(name);
+                            });
+                        }
+                    }
+                }
+
+                // 3) Legacy path: companies/{id}/departments (array or map)
+                if (deptSet.size === 0) {
+                    const deptRef = database.ref(`companies/${currentCompany.id}/departments`);
+                    const deptSnap = await deptRef.once('value');
+                    if (deptSnap.exists()) {
+                        const data = deptSnap.val();
+                        if (Array.isArray(data)) {
+                            data.forEach(d => {
+                                const name = typeof d === 'string' ? d : (d?.name || d?.label);
+                                if (name) deptSet.add(name);
+                            });
+                        } else if (typeof data === 'object' && data) {
+                            Object.values(data).forEach(d => {
+                                const name = typeof d === 'string' ? d : (d?.name || d?.label);
+                                if (name) deptSet.add(name);
+                            });
+                        }
+                    }
+                }
+
+                // Render options
+                const sorted = Array.from(deptSet).sort((a, b) => a.localeCompare(b));
+                if (sorted.length > 0) {
+                    deptSelect.innerHTML = '<option value="">Select Department</option>' +
+                        sorted.map(d => `<option value="${d}">${d}</option>`).join('');
+                } else {
+                    deptSelect.innerHTML = '<option value="">No departments configured</option>';
+                }
+
+                // Also populate the department filter if present (small UX win)
+                const deptFilter = document.getElementById('departmentFilter');
+                if (deptFilter) {
+                    const prev = deptFilter.value;
+                    deptFilter.innerHTML = '<option value="">All Departments</option>' +
+                        sorted.map(d => `<option value="${d}">${d}</option>`).join('');
+                    // restore selection if it still exists
+                    if ([...deptFilter.options].some(o => o.value === prev)) deptFilter.value = prev;
+                }
+            } catch (error) {
+                console.error('Error loading company departments:', error);
+                const deptSelect = document.getElementById('actionDepartment');
+                if (deptSelect) deptSelect.innerHTML = '<option value="">Error loading departments</option>';
+            }
+        }
+
+        // Initialize Action Plan Manager (but don't set up listeners yet)
+        let actionManager = null;
+
+        // Load Actions - only set up when company data is available
+        function loadActions() {
+            if (currentCompany) {
+                // Initialize manager if not already done
+                if (!actionManager) {
+                    actionManager = new ActionPlanManager();
+                }
+                actionManager.setupRealtimeListeners();
+                console.log('✅ Action Plan Manager initialized with company scope');
+            } else {
+                console.log('⚠️ Cannot load actions - company data not yet available');
+            }
+        }
+
+        // Load company-scoped employees into Assignee dropdown and filter
+        async function loadStaffList() {
+            try {
+                const assigneeSelect = document.getElementById('actionAssignee');
+                const filterSelect = document.getElementById('assigneeFilter');
+
+                if (!currentCompany || !currentCompany.id) {
+                    console.warn('Company not loaded yet; delaying staff load');
+                    return;
+                }
+
+                // Show loading states (only for filter select; modal field is now text input)
+                if (filterSelect) filterSelect.innerHTML = '<option value="">Loading...</option>';
+
+                const options = [];
+                const allStaff = []; // Store all staff data globally
+
+                // Helper to push option
+                const pushOption = (id, label, disabled, staffData) => {
+                    if (!id || !label) return;
+                    if (disabled) return;
+                    options.push({ id, label });
+                    // Store staff data for global access
+                    allStaff.push({
+                        id,
+                        ...staffData,
+                        displayName: label
+                    });
+                };
+
+                // 1) Try users
+                const usersRef = database.ref(`companies/${currentCompany.id}/users`);
+                const usersSnap = await usersRef.once('value');
+                if (usersSnap.exists()) {
+                    usersSnap.forEach(child => {
+                        const u = child.val() || {};
+                        const id = child.key;
+                        const fullName = [u.firstName, u.lastName].filter(Boolean).join(' ').trim();
+                        const display = fullName || u.name || u.displayName || u.username || u.email || 'Unnamed User';
+                        const dept = u.department ? ` (${u.department})` : '';
+                        const disabled = u.disabled === true || u.status === 'inactive';
+                        pushOption(id, display + dept, disabled, u);
+                    });
+                }
+
+                // 2) Fallback to employees collection if no options found
+                if (options.length === 0) {
+                    const employeesRef = database.ref(`companies/${currentCompany.id}/employees`);
+                    const empSnap = await employeesRef.once('value');
+                    if (empSnap.exists()) {
+                        empSnap.forEach(child => {
+                            const e = child.val() || {};
+                            const id = child.key;
+                            const fullName = [e.firstName, e.lastName].filter(Boolean).join(' ').trim();
+                            const display = fullName || e.name || e.email || 'Unnamed Employee';
+                            const dept = e.department ? ` (${e.department})` : '';
+                            const disabled = e.status === 'inactive';
+                            pushOption(id, display + dept, disabled, e);
+                        });
+                    }
+                }
+
+                // 3) Fallback to staff (use as people list if still empty)
+                if (options.length === 0) {
+                    const staffRef = database.ref(`companies/${currentCompany.id}/staff`);
+                    const staffSnap = await staffRef.once('value');
+                    if (staffSnap.exists()) {
+                        staffSnap.forEach(child => {
+                            const s = child.val() || {};
+                            const id = child.key;
+                            const fullName = [s.firstName, s.lastName].filter(Boolean).join(' ').trim();
+                            const display = fullName || s.name || s.jobTitle || s.email || 'Staff Member';
+                            const dept = s.department ? ` (${s.department})` : '';
+                            pushOption(id, display + dept, false, s);
+                        });
+                    }
+                }
+
+                // Sort alphabetically by label
+                options.sort((a, b) => a.label.localeCompare(b.label));
+
+                // Populate only the filter select
+                if (filterSelect) {
+                    filterSelect.innerHTML = '<option value="">All Assignees</option>' +
+                        options.map(o => `<option value="${o.label}">${o.label}</option>`).join('');
+                }
+
+                // Store staff list globally for comment functionality
+                window.staffList = allStaff;
+                console.log('Staff list loaded globally:', allStaff.length, 'members');
+
+            } catch (error) {
+                console.error('Error loading company employees:', error);
+                const assigneeSelect = document.getElementById('actionAssignee');
+                const filterSelect = document.getElementById('assigneeFilter');
+                // No-op for modal field (text input)
+                if (filterSelect) filterSelect.innerHTML = '<option value="">Error</option>';
+            }
+        }
+
+        // View Action History
+        function viewActionHistory(actionId) {
+            const action = actionManager.actions.find(a => a.id === actionId);
+            if (!action) return;
+
+            let historyHtml = `
+                <div style="max-height: 400px; overflow-y: auto;">
+                    <h4>Action History: ${action.title}</h4>
+                    <div style="margin: 1rem 0;">
+                        <strong>Created:</strong> ${new Date(action.createdAt).toLocaleString()}<br>
+                        <strong>Created by:</strong> ${action.createdByName || 'Unknown'}<br>
+                        <strong>Last Updated:</strong> ${new Date(action.updatedAt).toLocaleString()}
+                    </div>
+            `;
+
+            // Show comments if any
+            if (action.comments) {
+                historyHtml += '<h5>Comments & Updates:</h5>';
+                const comments = Object.values(action.comments).sort((a, b) => b.timestamp - a.timestamp);
+                comments.forEach(comment => {
+                    historyHtml += `
+                        <div style="border-left: 3px solid #3498db; padding-left: 1rem; margin: 1rem 0; background: #f8f9fa; padding: 1rem;">
+                            <strong>${comment.author}</strong> - ${new Date(comment.timestamp).toLocaleString()}<br>
+                            <p style="margin: 0.5rem 0 0 0;">${comment.text}</p>
+                        </div>
+                    `;
+                });
+            } else {
+                historyHtml += '<p><em>No comments or updates yet.</em></p>';
+            }
+
+            historyHtml += '</div>';
+
+            // Create a simple modal for history
+            const historyModal = document.createElement('div');
+            historyModal.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0,0,0,0.5);
+                z-index: 2000;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            `;
+
+            historyModal.innerHTML = `
+                <div style="background: white; padding: 2rem; border-radius: 8px; max-width: 600px; width: 90%;">
+                    ${historyHtml}
+                    <button class="btn btn-primary" onclick="this.closest('[style*=\"position: fixed\"]').remove()">Close</button>
+                </div>
+            `;
+
+            document.body.appendChild(historyModal);
+        }
+
+        // Modal Functions
+    async function openActionModal(actionId = null) {
+            editingActionId = actionId;
+            const modal = document.getElementById('actionModal');
+            const modalTitle = document.getElementById('modalTitle');
+            const form = document.getElementById('actionForm');
+            const filesInput = document.getElementById('actionAttachments');
+            const existingAttachments = document.getElementById('existingAttachments');
+            const existingAttachmentsContainer = document.getElementById('existingAttachmentsContainer');
+            
+            // Clear attachments to remove list
+            window.attachmentsToRemove = [];
+            
+            if (filesInput) filesInput.value = '';
+
+            // Ensure department options are loaded before setting values
+            await loadCompanyDepartments();
+
+            if (actionId) {
+                modalTitle.textContent = 'Edit Action';
+                const action = actionManager ? actionManager.actions.find(a => a.id === actionId) : null;
+                if (action) {
+                    document.getElementById('actionTitle').value = action.title;
+                    document.getElementById('actionDescription').value = action.description || '';
+                    // Set department with fallback: if saved value not in options, add it
+                    const deptSelect = document.getElementById('actionDepartment');
+                    if (deptSelect) {
+                        const savedDept = action.department || '';
+                        if (savedDept) {
+                            const hasOption = Array.from(deptSelect.options).some(opt => opt.value === savedDept);
+                            if (!hasOption) {
+                                const opt = document.createElement('option');
+                                opt.value = savedDept;
+                                opt.textContent = savedDept;
+                                deptSelect.appendChild(opt);
+                            }
+                            deptSelect.value = savedDept;
+                        } else {
+                            deptSelect.value = '';
+                        }
+                    }
+                    document.getElementById('actionAssignee').value = action.assignee;
+                    document.getElementById('actionPriority').value = action.priority;
+                    document.getElementById('actionDueDate').value = action.dueDate;
+                    document.getElementById('actionStatus').value = action.status;
+                    document.getElementById('actionProgress').value = action.progress || 0;
+                    
+                    // Display existing attachments
+                    if (action.attachments && Object.keys(action.attachments).length > 0) {
+                        displayExistingAttachments(action.attachments, existingAttachmentsContainer);
+                        existingAttachments.style.display = 'block';
+                    } else {
+                        existingAttachments.style.display = 'none';
+                    }
+                }
+            } else {
+                modalTitle.textContent = 'New Action';
+                form.reset();
+                // Hide existing attachments for new actions
+                existingAttachments.style.display = 'none';
+                
+                // Set default due date to 7 days from now
+                const defaultDueDate = new Date();
+                defaultDueDate.setDate(defaultDueDate.getDate() + 7);
+                document.getElementById('actionDueDate').value = defaultDueDate.toISOString().split('T')[0];
+            }
+            // Show with animation style
+            modal.classList.add('show');
+        }
+
+        function closeActionModal() {
+            const modal = document.getElementById('actionModal');
+            modal.classList.remove('show');
+            editingActionId = null;
+        }
+
+        // Function to display existing attachments in edit modal
+        function displayExistingAttachments(attachments, container) {
+            if (!attachments || !container) return;
+            
+            container.innerHTML = '';
+            const attachmentsArray = Object.entries(attachments).map(([id, att]) => ({ id, ...att }));
+            
+            attachmentsArray.forEach(attachment => {
+                const name = attachment.name || 'Unknown File';
+                const size = attachment.size ? formatFileSize(attachment.size) : '';
+                const sizeDisplay = size ? ` (${size})` : '';
+                
+                // Determine file icon based on file type
+                let icon = 'fas fa-file';
+                if (name.match(/\.(jpg|jpeg|png|gif|svg|webp)$/i)) icon = 'fas fa-image';
+                else if (name.match(/\.(pdf)$/i)) icon = 'fas fa-file-pdf';
+                else if (name.match(/\.(doc|docx)$/i)) icon = 'fas fa-file-word';
+                else if (name.match(/\.(xls|xlsx)$/i)) icon = 'fas fa-file-excel';
+                else if (name.match(/\.(ppt|pptx)$/i)) icon = 'fas fa-file-powerpoint';
+                else if (name.match(/\.(zip|rar|7z)$/i)) icon = 'fas fa-file-archive';
+                else if (name.match(/\.(txt|md)$/i)) icon = 'fas fa-file-alt';
+                
+                const attachmentChip = document.createElement('div');
+                attachmentChip.className = 'attachment-chip';
+                attachmentChip.style.cssText = `
+                    display: inline-flex;
+                    align-items: center;
+                    padding: 6px 12px;
+                    background: #f8f9fa;
+                    border: 1px solid #dee2e6;
+                    border-radius: 6px;
+                    font-size: 0.8rem;
+                    color: #495057;
+                    text-decoration: none;
+                    max-width: 200px;
+                    position: relative;
+                `;
+                
+                attachmentChip.innerHTML = `
+                    <i class="${icon}" style="margin-right: 6px; color: #6c757d;"></i>
+                    <span style="flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${name}${sizeDisplay}">
+                        ${name}${sizeDisplay}
+                    </span>
+                    <button type="button" class="remove-attachment-btn" 
+                            onclick="removeExistingAttachment('${attachment.id}', this)" 
+                            style="margin-left: 8px; background: none; border: none; color: #dc3545; cursor: pointer; padding: 0; font-size: 0.9rem;"
+                            title="Remove attachment">
+                        <i class="fas fa-times"></i>
+                    </button>
+                `;
+                
+                container.appendChild(attachmentChip);
+            });
+        }
+
+        // Function to remove existing attachment
+        function removeExistingAttachment(attachmentId, buttonElement) {
+            if (confirm('Are you sure you want to remove this attachment?')) {
+                // Mark for removal (we'll handle this during save)
+                if (!window.attachmentsToRemove) {
+                    window.attachmentsToRemove = [];
+                }
+                window.attachmentsToRemove.push(attachmentId);
+                
+                // Remove from UI
+                const chip = buttonElement.closest('.attachment-chip');
+                if (chip) {
+                    chip.remove();
+                }
+                
+                // Hide container if no more attachments
+                const container = document.getElementById('existingAttachmentsContainer');
+                if (container && container.children.length === 0) {
+                    document.getElementById('existingAttachments').style.display = 'none';
+                }
+            }
+        }
+
+        // Helper function to format file size
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        // Form Submission
+        document.getElementById('actionForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const formData = {
+                title: document.getElementById('actionTitle').value,
+                description: document.getElementById('actionDescription').value,
+                department: document.getElementById('actionDepartment').value,
+                assignee: document.getElementById('actionAssignee').value,
+                priority: document.getElementById('actionPriority').value,
+                dueDate: document.getElementById('actionDueDate').value,
+                status: document.getElementById('actionStatus').value,
+                progress: parseInt(document.getElementById('actionProgress').value) || 0
+            };
+
+            // Get assignee name for display (text input)
+            const assigneeInput = document.getElementById('actionAssignee');
+            formData.assigneeName = assigneeInput ? assigneeInput.value : '';
+
+            // Add attachment removal info if editing
+            if (editingActionId && window.attachmentsToRemove) {
+                formData.attachmentsToRemove = window.attachmentsToRemove;
+            }
+
+            await actionManager.saveAction(formData);
+            
+            // Clear the attachments to remove list
+            window.attachmentsToRemove = [];
+        });
+
+        // Action Functions
+        function editAction(actionId) {
+            openActionModal(actionId);
+        }
+
+        function deleteAction(actionId) {
+            actionManager.deleteAction(actionId);
+        }
+
+        function duplicateAction(actionId) {
+            const action = actionManager.actions.find(a => a.id === actionId);
+            if (action) {
+                const duplicatedAction = {
+                    ...action,
+                    title: `${action.title} (Copy)`,
+                    status: 'Pending',
+                    progress: 0
+                };
+                delete duplicatedAction.id;
+                delete duplicatedAction.createdAt;
+                delete duplicatedAction.updatedAt;
+                
+                actionManager.saveAction(duplicatedAction);
+            }
+        }
+
+        function updateProgress(actionId) {
+            const action = actionManager.actions.find(a => a.id === actionId);
+            if (!action) return;
+
+            const currentProgress = action.progress || 0;
+            const newProgress = prompt(`Current progress: ${currentProgress}%\nEnter new progress percentage (0-100):`, currentProgress);
+            
+            if (newProgress !== null && !isNaN(newProgress) && newProgress >= 0 && newProgress <= 100) {
+                const progressInt = parseInt(newProgress);
+                actionManager.updateActionProgress(actionId, progressInt);
+            }
+        }
+
+        // Enhanced filter function with better performance
+        function filterActions() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const departmentFilter = document.getElementById('departmentFilter').value;
+            const statusFilter = document.getElementById('statusFilter').value;
+            const priorityFilter = document.getElementById('priorityFilter').value;
+            const assigneeFilter = document.getElementById('assigneeFilter').value;
+
+            filteredActions = actionManager.actions.filter(action => {
+                // Search in title, description, and assignee name
+                const matchesSearch = !searchTerm || 
+                    action.title.toLowerCase().includes(searchTerm) ||
+                    (action.description || '').toLowerCase().includes(searchTerm) ||
+                    (action.assigneeName || '').toLowerCase().includes(searchTerm);
+
+                const matchesDepartment = !departmentFilter || action.department === departmentFilter;
+                
+                // Handle overdue status
+                const isOverdue = new Date(action.dueDate) < new Date() && action.status !== 'Completed';
+                const matchesStatus = !statusFilter || action.status === statusFilter ||
+                                    (statusFilter === 'Overdue' && isOverdue);
+                
+                const matchesPriority = !priorityFilter || action.priority === priorityFilter;
+                const matchesAssignee = !assigneeFilter || (action.assigneeName || action.assignee) === assigneeFilter;
+
+                return matchesSearch && matchesDepartment && matchesStatus && matchesPriority && matchesAssignee;
+            });
+
+            // Temporarily replace actions for rendering
+            const originalActions = actionManager.actions;
+            actionManager.actions = filteredActions;
+            actionManager.renderActions();
+            actionManager.actions = originalActions;
+        }
+
+        // Add action comments/updates feature
+        async function addActionComment(actionId) {
+            const comment = prompt('Add a comment or update for this action:');
+            if (comment && comment.trim()) {
+                // Get current user info
+                const currentUser = auth.currentUser;
+                if (!currentUser || !currentCompany) {
+                    alert('Please ensure you are logged in and company context is loaded');
+                    return;
+                }
+
+                // Get the user's display name using enhanced function
+                let authorName = await getCurrentUserDisplayName();
+                
+                console.log('Current user info:', {
+                    uid: currentUser.uid,
+                    email: currentUser.email,
+                    displayName: currentUser.displayName,
+                    resolvedName: authorName
+                });
+
+                const commentData = {
+                    text: comment.trim(),
+                    authorId: currentUser.uid,
+                    authorEmail: currentUser.email,
+                    authorName: authorName,
+                    timestamp: Date.now(),
+                    createdAt: new Date().toISOString()
+                };
+
+                // Use company-scoped path
+                const companyId = currentCompany.id;
+                database.ref(`companies/${companyId}/actionPlans/${actionId}/comments`).push(commentData)
+                    .then(() => {
+                        alert('Comment added successfully');
+                        // Create audit log
+                        actionManager.createAuditLog('ADD_COMMENT', `Added comment to action: ${comment.substring(0, 50)}...`);
+                        
+                        // Refresh the action details modal if it's open
+                        const modal = document.getElementById('actionDetailsModal');
+                        if (modal && modal.classList.contains('show')) {
+                            openActionDetailsModal(actionId);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error adding comment:', error);
+                        alert('Failed to add comment');
+                    });
+            }
+        }
+
+        // Enhanced function to get current user's display name
+        async function getCurrentUserDisplayName() {
+            const currentUser = auth.currentUser;
+            if (!currentUser) return 'Unknown User';
+
+            // Try display name first
+            if (currentUser.displayName) {
+                return currentUser.displayName;
+            }
+
+            // Try to get from company users collection
+            if (currentCompany && currentCompany.id) {
+                try {
+                    const userRef = database.ref(`companies/${currentCompany.id}/users/${currentUser.uid}`);
+                    const snapshot = await userRef.once('value');
+                    
+                    if (snapshot.exists()) {
+                        const userData = snapshot.val();
+                        const firstName = userData.firstName || '';
+                        const lastName = userData.lastName || '';
+                        const fullName = `${firstName} ${lastName}`.trim();
+                        
+                        if (fullName) {
+                            return fullName;
+                        } else if (userData.name) {
+                            return userData.name;
+                        } else if (userData.displayName) {
+                            return userData.displayName;
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error fetching user data:', error);
+                }
+            }
+
+            // Fallback to email
+            return currentUser.email || 'Unknown User';
+        }
+
+        // Bulk operations
+        function bulkUpdateStatus() {
+            const checkedActions = document.querySelectorAll('.action-checkbox:checked');
+            if (checkedActions.length === 0) {
+                alert('Please select actions to update');
+                return;
+            }
+
+            const newStatus = prompt('Enter new status for selected actions (Pending/In Progress/Completed):');
+            if (!newStatus || !['Pending', 'In Progress', 'Completed'].includes(newStatus)) {
+                alert('Please enter a valid status');
+                return;
+            }
+
+            const updates = {};
+            checkedActions.forEach(checkbox => {
+                const actionId = checkbox.dataset.actionId;
+                updates[`${actionId}/status`] = newStatus;
+                updates[`${actionId}/updatedAt`] = Date.now();
+            });
+
+            database.ref('actionPlans').update(updates)
+                .then(() => {
+                    alert(`Updated ${checkedActions.length} actions to "${newStatus}"`);
+                    clearActionSelection();
+                })
+                .catch(error => {
+                    console.error('Error bulk updating:', error);
+                    alert('Failed to update actions');
+                });
+        }
+
+        function clearActionSelection() {
+            document.querySelectorAll('.action-checkbox:checked').forEach(checkbox => {
+                checkbox.checked = false;
+            });
+            updateBulkActionButtons();
+        }
+
+        function updateBulkActionButtons() {
+            const checkedCount = document.querySelectorAll('.action-checkbox:checked').length;
+            const bulkActions = document.getElementById('bulkActions');
+            
+            if (checkedCount > 0) {
+                if (!bulkActions) {
+                    // Create bulk action bar
+                    const bulkBar = document.createElement('div');
+                    bulkBar.id = 'bulkActions';
+                    bulkBar.style.cssText = `
+                        position: fixed;
+                        bottom: 20px;
+                        right: 20px;
+                        background: var(--primary-color);
+                        color: white;
+                        padding: 1rem;
+                        border-radius: 8px;
+                        box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+                        z-index: 1500;
+                        display: flex;
+                        gap: 1rem;
+                        align-items: center;
+                    `;
+                    bulkBar.innerHTML = `
+                        <span>${checkedCount} selected</span>
+                        <button class="btn btn-primary btn-small" onclick="bulkUpdateStatus()">Update Status</button>
+                        <button class="btn btn-small" onclick="clearActionSelection()" style="background: #6c757d; color: white;">Clear</button>
+                    `;
+                    document.body.appendChild(bulkBar);
+                } else {
+                    bulkActions.querySelector('span').textContent = `${checkedCount} selected`;
+                }
+            } else if (bulkActions) {
+                bulkActions.remove();
+            }
+        }
+
+        // Filter Functions
+        function filterActions() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const departmentFilter = document.getElementById('departmentFilter').value;
+            const statusFilter = document.getElementById('statusFilter').value;
+            const priorityFilter = document.getElementById('priorityFilter').value;
+            const assigneeFilter = document.getElementById('assigneeFilter').value;
+
+            filteredActions = actionManager.actions.filter(action => {
+                const matchesSearch = action.title.toLowerCase().includes(searchTerm) ||
+                                    (action.description || '').toLowerCase().includes(searchTerm);
+                const matchesDepartment = !departmentFilter || action.department === departmentFilter;
+                const matchesStatus = !statusFilter || action.status === statusFilter ||
+                                    (statusFilter === 'Overdue' && new Date(action.dueDate) < new Date() && action.status !== 'Completed');
+                const matchesPriority = !priorityFilter || action.priority === priorityFilter;
+                const matchesAssignee = !assigneeFilter || (action.assigneeName || action.assignee) === assigneeFilter;
+
+                return matchesSearch && matchesDepartment && matchesStatus && matchesPriority && matchesAssignee;
+            });
+
+            // Temporarily replace actions for rendering
+            const originalActions = actionManager.actions;
+            actionManager.actions = filteredActions;
+            actionManager.renderActions();
+            actionManager.actions = originalActions;
+        }
+
+        // Table Interaction Functions
+        function openActionDetailsModal(actionId) {
+            const action = actionManager ? actionManager.actions.find(a => a.id === actionId) : null;
+            if (!action) return;
+
+            const modal = document.getElementById('actionDetailsModal');
+            const content = document.getElementById('actionDetailsContent');
+            const editButton = document.getElementById('editActionFromDetails');
+            const deleteButton = document.getElementById('deleteActionFromDetails');
+            const commentButton = document.getElementById('commentActionFromDetails');
+            const duplicateButton = document.getElementById('duplicateActionFromDetails');
+            const historyButton = document.getElementById('historyActionFromDetails');
+
+            // Set up edit button
+            editButton.onclick = () => {
+                closeActionDetailsModal();
+                editAction(actionId);
+            };
+
+            // Set up delete button
+            deleteButton.onclick = () => {
+                closeActionDetailsModal();
+                deleteAction(actionId);
+            };
+
+            // Set up comment button
+            commentButton.onclick = async () => {
+                await addActionComment(actionId);
+            };
+
+            // Set up duplicate button
+            duplicateButton.onclick = () => {
+                closeActionDetailsModal();
+                duplicateAction(actionId);
+            };
+
+            // Set up history button
+            historyButton.onclick = () => {
+                viewActionHistory(actionId);
+            };
+
+            // Calculate additional data
+            const isOverdue = new Date(action.dueDate) < new Date() && action.status !== 'Completed';
+            const statusClass = isOverdue ? 'overdue' : action.status.toLowerCase().replace(' ', '-');
+            const priorityClass = `priority-${action.priority.toLowerCase()}`;
+
+            // Calculate days until due
+            const dueDate = new Date(action.dueDate);
+            const today = new Date();
+            const diffTime = dueDate - today;
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            let dueDateDisplay = actionManager.formatDate(action.dueDate);
+            
+            if (diffDays < 0) {
+                dueDateDisplay += ` (${Math.abs(diffDays)} days overdue)`;
+            } else if (diffDays === 0) {
+                dueDateDisplay += ' (Due today)';
+            } else if (diffDays <= 3) {
+                dueDateDisplay += ` (Due in ${diffDays} day${diffDays > 1 ? 's' : ''})`;
+            }
+
+            // Get comments count
+            const commentsCount = action.comments ? Object.keys(action.comments).length : 0;
+
+            // Update comment button text with count
+            commentButton.innerHTML = `<i class="fas fa-comment"></i>${commentsCount > 0 ? ` (${commentsCount})` : ''}`;
+
+            // Prepare attachments list
+            let attachmentsHtml = '';
+            if (action.attachments) {
+                const arr = Array.isArray(action.attachments) ? action.attachments : Object.values(action.attachments);
+                if (arr.length > 0) {
+                    const items = arr.map(att => {
+                        const icon = actionManager.fileIconClass(att.type, att.name);
+                        const size = typeof att.size === 'number' ? ` • ${actionManager.formatFileSize(att.size)}` : '';
+                        return `<a href="${att.url}" target="_blank" rel="noopener" class="attachment-chip" title="${att.name}">
+                                    <i class="${icon}" style="margin-right:6px;"></i>
+                                    <span class="attachment-name">${att.name}</span>
+                                    <span class="attachment-meta">${size}</span>
+                                </a>`;
+                    }).join('');
+                    attachmentsHtml = `
+                        <div class="action-details-section">
+                            <h4><i class="fas fa-paperclip"></i> Attachments (${arr.length})</h4>
+                            <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top: 0.75rem;">
+                                ${items}
+                            </div>
+                        </div>`;
+                }
+            }
+
+            // Prepare comments list
+            let commentsHtml = '';
+            if (action.comments && Object.keys(action.comments).length > 0) {
+                const commentsArray = Object.entries(action.comments).map(([id, comment]) => ({
+                    id,
+                    ...comment
+                })).sort((a, b) => b.timestamp - a.timestamp); // Latest first
+
+                const commentItems = commentsArray.map(comment => {
+                    const commentDate = new Date(comment.timestamp);
+                    const timeAgo = actionManager.getTimeAgo(commentDate);
+                    
+                    // Enhanced author name resolution
+                    let authorName = comment.authorName || comment.author || 'Unknown';
+                    
+                    // If we have authorId but no proper name, try to resolve it
+                    if ((!comment.authorName || comment.authorName === 'Unknown') && comment.authorId) {
+                        // Try to find in staff list
+                        if (window.staffList && Array.isArray(window.staffList)) {
+                            const staffMember = window.staffList.find(staff => 
+                                staff.id === comment.authorId || 
+                                staff.email === comment.authorEmail
+                            );
+                            if (staffMember) {
+                                const firstName = staffMember.firstName || '';
+                                const lastName = staffMember.lastName || '';
+                                const fullName = `${firstName} ${lastName}`.trim();
+                                if (fullName) {
+                                    authorName = fullName;
+                                } else if (staffMember.name) {
+                                    authorName = staffMember.name;
+                                } else if (staffMember.displayName) {
+                                    authorName = staffMember.displayName;
+                                }
+                            }
+                        }
+                        
+                        // Fallback to email if we still don't have a good name
+                        if (authorName === 'Unknown' && comment.authorEmail) {
+                            authorName = comment.authorEmail;
+                        }
+                    }
+                    
+                    return `
+                        <div class="comment-item" style="border-bottom: 1px solid #e9ecef; padding: 1rem 0;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <i class="fas fa-user-circle" style="color: #6c757d;"></i>
+                                    <strong style="color: var(--primary-color);">${authorName}</strong>
+                                </div>
+                                <small style="color: #6c757d;">${timeAgo}</small>
+                            </div>
+                            <p style="margin: 0; line-height: 1.5; color: #555;">${comment.text}</p>
+                        </div>
+                    `;
+                }).join('');
+
+                commentsHtml = `
+                    <div class="action-details-section">
+                        <h4><i class="fas fa-comments"></i> Comments (${commentsArray.length})</h4>
+                        <div style="margin-top: 0.75rem; max-height: 300px; overflow-y: auto;">
+                            ${commentItems}
+                        </div>
+                    </div>`;
+            }
+
+            // Render modal content
+            content.innerHTML = `
+                <div style="margin-bottom: 2rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem;">
+                        <h3 style="margin: 0; color: var(--primary-color); flex: 1;">${action.title}</h3>
+                        <div style="display: flex; gap: 0.5rem; align-items: center;">
+                            <span class="status-badge status-${statusClass}">${isOverdue ? 'Overdue' : action.status}</span>
+                            ${action.priority === 'High' ? '<span class="status-badge" style="background: #f8d7da; color: #721c24;">🔥 HIGH PRIORITY</span>' : ''}
+                        </div>
+                    </div>
+                    
+                    <div class="action-details-grid" style="margin-bottom: 2rem;">
+                        <div class="action-details-section">
+                            <h4><i class="fas fa-align-left"></i> Description</h4>
+                            <p style="margin: 0 0 1.5rem 0; line-height: 1.5; color: #555;">${action.description || 'No description provided'}</p>
+                            
+                            <div style="display: grid; gap: 0.75rem;">
+                                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <i class="fas fa-building" style="color: #6c757d; width: 16px;"></i>
+                                    <span><strong>Department:</strong> ${action.department}</span>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <i class="fas fa-user" style="color: #6c757d; width: 16px;"></i>
+                                    <span><strong>Assignee:</strong> ${action.assigneeName || action.assignee}</span>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <i class="fas fa-calendar" style="color: #6c757d; width: 16px;"></i>
+                                    <span><strong>Due Date:</strong> ${dueDateDisplay}</span>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <i class="fas fa-user-plus" style="color: #6c757d; width: 16px;"></i>
+                                    <span><strong>Created by:</strong> ${action.createdByName || 'Unknown'}</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="action-details-section">
+                            <h4><i class="fas fa-chart-bar"></i> Progress</h4>
+                            <div style="margin-top: 0.75rem;">
+                                <div class="progress-bar" style="height: 12px; background: #e9ecef; border-radius: 6px; overflow: hidden; margin-bottom: 0.5rem;">
+                                    <div class="progress-fill" style="width: ${action.progress || 0}%; height: 100%; background: linear-gradient(90deg, #28a745, #20c997); transition: width 0.3s ease;"></div>
+                                </div>
+                                <div style="text-align: center; font-weight: 600; color: #495057; margin-bottom: 1rem;">${action.progress || 0}% Complete</div>
+                                
+                                <div style="display: grid; gap: 0.75rem;">
+                                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                        <i class="fas fa-flag" style="color: #6c757d; width: 16px;"></i>
+                                        <span><strong>Priority:</strong> <span class="${priorityClass}" style="font-weight: 600;">${action.priority}</span></span>
+                                    </div>
+                                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                        <i class="fas fa-clock" style="color: #6c757d; width: 16px;"></i>
+                                        <span><strong>Created:</strong> ${actionManager.formatDate(new Date(action.createdAt).toISOString().split('T')[0])}</span>
+                                    </div>
+                                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                        <i class="fas fa-edit" style="color: #6c757d; width: 16px;"></i>
+                                        <span><strong>Last Updated:</strong> ${action.updatedAt ? actionManager.formatDate(new Date(action.updatedAt).toISOString().split('T')[0]) : 'Never'}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    ${attachmentsHtml}
+                    
+                    ${commentsHtml}
+                </div>
+            `;
+
+            modal.classList.add('show');
+        }
+
+        function closeActionDetailsModal() {
+            const modal = document.getElementById('actionDetailsModal');
+            modal.classList.remove('show');
+        }
+
+        function toggleAllActions(checkbox) {
+            const actionCheckboxes = document.querySelectorAll('.action-checkbox');
+            actionCheckboxes.forEach(cb => {
+                cb.checked = checkbox.checked;
+            });
+            updateBulkActionButtons();
+        }
+
+        // Utility Functions
+        function refreshActions() {
+            loadActions();
+        }
+
+        function exportActions() {
+            const csvContent = "data:text/csv;charset=utf-8," + 
+                "Title,Description,Department,Assignee,Priority,Due Date,Status,Progress\n" +
+                actionManager.actions.map(action => 
+                    `"${action.title}","${action.description || ''}","${action.department}","${action.assigneeName || action.assignee}","${action.priority}","${action.dueDate}","${action.status}","${action.progress || 0}%"`
+                ).join("\n");
+
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `action_plan_${new Date().toISOString().split('T')[0]}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        function logout() {
+            auth.signOut().then(() => {
+                console.log('User signed out');
+                // Redirect removed - handle logout as needed
+            });
+        }
+
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const actionModal = document.getElementById('actionModal');
+            const detailsModal = document.getElementById('actionDetailsModal');
+            
+            if (event.target === actionModal) {
+                closeActionModal();
+            }
+            
+            if (event.target === detailsModal) {
+                closeActionDetailsModal();
+            }
+        };
+
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', function() {
+            // Set minimum date to today
+            document.getElementById('actionDueDate').min = new Date().toISOString().split('T')[0];
+            
+            // Initialize header functionality
+            initializeHeader();
+        });
+
+        // Header functionality
+        function initializeHeader() {
+            // Sidebar toggle
+            const sidebarToggle = document.getElementById('sidebarToggle');
+            const sidebar = document.querySelector('.sidebar');
+            const mainContent = document.querySelector('.main-content');
+
+            if (sidebarToggle) {
+                sidebarToggle.addEventListener('click', function() {
+                    sidebar.classList.toggle('collapsed');
+                    mainContent.classList.toggle('sidebar-collapsed');
+                });
+            }
+
+            // Notification dropdown
+            const notificationBtn = document.getElementById('notificationBtn');
+            const notificationDropdown = document.querySelector('.notification-dropdown');
+
+            if (notificationBtn && notificationDropdown) {
+                notificationBtn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    notificationDropdown.classList.toggle('show');
+                });
+            }
+
+            // User profile dropdown
+            const userProfileBtn = document.getElementById('userProfileBtn');
+            const profileDropdown = document.querySelector('.profile-dropdown');
+
+            if (userProfileBtn && profileDropdown) {
+                userProfileBtn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    profileDropdown.classList.toggle('show');
+                });
+            }
+
+            // Close dropdowns when clicking outside
+            document.addEventListener('click', function() {
+                if (notificationDropdown) notificationDropdown.classList.remove('show');
+                if (profileDropdown) profileDropdown.classList.remove('show');
+            });
+
+            // Logout functionality
+            const logoutBtn = document.getElementById('logoutBtn');
+            if (logoutBtn) {
+                logoutBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    logout();
+                });
+            }
+
+            // Initialize notification system
+            if (currentUser) {
+                setupNotificationSystem();
+            }
+        }
+
+        // Notification system setup
+        function setupNotificationSystem() {
+            const notificationBtn = document.getElementById('notificationBtn');
+            const notificationBadge = document.querySelector('.notification-badge');
+            
+            if (notificationBtn && notificationBadge) {
+                // Listen for notifications
+                const notificationsRef = database.ref(`notifications/${currentUser.uid}`);
+                notificationsRef.on('value', (snapshot) => {
+                    let unreadCount = 0;
+                    if (snapshot.exists()) {
+                        snapshot.forEach((child) => {
+                            const notification = child.val();
+                            if (!notification.read) unreadCount++;
+                        });
+                    }
+                    
+                    notificationBadge.textContent = unreadCount;
+                    notificationBadge.style.display = unreadCount > 0 ? 'block' : 'none';
+                });
+            }
+        }
+
+        // Feature-Role Menu Visibility System (from staff.html)
+        
+        // Reset all menu items to hidden
+        function resetMenuVisibility() {
+            document.querySelectorAll('[data-feature]').forEach(item => {
+                item.classList.remove('menu-visible');
+            });
+            document.querySelectorAll('.menu-dropdown').forEach(dropdown => {
+                dropdown.classList.remove('menu-visible');
+            });
+        }
+
+        // Emergency fallback - show basic menu items
+        function showBasicMenu() {
+            console.log('🔧 Emergency fallback: Showing basic menu items');
+            resetMenuVisibility();
+            
+            // Remove loading class
+            const sidebar = document.querySelector('.sidebar');
+            if (sidebar) {
+                sidebar.classList.remove('menu-loading');
+            }
+            
+            const homeItem = document.querySelector('[data-feature="home_view"]');
+            if (homeItem) {
+                homeItem.classList.add('menu-visible');
+            }
+        }
+
+        // Feature-based authorization system that takes priority over role permissions
+        async function updateMenuWithFeatureAuthorization() {
+            console.log('🎯 Starting feature-based menu authorization for actionplan.html...');
+            
+            try {
+                let currentUser = null;
+                let companyId = null;
+                
+                // Get user and company info
+                if (firebase.auth().currentUser) {
+                    currentUser = firebase.auth().currentUser;
+                    console.log('👤 Using Firebase auth - will search for company');
+                } else {
+                    console.log('❌ No authenticated user found');
+                    resetMenuVisibility();
+                    return;
+                }
+                
+                // Search companies collection for user
+                if (!companyId && currentUser) {
+                    console.log('🔍 Searching for user company...');
+                    const database = firebase.database();
+                    const companiesRef = database.ref('companies');
+                    const companiesSnapshot = await companiesRef.once('value');
+                    
+                    if (companiesSnapshot.exists()) {
+                        const companies = companiesSnapshot.val();
+                        
+                        for (const [cId, company] of Object.entries(companies)) {
+                            if (company.status !== 'active') continue;
+                            
+                            if (company.users && company.users[currentUser.uid]) {
+                                companyId = cId;
+                                console.log(`✅ Found user in company: ${companyId} (${company.name})`);
+                                break;
+                            }
+                        }
+                    }
+                }
+                
+                if (!companyId) {
+                    console.error('❌ No company ID found, cannot determine authorized features');
+                    resetMenuVisibility();
+                    return;
+                }
+                
+                // Apply feature-based authorization
+                await applyFeatureBasedMenuVisibility(companyId);
+                
+            } catch (error) {
+                console.error('❌ Error in feature-based menu authorization:', error);
+                resetMenuVisibility();
+            }
+        }
+
+        // Apply feature-based menu visibility
+        async function applyFeatureBasedMenuVisibility(companyId) {
+            try {
+                console.log('🔧 Applying feature-based menu visibility for company:', companyId);
+                
+                // Get platform features
+                const database = firebase.database();
+                const featuresSnapshot = await database.ref('/platformFeatures').once('value');
+                
+                if (!featuresSnapshot.exists()) {
+                    console.log('⚠️ No platform features found');
+                    resetMenuVisibility();
+                    return;
+                }
+                
+                const featuresData = featuresSnapshot.val();
+                
+                // Get company's selected features
+                const companySnapshot = await database.ref(`/companies/${companyId}`).once('value');
+                const companyData = companySnapshot.val();
+                
+                if (!companyData) {
+                    console.error('❌ Company data not found');
+                    resetMenuVisibility();
+                    return;
+                }
+                
+                const subscribedFeatureIds = companyData.selectedFeatures || [];
+                console.log('🏢 Company subscribed features:', subscribedFeatureIds);
+                
+                if (subscribedFeatureIds.length === 0) {
+                    console.log('⚠️ Company has no subscribed features');
+                    resetMenuVisibility();
+                    return;
+                }
+                
+                // Collect authorized pages from subscribed features
+                const authorizedPages = [];
+                subscribedFeatureIds.forEach(featureId => {
+                    const feature = featuresData[featureId];
+                    if (feature && feature.status === 'active' && feature.authorizedPages) {
+                        console.log(`📦 Adding pages from feature "${feature.name}":`, feature.authorizedPages);
+                        authorizedPages.push(...feature.authorizedPages);
+                    } else {
+                        console.log(`⚠️ Feature ${featureId} not found or inactive`);
+                    }
+                });
+                
+                console.log('🔐 All authorized pages:', authorizedPages);
+                
+                // Reset all menu items first
+                resetMenuVisibility();
+                
+                // Create set of authorized features
+                const authorizedFeatures = new Set();
+                authorizedPages.forEach(pageInfo => {
+                    if (pageInfo.feature) {
+                        authorizedFeatures.add(pageInfo.feature);
+                    }
+                });
+                
+                console.log('🎯 Authorized features for actionplan.html:', Array.from(authorizedFeatures));
+                
+                // Apply menu visibility
+                const allMenuItems = document.querySelectorAll('#roleBasedMenu li[data-feature]');
+                let visibleCount = 0;
+                
+                allMenuItems.forEach(menuItem => {
+                    const featureAttribute = menuItem.getAttribute('data-feature');
+                    const isAuthorized = authorizedFeatures.has(featureAttribute);
+                    const isDropdownContainer = menuItem.classList.contains('menu-dropdown');
+                    
+                    if (isDropdownContainer) {
+                        return; // Handle dropdowns separately after all items are processed
+                    }
+                    
+                    if (isAuthorized) {
+                        menuItem.classList.add('menu-visible');
+                        visibleCount++;
+                        console.log(`✅ Feature authorized - showing menu item: ${featureAttribute}`);
+                    } else {
+                        menuItem.classList.remove('menu-visible');
+                        console.log(`❌ Feature not authorized - hiding menu item: ${featureAttribute}`);
+                    }
+                });
+                
+                // Handle dropdown menus - show if they have visible children
+                const dropdownMenus = document.querySelectorAll('#roleBasedMenu li.menu-dropdown');
+                dropdownMenus.forEach(dropdown => {
+                    const dropdownFeature = dropdown.getAttribute('data-feature');
+                    const submenuItems = dropdown.querySelectorAll('.submenu li[data-feature]');
+                    let hasVisibleChildren = false;
+                    
+                    submenuItems.forEach(submenuItem => {
+                        if (submenuItem.classList.contains('menu-visible')) {
+                            hasVisibleChildren = true;
+                        }
+                    });
+                    
+                    if (hasVisibleChildren || authorizedFeatures.has(dropdownFeature)) {
+                        dropdown.classList.add('menu-visible');
+                        console.log(`✅ Showing dropdown menu: ${dropdownFeature} (has visible children or directly authorized)`);
+                    } else {
+                        dropdown.classList.remove('menu-visible');
+                        console.log(`❌ Hiding dropdown menu: ${dropdownFeature} (no visible children and not authorized)`);
+                    }
+                });
+                
+                console.log(`🎯 Feature-based menu authorization completed for actionplan.html - ${visibleCount} items visible`);
+                
+                // Remove loading class after successful authorization
+                const sidebar = document.querySelector('.sidebar');
+                if (sidebar) {
+                    sidebar.classList.remove('menu-loading');
+                }
+            } catch (error) {
+                console.error('❌ Error applying feature-based menu visibility:', error);
+                resetMenuVisibility();
+            }
+        }
+
+        // Make updateMenuWithFeatureAuthorization available globally
+        window.updateMenuWithFeatureAuthorization = updateMenuWithFeatureAuthorization;
+    </script>
+</body>
+</html>

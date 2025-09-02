@@ -1,0 +1,4508 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HSE System - KPI Dashboard</title>
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Firebase SDK -->
+    <script type="module">
+        // Import Firebase modules
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getDatabase, ref, set, get, onValue, remove, update, push, child } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+        import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { getStorage, ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
+
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyCUTmTn0rRBb0M-UkQJxnUMrWqXYU_BgIc",
+            authDomain: "users-8be65.firebaseapp.com",
+            databaseURL: "https://users-8be65-default-rtdb.firebaseio.com",
+            projectId: "users-8be65",
+            storageBucket: "users-8be65.firebasestorage.app",
+            messagingSenderId: "829083030831",
+            appId: "1:829083030831:web:36a370e62691e560bc3dda"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+        const auth = getAuth(app);
+        const storage = getStorage(app);
+
+        // Make Firebase available globally
+        window.firebase = { app, db, auth, storage, ref, set, get, onValue, remove, update, push, child, onAuthStateChanged, storageRef, uploadBytes, getDownloadURL, deleteObject };
+    </script>
+    
+    <!-- Comprehensive CSS Styles -->
+    <style>
+        /* CSS Variables and Base Styles */
+        :root {
+            --primary-color: #2c3e50;
+            --secondary-color: #3498db;
+            --accent-color: #e74c3c;
+            --text-color: #333;
+            --bg-color: #f5f6fa;
+            --sidebar-width: 250px;
+            --blue: #3498db;
+            --green: #2ecc71;
+            --purple: #9b59b6;
+            --orange: #e67e22;
+            --red: #e74c3c;
+            --font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            --base-font-size: 0.9rem;
+            --bg-primary: #ffffff;
+            --bg-secondary: #f8f9fa;
+            --text-primary: #333333;
+            --text-secondary: #666666;
+            --border-color: #e0e0e0;
+            --spacing-unit: 1rem;
+            --padding-sm: 0.5rem;
+            --padding-md: 1rem;
+            --padding-lg: 1.5rem;
+            --transition-speed: 0.2s;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: var(--font-family);
+            font-size: var(--base-font-size);
+            line-height: 1.5;
+            color: var(--text-primary);
+            background-color: var(--bg-primary);
+            transition: background-color var(--transition-speed), color var(--transition-speed);
+        }
+
+        .app-container {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        /* Sidebar Styles */
+        .sidebar {
+            width: var(--sidebar-width);
+            background-color: var(--primary-color);
+            color: white;
+            padding: 1rem;
+            position: fixed;
+            height: 100vh;
+            overflow-y: auto;
+        }
+
+        .logo h2 {
+            text-align: center;
+            padding: 1rem 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .menu {
+            list-style: none;
+            margin-top: 2rem;
+        }
+
+        .menu li {
+            margin-bottom: 0.5rem;
+        }
+
+        .menu a {
+            color: white;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            padding: 0.75rem 1rem;
+            border-radius: 5px;
+            transition: background-color 0.3s;
+        }
+
+        .menu a i {
+            margin-right: 10px;
+        }
+
+        .menu a:hover, .menu a.active {
+            background-color: var(--secondary-color);
+        }
+
+        /* Sidebar collapsed state */
+        .sidebar.collapsed {
+            transform: translateX(-100%);
+        }
+
+        /* Main content adjustments when sidebar is collapsed */
+        .main-content.sidebar-collapsed {
+            margin-left: 0;
+        }
+
+        .main-content.sidebar-collapsed .top-nav {
+            left: 0.5rem;
+        }
+
+        .menu-dropdown .submenu {
+            display: none;
+            list-style: none;
+            margin-left: 2rem;
+            margin-top: 0.5rem;
+        }
+
+        .menu-dropdown:hover .submenu {
+            display: block;
+        }
+
+        .menu-dropdown.active .submenu {
+            display: block;
+        }
+
+        /* Main Content Styles */
+        .main-content {
+            flex: 1;
+            margin-left: var(--sidebar-width);
+            padding: 0.5rem;
+            width: calc(100% - var(--sidebar-width));
+            box-sizing: border-box;
+        }
+
+        /* Top Navigation */
+        .top-nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem;
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            margin-bottom: 1rem;
+            position: relative;
+        }
+
+        .top-nav-left {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .sidebar-toggle-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 1.2rem;
+            padding: 0.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-secondary);
+            transition: background-color 0.3s ease;
+        }
+
+        .sidebar-toggle-btn:hover {
+            background-color: #f8f9fa;
+            border-radius: 4px;
+        }
+
+        .header-company-logo {
+            width: 60px;
+            height: 60px;
+            border-radius: 8px;
+            object-fit: cover;
+            display: none;
+        }
+
+        .header-company-logo.visible {
+            display: block;
+        }
+
+        .company-name-header {
+            font-weight: 600;
+            color: #2c3e50;
+            font-size: 1.1rem;
+            display: inline-block;
+        }
+
+        .top-nav-right {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+            margin-left: auto;
+        }
+
+        /* Notification Styles */
+        .notifications {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .notification-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            position: relative;
+            font-size: 1.2rem;
+            padding: 0.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .notification-badge {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            background-color: var(--accent-color);
+            color: white;
+            border-radius: 50%;
+            padding: 0.2rem 0.5rem;
+            font-size: 0.7rem;
+        }
+
+        .notification-dropdown {
+            display: none;
+            position: absolute;
+            right: 0;
+            top: 100%;
+            width: 300px;
+            background-color: white;
+            border-radius: 5px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+        }
+
+        .notification-dropdown.show {
+            display: block;
+        }
+
+        /* User Profile Styles */
+        .user-profile {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .profile-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 0.25rem;
+            display: flex;
+            align-items: center;
+        }
+
+        .profile-btn img {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+
+        /* Avatar Initials */
+        .avatar-initials {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background-color: var(--secondary-color);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            font-weight: 600;
+        }
+
+        .profile-dropdown {
+            display: none;
+            position: absolute;
+            top: 100%;
+            right: 0;
+            background: #fff;
+            border-radius: 4px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            min-width: 200px;
+            z-index: 1000;
+        }
+
+        .profile-dropdown.show {
+            display: block;
+        }
+
+        .profile-dropdown ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .profile-dropdown ul li a {
+            display: flex;
+            align-items: center;
+            padding: 12px 16px;
+            color: #333;
+            text-decoration: none;
+            transition: background-color 0.2s;
+        }
+
+        .profile-dropdown ul li a:hover {
+            background-color: #f8f9fa;
+        }
+
+        .profile-dropdown ul li a i {
+            margin-right: 10px;
+            width: 16px;
+            color: #666;
+        }
+
+        /* KPI Container */
+        .kpi-container {
+            padding: 1rem;
+        }
+
+        .kpi-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 2rem;
+            gap: 1rem;
+        }
+
+        .kpi-title h2 {
+            margin: 0 0 0.5rem 0;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .kpi-title p {
+            margin: 0;
+            color: var(--text-secondary);
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        /* Summary Cards */
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .summary-card {
+            background: var(--bg-primary);
+            border-radius: 12px;
+            padding: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .summary-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        .summary-icon {
+            width: 60px;
+            height: 60px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            color: white;
+        }
+
+        .summary-icon.blue {
+            background: linear-gradient(135deg, var(--blue), #2980b9);
+        }
+
+        .summary-icon.green {
+            background: linear-gradient(135deg, var(--green), #27ae60);
+        }
+
+        .summary-icon.red {
+            background: linear-gradient(135deg, var(--red), #c0392b);
+        }
+
+        .summary-icon.purple {
+            background: linear-gradient(135deg, var(--purple), #8e44ad);
+        }
+
+        .summary-info h3 {
+            font-size: 2rem;
+            font-weight: 700;
+            margin: 0;
+            color: var(--text-primary);
+        }
+
+        .summary-info p {
+            margin: 0.25rem 0 0 0;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        /* Table Styles */
+        .table-section {
+            background: var(--bg-primary);
+            border-radius: 12px;
+            padding: 1.5rem;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+        }
+
+        .table-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .table-header h3 {
+            margin: 0;
+            color: var(--text-primary);
+        }
+
+        .table-controls {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .table-container {
+            overflow-x: auto;
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 0.75rem;
+        }
+
+        .data-table th,
+        .data-table td {
+            padding: 0.75rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .data-table th {
+            background-color: #f5f5f5;
+            font-weight: 600;
+            position: sticky;
+            top: 0;
+        }
+
+        .data-table tbody tr:hover {
+            background-color: #f8f9fa;
+        }
+
+        /* Button Styles */
+        .btn {
+            padding: var(--padding-sm) var(--padding-md);
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: all var(--transition-speed);
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            white-space: nowrap;
+        }
+
+        .btn-primary {
+            background-color: var(--secondary-color);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background-color: #2980b9;
+            transform: translateY(-1px);
+        }
+
+        .btn-info {
+            background-color: var(--purple);
+            color: white;
+        }
+
+        .btn-info:hover {
+            background-color: #8e44ad;
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background-color: var(--green);
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background-color: #27ae60;
+            transform: translateY(-1px);
+        }
+
+        .btn-outline {
+            background-color: transparent;
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+        }
+
+        .btn-outline:hover {
+            background-color: var(--bg-secondary);
+            transform: translateY(-1px);
+        }
+
+        .btn-icon {
+            padding: 0.5rem;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: white;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .btn-icon i {
+            font-size: 0.9rem;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 0.25rem;
+            justify-content: center;
+        }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(2px);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+            padding: 1rem;
+            overflow-y: auto;
+        }
+
+        .modal-content {
+            background: var(--bg-primary);
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            max-width: 600px;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+            position: relative;
+            margin: auto;
+        }
+
+        .modal-content.modal-large {
+            max-width: 900px;
+        }
+
+        .modal-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--bg-secondary);
+            border-radius: 12px 12px 0 0;
+        }
+
+        .modal-header.success {
+            background: linear-gradient(135deg, var(--green), #27ae60);
+            color: white;
+            border-bottom-color: transparent;
+        }
+
+        .modal-header.error {
+            background: linear-gradient(135deg, var(--red), #c0392b);
+            color: white;
+            border-bottom-color: transparent;
+        }
+
+        .modal-header h3 {
+            margin: 0;
+            font-size: 1.25rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: var(--text-secondary);
+            padding: 0.5rem;
+            border-radius: 6px;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            height: 40px;
+        }
+
+        .modal-close:hover {
+            background: rgba(0, 0, 0, 0.1);
+            color: var(--text-primary);
+        }
+
+        .modal-body {
+            padding: 1.5rem;
+        }
+
+        .modal-actions {
+            padding: 1rem 1.5rem;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.5rem;
+            background: var(--bg-secondary);
+        }
+
+        /* Loading Overlay */
+        .loading-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(2px);
+            z-index: 2000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .loading-spinner {
+            text-align: center;
+            color: var(--secondary-color);
+        }
+
+        .loading-spinner i {
+            font-size: 2rem;
+            margin-bottom: 1rem;
+        }
+
+        /* No Results */
+        .no-results {
+            text-align: center;
+            padding: 3rem;
+            color: var(--text-secondary);
+        }
+
+        .no-results i {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            color: var(--border-color);
+        }
+
+        /* Pagination */
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 0.5rem;
+            margin-top: 1.5rem;
+        }
+
+        .pagination button {
+            padding: 0.5rem 0.75rem;
+            border: 1px solid var(--border-color);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .pagination button:hover:not(:disabled) {
+            background: var(--secondary-color);
+            color: white;
+            border-color: var(--secondary-color);
+        }
+
+        .pagination button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .pagination button.active {
+            background: var(--secondary-color);
+            color: white;
+            border-color: var(--secondary-color);
+        }
+
+        /* Menu visibility for role-based access */
+        [data-feature]:not(.menu-visible) {
+            display: none !important;
+        }
+
+        .menu-dropdown:not(.menu-visible) {
+            display: none !important;
+        }
+
+        .menu-loading [data-feature] {
+            opacity: 0.5;
+        }
+
+        /* Performance badges */
+        .performance-badge {
+            padding: 0.25rem 0.5rem;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: white;
+        }
+
+        .performance-badge.outstanding {
+            background: linear-gradient(135deg, #28a745, #20c997);
+        }
+
+        .performance-badge.exceed-expectations {
+            background: linear-gradient(135deg, #17a2b8, #138496);
+        }
+
+        .performance-badge.meet-expectations {
+            background: linear-gradient(135deg, #007bff, #0056b3);
+        }
+
+        .performance-badge.below-expectations {
+            background: linear-gradient(135deg, #ffc107, #e0a800);
+        }
+
+        .performance-badge.unsatisfactory {
+            background: linear-gradient(135deg, #dc3545, #c82333);
+        }
+
+        /* Category and frequency badges */
+        .category-badge,
+        .frequency-badge {
+            padding: 0.25rem 0.5rem;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            background: var(--bg-secondary);
+            color: var(--text-secondary);
+            border: 1px solid var(--border-color);
+        }
+
+        /* Additional KPI styles */
+        .btn-icon.btn-danger {
+            background-color: #dc3545;
+            color: white;
+            border: 1px solid #dc3545;
+        }
+        
+        .btn-icon.btn-danger:hover {
+            background-color: #c82333;
+            border-color: #bd2130;
+            transform: translateY(-1px);
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .sidebar {
+                transform: translateX(-100%);
+                transition: transform 0.3s ease;
+            }
+
+            .sidebar.mobile-open {
+                transform: translateX(0);
+            }
+
+            .main-content {
+                margin-left: 0;
+                width: 100%;
+            }
+
+            .kpi-header {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .header-actions {
+                justify-content: center;
+            }
+
+            .summary-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .top-nav {
+                padding: 0.75rem 1rem;
+                border-radius: 0;
+            }
+            
+            .top-nav-left {
+                gap: 0.5rem;
+            }
+            
+            .company-name-header {
+                font-size: 1rem;
+            }
+            
+            .header-company-logo {
+                width: 48px;
+                height: 48px;
+            }
+
+            /* Mobile sidebar toggle behavior */
+            .sidebar.collapsed {
+                transform: translateX(-100%);
+            }
+
+            .sidebar-toggle-btn {
+                display: block;
+            }
+        }
+    </style>
+    <style>
+        /* Additional styles for delete functionality */
+        .btn-icon.btn-danger {
+            background-color: #dc3545;
+            color: white;
+            border: 1px solid #dc3545;
+        }
+        
+        .btn-icon.btn-danger:hover {
+            background-color: #c82333;
+            border-color: #bd2130;
+            transform: translateY(-1px);
+        }
+        
+        .kpi-list-preview {
+            margin: 12px 0;
+            padding: 12px;
+            background-color: #f8f9fa;
+            border-left: 4px solid #dc3545;
+            border-radius: 4px;
+        }
+        
+        .kpi-preview-item {
+            display: flex;
+            align-items: center;
+            padding: 4px 0;
+            font-size: 0.9em;
+            color: #666;
+        }
+        
+        .kpi-preview-item i {
+            margin-right: 8px;
+            color: #dc3545;
+            width: 16px;
+        }
+        
+        .warning-text {
+            margin-top: 12px;
+            padding: 8px 12px;
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 4px;
+            color: #856404;
+            font-size: 0.9em;
+        }
+        
+        .warning-text strong {
+            color: #721c24;
+        }
+        
+        .text-warning {
+            color: #ffc107 !important;
+        }
+        
+        .delete-summary {
+            text-align: left;
+        }
+        
+        .delete-details {
+            margin-top: 8px;
+        }
+        
+        .delete-details > span {
+            display: block;
+            margin: 4px 0;
+            font-size: 0.9em;
+            color: #666;
+        }
+        
+        .action-buttons {
+            display: flex;
+            gap: 4px;
+            justify-content: center;
+        }
+        
+        .btn-icon {
+            padding: 6px 8px;
+            border-radius: 4px;
+            border: 1px solid transparent;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 0.85em;
+        }
+        
+        .btn-icon:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        /* Performance Rating Preview Styles */
+        .preview-item.outstanding .preview-fill {
+            background: linear-gradient(90deg, #28a745, #20c997);
+        }
+
+        .preview-item.exceed-expectations .preview-fill {
+            background: linear-gradient(90deg, #17a2b8, #6f42c1);
+        }
+
+        .preview-item.meet-expectations .preview-fill {
+            background: linear-gradient(90deg, #007bff, #0056b3);
+        }
+
+        .preview-item.below-expectations .preview-fill {
+            background: linear-gradient(90deg, #ffc107, #fd7e14);
+        }
+
+        .preview-item.unsatisfactory .preview-fill {
+            background: linear-gradient(90deg, #dc3545, #c82333);
+        }
+
+        .outstanding-fill {
+            background: #28a745 !important;
+        }
+
+        .exceed-expectations-fill {
+            background: #17a2b8 !important;
+        }
+
+        .meet-expectations-fill {
+            background: #007bff !important;
+        }
+
+        .below-expectations-fill {
+            background: #ffc107 !important;
+        }
+
+        .unsatisfactory-fill {
+            background: #dc3545 !important;
+        }
+
+        /* Enhanced Threshold Modal Styles - Position Details Modal Design */
+        .threshold-header {
+            background: linear-gradient(135deg, var(--primary-color, #2c3e50) 0%, var(--secondary-color, #3498db) 100%);
+            color: white;
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        /* KPI Header Styles - Position Details Modal Design */
+        .kpi-header {
+            background: linear-gradient(135deg, var(--primary-color, #2c3e50) 0%, var(--secondary-color, #3498db) 100%);
+            color: white;
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .kpi-title {
+            font-size: 1.2rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .kpi-meta {
+            display: flex;
+            gap: 1.5rem;
+            margin-top: 0.75rem;
+            flex-wrap: wrap;
+        }
+
+        /* Status Badge Styles for KPI Modal */
+        .status-badge {
+            padding: 0.3rem 0.6rem;
+            border-radius: 20px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .status-active {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-inactive {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        /* Description Section Styles for KPI Modal */
+        .description-section {
+            background: white;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            border: 1px solid #e9ecef;
+            width: 100%;
+        }
+        
+        .description-title {
+            color: var(--secondary-color, #3498db);
+            font-weight: 700;
+            margin-bottom: 0.6rem;
+            font-size: 0.95rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .description-text {
+            line-height: 1.5;
+            color: #495057;
+            white-space: pre-wrap;
+            font-size: 0.9rem;
+            text-align: left;
+        }
+
+        .threshold-title {
+            font-size: 1.2rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .threshold-meta {
+            display: flex;
+            gap: 1.5rem;
+            margin-top: 0.75rem;
+            flex-wrap: wrap;
+        }
+
+        .meta-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.8rem;
+            opacity: 0.95;
+        }
+
+        .details-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .detail-card {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 1.5rem;
+            border-left: 4px solid var(--secondary-color, #3498db);
+            transition: all 0.2s ease;
+            width: 100%;
+            margin-bottom: 1rem;
+        }
+
+        .detail-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .card-title {
+            color: var(--secondary-color, #3498db);
+            font-weight: 700;
+            margin-bottom: 0.8rem;
+            font-size: 0.95rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .detail-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 0.8rem;
+            padding: 0.6rem 0;
+            border-bottom: 1px solid #e9ecef;
+            font-size: 0.85rem;
+        }
+
+        .detail-item:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+        }
+
+        .detail-label {
+            font-weight: 600;
+            color: #495057;
+            flex: 0 0 35%;
+            font-size: 0.85rem;
+        }
+
+        .detail-value {
+            color: #212529;
+            flex: 1;
+            text-align: left;
+            font-size: 0.85rem;
+        }
+
+        .detail-value .form-control.compact {
+            margin-bottom: 0.25rem;
+            max-width: 200px;
+        }
+
+        .detail-value .form-hint {
+            display: block;
+            color: #6c757d;
+            font-size: 0.75rem;
+            margin-top: 0.25rem;
+            line-height: 1.3;
+        }
+
+        .detail-value .checkbox-group {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.5rem;
+        }
+
+        .detail-value .checkbox-group input[type="checkbox"] {
+            margin-top: 0.2rem;
+        }
+
+        .detail-value .checkbox-group label {
+            font-size: 0.85rem;
+            line-height: 1.3;
+            margin: 0;
+        }
+
+        .detail-value .btn-sm {
+            padding: 0.375rem 0.75rem;
+            font-size: 0.8rem;
+        }
+
+        /* Enhanced Preview Section */
+        .threshold-preview .preview-item {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 0.75rem;
+            padding: 0.5rem;
+            border-radius: 6px;
+            background: white;
+            border: 1px solid #e9ecef;
+            transition: all 0.2s ease;
+        }
+
+        .threshold-preview .preview-item:hover {
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .preview-bar {
+            width: 60px;
+            height: 8px;
+            background: #e9ecef;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .preview-fill {
+            height: 100%;
+            width: 100%;
+            border-radius: 4px;
+        }
+
+        .preview-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex: 1;
+        }
+
+        .preview-label {
+            font-weight: 600;
+            font-size: 0.85rem;
+        }
+
+        .preview-range {
+            font-size: 0.8rem;
+            color: #6c757d;
+            font-weight: 500;
+        }
+
+        /* Responsive design for threshold modal */
+        @media (max-width: 768px) {
+            .threshold-meta {
+                flex-direction: column;
+                gap: 0.5rem;
+            }
+            
+            .detail-item {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 0.4rem;
+            }
+            
+            .detail-label {
+                flex: none;
+                margin-bottom: 0.2rem;
+            }
+            
+            .detail-value {
+                width: 100%;
+            }
+            
+            .detail-value .form-control.compact {
+                max-width: 100%;
+            }
+            
+            .preview-content {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 0.2rem;
+            }
+            
+            .threshold-title {
+                font-size: 1rem;
+            }
+        }
+        
+        /* Hide Target column */
+        .data-table th[data-sort="target"],
+        .data-table .target-column {
+            display: none !important;
+        }
+        
+        /* Hide the target summary column (5th column) in KPI table */
+        .data-table th:nth-child(5),
+        .data-table td:nth-child(5) {
+            display: none !important;
+        }
+        
+        /* Hide variance information in performance labels */
+        .performance-label {
+            white-space: nowrap;
+            overflow: hidden;
+        }
+        
+        /* Hide variance metric in detail views */
+        .metric:has(label:contains("Variance")) {
+            display: none !important;
+        }
+        
+        /* Alternative method to hide variance metric if :has() not supported */
+        .kpi-detail .metric:nth-child(3) {
+            display: none !important;
+        }
+        
+        /* Custom JavaScript will handle hiding variance text in performance labels */
+        
+        /* Enhanced KPI Details Modal Styles */
+        .kpi-detail-enhanced {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        
+        .kpi-hero {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 2rem;
+            margin: -1.5rem -1.5rem 2rem -1.5rem;
+            border-radius: 12px 12px 0 0;
+        }
+        
+        .kpi-hero-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 1rem;
+        }
+        
+        .kpi-title {
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin: 0 0 0.5rem 0;
+            line-height: 1.2;
+        }
+        
+        .kpi-meta {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+        
+        .kpi-category, .kpi-frequency, .kpi-type {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            backdrop-filter: blur(10px);
+        }
+        
+        .kpi-status-badge {
+            background: rgba(255, 255, 255, 0.15);
+            padding: 0.5rem 1rem;
+            border-radius: 25px;
+            font-weight: 600;
+            font-size: 0.875rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            white-space: nowrap;
+        }
+        
+        .kpi-status-badge.active {
+            background: rgba(34, 197, 94, 0.2);
+            border-color: rgba(34, 197, 94, 0.3);
+        }
+        
+        .kpi-status-badge.inactive {
+            background: rgba(239, 68, 68, 0.2);
+            border-color: rgba(239, 68, 68, 0.3);
+        }
+        
+        .performance-dashboard {
+            display: grid;
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        
+        .performance-card {
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+            border-radius: 16px;
+            padding: 1.5rem;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        
+        .performance-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+        
+        .performance-header h3 {
+            margin: 0;
+            color: #1e293b;
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+        
+        .performance-rating {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .rating-label {
+            font-weight: 600;
+            font-size: 1rem;
+        }
+        
+        .performance-rating.excellent .rating-label { color: #059669; }
+        .performance-rating.good .rating-label { color: #0891b2; }
+        .performance-rating.average .rating-label { color: #d97706; }
+        .performance-rating.poor .rating-label { color: #dc2626; }
+        
+        .rating-indicator {
+            position: relative;
+        }
+        
+        .rating-circle {
+            position: relative;
+            width: 80px;
+            height: 80px;
+        }
+        
+        .rating-svg {
+            width: 100%;
+            height: 100%;
+            transform: rotate(-90deg);
+        }
+        
+        .rating-bg {
+            fill: none;
+            stroke: #e2e8f0;
+            stroke-width: 3;
+        }
+        
+        .rating-fill {
+            fill: none;
+            stroke-width: 3;
+            stroke-linecap: round;
+            transition: stroke-dasharray 0.3s ease;
+        }
+        
+        .rating-fill.excellent { stroke: #059669; }
+        .rating-fill.good { stroke: #0891b2; }
+        .rating-fill.average { stroke: #d97706; }
+        .rating-fill.poor { stroke: #dc2626; }
+        
+        .rating-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-weight: 700;
+            font-size: 1.125rem;
+            color: #1e293b;
+        }
+        
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+        }
+        
+        .metric-card {
+            background: white;
+            border-radius: 12px;
+            padding: 1.25rem;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        
+        .metric-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px 0 rgba(0, 0, 0, 0.15);
+        }
+        
+        .metric-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.25rem;
+            color: white;
+            flex-shrink: 0;
+        }
+        
+        .metric-icon.target {
+            background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+        }
+        
+        .metric-icon.current {
+            background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+        }
+        
+        .metric-icon.variance.positive {
+            background: linear-gradient(135deg, #10b981, #059669);
+        }
+        
+        .metric-icon.variance.negative {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+        }
+        
+        .metric-content {
+            flex: 1;
+            min-width: 0;
+        }
+        
+        .metric-label {
+            font-size: 0.875rem;
+            color: #64748b;
+            font-weight: 500;
+            margin-bottom: 0.25rem;
+        }
+        
+        .metric-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #1e293b;
+            line-height: 1.2;
+        }
+        
+        .content-section {
+            background: white;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
+            margin-bottom: 1.5rem;
+            overflow: hidden;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+        }
+        
+        .section-header {
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        
+        .section-header h3 {
+            margin: 0;
+            color: #1e293b;
+            font-size: 1.125rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .section-header i {
+            color: #6366f1;
+        }
+        
+        .section-content {
+            padding: 1.5rem;
+        }
+        
+        .description-text, .notes-text {
+            margin: 0;
+            color: #475569;
+            line-height: 1.6;
+            font-size: 1rem;
+        }
+        
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            .kpi-hero {
+                padding: 1.5rem;
+                margin: -1rem -1rem 1.5rem -1rem;
+            }
+            
+            .kpi-hero-content {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 1rem;
+            }
+            
+            .kpi-title {
+                font-size: 1.5rem;
+            }
+            
+            .metrics-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .performance-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 1rem;
+            }
+            
+            .performance-rating {
+                align-self: flex-end;
+            }
+        }
+        
+        /* KPI Detail Modal Specific Styles */
+        .kpi-detail-modal .modal-body {
+            padding: 0;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        
+        .kpi-detail-modal .modal-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-bottom: none;
+        }
+        
+        .kpi-detail-modal .modal-header h3 {
+            color: white;
+        }
+        
+        .kpi-detail-modal .modal-close {
+            color: white;
+            border-color: rgba(255, 255, 255, 0.3);
+        }
+        
+        .kpi-detail-modal .modal-close:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.5);
+        }
+        
+        .kpi-detail-modal .modal-actions {
+            background: #f8fafc;
+            border-top: 1px solid #e2e8f0;
+            margin-top: 0;
+        }
+
+        /* KPI Detail Content Styles */
+        .kpi-detail-section {
+            padding: 0;
+        }
+
+        .kpi-detail-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .kpi-detail-header h4 {
+            margin: 0;
+            color: #1a202c;
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .kpi-detail-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .detail-card {
+            background: #f8fafc;
+            padding: 1rem;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+            transition: all 0.2s ease;
+        }
+
+        .detail-card:hover {
+            background: #edf2f7;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .detail-label {
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: #4a5568;
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .detail-value {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #1a202c;
+            word-break: break-word;
+        }
+
+        .detail-value.highlight {
+            color: #3182ce;
+            font-size: 1.25rem;
+        }
+
+        .detail-section {
+            margin-bottom: 1.5rem;
+            padding: 1rem;
+            background: #f8fafc;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .detail-description {
+            font-size: 1rem;
+            color: #4a5568;
+            line-height: 1.6;
+            margin-top: 0.5rem;
+        }
+
+        .kpi-performance-badge {
+            flex-shrink: 0;
+        }
+
+        /* Responsive design for KPI details */
+        @media (max-width: 768px) {
+            .kpi-detail-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .kpi-detail-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 1rem;
+            }
+        }
+
+        /* Enhanced KPI Dashboard Design - Jobscreen Style */
+        .content {
+            padding: 2rem 0;
+            background-color: var(--bg-secondary);
+            min-height: calc(100vh - 80px);
+            width: 100%;
+            margin: 0;
+            max-width: none;
+        }
+
+        .dashboard-container {
+            width: 100%;
+            margin: 0;
+            background-color: transparent;
+            border-radius: 0;
+            box-shadow: none;
+            overflow: visible;
+        }
+
+        .dashboard-header {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            padding: 1.25rem;
+            box-shadow: 0 18px 54px rgba(0,0,0,0.22), 0 10px 28px rgba(0,0,0,0.16), 0 5px 14px rgba(0,0,0,0.12);
+            margin: 0 2rem 2rem 2rem;
+            transition: box-shadow 0.3s ease;
+            border-radius: 0;
+        }
+
+        .dashboard-header:hover {
+            box-shadow: 0 22px 66px rgba(0,0,0,0.28), 0 14px 36px rgba(0,0,0,0.20), 0 7px 18px rgba(0,0,0,0.15);
+        }
+
+        .dashboard-title h1 {
+            font-size: 2rem;
+            font-weight: 600;
+            margin: 0 0 0.5rem 0;
+            color: white;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            flex: 1;
+        }
+
+        .dashboard-title p {
+            margin: 0;
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 1.1rem;
+        }
+
+        .header-top-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 2rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .header-left {
+            flex: 1;
+        }
+
+        .header-right {
+            flex-shrink: 0;
+        }
+
+        .dashboard-actions {
+            display: flex;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+        }
+
+        .dashboard-actions .btn {
+            background-color: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            transition: all 0.3s ease;
+            padding: 0.5rem 1rem;
+            border-radius: 0;
+        }
+
+        .dashboard-actions .btn:hover {
+            background-color: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+        }
+
+        /* Enhanced Stats Section - Professional Cards */
+        .kpi-stats-section {
+            margin: 0 2rem 1.5rem 2rem;
+            padding: 0;
+            background-color: transparent;
+            border: none;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 0.5rem;
+            margin-bottom: 0;
+        }
+
+        .stat-card {
+            background-color: white;
+            border-radius: 0;
+            padding: 1rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            text-align: center;
+            transition: all 0.2s ease;
+            min-height: 80px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+        }
+
+        .stat-icon {
+            font-size: 1.5rem;
+            margin-bottom: 0.5rem;
+            opacity: 0.8;
+        }
+
+        .stat-value {
+            font-size: 1.4rem;
+            font-weight: 700;
+            margin-bottom: 0.25rem;
+            color: var(--primary-color);
+            line-height: 1;
+        }
+
+        .stat-label {
+            color: #6c757d;
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 500;
+            line-height: 1.2;
+        }
+
+        /* Enhanced Filters Section */
+        .filters-section {
+            padding: 1.5rem 2rem;
+            background-color: white;
+            border: none;
+            border-radius: 0;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin: 0 2rem 2rem 2rem;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            min-width: 200px;
+        }
+
+        .filter-group label {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #495057;
+            text-transform: none;
+            letter-spacing: normal;
+        }
+
+        .filter-select, .search-input {
+            padding: 0.75rem;
+            border: 1px solid #ced4da;
+            border-radius: 0;
+            font-size: 0.9rem;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .filter-select:focus, .search-input:focus {
+            outline: none;
+            border-color: var(--secondary-color);
+            box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+        }
+
+        /* Enhanced Table Section */
+        .kpi-table-section {
+            padding: 0 2rem 2rem 2rem;
+        }
+
+        .table-container {
+            background-color: white;
+            border-radius: 0;
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .table-header {
+            background-color: #f8f9fa;
+            padding: 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .table-header h3 {
+            margin: 0;
+            font-size: 1.3rem;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-weight: 600;
+        }
+
+        .search-box {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+
+        .search-input {
+            padding: 0.75rem 1rem;
+            border: 1px solid #ced4da;
+            border-radius: 0;
+            font-size: 0.9rem;
+            width: 300px;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: var(--secondary-color);
+            box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .data-table th,
+        .data-table td {
+            padding: 1rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .data-table th {
+            background-color: var(--bg-secondary);
+            font-weight: 600;
+            color: var(--text-primary);
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .data-table td {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        .data-table tbody tr:hover {
+            background-color: rgba(52, 152, 219, 0.05);
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .status-badge.active {
+            background-color: rgba(46, 204, 113, 0.2);
+            color: #27ae60;
+        }
+
+        .status-badge.pending {
+            background-color: rgba(241, 196, 15, 0.2);
+            color: #f39c12;
+        }
+
+        .status-badge.completed {
+            background-color: rgba(52, 152, 219, 0.2);
+            color: #3498db;
+        }
+
+        .progress-bar {
+            width: 100px;
+            height: 8px;
+            background-color: #e0e0e0;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #3498db, #2ecc71);
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .btn-icon {
+            padding: 0.5rem;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .btn-icon:hover {
+            transform: translateY(-1px);
+        }
+
+        /* Responsive Design for Enhanced KPI Board */
+        @media (max-width: 768px) {
+            .content {
+                padding: 1rem 0;
+            }
+
+            .dashboard-header {
+                margin: 0 1rem 2rem 1rem;
+                padding: 1rem;
+            }
+
+            .dashboard-title h1 {
+                font-size: 1.5rem;
+            }
+
+            .header-top-row {
+                flex-direction: column;
+                gap: 1rem;
+                align-items: flex-start;
+            }
+
+            .dashboard-actions {
+                justify-content: flex-start;
+                width: 100%;
+            }
+
+            .kpi-stats-section {
+                margin: 0 1rem 1.5rem 1rem;
+            }
+
+            .stats-grid {
+                grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+                gap: 0.4rem;
+            }
+
+            .stat-card {
+                padding: 0.75rem;
+                min-height: 65px;
+            }
+
+            .stat-value {
+                font-size: 1.2rem;
+            }
+
+            .stat-icon {
+                font-size: 1.2rem;
+                margin-bottom: 0.4rem;
+            }
+
+            .stat-label {
+                font-size: 0.65rem;
+            }
+
+            .filters-section {
+                margin: 0 1rem 2rem 1rem;
+                padding: 1rem;
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .filter-group {
+                min-width: unset;
+            }
+
+            .kpi-table-section {
+                padding: 0 1rem 2rem 1rem;
+            }
+
+            .table-header {
+                flex-direction: column;
+                gap: 1rem;
+                align-items: stretch;
+            }
+
+            .search-input {
+                width: 100%;
+            }
+
+            .data-table {
+                font-size: 0.8rem;
+            }
+
+            .data-table th,
+            .data-table td {
+                padding: 0.75rem 0.5rem;
+            }
+        }
+
+        /* KPI Portfolio Grouping Styles */
+        .employee-portfolio-row {
+            background-color: #f8f9fa !important;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border-left: 4px solid var(--primary-color);
+        }
+
+        .employee-portfolio-row:hover {
+            background-color: #e9ecef !important;
+            transform: translateX(2px);
+        }
+
+        .employee-portfolio-row td {
+            vertical-align: middle;
+            padding: 1rem 0.75rem;
+        }
+
+        .portfolio-toggle {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--primary-color);
+            font-size: 0.9rem;
+        }
+
+        .portfolio-toggle i {
+            transition: transform 0.3s ease;
+            font-size: 0.8rem;
+        }
+
+        .employee-portfolio-row.expanded .portfolio-toggle i {
+            transform: rotate(90deg);
+        }
+
+        .portfolio-summary {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .portfolio-stat {
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        .portfolio-stat i {
+            font-size: 0.8rem;
+        }
+
+        .portfolio-stat.total {
+            color: var(--primary-color);
+            font-weight: 600;
+        }
+
+        .portfolio-stat.performance {
+            color: #28a745;
+        }
+
+        .portfolio-stat.pending {
+            color: #ffc107;
+        }
+
+        .kpi-sub-row {
+            background-color: #ffffff;
+            border-left: 3px solid #e9ecef;
+            display: none;
+        }
+
+        .kpi-sub-row.visible {
+            display: table-row;
+        }
+
+        .kpi-sub-row td {
+            padding: 0.75rem;
+            border-top: 1px solid #f1f3f4;
+            font-size: 0.9rem;
+        }
+
+        .kpi-sub-row td:first-child {
+            padding-left: 2rem;
+            position: relative;
+        }
+
+        .kpi-sub-row td:first-child::before {
+            content: "├─";
+            position: absolute;
+            left: 1rem;
+            color: #ccc;
+            font-weight: normal;
+        }
+
+        .kpi-sub-row:last-of-type td:first-child::before {
+            content: "└─";
+        }
+
+        .kpi-sub-row:hover {
+            background-color: #f8f9fa;
+        }
+
+        .portfolio-actions {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+
+        .portfolio-actions .btn-icon {
+            opacity: 0.7;
+            font-size: 0.8rem;
+        }
+
+        .portfolio-actions .btn-icon:hover {
+            opacity: 1;
+        }
+
+        /* Employee avatar in portfolio row */
+        .employee-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            font-weight: 600;
+            font-size: 0.8rem;
+            margin-right: 0.5rem;
+        }
+
+        .employee-info {
+            display: flex;
+            align-items: center;
+        }
+
+        .employee-name {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .employee-department {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            margin-left: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Left Sidebar -->
+        <nav class="sidebar menu-loading">
+            <div class="logo">
+                <h2>Dreamex Datalab</h2>
+            </div>
+            <ul class="menu">
+                <li data-feature="home_view"><a href="index.html"><i class="fas fa-home"></i> Home</a></li>
+                <li class="menu-dropdown" data-feature="health_view">
+                    <a href="#"><i class="fas fa-medkit"></i> Health</a>
+                    <ul class="submenu">
+                        <li data-feature="health_assessment_view"><a href="health-assessment.html">Assessment</a></li>
+                        <li data-feature="health_consultation_view"><a href="health-consultation.html">Consultation</a></li>
+                        <li data-feature="medical_folder_view"><a href="medical-folder.html">Medical Folder</a></li>
+                    </ul>
+                </li>
+                <li class="menu-dropdown" data-feature="safety_view">
+                    <a href="#"><i class="fas fa-shield-alt"></i> Safety</a>
+                    <ul class="submenu">
+                        <li data-feature="training_view"><a href="trainingboard.html">Training</a></li>
+                        <li data-feature="risk_view"><a href="riskboard.html">Risk Management</a></li>
+                        <li data-feature="jsa_view"><a href="jsaboard.html">Job Safety Analysis</a></li>
+                        <li data-feature="ptw_view"><a href="ptwboard.html">Permit to Work</a></li>
+                        <li data-feature="incident_view"><a href="incidentboard.html">Incident Reports</a></li>
+                        <li data-feature="inspection_view"><a href="inspectionboard.html">Inspection</a></li>
+                    </ul>
+                </li>
+                <li class="menu-dropdown" data-feature="environment_view">
+                    <a href="#"><i class="fas fa-leaf"></i> Environment</a>
+                    <ul class="submenu">
+                        <li data-feature="water_view"><a href="waterboard.html">Water Quality</a></li>
+                        <li data-feature="ghg_view"><a href="ghgboard.html">GHG Calculator</a></li>
+                    </ul>
+                </li>
+                <li class="menu-dropdown" data-feature="security_view">
+                    <a href="#"><i class="fas fa-lock"></i> Security</a>
+                    <ul class="submenu">
+                        <li data-feature="access_view"><a href="accessboard.html">Access Request</a></li>
+                        <li data-feature="access_daily_view"><a href="accessdaily.html">Daily Access Control</a></li>
+                        <li data-feature="removal_view"><a href="removalboard.html">Property Removal</a></li>
+                    </ul>
+                </li>
+                <li data-feature="logistics_view"><a href="#"><i class="fas fa-truck"></i> Logistics</a></li>
+                <li class="menu-dropdown" data-feature="hr_view">
+                    <a href="#"><i class="fas fa-users"></i> HR</a>
+                    <ul class="submenu">
+                        <li data-feature="staff_management_view"><a href="staff.html">Staffing</a></li>
+                    </ul>
+                </li>
+                <li class="menu-dropdown active" data-feature="kpi_view">
+                    <a href="#" class="active"><i class="fas fa-chart-line"></i> KPI Management</a>
+                    <ul class="submenu">
+                        <li data-feature="kpi_create_view"><a href="kpi.html">Create KPI</a></li>
+                        <li data-feature="kpi_dashboard_view"><a href="kpiboard.html" class="active">KPI Dashboard</a></li>
+                    </ul>
+                </li>
+                <li class="menu-dropdown" data-feature="settings_view">
+                    <a href="#"><i class="fas fa-cog"></i> Settings</a>
+                    <ul class="submenu">
+                        <li data-feature="account_settings_view"><a href="account.html">Account Settings</a></li>
+                        <li data-feature="company_management_view"><a href="companyboard.html">Company Management</a></li>
+                        <li data-feature="approval_settings_view"><a href="approval-settings.html">Approval Flow Settings</a></li>
+                        <li data-feature="field_setup_view"><a href="fieldsetup.html">Field Setup</a></li>
+                        <li data-feature="preferences_view"><a href="preferences.html">Preferences</a></li>
+                        <li data-feature="notification_settings_view"><a href="notification-settings.html">Notification Settings</a></li>
+                        <li data-feature="audit_log_view"><a href="auditlog.html">Audit Log</a></li>
+                        <li data-feature="user_management_view"><a href="users.html">User & Role Management</a></li>
+                        <li data-feature="role_permissions_view"><a href="roles.html">Role Permissions</a></li>
+                    </ul>
+                </li>
+            </ul>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Top Navigation -->
+            <header class="top-nav">
+                <div class="top-nav-left">
+                    <button id="sidebarToggle" class="sidebar-toggle-btn">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <img id="headerCompanyLogo" class="header-company-logo" alt="Company Logo">
+                    <span id="headerCompanyName" class="company-name-header"></span>
+                </div>
+                <div class="top-nav-right">
+                    <div class="notifications">
+                        <button id="notificationBtn" class="notification-btn">
+                            <i class="fas fa-bell"></i>
+                            <span class="notification-badge">0</span>
+                        </button>
+                        <div class="notification-dropdown">
+                            <div class="notification-header">
+                                <h3>Notifications</h3>
+                                <button class="mark-all-read">Mark all as read</button>
+                            </div>
+                            <div class="notification-list">
+                                <!-- Notifications will be dynamically added here -->
+                            </div>
+                        </div>
+                    </div>
+                    <div class="user-profile">
+                        <button id="userProfileBtn" class="profile-btn">
+                            <img src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA0MCA0MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMjAiIGN5PSIyMCIgcj0iMjAiIGZpbGw9IiMzNDk4ZGIiLz4KPHR4dCB4PSIyMCIgeT0iMjUiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZpbGw9IndoaXRlIiBmb250LXNpemU9IjE0IiBmb250LXdlaWdodD0iNjAwIiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiPlU8L3R4dD4KPHN2Zz4K" alt="User Avatar">
+                        </button>
+                        <div class="profile-dropdown">
+                            <ul>
+                                <li><a href="account.html"><i class="fas fa-user"></i> Account Settings</a></li>
+                                <li><a href="#" onclick="handleLogout()"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Hidden file input for avatar upload -->
+            <input type="file" id="avatarUpload" accept="image/*" style="display: none;">
+
+            <!-- Main Content Area - Enhanced Design -->
+            <div class="content">
+                <div class="dashboard-container">
+                    <!-- Enhanced Header with Gradient -->
+                    <div class="dashboard-header">
+                        <div class="header-top-row">
+                            <div class="header-left">
+                                <div class="dashboard-title">
+                                    <h1><i class="fas fa-chart-bar"></i> KPI Dashboard</h1>
+                                </div>
+                            </div>
+                            <div class="header-right">
+                                <div class="dashboard-actions">
+                                    <button type="button" class="btn btn-primary" onclick="window.location.href='kpi.html'">
+                                        <i class="fas fa-plus"></i> Create KPI
+                                    </button>
+                                    <button type="button" class="btn btn-info" onclick="openThresholdModal()">
+                                        <i class="fas fa-sliders-h"></i> Thresholds
+                                    </button>
+                                    <button type="button" class="btn btn-secondary" onclick="exportKPIs()">
+                                        <i class="fas fa-download"></i> Export
+                                    </button>
+                                    <button type="button" class="btn btn-outline" onclick="refreshData()">
+                                        <i class="fas fa-sync-alt"></i> Refresh
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Enhanced Stats Cards -->
+                    <div class="kpi-stats-section">
+                        <div class="stats-grid">
+                            <div class="stat-card">
+                                <div class="stat-icon blue">
+                                    <i class="fas fa-chart-line"></i>
+                                </div>
+                                <div class="stat-value" id="totalKPIs">0</div>
+                                <div class="stat-label">Total KPIs</div>
+                            </div>
+
+                            <div class="stat-card">
+                                <div class="stat-icon green">
+                                    <i class="fas fa-percentage"></i>
+                                </div>
+                                <div class="stat-value" id="activeKPIs">0%</div>
+                                <div class="stat-label">Avg Performance</div>
+                            </div>
+
+                            <div class="stat-card">
+                                <div class="stat-icon purple">
+                                    <i class="fas fa-layer-group"></i>
+                                </div>
+                                <div class="stat-value" id="criticalKPIs">0</div>
+                                <div class="stat-label">Categories</div>
+                            </div>
+
+                            <div class="stat-card">
+                                <div class="stat-icon orange">
+                                    <i class="fas fa-target"></i>
+                                </div>
+                                <div class="stat-value" id="targetsAchieved">0</div>
+                                <div class="stat-label">Targets Achieved</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Enhanced Filters Section -->
+                    <div class="filters-section">
+                        <div class="filter-group">
+                            <label for="categoryFilter">Filter by Category</label>
+                            <select id="categoryFilter" class="filter-select">
+                                <option value="">All Categories</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label for="employeeFilter">Filter by Employee</label>
+                            <select id="employeeFilter" class="filter-select">
+                                <option value="">All Employees</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label for="performanceFilter">Filter by Performance</label>
+                            <select id="performanceFilter" class="filter-select">
+                                <option value="">All Performance Levels</option>
+                                <option value="outstanding">Outstanding</option>
+                                <option value="exceed-expectations">Exceed Expectations</option>
+                                <option value="meet-expectations">Meet Expectations</option>
+                                <option value="below-expectations">Below Expectations</option>
+                                <option value="unsatisfactory">Unsatisfactory</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label for="searchKPI">Search KPIs</label>
+                            <input type="text" id="searchKPI" class="search-input" placeholder="Search by name, description...">
+                        </div>
+                    </div>
+
+                    <!-- Enhanced KPI Table Section -->
+                    <div class="kpi-table-section">
+                        <div class="table-container">
+                            <div class="table-header">
+                                <h3><i class="fas fa-table"></i> KPI Portfolio</h3>
+                                <div class="search-box">
+                                    <span id="resultsCount">0 KPIs found</span>
+                                    <select id="itemsPerPage" class="filter-select">
+                                        <option value="10">10 per page</option>
+                                        <option value="25">25 per page</option>
+                                        <option value="50">50 per page</option>
+                                        <option value="100">100 per page</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <table id="kpiTable" class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th data-sort="name">KPI Name <i class="fas fa-sort"></i></th>
+                                        <th data-sort="category">Category <i class="fas fa-sort"></i></th>
+                                        <th data-sort="performance">Performance <i class="fas fa-sort"></i></th>
+                                        <th data-sort="current">Current Value <i class="fas fa-sort"></i></th>
+                                        <th data-sort="frequency">Frequency <i class="fas fa-sort"></i></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="kpiTableBody">
+                                    <!-- KPI rows will be dynamically inserted here -->
+                                </tbody>
+                            </table>
+                        </div>
+
+                <!-- No Results Message -->
+                <div id="noResults" class="no-results" style="display: none;">
+                    <div class="no-results-content">
+                        <i class="fas fa-search"></i>
+                        <h3>No KPIs Found</h3>
+                        <p>No KPIs match your current filter criteria.</p>
+                        <button type="button" class="btn btn-primary" onclick="location.href='kpi.html'">
+                            <i class="fas fa-plus"></i> Create Your First KPI
+                        </button>
+                    </div>
+                </div>
+
+                        <!-- Pagination -->
+                        <div class="pagination" id="pagination">
+                            <!-- Pagination will be dynamically generated -->
+                        </div>
+
+                        <!-- No Results Message -->
+                        <div id="noResults" class="no-results" style="display: none;">
+                            <i class="fas fa-search"></i>
+                            <p>No KPIs found matching your criteria</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Performance Threshold Modal -->
+    <div id="thresholdModal" class="modal">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h3><i class="fas fa-sliders-h"></i> Global Performance Thresholds</h3>
+                <button type="button" class="modal-close" onclick="closeModal('thresholdModal')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <!-- Enhanced Header with Gradient -->
+                <div class="threshold-header">
+                    <div class="threshold-title">
+                        <i class="fas fa-chart-line"></i>
+                        Performance Threshold Configuration
+                    </div>
+                    <div class="threshold-meta">
+                        <div class="meta-item">
+                            <i class="fas fa-info-circle"></i>
+                            Define global performance thresholds that will be applied to all KPIs
+                        </div>
+                        <div class="meta-item">
+                            <i class="fas fa-cog"></i>
+                            These can be overridden for individual KPIs
+                        </div>
+                    </div>
+                </div>
+
+                <form id="globalThresholdForm">
+                    <div class="details-grid">
+                        <!-- Performance Rating Thresholds Section -->
+                        <div class="detail-card">
+                            <div class="card-title">
+                                <i class="fas fa-star"></i> Performance Rating Thresholds
+                            </div>
+                            
+                            <div class="detail-item">
+                                <div class="detail-label">Outstanding (%)</div>
+                                <div class="detail-value">
+                                    <input type="number" id="globalOutstandingThreshold" name="globalOutstandingThreshold" 
+                                           class="form-control compact" step="0.01" min="0" max="200" placeholder="130">
+                                    <small class="form-hint">Performance above this percentage demonstrates outstanding achievement</small>
+                                </div>
+                            </div>
+
+                            <div class="detail-item">
+                                <div class="detail-label">Exceed Expectations (%)</div>
+                                <div class="detail-value">
+                                    <input type="number" id="globalExceedExpectationsThreshold" name="globalExceedExpectationsThreshold" 
+                                           class="form-control compact" step="0.01" min="0" max="200" placeholder="110">
+                                    <small class="form-hint">Performance above this percentage exceeds expectations</small>
+                                </div>
+                            </div>
+
+                            <div class="detail-item">
+                                <div class="detail-label">Meet Expectations (%)</div>
+                                <div class="detail-value">
+                                    <input type="number" id="globalMeetExpectationsThreshold" name="globalMeetExpectationsThreshold" 
+                                           class="form-control compact" step="0.01" min="0" max="200" placeholder="90">
+                                    <small class="form-hint">Performance above this percentage meets expectations</small>
+                                </div>
+                            </div>
+
+                            <div class="detail-item">
+                                <div class="detail-label">Below Expectations (%)</div>
+                                <div class="detail-value">
+                                    <input type="number" id="globalBelowExpectationsThreshold" name="globalBelowExpectationsThreshold" 
+                                           class="form-control compact" step="0.01" min="0" max="200" placeholder="70">
+                                    <small class="form-hint">Performance below this percentage is below expectations</small>
+                                </div>
+                            </div>
+
+                            <div class="detail-item">
+                                <div class="detail-label">Actions</div>
+                                <div class="detail-value">
+                                    <button type="button" class="btn btn-outline btn-sm" onclick="resetToDefaults()">
+                                        <i class="fas fa-undo"></i> Reset to Defaults
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Application Settings Section -->
+                        <div class="detail-card">
+                            <div class="card-title">
+                                <i class="fas fa-cogs"></i> Application Settings
+                            </div>
+                            
+                            <div class="detail-item">
+                                <div class="detail-label">Apply to Existing KPIs</div>
+                                <div class="detail-value">
+                                    <div class="checkbox-group">
+                                        <input type="checkbox" id="applyToExisting" name="applyToExisting" checked>
+                                        <label for="applyToExisting">Apply these thresholds to existing KPIs that don't have custom thresholds</label>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="detail-item">
+                                <div class="detail-label">Default for New KPIs</div>
+                                <div class="detail-value">
+                                    <div class="checkbox-group">
+                                        <input type="checkbox" id="setAsDefault" name="setAsDefault" checked>
+                                        <label for="setAsDefault">Use these as default thresholds for new KPIs</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Rating Preview Section -->
+                        <div class="detail-card">
+                            <div class="card-title">
+                                <i class="fas fa-eye"></i> Performance Rating Preview
+                            </div>
+                            
+                            <div class="threshold-preview">
+                                <div class="preview-item outstanding">
+                                    <div class="preview-bar">
+                                        <div class="preview-fill outstanding-fill"></div>
+                                    </div>
+                                    <div class="preview-content">
+                                        <span class="preview-label">Outstanding</span>
+                                        <span class="preview-range" id="outstandingPreview">130%+</span>
+                                    </div>
+                                </div>
+                                
+                                <div class="preview-item exceed-expectations">
+                                    <div class="preview-bar">
+                                        <div class="preview-fill exceed-expectations-fill"></div>
+                                    </div>
+                                    <div class="preview-content">
+                                        <span class="preview-label">Exceed Expectations</span>
+                                        <span class="preview-range" id="exceedExpectationsPreview">110% - 129%</span>
+                                    </div>
+                                </div>
+                                
+                                <div class="preview-item meet-expectations">
+                                    <div class="preview-bar">
+                                        <div class="preview-fill meet-expectations-fill"></div>
+                                    </div>
+                                    <div class="preview-content">
+                                        <span class="preview-label">Meet Expectations</span>
+                                        <span class="preview-range" id="meetExpectationsPreview">90% - 109%</span>
+                                    </div>
+                                </div>
+                                
+                                <div class="preview-item below-expectations">
+                                    <div class="preview-bar">
+                                        <div class="preview-fill below-expectations-fill"></div>
+                                    </div>
+                                    <div class="preview-content">
+                                        <span class="preview-label">Below Expectations</span>
+                                        <span class="preview-range" id="belowExpectationsPreview">70% - 89%</span>
+                                    </div>
+                                </div>
+                                
+                                <div class="preview-item unsatisfactory">
+                                    <div class="preview-bar">
+                                        <div class="preview-fill unsatisfactory-fill"></div>
+                                    </div>
+                                    <div class="preview-content">
+                                        <span class="preview-label">Unsatisfactory</span>
+                                        <span class="preview-range" id="unsatisfactoryPreview">Below 70%</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-secondary" onclick="closeModal('thresholdModal')">
+                            <i class="fas fa-times"></i> Cancel
+                        </button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Apply Thresholds
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- KPI Detail Modal -->
+    <div id="kpiDetailModal" class="modal">
+        <div class="modal-content modal-large kpi-detail-modal">
+            <div class="modal-header">
+                <h3><i class="fas fa-chart-line"></i> KPI Details</h3>
+                <button type="button" class="modal-close" onclick="closeModal('kpiDetailModal')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div id="kpiDetailContent">
+                    <!-- KPI details will be loaded here -->
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('kpiDetailModal')" title="Close">
+                    <i class="fas fa-times"></i>
+                </button>
+                <button type="button" class="btn btn-danger" id="deleteKPIBtn" onclick="deleteKPI()" title="Delete KPI">
+                    <i class="fas fa-trash"></i>
+                </button>
+                <button type="button" class="btn btn-primary" id="editKPIBtn" onclick="editKPI()" title="Edit KPI">
+                    <i class="fas fa-edit"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit KPI Modal -->
+    <div id="editKPIModal" class="modal">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h3><i class="fas fa-edit"></i> Edit KPI</h3>
+                <button type="button" class="modal-close" onclick="closeModal('editKPIModal')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="editKPIForm">
+                    <div id="editKPIContent">
+                        <!-- Edit form will be loaded here -->
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-secondary" onclick="closeModal('editKPIModal')">Cancel</button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Save Changes
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div id="deleteModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header error">
+                <h3><i class="fas fa-exclamation-triangle"></i> Confirm Delete</h3>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete this KPI? This action cannot be undone.</p>
+                <div class="kpi-summary" id="deleteKPISummary">
+                    <!-- KPI summary for deletion will be shown here -->
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('deleteModal')">Cancel</button>
+                    <button type="button" class="btn btn-danger" onclick="confirmDelete()">
+                        <i class="fas fa-trash"></i> Delete KPI
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Success Modal -->
+    <div id="successModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header success">
+                <h3><i class="fas fa-check-circle"></i> Success</h3>
+            </div>
+            <div class="modal-body">
+                <p id="successMessage">Operation completed successfully.</p>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-primary" onclick="closeModal('successModal')">OK</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Error Modal -->
+    <div id="errorModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header error">
+                <h3><i class="fas fa-exclamation-triangle"></i> Error</h3>
+            </div>
+            <div class="modal-body">
+                <p id="errorMessage">An error occurred.</p>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-primary" onclick="closeModal('errorModal')">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="loading-spinner">
+            <i class="fas fa-spinner fa-spin"></i>
+            <p>Loading KPIs...</p>
+        </div>
+    </div>
+
+    <!-- Comprehensive JavaScript Implementation -->
+    <script type="module">
+        // Global variables and state management
+        let currentUser = null;
+        let kpis = [];
+        let filteredKPIs = [];
+        let currentPage = 1;
+        const itemsPerPage = 10;
+
+        // Authentication and user management
+        class AuthManager {
+            constructor() {
+                this.user = null;
+                this.isInitialized = false;
+            }
+
+            isAuthenticated() {
+                return this.user !== null;
+            }
+
+            getCurrentUser() {
+                return this.user;
+            }
+
+            async init() {
+                // Check localStorage for user session
+                const savedUser = localStorage.getItem('currentUser');
+                if (savedUser) {
+                    try {
+                        this.user = JSON.parse(savedUser);
+                        await this.updateUIForAuthenticatedUser();
+                    } catch (e) {
+                        console.error('Error parsing saved user:', e);
+                        this.user = null;
+                    }
+                }
+
+                // Check Firebase auth state if available
+                if (window.firebase && window.firebase.onAuthStateChanged) {
+                    window.firebase.onAuthStateChanged(window.firebase.auth, async (user) => {
+                        if (user) {
+                            await this.handleFirebaseUser(user);
+                        } else if (!this.user) {
+                            this.redirectToLogin();
+                        }
+                    });
+                } else if (!this.user) {
+                    this.redirectToLogin();
+                }
+
+                this.isInitialized = true;
+            }
+
+            async handleFirebaseUser(firebaseUser) {
+                try {
+                    const userRef = window.firebase.ref(window.firebase.db, `users/${firebaseUser.uid}`);
+                    const snapshot = await window.firebase.get(userRef);
+                    const userData = snapshot.val() || {};
+
+                    this.user = {
+                        uid: firebaseUser.uid,
+                        email: firebaseUser.email,
+                        role: userData.role || 'standard',
+                        name: userData.name || firebaseUser.email.split('@')[0],
+                        department: userData.department || 'Unknown',
+                        companyId: userData.companyId || null
+                    };
+
+                    localStorage.setItem('currentUser', JSON.stringify(this.user));
+                    await this.updateUIForAuthenticatedUser();
+                } catch (error) {
+                    console.error('Error handling Firebase user:', error);
+                }
+            }
+
+            async updateUIForAuthenticatedUser() {
+                updateUIForAuthenticatedUser();
+                await updateMenuWithFeatureAuthorization();
+            }
+
+            redirectToLogin() {
+                if (window.location.pathname !== '/login.html') {
+                    window.location.href = 'login.html';
+                }
+            }
+
+            async logout() {
+                this.user = null;
+                localStorage.removeItem('currentUser');
+                
+                if (window.firebase && window.firebase.auth) {
+                    try {
+                        await window.firebase.signOut(window.firebase.auth);
+                    } catch (error) {
+                        console.error('Firebase logout error:', error);
+                    }
+                }
+                
+                this.redirectToLogin();
+            }
+        }
+
+        // Initialize auth manager
+        const authManager = new AuthManager();
+        window.authManager = authManager;
+
+        // Company and feature management
+        function getCurrentCompanyId() {
+            const user = authManager.getCurrentUser();
+            return user?.companyId || 'default-company';
+        }
+
+        // Enhanced menu visibility system based on staff.html template
+        
+        // Reset all menu items to hidden
+        function resetMenuVisibility() {
+            document.querySelectorAll('[data-feature]').forEach(item => {
+                item.classList.remove('menu-visible');
+            });
+            document.querySelectorAll('.menu-dropdown').forEach(dropdown => {
+                dropdown.classList.remove('menu-visible');
+            });
+        }
+
+        // Emergency fallback - show basic menu items
+        function showBasicMenu() {
+            console.log('🔧 Emergency fallback: Showing basic menu items for KPI board');
+            resetMenuVisibility();
+            
+            // Remove loading class
+            const sidebar = document.querySelector('.sidebar');
+            if (sidebar) {
+                sidebar.classList.remove('menu-loading');
+            }
+            
+            // Show basic menu items for KPI board
+            const basicFeatures = ['home_view', 'kpi_view', 'kpi_dashboard_view', 'kpi_create_view'];
+            basicFeatures.forEach(feature => {
+                const menuItem = document.querySelector(`[data-feature="${feature}"]`);
+                if (menuItem) {
+                    menuItem.classList.add('menu-visible');
+                }
+            });
+        }
+
+        // Feature-based authorization system that takes priority over role permissions
+        async function updateMenuWithFeatureAuthorization() {
+            console.log('🎯 Starting feature-based menu authorization for kpiboard.html...');
+            
+            try {
+                let currentUser = null;
+                let companyId = null;
+                
+                // Get user and company info using authManager first
+                if (window.authManager && window.authManager.currentUser) {
+                    currentUser = window.authManager.currentUser;
+                    companyId = currentUser.companyId;
+                    console.log('👤 Using AuthManager - User:', currentUser.email, 'Company ID:', companyId);
+                } else if (window.firebase && window.firebase.auth) {
+                    const authUser = window.firebase.auth.currentUser;
+                    if (authUser) {
+                        currentUser = authUser;
+                        console.log('👤 Using Firebase auth - will search for company');
+                    }
+                } else {
+                    console.log('❌ No authenticated user found');
+                    resetMenuVisibility();
+                    return;
+                }
+                
+                // If no company ID from authManager, search companies collection
+                if (!companyId && currentUser) {
+                    console.log('🔍 Searching for user company...');
+                    const companiesRef = window.firebase.ref(window.firebase.db, 'companies');
+                    const companiesSnapshot = await window.firebase.get(companiesRef);
+                    
+                    if (companiesSnapshot.exists()) {
+                        const companies = companiesSnapshot.val();
+                        
+                        for (const [cId, company] of Object.entries(companies)) {
+                            if (company.status !== 'active') continue;
+                            
+                            if (company.users && company.users[currentUser.uid]) {
+                                companyId = cId;
+                                console.log(`✅ Found user in company: ${companyId} (${company.name})`);
+                                break;
+                            }
+                        }
+                    }
+                }
+                
+                if (!companyId) {
+                    console.error('❌ No company ID found, cannot determine authorized features');
+                    resetMenuVisibility();
+                    return;
+                }
+                
+                // Apply feature-based authorization
+                await applyFeatureBasedMenuVisibility(companyId);
+                
+            } catch (error) {
+                console.error('❌ Error in feature-based menu authorization:', error);
+                resetMenuVisibility();
+            }
+        }
+
+        // Apply feature-based menu visibility
+        async function applyFeatureBasedMenuVisibility(companyId) {
+            try {
+                console.log('🔧 Applying feature-based menu visibility for company:', companyId);
+                
+                // Get platform features
+                const featuresSnapshot = await window.firebase.get(window.firebase.ref(window.firebase.db, '/platformFeatures'));
+                
+                if (!featuresSnapshot.exists()) {
+                    console.log('⚠️ No platform features found');
+                    resetMenuVisibility();
+                    return;
+                }
+                
+                const featuresData = featuresSnapshot.val();
+                
+                // Get company's selected features
+                const companySnapshot = await window.firebase.get(window.firebase.ref(window.firebase.db, `/companies/${companyId}`));
+                const companyData = companySnapshot.val();
+                
+                if (!companyData) {
+                    console.error('❌ Company data not found');
+                    resetMenuVisibility();
+                    return;
+                }
+                
+                const subscribedFeatureIds = companyData.selectedFeatures || [];
+                console.log('🏢 Company subscribed features:', subscribedFeatureIds);
+                
+                if (subscribedFeatureIds.length === 0) {
+                    console.log('⚠️ Company has no subscribed features');
+                    resetMenuVisibility();
+                    return;
+                }
+                
+                // Collect authorized pages from subscribed features
+                const authorizedPages = [];
+                subscribedFeatureIds.forEach(featureId => {
+                    const feature = featuresData[featureId];
+                    if (feature && feature.status === 'active' && feature.authorizedPages) {
+                        console.log(`📦 Adding pages from feature "${feature.name}":`, feature.authorizedPages);
+                        authorizedPages.push(...feature.authorizedPages);
+                    } else {
+                        console.log(`⚠️ Feature ${featureId} not found or inactive`);
+                    }
+                });
+                
+                console.log('🔐 All authorized pages:', authorizedPages);
+                
+                // Reset all menu items first
+                resetMenuVisibility();
+                
+                // Create set of authorized features
+                const authorizedFeatures = new Set();
+                authorizedPages.forEach(pageInfo => {
+                    if (pageInfo.feature) {
+                        authorizedFeatures.add(pageInfo.feature);
+                    }
+                });
+                
+                console.log('🎯 Authorized features for kpiboard.html:', Array.from(authorizedFeatures));
+                
+                // Apply menu visibility
+                const allMenuItems = document.querySelectorAll('.sidebar li[data-feature]');
+                let visibleCount = 0;
+                
+                allMenuItems.forEach(menuItem => {
+                    const featureAttribute = menuItem.getAttribute('data-feature');
+                    const isAuthorized = authorizedFeatures.has(featureAttribute);
+                    const isDropdownContainer = menuItem.classList.contains('menu-dropdown');
+                    
+                    if (isDropdownContainer) {
+                        return; // Handle dropdowns separately after all items are processed
+                    }
+                    
+                    if (isAuthorized) {
+                        menuItem.classList.add('menu-visible');
+                        visibleCount++;
+                        console.log(`✅ Feature authorized - showing menu item: ${featureAttribute}`);
+                    } else {
+                        menuItem.classList.remove('menu-visible');
+                        console.log(`❌ Feature not authorized - hiding menu item: ${featureAttribute}`);
+                    }
+                });
+                
+                // Handle dropdown menus - show if they have visible children
+                const dropdownMenus = document.querySelectorAll('.sidebar li.menu-dropdown');
+                dropdownMenus.forEach(dropdown => {
+                    const dropdownFeature = dropdown.getAttribute('data-feature');
+                    const submenuItems = dropdown.querySelectorAll('.submenu li[data-feature]');
+                    let hasVisibleChildren = false;
+                    
+                    submenuItems.forEach(submenuItem => {
+                        if (submenuItem.classList.contains('menu-visible')) {
+                            hasVisibleChildren = true;
+                        }
+                    });
+                    
+                    if (hasVisibleChildren || authorizedFeatures.has(dropdownFeature)) {
+                        dropdown.classList.add('menu-visible');
+                        console.log(`✅ Showing dropdown menu: ${dropdownFeature} (has visible children or directly authorized)`);
+                    } else {
+                        dropdown.classList.remove('menu-visible');
+                        console.log(`❌ Hiding dropdown menu: ${dropdownFeature} (no visible children and not authorized)`);
+                    }
+                });
+                
+                console.log(`🎯 Feature-based menu authorization completed for kpiboard.html - ${visibleCount} items visible`);
+                
+                // Remove loading class after successful authorization
+                const sidebar = document.querySelector('.sidebar');
+                if (sidebar) {
+                    sidebar.classList.remove('menu-loading');
+                }
+                
+            } catch (error) {
+                console.error('❌ Error applying feature-based menu visibility:', error);
+                resetMenuVisibility();
+            }
+        }
+
+        // KPI Management Functions
+        async function loadKPIs() {
+            showLoading(true);
+            try {
+                const companyId = getCurrentCompanyId();
+                const kpiRef = window.firebase.ref(window.firebase.db, `companies/${companyId}/kpis`);
+                const snapshot = await window.firebase.get(kpiRef);
+                
+                kpis = [];
+                if (snapshot.exists()) {
+                    const kpiData = snapshot.val();
+                    kpis = Object.keys(kpiData).map(key => ({
+                        id: key,
+                        ...kpiData[key]
+                    }));
+                }
+                
+                filterAndDisplayKPIs();
+                updateSummaryCards();
+            } catch (error) {
+                console.error('Error loading KPIs:', error);
+                showError('Failed to load KPIs');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function filterAndDisplayKPIs() {
+            // Show all KPIs since search functionality has been removed
+            filteredKPIs = [...kpis];
+
+            displayKPIs();
+            updateResultsCount();
+            setupPagination();
+        }
+
+        function displayKPIs() {
+            const tableBody = document.getElementById('kpiTableBody');
+            const noResults = document.getElementById('noResults');
+            
+            if (!filteredKPIs.length) {
+                tableBody.innerHTML = '';
+                noResults.style.display = 'block';
+                return;
+            }
+
+            noResults.style.display = 'none';
+            
+            // Group KPIs by employee
+            const kpisByEmployee = {};
+            filteredKPIs.forEach(kpi => {
+                const employeeKey = kpi.employeeId || 'unassigned';
+                const employeeName = kpi.employeeName || 'Unassigned';
+                
+                if (!kpisByEmployee[employeeKey]) {
+                    kpisByEmployee[employeeKey] = {
+                        name: employeeName,
+                        id: kpi.employeeId,
+                        department: kpi.employeeDepartment || '',
+                        kpis: []
+                    };
+                }
+                kpisByEmployee[employeeKey].kpis.push(kpi);
+            });
+
+            // Apply pagination to employee groups
+            const employeeGroups = Object.values(kpisByEmployee);
+            const startIndex = (currentPage - 1) * itemsPerPage;
+            const endIndex = startIndex + itemsPerPage;
+            const pageEmployeeGroups = employeeGroups.slice(startIndex, endIndex);
+
+            // Generate HTML for portfolio view
+            tableBody.innerHTML = pageEmployeeGroups.map(employee => {
+                const totalKPIs = employee.kpis.length;
+                const avgPerformance = calculateAvgPerformance(employee.kpis);
+                const achievedTargets = employee.kpis.filter(kpi => {
+                    if (kpi.current && kpi.target) {
+                        return parseFloat(kpi.current) >= parseFloat(kpi.target);
+                    }
+                    return false;
+                }).length;
+
+                const employeeInitials = getEmployeeInitials(employee.name);
+                const portfolioId = `portfolio-${employee.id || 'unassigned'}`;
+
+                // Portfolio row
+                let html = `
+                    <tr class="employee-portfolio-row" onclick="togglePortfolio('${portfolioId}')" data-portfolio="${portfolioId}">
+                        <td>
+                            <div class="employee-info">
+                                <div>
+                                    <div class="employee-name">${employee.name}</div>
+                                    ${employee.department ? `<div class="employee-department">${employee.department}</div>` : ''}
+                                </div>
+                            </div>
+                        </td>
+                        <td colspan="4">
+                            <div class="portfolio-summary">
+                                <div class="portfolio-stat total">
+                                    <i class="fas fa-tasks"></i>
+                                    <span>${totalKPIs} KPIs</span>
+                                </div>
+                                <div class="portfolio-stat performance">
+                                    <i class="fas fa-chart-line"></i>
+                                    <span>${avgPerformance}% Avg</span>
+                                </div>
+                                <div class="portfolio-stat pending">
+                                    <i class="fas fa-target"></i>
+                                    <span>${achievedTargets}/${totalKPIs} Achieved</span>
+                                </div>
+                                <div class="portfolio-toggle">
+                                    <i class="fas fa-chevron-right"></i>
+                                    <span>Expand</span>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+
+                // Sub-rows for individual KPIs
+                employee.kpis.forEach((kpi, index) => {
+                    // Debug: Log KPI object to see available properties
+                    console.log('KPI object:', kpi);
+                    
+                    // Try multiple possible property names for KPI name
+                    const kpiName = kpi.name || kpi.kpiName || kpi.title || kpi.description || `KPI ${index + 1}`;
+                    
+                    html += `
+                        <tr class="kpi-sub-row" data-portfolio-child="${portfolioId}" onclick="viewKPI('${kpi.id}')" style="cursor: pointer;">
+                            <td><strong>${kpiName}</strong></td>
+                            <td><span class="category-badge">${kpi.category || 'N/A'}</span></td>
+                            <td>${getPerformanceDisplay(kpi)}</td>
+                            <td><strong>${kpi.current || 0}</strong></td>
+                            <td><span class="frequency-badge">${kpi.frequency || 'N/A'}</span></td>
+                        </tr>
+                    `;
+                });
+
+                return html;
+            }).join('');
+        }
+
+        function calculateAvgPerformance(kpis) {
+            if (kpis.length === 0) return '0.0';
+            
+            const totalPerformance = kpis.reduce((sum, kpi) => {
+                if (kpi.current && kpi.target) {
+                    return sum + ((parseFloat(kpi.current) / parseFloat(kpi.target)) * 100);
+                }
+                return sum;
+            }, 0);
+            
+            return (totalPerformance / kpis.length).toFixed(1);
+        }
+
+        function getEmployeeInitials(name) {
+            if (!name || name === 'Unassigned') return '?';
+            return name.split(' ').map(n => n.charAt(0)).join('').toUpperCase().substring(0, 2);
+        }
+
+        function togglePortfolio(portfolioId) {
+            const portfolioRow = document.querySelector(`[data-portfolio="${portfolioId}"]`);
+            const subRows = document.querySelectorAll(`[data-portfolio-child="${portfolioId}"]`);
+            
+            if (portfolioRow) {
+                const isExpanded = portfolioRow.classList.contains('expanded');
+                
+                if (isExpanded) {
+                    portfolioRow.classList.remove('expanded');
+                    subRows.forEach(row => row.classList.remove('visible'));
+                    portfolioRow.querySelector('.portfolio-toggle span').textContent = 'Expand';
+                } else {
+                    portfolioRow.classList.add('expanded');
+                    subRows.forEach(row => row.classList.add('visible'));
+                    portfolioRow.querySelector('.portfolio-toggle span').textContent = 'Collapse';
+                }
+            }
+        }
+
+        // Make toggle function globally available
+        window.togglePortfolio = togglePortfolio;
+
+        function getPerformanceDisplay(kpi) {
+            if (!kpi.current || !kpi.target) return 'N/A';
+            
+            const current = parseFloat(kpi.current);
+            const target = parseFloat(kpi.target);
+            const percentage = ((current / target) * 100).toFixed(1);
+            
+            let performanceClass = 'below-expectations';
+            if (percentage >= 130) performanceClass = 'outstanding';
+            else if (percentage >= 110) performanceClass = 'exceed-expectations';
+            else if (percentage >= 90) performanceClass = 'meet-expectations';
+            else if (percentage >= 70) performanceClass = 'below-expectations';
+            else performanceClass = 'unsatisfactory';
+
+            return `<span class="performance-badge ${performanceClass}">${percentage}%</span>`;
+        }
+
+        function updateSummaryCards() {
+            document.getElementById('totalKPIs').textContent = kpis.length;
+            
+            const avgPerformance = kpis.length > 0 
+                ? kpis.reduce((sum, kpi) => {
+                    if (kpi.current && kpi.target) {
+                        return sum + ((parseFloat(kpi.current) / parseFloat(kpi.target)) * 100);
+                    }
+                    return sum;
+                }, 0) / kpis.length
+                : 0;
+            
+            document.getElementById('activeKPIs').textContent = `${avgPerformance.toFixed(1)}%`;
+            
+            const categories = [...new Set(kpis.map(kpi => kpi.category).filter(Boolean))];
+            document.getElementById('criticalKPIs').textContent = categories.length;
+            
+            const targetsAchieved = kpis.filter(kpi => {
+                if (kpi.current && kpi.target) {
+                    return parseFloat(kpi.current) >= parseFloat(kpi.target);
+                }
+                return false;
+            }).length;
+            
+            document.getElementById('targetsAchieved').textContent = targetsAchieved;
+        }
+
+        function updateResultsCount() {
+            document.getElementById('resultsCount').textContent = 
+                `${filteredKPIs.length} KPI${filteredKPIs.length !== 1 ? 's' : ''} found`;
+        }
+
+        function setupPagination() {
+            const totalPages = Math.ceil(filteredKPIs.length / itemsPerPage);
+            const pagination = document.getElementById('pagination');
+            
+            if (totalPages <= 1) {
+                pagination.innerHTML = '';
+                return;
+            }
+
+            let paginationHTML = `
+                <button ${currentPage === 1 ? 'disabled' : ''} onclick="changePage(${currentPage - 1})">
+                    <i class="fas fa-chevron-left"></i>
+                </button>
+            `;
+
+            for (let i = 1; i <= totalPages; i++) {
+                if (i === 1 || i === totalPages || (i >= currentPage - 2 && i <= currentPage + 2)) {
+                    paginationHTML += `
+                        <button class="${i === currentPage ? 'active' : ''}" onclick="changePage(${i})">
+                            ${i}
+                        </button>
+                    `;
+                } else if (i === currentPage - 3 || i === currentPage + 3) {
+                    paginationHTML += `<span>...</span>`;
+                }
+            }
+
+            paginationHTML += `
+                <button ${currentPage === totalPages ? 'disabled' : ''} onclick="changePage(${currentPage + 1})">
+                    <i class="fas fa-chevron-right"></i>
+                </button>
+            `;
+
+            pagination.innerHTML = paginationHTML;
+        }
+
+        // Utility Functions
+        function showLoading(show) {
+            const overlay = document.getElementById('loadingOverlay');
+            overlay.style.display = show ? 'flex' : 'none';
+        }
+
+        function showSuccess(message) {
+            alert(`Success: ${message}`);
+        }
+
+        function showError(message) {
+            alert(`Error: ${message}`);
+        }
+
+        function openModal(modalId) {
+            document.getElementById(modalId).style.display = 'flex';
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+            document.body.style.overflow = 'auto';
+        }
+
+        // User Interface Functions
+        async function updateUIForAuthenticatedUser() {
+            const profileBtn = document.querySelector('.profile-btn');
+            const profileDropdown = document.querySelector('.profile-dropdown ul');
+            
+            if (profileBtn && profileDropdown) {
+                const user = authManager.getCurrentUser();
+                if (user) {
+                    // Use centralized display methods
+                    const initials = getUserInitials(user);
+                    const displayName = getUserDisplayName(user);
+                    const email = getUserEmail(user);
+                    
+                    // Update profile image
+                    const profileImg = profileBtn.querySelector('img');
+                    if (profileImg) {
+                        // Try to load user's profile picture from Firebase Storage
+                        const avatarUrl = await getUserAvatarUrl(user);
+                        if (avatarUrl) {
+                            profileImg.src = avatarUrl;
+                            profileImg.alt = `${displayName} Avatar`;
+                        } else {
+                            // Fallback to initials avatar
+                            generateInitialsAvatar(displayName, profileImg);
+                        }
+                    }
+                    
+                    // Create avatar for dropdown
+                    const avatarUrl = await getUserAvatarUrl(user);
+                    let dropdownAvatarHtml;
+                    if (avatarUrl) {
+                        dropdownAvatarHtml = `<img src="${avatarUrl}" alt="${displayName} Avatar" style="width: 32px; height: 32px; border-radius: 50%; object-fit: cover;">`;
+                    } else {
+                        dropdownAvatarHtml = `<div style="width: 32px; height: 32px; border-radius: 50%; background: #3498db; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 12px;">${initials}</div>`;
+                    }
+                    
+                    // Update profile dropdown with user info
+                    const userInfoHtml = `
+                        <li style="border-bottom: 1px solid #eee; padding: 12px 16px; background: #f8f9fa;">
+                            <div style="display: flex; align-items: center; gap: 12px;">
+                                ${dropdownAvatarHtml}
+                                <div>
+                                    <div style="font-weight: 600; color: #333; font-size: 14px; margin-bottom: 2px;">
+                                        ${displayName}
+                                    </div>
+                                    <div style="color: #666; font-size: 12px;">
+                                        ${email}
+                                    </div>
+                                </div>
+                            </div>
+                        </li>
+                        <li><a href="#" onclick="triggerAvatarUpload()"><i class="fas fa-camera"></i> Upload Photo</a></li>
+                        <li><a href="account.html"><i class="fas fa-user"></i> Account Settings</a></li>
+                        <li><a href="#" onclick="handleLogout()"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+                    `;
+                    
+                    profileDropdown.innerHTML = userInfoHtml;
+                }
+            }
+            
+            // Update company branding in header
+            await updateCompanyBranding();
+        }
+
+        // Get user display name
+        function getUserDisplayName(user) {
+            if (!user) return 'User';
+            
+            const cleanName = (name) => {
+                if (!name || typeof name !== 'string') return '';
+                return name.trim().replace(/\s+/g, ' ');
+            };
+            
+            const potentialNames = [
+                user.displayName,
+                user.name,
+                user.username
+            ];
+            
+            for (const name of potentialNames) {
+                const cleaned = cleanName(name);
+                if (cleaned) return cleaned;
+            }
+            
+            if (user.email) {
+                const emailUsername = user.email.split('@')[0];
+                const cleaned = cleanName(emailUsername);
+                if (cleaned) return cleaned;
+            }
+            
+            return 'User';
+        }
+
+        // Get user email
+        function getUserEmail(user) {
+            if (!user) return 'No email';
+            return user.email || 'No email';
+        }
+
+        // Get user initials
+        function getUserInitials(user) {
+            const displayName = getUserDisplayName(user);
+            return getInitials(displayName);
+        }
+
+        // Generate initials avatar as base64 SVG
+        function generateInitialsAvatar(displayName, imgElement) {
+            const initials = getInitials(displayName);
+            const svg = `<svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="20" cy="20" r="20" fill="#3498db"/>
+                <text x="20" y="25" text-anchor="middle" fill="white" font-size="14" font-weight="600" font-family="Arial, sans-serif">${initials}</text>
+            </svg>`;
+            const base64 = btoa(svg);
+            imgElement.src = `data:image/svg+xml;base64,${base64}`;
+            imgElement.alt = `${displayName} Avatar`;
+        }
+
+        // Get user avatar URL from Firebase Storage
+        async function getUserAvatarUrl(user) {
+            if (!user || !user.uid) return null;
+            
+            try {
+                const storage = window.firebase.storage;
+                const avatarRef = window.firebase.storageRef(storage, `avatars/${user.uid}/profile.jpg`);
+                const url = await window.firebase.getDownloadURL(avatarRef);
+                return url;
+            } catch (error) {
+                // Try alternative formats
+                try {
+                    const storage = window.firebase.storage;
+                    const avatarRef = window.firebase.storageRef(storage, `avatars/${user.uid}/profile.png`);
+                    const url = await window.firebase.getDownloadURL(avatarRef);
+                    return url;
+                } catch (error2) {
+                    console.log('No profile picture found for user:', user.uid);
+                    return null;
+                }
+            }
+        }
+
+        // Upload user avatar to Firebase Storage
+        async function uploadUserAvatar(user, file) {
+            if (!user || !user.uid || !file) return null;
+            
+            try {
+                const storage = window.firebase.storage;
+                const fileExtension = file.name.split('.').pop().toLowerCase();
+                const avatarRef = window.firebase.storageRef(storage, `avatars/${user.uid}/profile.${fileExtension}`);
+                
+                const snapshot = await window.firebase.uploadBytes(avatarRef, file);
+                const downloadURL = await window.firebase.getDownloadURL(snapshot.ref);
+                
+                // Update user profile in database with new avatar URL
+                const userRef = window.firebase.ref(window.firebase.db, `users/${user.uid}`);
+                await window.firebase.update(userRef, { avatarUrl: downloadURL });
+                
+                return downloadURL;
+            } catch (error) {
+                console.error('Error uploading avatar:', error);
+                throw error;
+            }
+        }
+
+        // Delete user avatar from Firebase Storage
+        async function deleteUserAvatar(user) {
+            if (!user || !user.uid) return;
+            
+            try {
+                const storage = window.firebase.storage;
+                // Try to delete both possible formats
+                const formats = ['jpg', 'png', 'jpeg'];
+                
+                for (const format of formats) {
+                    try {
+                        const avatarRef = window.firebase.storageRef(storage, `avatars/${user.uid}/profile.${format}`);
+                        await window.firebase.deleteObject(avatarRef);
+                    } catch (error) {
+                        // File doesn't exist, continue
+                    }
+                }
+                
+                // Update user profile in database
+                const userRef = window.firebase.ref(window.firebase.db, `users/${user.uid}`);
+                await window.firebase.update(userRef, { avatarUrl: null });
+            } catch (error) {
+                console.error('Error deleting avatar:', error);
+            }
+        }
+
+        // Trigger avatar upload
+        function triggerAvatarUpload() {
+            const fileInput = document.getElementById('avatarUpload');
+            if (fileInput) {
+                fileInput.click();
+            }
+        }
+
+        // Handle avatar file selection and upload
+        async function handleAvatarUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            // Validate file type
+            if (!file.type.startsWith('image/')) {
+                alert('Please select an image file.');
+                return;
+            }
+            
+            // Validate file size (5MB max)
+            if (file.size > 5 * 1024 * 1024) {
+                alert('File size must be less than 5MB.');
+                return;
+            }
+            
+            const user = authManager.getCurrentUser();
+            if (!user) {
+                alert('Please log in to upload a profile picture.');
+                return;
+            }
+            
+            try {
+                // Show loading indicator
+                const profileBtn = document.querySelector('.profile-btn img');
+                const originalSrc = profileBtn.src;
+                profileBtn.style.opacity = '0.5';
+                
+                // Upload the avatar
+                const downloadURL = await uploadUserAvatar(user, file);
+                
+                if (downloadURL) {
+                    // Update the UI immediately
+                    profileBtn.src = downloadURL;
+                    profileBtn.style.opacity = '1';
+                    
+                    // Refresh the profile dropdown
+                    await updateUIForAuthenticatedUser();
+                    
+                    alert('Profile picture updated successfully!');
+                } else {
+                    profileBtn.style.opacity = '1';
+                    alert('Failed to upload profile picture. Please try again.');
+                }
+                
+            } catch (error) {
+                console.error('Error uploading avatar:', error);
+                profileBtn.style.opacity = '1';
+                alert('Error uploading profile picture: ' + error.message);
+            }
+            
+            // Clear the file input
+            event.target.value = '';
+        }
+
+        // Update company branding in header
+        async function updateCompanyBranding() {
+            const user = authManager.getCurrentUser();
+            if (!user || !user.companyId) {
+                // Clear company branding if no company
+                clearCompanyBranding();
+                return;
+            }
+
+            try {
+                // Get company information from Firebase
+                const companyRef = window.firebase.ref(window.firebase.db, `companies/${user.companyId}`);
+                const snapshot = await window.firebase.get(companyRef);
+                const companyData = snapshot.val();
+
+                if (companyData) {
+                    const headerLogo = document.getElementById('headerCompanyLogo');
+                    const headerName = document.getElementById('headerCompanyName');
+
+                    // Update company name
+                    if (headerName && companyData.companyName) {
+                        headerName.textContent = companyData.companyName;
+                        console.log('✅ Company name updated in header:', companyData.companyName);
+                    }
+
+                    // Update company logo
+                    const logoUrl = companyData.logo || companyData.logoUrl;
+                    if (logoUrl && headerLogo) {
+                        headerLogo.src = logoUrl;
+                        headerLogo.style.display = 'block';
+                        headerLogo.classList.add('visible');
+                        console.log('✅ Company logo displayed');
+                    } else if (headerLogo) {
+                        headerLogo.style.display = 'none';
+                        headerLogo.classList.remove('visible');
+                        headerLogo.src = '';
+                        console.log('✅ Company logo hidden (no URL)');
+                    }
+
+                    // Update page title if needed
+                    const currentTitle = document.title;
+                    if (currentTitle.includes('HSE System') && companyData.companyName) {
+                        document.title = currentTitle.replace('HSE System', `${companyData.companyName} HSE`);
+                    }
+                } else {
+                    clearCompanyBranding();
+                }
+            } catch (error) {
+                console.error('Error updating company branding:', error);
+                clearCompanyBranding();
+            }
+        }
+
+        // Clear company branding
+        function clearCompanyBranding() {
+            const headerLogo = document.getElementById('headerCompanyLogo');
+            const headerName = document.getElementById('headerCompanyName');
+
+            if (headerLogo) {
+                headerLogo.style.display = 'none';
+                headerLogo.classList.remove('visible');
+                headerLogo.src = '';
+            }
+
+            if (headerName) {
+                headerName.textContent = '';
+            }
+        }
+
+        // Toggle sidebar functionality
+        function toggleSidebar() {
+            const sidebar = document.querySelector('.sidebar');
+            const mainContent = document.querySelector('.main-content');
+            
+            if (sidebar && mainContent) {
+                sidebar.classList.toggle('collapsed');
+                mainContent.classList.toggle('sidebar-collapsed');
+                
+                // Store sidebar state in localStorage
+                const isCollapsed = sidebar.classList.contains('collapsed');
+                localStorage.setItem('sidebarCollapsed', isCollapsed);
+            }
+        }
+
+        // Restore sidebar state on page load
+        function restoreSidebarState() {
+            const isCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
+            const sidebar = document.querySelector('.sidebar');
+            const mainContent = document.querySelector('.main-content');
+            
+            if (isCollapsed && sidebar && mainContent) {
+                sidebar.classList.add('collapsed');
+                mainContent.classList.add('sidebar-collapsed');
+            }
+        }
+
+        function getInitials(name) {
+            if (!name) return 'U';
+            const words = name.split(' ').filter(word => word.length > 0);
+            if (words.length === 1) {
+                return words[0].substring(0, 2).toUpperCase();
+            } else {
+                return words.map(word => word.charAt(0)).join('').substring(0, 2).toUpperCase();
+            }
+        }
+
+        // Global action functions
+        window.changePage = function(page) {
+            currentPage = page;
+            displayKPIs();
+            setupPagination();
+        };
+
+        window.viewKPI = function(kpiId) {
+            const kpi = kpis.find(k => k.id === kpiId);
+            if (kpi) {
+                // Populate the modal content with position details modal design
+                const kpiDetailContent = document.getElementById('kpiDetailContent');
+                const kpiName = kpi.name || kpi.kpiName || kpi.title || kpi.description || 'Unnamed KPI';
+                const performancePercentage = kpi.current && kpi.target ? 
+                    ((parseFloat(kpi.current) / parseFloat(kpi.target)) * 100).toFixed(1) : 'N/A';
+                
+                // Helper functions for formatting
+                const formatValue = (value, fallback = 'Not specified') => value || fallback;
+                const formatDate = (dateStr) => dateStr ? new Date(dateStr).toLocaleDateString('en-US', { 
+                    year: 'numeric', month: 'long', day: 'numeric' 
+                }) : 'Not specified';
+                
+                kpiDetailContent.innerHTML = `
+                    <!-- Enhanced Header with Gradient -->
+                    <div class="kpi-header">
+                        <div class="kpi-title">
+                            <i class="fas fa-chart-line"></i>
+                            ${kpiName}
+                        </div>
+                        <div class="kpi-meta">
+                            <div class="meta-item">
+                                <i class="fas fa-layer-group"></i>
+                                Category: ${kpi.category || 'Not specified'}
+                            </div>
+                            <div class="meta-item">
+                                <i class="fas fa-clock"></i>
+                                Frequency: ${kpi.frequency || 'Not specified'}
+                            </div>
+                            <div class="meta-item">
+                                <i class="fas fa-user"></i>
+                                Assigned: ${kpi.employeeName || 'Unassigned'}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="details-grid">
+                        <!-- Performance Information -->
+                        <div class="detail-card">
+                            <div class="card-title">
+                                <i class="fas fa-chart-bar"></i> Performance Information
+                            </div>
+                            
+                            <div class="detail-item">
+                                <span class="detail-label">Current Value:</span>
+                                <span class="detail-value">${formatValue(kpi.current, '0')}</span>
+                            </div>
+                            
+                            <div class="detail-item">
+                                <span class="detail-label">Target Value:</span>
+                                <span class="detail-value">${formatValue(kpi.target, 'Not set')}</span>
+                            </div>
+                            
+                            <div class="detail-item">
+                                <span class="detail-label">Performance:</span>
+                                <span class="detail-value">
+                                    ${getPerformanceDisplay(kpi)}
+                                </span>
+                            </div>
+                            
+                            <div class="detail-item">
+                                <span class="detail-label">Unit of Measurement:</span>
+                                <span class="detail-value">${formatValue(kpi.unit)}</span>
+                            </div>
+                        </div>
+
+                        <!-- Assignment Details -->
+                        <div class="detail-card">
+                            <div class="card-title">
+                                <i class="fas fa-user-check"></i> Assignment Details
+                            </div>
+                            
+                            <div class="detail-item">
+                                <span class="detail-label">Assigned Employee:</span>
+                                <span class="detail-value">${formatValue(kpi.employeeName, 'Unassigned')}</span>
+                            </div>
+                            
+                            <div class="detail-item">
+                                <span class="detail-label">Department:</span>
+                                <span class="detail-value">${formatValue(kpi.employeeDepartment)}</span>
+                            </div>
+                            
+                            <div class="detail-item">
+                                <span class="detail-label">Employee Position:</span>
+                                <span class="detail-value">${formatValue(kpi.employeePosition)}</span>
+                            </div>
+                            
+                            <div class="detail-item">
+                                <span class="detail-label">Reporting Manager:</span>
+                                <span class="detail-value">${formatValue(kpi.reportingManager)}</span>
+                            </div>
+                        </div>
+
+                        <!-- KPI Configuration -->
+                        <div class="detail-card">
+                            <div class="card-title">
+                                <i class="fas fa-cogs"></i> KPI Configuration
+                            </div>
+                            
+                            <div class="detail-item">
+                                <span class="detail-label">Category:</span>
+                                <span class="detail-value">${formatValue(kpi.category)}</span>
+                            </div>
+                            
+                            <div class="detail-item">
+                                <span class="detail-label">Measurement Frequency:</span>
+                                <span class="detail-value">${formatValue(kpi.frequency)}</span>
+                            </div>
+                            
+                            <div class="detail-item">
+                                <span class="detail-label">KPI Type:</span>
+                                <span class="detail-value">${formatValue(kpi.type, 'Quantitative')}</span>
+                            </div>
+                            
+                            <div class="detail-item">
+                                <span class="detail-label">Status:</span>
+                                <span class="detail-value">
+                                    <span class="status-badge ${kpi.status === 'active' ? 'status-active' : 'status-inactive'}">${formatValue(kpi.status, 'Active')}</span>
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- Timeline & Tracking -->
+                        <div class="detail-card">
+                            <div class="card-title">
+                                <i class="fas fa-calendar-alt"></i> Timeline & Tracking
+                            </div>
+                            
+                            <div class="detail-item">
+                                <span class="detail-label">Created Date:</span>
+                                <span class="detail-value">${formatDate(kpi.createdDate || kpi.createdAt)}</span>
+                            </div>
+                            
+                            <div class="detail-item">
+                                <span class="detail-label">Last Updated:</span>
+                                <span class="detail-value">${formatDate(kpi.lastUpdated || kpi.updatedAt)}</span>
+                            </div>
+                            
+                            <div class="detail-item">
+                                <span class="detail-label">Review Period:</span>
+                                <span class="detail-value">${formatValue(kpi.reviewPeriod, 'Monthly')}</span>
+                            </div>
+                            
+                            <div class="detail-item">
+                                <span class="detail-label">Next Review:</span>
+                                <span class="detail-value">${formatDate(kpi.nextReview)}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    ${kpi.description ? `
+                    <!-- Description Section -->
+                    <div class="description-section">
+                        <div class="description-title">
+                            <i class="fas fa-file-alt"></i> KPI Description
+                        </div>
+                        <div class="description-text">${kpi.description}</div>
+                    </div>
+                    ` : ''}
+
+                    ${kpi.notes ? `
+                    <!-- Notes Section -->
+                    <div class="description-section">
+                        <div class="description-title">
+                            <i class="fas fa-sticky-note"></i> Additional Notes
+                        </div>
+                        <div class="description-text">${kpi.notes}</div>
+                    </div>
+                    ` : ''}
+                `;
+                
+                // Set the edit button to work with this KPI
+                const editBtn = document.getElementById('editKPIBtn');
+                if (editBtn) {
+                    editBtn.onclick = () => editKPI(kpiId);
+                }
+                
+                // Set the delete button to work with this KPI
+                const deleteBtn = document.getElementById('deleteKPIBtn');
+                if (deleteBtn) {
+                    deleteBtn.onclick = () => deleteKPI(kpiId);
+                }
+                
+                // Open the modal
+                openModal('kpiDetailModal');
+            }
+        };
+
+        window.editKPI = function(kpiId) {
+            window.location.href = `kpi.html?edit=${kpiId}`;
+        };
+
+        window.deleteKPI = async function(kpiId) {
+            if (!confirm('Are you sure you want to delete this KPI?')) return;
+            
+            try {
+                const companyId = getCurrentCompanyId();
+                const kpiRef = window.firebase.ref(window.firebase.db, `companies/${companyId}/kpis/${kpiId}`);
+                await window.firebase.remove(kpiRef);
+                await loadKPIs();
+                showSuccess('KPI deleted successfully');
+            } catch (error) {
+                console.error('Error deleting KPI:', error);
+                showError('Failed to delete KPI');
+            }
+        };
+
+        window.exportKPIs = function() {
+            const csvContent = "data:text/csv;charset=utf-8," 
+                + "Name,Category,Assigned To,Current,Target,Performance,Frequency\n"
+                + filteredKPIs.map(kpi => [
+                    kpi.name || '',
+                    kpi.category || '',
+                    kpi.employeeName || '',
+                    kpi.current || '',
+                    kpi.target || '',
+                    kpi.current && kpi.target ? ((parseFloat(kpi.current) / parseFloat(kpi.target)) * 100).toFixed(1) + '%' : '',
+                    kpi.frequency || ''
+                ].join(',')).join('\n');
+            
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", "kpis.csv");
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        };
+
+        window.refreshData = function() {
+            loadKPIs();
+        };
+
+        window.openThresholdModal = function() {
+            openModal('thresholdModal');
+        };
+
+        window.closeModal = closeModal;
+        window.handleLogout = () => authManager.logout();
+        window.triggerAvatarUpload = triggerAvatarUpload;
+
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', async () => {
+            await authManager.init();
+            
+            // Initialize menu authorization based on features and roles
+            await updateMenuWithFeatureAuthorization();
+            
+            // Setup avatar upload functionality
+            const avatarUpload = document.getElementById('avatarUpload');
+            if (avatarUpload) {
+                avatarUpload.addEventListener('change', handleAvatarUpload);
+            }
+
+            // Setup profile dropdown
+            const userProfileBtn = document.getElementById('userProfileBtn');
+            const profileDropdown = document.querySelector('.profile-dropdown');
+            if (userProfileBtn && profileDropdown) {
+                userProfileBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    profileDropdown.classList.toggle('show');
+                });
+                document.addEventListener('click', () => {
+                    profileDropdown.classList.remove('show');
+                });
+            }
+
+            // Initialize sidebar toggle
+            const sidebarToggle = document.querySelector('#sidebarToggle');
+            if (sidebarToggle) {
+                sidebarToggle.addEventListener('click', toggleSidebar);
+            }
+
+            // Restore sidebar state
+            restoreSidebarState();
+
+            // Load KPIs
+            await loadKPIs();
+        });
+    </script>
+    <script>
+        // Load user initials for avatar - integrated with centralized auth
+        // This function is now replaced by updateUIForAuthenticatedUser()
+        // which provides enhanced user profile with avatar and user info dropdown
+
+        function getInitials(name) {
+            if (!name) return 'U';
+            const words = name.split(' ').filter(word => word.length > 0);
+            if (words.length === 1) {
+                return words[0].substring(0, 2).toUpperCase();
+            } else {
+                return words.slice(0, 2).map(word => word.charAt(0)).join('').toUpperCase();
+            }
+        }
+
+        // Logout function using centralized authentication
+        function handleLogout() {
+            if (window.authManager) {
+                window.authManager.logout()
+                    .then(() => {
+                        window.location.href = 'login.html';
+                    })
+                    .catch((error) => {
+                        console.error('Logout error:', error);
+                        // Fallback logout
+                        localStorage.removeItem('currentUser');
+                        sessionStorage.removeItem('currentUser');
+                        window.location.href = 'login.html';
+                    });
+            } else {
+                // Fallback logout
+                localStorage.removeItem('currentUser');
+                sessionStorage.removeItem('currentUser');
+                window.location.href = 'login.html';
+            }
+        }
+
+        // Performance Threshold Modal Functions
+        function openThresholdModal() {
+            loadCurrentThresholds();
+            openModal('thresholdModal');
+        }
+
+        function loadCurrentThresholds() {
+            // Load current global thresholds from localStorage
+            const savedThresholds = localStorage.getItem('globalThresholds');
+            let thresholds = {
+                outstanding: 130,
+                exceedExpectations: 110,
+                meetExpectations: 90,
+                belowExpectations: 70,
+                applyToExisting: true,
+                setAsDefault: true
+            };
+
+            if (savedThresholds) {
+                thresholds = { ...thresholds, ...JSON.parse(savedThresholds) };
+            }
+
+            // Populate form fields
+            document.getElementById('globalOutstandingThreshold').value = thresholds.outstanding;
+            document.getElementById('globalExceedExpectationsThreshold').value = thresholds.exceedExpectations;
+            document.getElementById('globalMeetExpectationsThreshold').value = thresholds.meetExpectations;
+            document.getElementById('globalBelowExpectationsThreshold').value = thresholds.belowExpectations;
+            document.getElementById('applyToExisting').checked = thresholds.applyToExisting;
+            document.getElementById('setAsDefault').checked = thresholds.setAsDefault;
+
+            updateThresholdPreview();
+        }
+
+        function resetToDefaults() {
+            document.getElementById('globalOutstandingThreshold').value = 130;
+            document.getElementById('globalExceedExpectationsThreshold').value = 110;
+            document.getElementById('globalMeetExpectationsThreshold').value = 90;
+            document.getElementById('globalBelowExpectationsThreshold').value = 70;
+            updateThresholdPreview();
+        }
+
+        function updateThresholdPreview() {
+            const outstanding = parseFloat(document.getElementById('globalOutstandingThreshold').value) || 130;
+            const exceedExpectations = parseFloat(document.getElementById('globalExceedExpectationsThreshold').value) || 110;
+            const meetExpectations = parseFloat(document.getElementById('globalMeetExpectationsThreshold').value) || 90;
+            const belowExpectations = parseFloat(document.getElementById('globalBelowExpectationsThreshold').value) || 70;
+
+            document.getElementById('outstandingPreview').textContent = `${outstanding}%+`;
+            document.getElementById('exceedExpectationsPreview').textContent = `${exceedExpectations}% - ${outstanding - 0.01}%`;
+            document.getElementById('meetExpectationsPreview').textContent = `${meetExpectations}% - ${exceedExpectations - 0.01}%`;
+            document.getElementById('belowExpectationsPreview').textContent = `${belowExpectations}% - ${meetExpectations - 0.01}%`;
+            document.getElementById('unsatisfactoryPreview').textContent = `Below ${belowExpectations}%`;
+        }
+
+        function saveGlobalThresholds(event) {
+            event.preventDefault();
+            
+            const outstanding = parseFloat(document.getElementById('globalOutstandingThreshold').value);
+            const exceedExpectations = parseFloat(document.getElementById('globalExceedExpectationsThreshold').value);
+            const meetExpectations = parseFloat(document.getElementById('globalMeetExpectationsThreshold').value);
+            const belowExpectations = parseFloat(document.getElementById('globalBelowExpectationsThreshold').value);
+            
+            // Validate thresholds
+            if (outstanding <= exceedExpectations || exceedExpectations <= meetExpectations || meetExpectations <= belowExpectations) {
+                showError('Rating thresholds must be in descending order: Outstanding > Exceed Expectations > Meet Expectations > Below Expectations');
+                return;
+            }
+
+            const thresholds = {
+                outstanding: outstanding,
+                exceedExpectations: exceedExpectations,
+                meetExpectations: meetExpectations,
+                belowExpectations: belowExpectations,
+                applyToExisting: document.getElementById('applyToExisting').checked,
+                setAsDefault: document.getElementById('setAsDefault').checked,
+                updatedAt: new Date().toISOString()
+            };
+
+            // Save to localStorage
+            localStorage.setItem('globalThresholds', JSON.stringify(thresholds));
+
+            // Apply to existing KPIs if selected
+            if (thresholds.applyToExisting) {
+                applyThresholdsToExistingKPIs(thresholds);
+            }
+
+            closeModal('thresholdModal');
+            showSuccess('Global performance rating thresholds have been saved successfully!');
+            
+            // Refresh the KPI display if the board is loaded
+            if (typeof refreshKPIDisplay === 'function') {
+                refreshKPIDisplay();
+            }
+        }
+
+        function applyThresholdsToExistingKPIs(thresholds) {
+            try {
+                // Load existing KPIs
+                const existingKPIs = JSON.parse(localStorage.getItem('kpis') || '[]');
+                let updatedCount = 0;
+
+                existingKPIs.forEach(kpi => {
+                    // Only apply if KPI doesn't have custom thresholds or has default ones
+                    if (!kpi.thresholds || 
+                        (kpi.thresholds.outstanding === (kpi.target * 130 / 100) && 
+                         kpi.thresholds.exceedExpectations === (kpi.target * 110 / 100) && 
+                         kpi.thresholds.meetExpectations === (kpi.target * 90 / 100) && 
+                         kpi.thresholds.belowExpectations === (kpi.target * 70 / 100))) {
+                        
+                        kpi.thresholds = {
+                            outstanding: (kpi.target * thresholds.outstanding / 100),
+                            exceedExpectations: (kpi.target * thresholds.exceedExpectations / 100),
+                            meetExpectations: (kpi.target * thresholds.meetExpectations / 100),
+                            belowExpectations: (kpi.target * thresholds.belowExpectations / 100)
+                        };
+                        updatedCount++;
+                    }
+                });
+
+                // Save updated KPIs
+                localStorage.setItem('kpis', JSON.stringify(existingKPIs));
+                
+                if (updatedCount > 0) {
+                    console.log(`Applied global thresholds to ${updatedCount} KPIs`);
+                }
+            } catch (error) {
+                console.error('Error applying thresholds to existing KPIs:', error);
+            }
+        }
+
+        function openModal(modalId) {
+            document.getElementById(modalId).style.display = 'flex';
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+            document.body.style.overflow = 'auto';
+        }
+
+        function showSuccess(message) {
+            const successModal = document.getElementById('successModal');
+            if (successModal) {
+                document.getElementById('successMessage').textContent = message;
+                openModal('successModal');
+            } else {
+                alert(message);
+            }
+        }
+
+        function showError(message) {
+            const errorModal = document.getElementById('errorModal');
+            if (errorModal) {
+                document.getElementById('errorMessage').textContent = message;
+                openModal('errorModal');
+            } else {
+                alert(message);
+            }
+        }
+
+        // Initialize threshold form when page loads
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Check authentication before initializing the page
+            if (window.authManager) {
+                // Wait for auth manager to be ready
+                await window.authManager.waitForAuth();
+                
+                // Check if user is authenticated
+                if (!window.authManager.isAuthenticated()) {
+                    window.location.href = 'login.html';
+                    return;
+                }
+            } else {
+                // Fallback: Check if user is authenticated via session/localStorage
+                const currentUser = localStorage.getItem('currentUser') || sessionStorage.getItem('currentUser');
+                if (!currentUser) {
+                    window.location.href = 'login.html';
+                    return;
+                }
+            }
+            
+            loadUserInitials();
+            initializeUserProfile();
+            
+            // Setup threshold form
+            const thresholdForm = document.getElementById('globalThresholdForm');
+            if (thresholdForm) {
+                thresholdForm.addEventListener('submit', saveGlobalThresholds);
+                
+                // Add event listeners for real-time preview updates
+                document.getElementById('globalOutstandingThreshold').addEventListener('input', updateThresholdPreview);
+                document.getElementById('globalExceedExpectationsThreshold').addEventListener('input', updateThresholdPreview);
+                document.getElementById('globalMeetExpectationsThreshold').addEventListener('input', updateThresholdPreview);
+                document.getElementById('globalBelowExpectationsThreshold').addEventListener('input', updateThresholdPreview);
+            }
+            
+            // Set up mutation observer to clean variance text when content changes
+            const observer = new MutationObserver((mutations) => {
+                let shouldClean = false;
+                mutations.forEach((mutation) => {
+                    if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+                        shouldClean = true;
+                    }
+                });
+                if (shouldClean) {
+                    setTimeout(hideVarianceFromPerformanceLabels, 100);
+                }
+            });
+            
+            // Observe the main content area for changes
+            const mainContent = document.querySelector('.main-content');
+            if (mainContent) {
+                observer.observe(mainContent, {
+                    childList: true,
+                    subtree: true
+                });
+            }
+        });
+
+        // User Profile Dropdown functionality
+        function initializeUserProfile() {
+            const userProfileBtn = document.getElementById('userProfileBtn');
+            const profileDropdown = document.querySelector('.profile-dropdown');
+            if (userProfileBtn && profileDropdown) {
+                userProfileBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    profileDropdown.classList.toggle('show');
+                });
+                document.addEventListener('click', () => {
+                    profileDropdown.classList.remove('show');
+                });
+                profileDropdown.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                });
+            }
+        }
+
+        function loadAndDisplayKPIs() {
+            // Load all KPIs (from localStorage, Firebase, etc.)
+            let allKPIs = [];
+            try {
+                allKPIs = JSON.parse(localStorage.getItem('kpis') || '[]');
+            } catch (e) {}
+
+            // Filter for current user
+            const visibleKPIs = filterKPIsForCurrentUser(allKPIs);
+
+            const tableBody = document.getElementById('kpiTableBody');
+            tableBody.innerHTML = '';
+            visibleKPIs.forEach(kpi => {
+                // Determine creator name (prefer name, then email, then id)
+                let creatorName = '';
+                if (kpi.createdByName) {
+                    creatorName = kpi.createdByName;
+                } else if (kpi.createdBy && typeof kpi.createdBy === 'object') {
+                    creatorName = kpi.createdBy.name || kpi.createdBy.displayName || kpi.createdBy.email || kpi.createdBy.id || 'Unknown';
+                } else {
+                    creatorName = kpi.createdBy || 'Unknown';
+                }
+                // ...existing code for other columns...
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${kpi.name || ''}</td>
+                    <td>${kpi.category || ''}</td>
+                    <td>${kpi.employeeName || kpi.employee || ''}</td>
+                    <td>${kpi.performance || ''}</td>
+                    <td class="target-column">${kpi.target || ''}</td>
+                    <td>${kpi.current || ''}</td>
+                    <td>${kpi.frequency || ''}</td>
+                    <td>${creatorName}</td>
+                    <td><!-- Actions here --></td>
+                `;
+                tableBody.appendChild(row);
+            });
+            
+            // Clean up variance text from performance labels
+            hideVarianceFromPerformanceLabels();
+        }
+        
+        // Function to hide variance information from performance labels
+        function hideVarianceFromPerformanceLabels() {
+            // Remove variance percentages from performance labels
+            const performanceLabels = document.querySelectorAll('.performance-label');
+            performanceLabels.forEach(label => {
+                if (label.textContent) {
+                    // Remove the variance percentage in parentheses, e.g., " (+15.2%)" or " (-8.3%)"
+                    label.textContent = label.textContent.replace(/\s*\([+-]?\d+\.?\d*%\)/, '');
+                }
+            });
+            
+            // Hide variance metric elements
+            const metrics = document.querySelectorAll('.metric');
+            metrics.forEach(metric => {
+                const label = metric.querySelector('label');
+                if (label && label.textContent.toLowerCase().includes('variance')) {
+                    metric.style.display = 'none';
+                }
+            });
+        }
+        
+        // Override the original function if it exists and add variance cleanup
+        const originalCreateEmployeeTableRow = window.createEmployeeTableRow;
+        if (typeof originalCreateEmployeeTableRow === 'function') {
+            window.createEmployeeTableRow = function(groupedKPI) {
+                const result = originalCreateEmployeeTableRow(groupedKPI);
+                // Clean up variance from the result
+                return result.replace(/\s*\([+-]?\d+\.?\d*%\)/, '');
+            };
+        }
+    </script>
+</body>
+</html>
+

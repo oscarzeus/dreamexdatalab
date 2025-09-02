@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Email Service Diagnostics - Dreamex Datalab</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        .content {
+            padding: 30px;
+        }
+        .diagnostic-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            background: #fafafa;
+        }
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        .status-success { background-color: #28a745; }
+        .status-warning { background-color: #ffc107; }
+        .status-error { background-color: #dc3545; }
+        .status-unknown { background-color: #6c757d; }
+        .btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 14px;
+        }
+        .btn:hover { background: #0056b3; }
+        .btn:disabled { background: #6c757d; cursor: not-allowed; }
+        .log-output {
+            background: #000;
+            color: #00ff00;
+            padding: 15px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            height: 300px;
+            overflow-y: auto;
+            margin-top: 10px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        .form-group input, .form-group textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        @media (max-width: 768px) {
+            .grid { grid-template-columns: 1fr; }
+        }
+        .test-results {
+            display: none;
+            margin-top: 15px;
+            padding: 15px;
+            border-radius: 4px;
+        }
+        .test-success { background: #d4edda; border: 1px solid #c3e6cb; color: #155724; }
+        .test-error { background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📧 Email Service Diagnostics</h1>
+            <p>Test and diagnose email connectivity for the Dreamex Datalab HSE System</p>
+        </div>
+        
+        <div class="content">
+            <!-- Service Status Overview -->
+            <div class="diagnostic-section">
+                <h2>🔍 Service Status Overview</h2>
+                <div id="serviceStatus">
+                    <p><span class="status-indicator status-unknown"></span><strong>EmailJS Service:</strong> <span id="emailjsStatus">Checking...</span></p>
+                    <p><span class="status-indicator status-unknown"></span><strong>Local SMTP Service:</strong> <span id="localServiceStatus">Checking...</span></p>
+                    <p><span class="status-indicator status-unknown"></span><strong>Enhanced Email Service:</strong> <span id="enhancedServiceStatus">Checking...</span></p>
+                </div>
+                <button class="btn" onclick="checkAllServices()">🔄 Refresh Status</button>
+            </div>
+
+            <div class="grid">
+                <!-- EmailJS Test -->
+                <div class="diagnostic-section">
+                    <h3>📨 EmailJS Test</h3>
+                    <p>Test the EmailJS service directly</p>
+                    <button class="btn" onclick="testEmailJS()" id="emailjsTestBtn">Test EmailJS</button>
+                    <div id="emailjsTestResult" class="test-results"></div>
+                </div>
+
+                <!-- Local SMTP Test -->
+                <div class="diagnostic-section">
+                    <h3>🖥️ Local SMTP Test</h3>
+                    <p>Test the local Node.js email service</p>
+                    <button class="btn" onclick="testLocalSMTP()" id="localTestBtn">Test Local SMTP</button>
+                    <div id="localTestResult" class="test-results"></div>
+                </div>
+            </div>
+
+            <!-- Enhanced Email Test -->
+            <div class="diagnostic-section">
+                <h3>⚡ Enhanced Email Service Test</h3>
+                <p>Test the enhanced email service with automatic fallbacks</p>
+                <button class="btn" onclick="testEnhancedEmail()" id="enhancedTestBtn">Test Enhanced Service</button>
+                <div id="enhancedTestResult" class="test-results"></div>
+            </div>
+
+            <!-- Custom Email Test -->
+            <div class="diagnostic-section">
+                <h3>✉️ Custom Email Test</h3>
+                <div class="form-group">
+                    <label for="testEmail">Test Email Address:</label>
+                    <input type="email" id="testEmail" value="info@dreamexdatalab.com" placeholder="Enter email to send test to">
+                </div>
+                <div class="form-group">
+                    <label for="testSubject">Subject:</label>
+                    <input type="text" id="testSubject" value="Email Service Test" placeholder="Email subject">
+                </div>
+                <div class="form-group">
+                    <label for="testMessage">Message:</label>
+                    <textarea id="testMessage" rows="4" placeholder="Email message content">This is a test email from the Dreamex Datalab HSE System email diagnostics tool.</textarea>
+                </div>
+                <button class="btn" onclick="sendCustomEmail()" id="customTestBtn">Send Custom Test Email</button>
+                <div id="customTestResult" class="test-results"></div>
+            </div>
+
+            <!-- SMTP Configuration -->
+            <div class="diagnostic-section">
+                <h3>⚙️ SMTP Configuration Check</h3>
+                <p>Updated SMTP settings:</p>
+                <ul>
+                    <li><strong>Host:</strong> mail.privateemail.com</li>
+                    <li><strong>Port:</strong> 465 (SSL)</li>
+                    <li><strong>Security:</strong> SSL/TLS</li>
+                    <li><strong>Email:</strong> info@dreamexdatalab.com</li>
+                    <li><strong>Password:</strong> [Updated - Im@m1409pP]</li>
+                    <li><strong>Service ID:</strong> service_p2e9swy</li>
+                </ul>
+                <button class="btn" onclick="testSMTPConnection()" id="smtpTestBtn">Test SMTP Connection</button>
+                <div id="smtpTestResult" class="test-results"></div>
+            </div>
+
+            <!-- Real-time Log -->
+            <div class="diagnostic-section">
+                <h3>📋 Real-time Diagnostic Log</h3>
+                <button class="btn" onclick="clearLog()">Clear Log</button>
+                <div id="diagnosticLog" class="log-output"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Include required scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+    <script src="js/enhanced-email-service.js"></script>
+    
+    <script>
+        let logContainer;
+        let enhancedEmailService;
+
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', function() {
+            logContainer = document.getElementById('diagnosticLog');
+            log('🚀 Email Diagnostics Tool initialized');
+            
+            // Initialize enhanced email service
+            if (typeof EnhancedEmailService !== 'undefined') {
+                enhancedEmailService = new EnhancedEmailService();
+                log('✅ Enhanced Email Service loaded');
+            } else {
+                log('❌ Enhanced Email Service not available');
+            }
+            
+            // Check all services on load
+            setTimeout(checkAllServices, 1000);
+        });
+
+        function log(message) {
+            const timestamp = new Date().toISOString();
+            const logEntry = `[${timestamp}] ${message}`;
+            
+            if (logContainer) {
+                logContainer.innerHTML += logEntry + '\n';
+                logContainer.scrollTop = logContainer.scrollHeight;
+            }
+            
+            console.log(logEntry);
+        }
+
+        function clearLog() {
+            if (logContainer) {
+                logContainer.innerHTML = '';
+            }
+        }
+
+        function updateServiceStatus(serviceId, status, message) {
+            const indicator = document.querySelector(`#serviceStatus p:nth-child(${serviceId}) .status-indicator`);
+            const statusText = document.getElementById(`${serviceId}Status`);
+            
+            if (indicator && statusText) {
+                indicator.className = `status-indicator status-${status}`;
+                statusText.textContent = message;
+            }
+        }
+
+        async function checkAllServices() {
+            log('🔍 Checking all email services...');
+            
+            // Check EmailJS
+            try {
+                if (typeof emailjs !== 'undefined') {
+                    emailjs.init('fHs6oaqQgkcPoUwpv');
+                    updateServiceStatus('emailjs', 'success', 'Available and initialized');
+                    log('✅ EmailJS is available');
+                } else {
+                    updateServiceStatus('emailjs', 'error', 'Library not loaded');
+                    log('❌ EmailJS library not loaded');
+                }
+            } catch (error) {
+                updateServiceStatus('emailjs', 'error', `Error: ${error.message}`);
+                log(`❌ EmailJS error: ${error.message}`);
+            }
+
+            // Check Local Service
+            try {
+                const response = await fetch('http://localhost:3001/health', { timeout: 5000 });
+                if (response.ok) {
+                    updateServiceStatus('localService', 'success', 'Running on port 3001');
+                    log('✅ Local SMTP service is running');
+                } else {
+                    updateServiceStatus('localService', 'warning', `HTTP ${response.status}`);
+                    log(`⚠️ Local service responded with status ${response.status}`);
+                }
+            } catch (error) {
+                updateServiceStatus('localService', 'error', 'Not running or unreachable');
+                log(`❌ Local service error: ${error.message}`);
+            }
+
+            // Check Enhanced Service
+            if (enhancedEmailService) {
+                try {
+                    const status = enhancedEmailService.getStatus();
+                    const availableCount = status.availableMethods.length;
+                    
+                    if (availableCount > 0) {
+                        updateServiceStatus('enhancedService', 'success', `${availableCount} method(s) available`);
+                        log(`✅ Enhanced service has ${availableCount} available methods: ${status.availableMethods.join(', ')}`);
+                    } else {
+                        updateServiceStatus('enhancedService', 'error', 'No methods available');
+                        log('❌ Enhanced service has no available methods');
+                    }
+                } catch (error) {
+                    updateServiceStatus('enhancedService', 'error', `Error: ${error.message}`);
+                    log(`❌ Enhanced service error: ${error.message}`);
+                }
+            } else {
+                updateServiceStatus('enhancedService', 'error', 'Not loaded');
+                log('❌ Enhanced service not loaded');
+            }
+        }
+
+        async function testEmailJS() {
+            const btn = document.getElementById('emailjsTestBtn');
+            const result = document.getElementById('emailjsTestResult');
+            
+            btn.disabled = true;
+            btn.textContent = 'Testing...';
+            result.style.display = 'none';
+            
+            log('📧 Testing EmailJS...');
+            
+            try {
+                if (typeof emailjs === 'undefined') {
+                    throw new Error('EmailJS library not loaded');
+                }
+                
+                const response = await emailjs.send(
+                    'service_p2e9swy',
+                    'template_l50h8ks',
+                    {
+                        to_email: 'info@dreamexdatalab.com',
+                        to_name: 'Test Recipient',
+                        from_name: 'Email Diagnostics Tool',
+                        subject: 'EmailJS Test - ' + new Date().toISOString(),
+                        message: 'This is a test email sent via EmailJS from the diagnostics tool.',
+                        position_title: 'Test Position',
+                        department: 'Test Department',
+                        requesting_manager: 'Test Manager'
+                    },
+                    'fHs6oaqQgkcPoUwpv'
+                );
+                
+                result.className = 'test-results test-success';
+                result.innerHTML = `✅ EmailJS test successful!<br>Response: ${JSON.stringify(response)}`;
+                result.style.display = 'block';
+                
+                log('✅ EmailJS test completed successfully');
+                
+            } catch (error) {
+                result.className = 'test-results test-error';
+                result.innerHTML = `❌ EmailJS test failed: ${error.message}`;
+                result.style.display = 'block';
+                
+                log(`❌ EmailJS test failed: ${error.message}`);
+            }
+            
+            btn.disabled = false;
+            btn.textContent = 'Test EmailJS';
+        }
+
+        async function testLocalSMTP() {
+            const btn = document.getElementById('localTestBtn');
+            const result = document.getElementById('localTestResult');
+            
+            btn.disabled = true;
+            btn.textContent = 'Testing...';
+            result.style.display = 'none';
+            
+            log('🖥️ Testing Local SMTP service...');
+            
+            try {
+                const response = await fetch('http://localhost:3001/send-email', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer dreemex_hse_email_service_2025'
+                    },
+                    body: JSON.stringify({
+                        to: 'info@dreamexdatalab.com',
+                        subject: 'Local SMTP Test - ' + new Date().toISOString(),
+                        text: 'This is a test email sent via the local SMTP service from the diagnostics tool.',
+                        html: '<p>This is a test email sent via the local SMTP service from the diagnostics tool.</p>'
+                    })
+                });
+                
+                const responseData = await response.json();
+                
+                if (response.ok) {
+                    result.className = 'test-results test-success';
+                    result.innerHTML = `✅ Local SMTP test successful!<br>Message ID: ${responseData.messageId}`;
+                    result.style.display = 'block';
+                    
+                    log('✅ Local SMTP test completed successfully');
+                } else {
+                    throw new Error(`HTTP ${response.status}: ${responseData.error || 'Unknown error'}`);
+                }
+                
+            } catch (error) {
+                result.className = 'test-results test-error';
+                result.innerHTML = `❌ Local SMTP test failed: ${error.message}`;
+                result.style.display = 'block';
+                
+                log(`❌ Local SMTP test failed: ${error.message}`);
+            }
+            
+            btn.disabled = false;
+            btn.textContent = 'Test Local SMTP';
+        }
+
+        async function testEnhancedEmail() {
+            const btn = document.getElementById('enhancedTestBtn');
+            const result = document.getElementById('enhancedTestResult');
+            
+            btn.disabled = true;
+            btn.textContent = 'Testing...';
+            result.style.display = 'none';
+            
+            log('⚡ Testing Enhanced Email Service...');
+            
+            try {
+                if (!enhancedEmailService) {
+                    throw new Error('Enhanced Email Service not available');
+                }
+                
+                const emailResult = await enhancedEmailService.sendEmail({
+                    to: 'info@dreamexdatalab.com',
+                    toName: 'Test Recipient',
+                    subject: 'Enhanced Email Test - ' + new Date().toISOString(),
+                    text: 'This is a test email sent via the Enhanced Email Service from the diagnostics tool.',
+                    html: '<p>This is a test email sent via the Enhanced Email Service from the diagnostics tool.</p>',
+                    positionTitle: 'Test Position',
+                    department: 'Test Department',
+                    requestingManager: 'Test Manager'
+                });
+                
+                result.className = 'test-results test-success';
+                result.innerHTML = `✅ Enhanced Email test successful!<br>Method: ${emailResult.method}<br>Timestamp: ${emailResult.timestamp}`;
+                result.style.display = 'block';
+                
+                log(`✅ Enhanced Email test completed successfully via ${emailResult.method}`);
+                
+            } catch (error) {
+                result.className = 'test-results test-error';
+                result.innerHTML = `❌ Enhanced Email test failed: ${error.message}`;
+                result.style.display = 'block';
+                
+                log(`❌ Enhanced Email test failed: ${error.message}`);
+            }
+            
+            btn.disabled = false;
+            btn.textContent = 'Test Enhanced Service';
+        }
+
+        async function sendCustomEmail() {
+            const btn = document.getElementById('customTestBtn');
+            const result = document.getElementById('customTestResult');
+            const email = document.getElementById('testEmail').value;
+            const subject = document.getElementById('testSubject').value;
+            const message = document.getElementById('testMessage').value;
+            
+            if (!email || !subject || !message) {
+                alert('Please fill in all fields');
+                return;
+            }
+            
+            btn.disabled = true;
+            btn.textContent = 'Sending...';
+            result.style.display = 'none';
+            
+            log(`📬 Sending custom email to ${email}...`);
+            
+            try {
+                if (enhancedEmailService) {
+                    const emailResult = await enhancedEmailService.sendEmail({
+                        to: email,
+                        subject: subject,
+                        text: message,
+                        html: `<p>${message.replace(/\n/g, '<br>')}</p>`
+                    });
+                    
+                    result.className = 'test-results test-success';
+                    result.innerHTML = `✅ Custom email sent successfully!<br>Method: ${emailResult.method}<br>To: ${email}`;
+                    result.style.display = 'block';
+                    
+                    log(`✅ Custom email sent successfully to ${email} via ${emailResult.method}`);
+                } else {
+                    throw new Error('Enhanced Email Service not available');
+                }
+                
+            } catch (error) {
+                result.className = 'test-results test-error';
+                result.innerHTML = `❌ Custom email failed: ${error.message}`;
+                result.style.display = 'block';
+                
+                log(`❌ Custom email failed: ${error.message}`);
+            }
+            
+            btn.disabled = false;
+            btn.textContent = 'Send Custom Test Email';
+        }
+
+        async function testSMTPConnection() {
+            const btn = document.getElementById('smtpTestBtn');
+            const result = document.getElementById('smtpTestResult');
+            
+            btn.disabled = true;
+            btn.textContent = 'Testing...';
+            result.style.display = 'none';
+            
+            log('🔗 Testing SMTP connection...');
+            
+            try {
+                const response = await fetch('http://localhost:3001/test-connection', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': 'Bearer dreemex_hse_email_service_2025'
+                    }
+                });
+                
+                const responseData = await response.json();
+                
+                if (response.ok && responseData.success) {
+                    result.className = 'test-results test-success';
+                    result.innerHTML = `✅ SMTP connection successful!<br>Details: ${responseData.message}`;
+                    result.style.display = 'block';
+                    
+                    log('✅ SMTP connection test successful');
+                } else {
+                    throw new Error(responseData.error || 'SMTP connection failed');
+                }
+                
+            } catch (error) {
+                result.className = 'test-results test-error';
+                result.innerHTML = `❌ SMTP connection failed: ${error.message}`;
+                result.style.display = 'block';
+                
+                log(`❌ SMTP connection test failed: ${error.message}`);
+            }
+            
+            btn.disabled = false;
+            btn.textContent = 'Test SMTP Connection';
+        }
+    </script>
+</body>
+</html>

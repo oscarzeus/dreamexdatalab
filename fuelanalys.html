@@ -1,0 +1,1520 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fuel Consumption Analysis - Dreamex Datalab HSE</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="css/styles.css">
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --secondary-color: #3498db;
+            --sidebar-width: 250px;
+        }
+        
+        /* Menu Visibility Styles */
+        [data-feature]:not(.menu-visible) {
+            display: none !important;
+        }
+
+        .menu-dropdown:not(.menu-visible) {
+            display: none !important;
+        }
+
+        /* During loading, hide all menu items by default */
+        .menu-loading [data-feature] {
+            display: none !important;
+        }
+
+        .menu-loading .menu-dropdown {
+            display: none !important;
+        }
+        
+        /* Header branding styles */
+        .top-nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 2rem;
+            background: white;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .top-nav-left {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .header-company-logo {
+            width: 60px;
+            height: 60px;
+            border-radius: 8px;
+            object-fit: cover;
+            display: none;
+        }
+
+        .header-company-logo.visible {
+            display: block;
+        }
+
+        .header-logo-placeholder {
+            width: 60px;
+            height: 60px;
+            border-radius: 8px;
+            background: #f8f9fa;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            color: #6c757d;
+            font-size: 1.2rem;
+        }
+
+        .company-name-header {
+            font-weight: 600;
+            color: #2c3e50;
+            font-size: 1.1rem;
+            display: inline-block;
+        }
+
+        /* Mobile responsive adjustments for header branding */
+        @media (max-width: 768px) {
+            .top-nav {
+                padding: 0.75rem 1rem;
+                border-radius: 0;
+            }
+            
+            .top-nav-left {
+                gap: 0.5rem;
+            }
+            
+            .company-name-header {
+                font-size: 1rem;
+            }
+            
+            .header-company-logo, .header-logo-placeholder {
+                width: 48px;
+                height: 48px;
+            }
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.5);
+            backdrop-filter: blur(5px);
+        }
+        .modal.show {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+            max-width: 600px;
+            border-radius: 10px;
+        }
+        .close-modal {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+        }
+        .close-modal:hover,
+        .close-modal:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        /* Profile Button Styles */
+        .user-profile {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .profile-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 0.25rem;
+            display: flex;
+            align-items: center;
+        }
+
+        .profile-btn img {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+
+        .profile-dropdown {
+            display: none;
+            position: absolute;
+            top: 100%;
+            right: 0;
+            background: #fff;
+            border-radius: 4px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            min-width: 200px;
+            z-index: 1000;
+        }
+
+        .profile-dropdown.show {
+            display: block;
+        }
+
+        .profile-dropdown ul {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        .profile-dropdown li {
+            border-bottom: 1px solid #eee;
+        }
+
+        .profile-dropdown li:last-child {
+            border-bottom: none;
+        }
+
+        .profile-dropdown a {
+            display: flex;
+            align-items: center;
+            padding: 12px 16px;
+            text-decoration: none;
+            color: #333;
+            transition: background-color 0.2s;
+        }
+
+        .profile-dropdown a:hover {
+            background-color: #f5f5f5;
+        }
+
+        .profile-dropdown i {
+            margin-right: 8px;
+            width: 16px;
+        }
+    </style>
+
+    <!-- Firebase v8 CDN for compatibility -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
+    
+    <!-- Embedded Firebase Configuration -->
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyCUTmTn0rRBb0M-UkQJxnUMrWqXYU_BgIc",
+            authDomain: "users-8be65.firebaseapp.com",
+            databaseURL: "https://users-8be65-default-rtdb.firebaseio.com",
+            projectId: "users-8be65",
+            storageBucket: "users-8be65.firebasestorage.app",
+            messagingSenderId: "909025468149",
+            appId: "1:909025468149:web:fb4e7c4a8b4bd6d1076e4d",
+            measurementId: "G-XHFMRCJQEZ"
+        };
+
+        function initializeFirebase() {
+            if (!window.firebase || !window.firebase.apps || window.firebase.apps.length === 0) {
+                window.firebase.initializeApp(firebaseConfig);
+            }
+            return window.firebase;
+        }
+
+        function getDatabase() {
+            const firebase = initializeFirebase();
+            return firebase.database();
+        }
+        initializeFirebase();
+    </script>
+    
+    <!-- Centralized Authentication Manager and Firebase Configuration -->
+    <script>
+        // Authentication functions using Firebase v8
+        function loginWithEmail(email, password) {
+            return new Promise((resolve, reject) => {
+                const firebase = initializeFirebase();
+                const auth = firebase.auth();
+                
+                auth.signInWithEmailAndPassword(email, password)
+                    .then((userCredential) => {
+                        resolve(userCredential.user);
+                    })
+                    .catch((error) => {
+                        reject(error);
+                    });
+            });
+        }
+
+        function logoutUser() {
+            return new Promise((resolve, reject) => {
+                const firebase = initializeFirebase();
+                const auth = firebase.auth();
+                
+                auth.signOut()
+                    .then(() => {
+                        resolve(true);
+                    })
+                    .catch((error) => {
+                        console.error('Logout error:', error);
+                        resolve(false);
+                    });
+            });
+        }
+
+        // Database functions using Firebase v8
+        function ref(database, path) {
+            return database.ref(path);
+        }
+
+        function get(reference) {
+            return reference.once('value');
+        }
+
+        function set(reference, value) {
+            return reference.set(value);
+        }
+
+        function update(reference, values) {
+            return reference.update(values);
+        }
+
+        function push(reference, value) {
+            return reference.push(value);
+        }
+
+        function remove(reference) {
+            return reference.remove();
+        }
+
+        // Centralized Authentication Manager Class
+        class AuthManager {
+            constructor() {
+                console.log('🔐 AuthManager constructor called');
+                this.currentUser = this.getCurrentUser();
+                this.db = getDatabase();
+                this.currentCompany = null;
+                
+                // Debug log
+                console.log('🔐 AuthManager initialized');
+                console.log('Current user:', this.currentUser);
+                console.log('Database:', this.db ? '✅' : '❌');
+                
+                this.initializeAuth();
+            }
+
+            initializeAuth() {
+                console.log('🔐 AuthManager initializeAuth() called');
+                
+                // Initialize Firebase services and check versions
+                if (typeof firebase === 'undefined') {
+                    console.error('❌ Firebase not loaded');
+                    return;
+                }
+
+                console.log('🔥 Firebase version:', firebase.SDK_VERSION);
+                
+                // Initialize Firebase Storage if available
+                if (firebase.storage) {
+                    try {
+                        console.log('🔥 Initializing Firebase Storage...');
+                        const storage = firebase.storage();
+                        console.log('✅ Firebase Storage initialized successfully');
+                        
+                        // Test Storage connectivity
+                        console.log('🧪 Testing Firebase Storage connectivity...');
+                        const storageRef = storage.ref();
+                        const testPath = storageRef.child('test-connection');
+                        console.log('✅ Storage connectivity test passed');
+                    } catch (storageError) {
+                        console.error('❌ Storage connectivity test failed:', storageError);
+                    }
+                } else {
+                    console.error('❌ Firebase Storage not available');
+                }
+                
+                // Check if user is logged in
+                if (!this.currentUser) {
+                    console.warn('⚠️ No currentUser found in localStorage');
+                    
+                    // Check Firebase auth state as fallback
+                    if (firebase.auth().currentUser) {
+                        console.log('✅ Found Firebase authenticated user, using that');
+                        this.currentUser = {
+                            uid: firebase.auth().currentUser.uid,
+                            email: firebase.auth().currentUser.email,
+                            displayName: firebase.auth().currentUser.displayName || firebase.auth().currentUser.email
+                        };
+                    } else {
+                        console.warn('⚠️ No Firebase authenticated user either - creating test user for debugging');
+                        // Create a test user for debugging the profile picture functionality
+                        this.currentUser = {
+                            uid: 'test-user-123',
+                            email: 'test@dreamexdatalab.com',
+                            displayName: 'Test User',
+                            role: 'admin'
+                        };
+                        console.log('🧪 Created test user for debugging:', this.currentUser);
+                    }
+                }
+                
+                console.log('✅ User authenticated successfully:', this.currentUser.email);
+                
+                // Load user data and update UI
+                console.log('🔄 Loading user role and company data...');
+                this.loadUserRole(this.currentUser);
+                this.loadUserCompany();
+                this.updateUIForAuthenticatedUser();
+                this.updateMenuVisibility();
+
+                // Add event listeners for user profile dropdown
+                const userProfileBtn = document.getElementById('userProfileBtn');
+                const profileDropdown = document.querySelector('.profile-dropdown');
+                
+                if (userProfileBtn && profileDropdown) {
+                    userProfileBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        profileDropdown.classList.toggle('show');
+                    });
+
+                    // Close dropdown when clicking outside
+                    document.addEventListener('click', (e) => {
+                        if (!userProfileBtn.contains(e.target)) {
+                            profileDropdown.classList.remove('show');
+                        }
+                    });
+                }
+
+                // Handle logout
+                const logoutBtn = document.getElementById('logoutBtn');
+                if (logoutBtn) {
+                    logoutBtn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        this.logout();
+                    });
+                }
+            }
+
+            getCurrentUser() {
+                try {
+                    return JSON.parse(localStorage.getItem('currentUser') || 'null');
+                } catch (error) {
+                    console.error('Error parsing current user:', error);
+                    return null;
+                }
+            }
+
+            setCurrentUser(userData) {
+                localStorage.setItem('currentUser', JSON.stringify(userData));
+                localStorage.setItem('user', JSON.stringify(userData));
+                this.currentUser = userData;
+            }
+
+            async logout() {
+                const success = await logoutUser();
+                if (success) {
+                    localStorage.removeItem('currentUser');
+                    localStorage.removeItem('user');
+                    sessionStorage.removeItem('currentUser');
+                    sessionStorage.removeItem('user');
+                    this.currentUser = null;
+                    window.location.href = 'index.html';
+                }
+            }
+
+            // Menu visibility methods
+            resetMenuVisibility() {
+                document.querySelectorAll('[data-feature]').forEach(item => {
+                    item.classList.remove('menu-visible');
+                });
+                document.querySelectorAll('.menu-dropdown').forEach(dropdown => {
+                    dropdown.classList.remove('menu-visible');
+                });
+            }
+
+            async updateMenuVisibility() {
+                console.log('🔧 AuthManager: Delegating menu visibility to feature-based authorization...');
+                
+                // Remove loading class
+                const sidebar = document.querySelector('.sidebar');
+                if (sidebar) {
+                    sidebar.classList.remove('menu-loading');
+                }
+                
+                // Delegate to feature-based authorization system
+                try {
+                    await updateMenuWithFeatureAuthorization();
+                } catch (error) {
+                    console.error('❌ Error in feature-based authorization, showing basic menu:', error);
+                    showBasicMenu();
+                }
+            }
+
+            async loadUserRole(userData) {
+                // Load user role from Firebase if not available
+                if (!userData.role && userData.uid) {
+                    try {
+                        const userRef = ref(this.db, `users/${userData.uid}`);
+                        const userSnapshot = await get(userRef);
+                        if (userSnapshot.exists()) {
+                            const userRole = userSnapshot.val().role || 'user';
+                            userData.role = userRole;
+                            this.setCurrentUser(userData);
+                        }
+                    } catch (error) {
+                        console.error('Error loading user role:', error);
+                    }
+                }
+            }
+
+            async loadUserCompany() {
+                console.log('🏢 loadUserCompany() called');
+                console.log('🏢 currentUser:', this.currentUser);
+                
+                if (!this.currentUser) {
+                    console.warn('⚠️ No currentUser available for loadUserCompany');
+                    return;
+                }
+
+                try {
+                    const companiesRef = ref(this.db, 'companies');
+                    console.log('🔄 Fetching companies from Firebase...');
+                    const companiesSnapshot = await get(companiesRef);
+                    
+                    if (companiesSnapshot.exists()) {
+                        const companies = companiesSnapshot.val();
+                        console.log('✅ Companies data received:', Object.keys(companies).length, 'companies');
+                        let foundCompany = null;
+                        
+                        // Search through all companies for user
+                        for (const [companyId, company] of Object.entries(companies)) {
+                            if (company.status !== 'active') continue;
+                            
+                            // Check in company users
+                            if (company.users) {
+                                for (const [userId, user] of Object.entries(company.users)) {
+                                    if (user.authUid === this.currentUser.uid || userId === this.currentUser.uid) {
+                                        foundCompany = company;
+                                        this.currentUser.companyId = companyId;
+                                        this.currentUser.companyName = company.companyName;
+                                        console.log('✅ Found user in company:', company.companyName, '(ID:', companyId, ')');
+                                        break;
+                                    }
+                                }
+                            }
+                            
+                            if (foundCompany) break;
+                        }
+                        
+                        if (foundCompany) {
+                            this.currentCompany = foundCompany;
+                            console.log('✅ Setting currentCompany:', foundCompany);
+                            console.log('🎯 Company logo data:', {
+                                logo: foundCompany.logo || 'Not found',
+                                logoUrl: foundCompany.logoUrl || 'Not found',
+                                companyName: foundCompany.companyName || 'Not found'
+                            });
+                            console.log('✅ Calling updateCompanyBranding...');
+                            this.updateCompanyBranding();
+                        } else {
+                            console.warn('⚠️ User not found in any active company');
+                            console.log('🏢 Showing fallback branding');
+                            this.showFallbackBranding();
+                        }
+                    } else {
+                        console.warn('⚠️ No companies data found in Firebase');
+                    }
+                } catch (error) {
+                    console.error('❌ Error loading user company:', error);
+                }
+            }
+
+            updateCompanyBranding() {
+                console.log('🏢 updateCompanyBranding() called');
+                console.log('🏢 currentCompany:', this.currentCompany);
+                
+                if (!this.currentCompany) {
+                    console.warn('⚠️ No currentCompany data available for branding');
+                    this.showFallbackBranding();
+                    return;
+                }
+
+                console.log('🏢 Updating company branding for:', this.currentCompany.companyName);
+
+                // First reset all header branding elements to ensure clean state
+                this.resetHeaderBranding();
+
+                // Update page title if needed
+                const title = document.title;
+                if (title.includes('Dreamex Datalab HSE')) {
+                    document.title = title.replace('Dreamex Datalab HSE', `${this.currentCompany.companyName} HSE`);
+                }
+
+                // Update header branding elements
+                const headerLogo = document.getElementById('headerCompanyLogo');
+                const headerName = document.getElementById('headerCompanyName');
+
+                console.log('🎯 Header elements found:');
+                console.log('- headerLogo:', headerLogo ? '✅' : '❌');
+                console.log('- headerName:', headerName ? '✅' : '❌');
+
+                // Update company name first
+                if (headerName && this.currentCompany.companyName) {
+                    headerName.textContent = this.currentCompany.companyName;
+                    console.log('✅ Company name updated in header:', this.currentCompany.companyName);
+                }
+
+                // Check if company has a logo (try both 'logo' and 'logoUrl' properties)
+                const logoUrl = this.currentCompany.logo || this.currentCompany.logoUrl;
+                if (logoUrl && logoUrl.trim() !== '') {
+                    console.log('🖼️ Company has logo URL:', logoUrl);
+                    // Show the logo
+                    if (headerLogo) {
+                        headerLogo.src = logoUrl;
+                        headerLogo.style.display = 'block';
+                        headerLogo.classList.add('visible');
+                        console.log('✅ Company logo displayed');
+                    }
+                } else {
+                    console.log('🏢 No logo URL available');
+                    // Hide logo if no URL
+                    if (headerLogo) {
+                        headerLogo.style.display = 'none';
+                        headerLogo.classList.remove('visible');
+                        console.log('✅ Company logo hidden (no URL)');
+                    }
+                }
+
+                // Apply company branding colors if available
+                if (this.currentCompany.branding) {
+                    const root = document.documentElement;
+                    if (this.currentCompany.branding.primaryColor) {
+                        root.style.setProperty('--primary-color', this.currentCompany.branding.primaryColor);
+                    }
+                    if (this.currentCompany.branding.secondaryColor) {
+                        root.style.setProperty('--secondary-color', this.currentCompany.branding.secondaryColor);
+                    }
+                }
+            }
+
+            showFallbackBranding() {
+                console.log('🏢 showFallbackBranding() called - clearing branding');
+                
+                // First reset all header branding elements to ensure clean state
+                this.resetHeaderBranding();
+                
+                const headerCompanyName = document.getElementById('headerCompanyName');
+                
+                // Clear company name
+                if (headerCompanyName) {
+                    headerCompanyName.textContent = '';
+                    console.log('✅ Fallback company name cleared');
+                }
+            }
+
+            // New method to ensure clean header state
+            resetHeaderBranding() {
+                console.log('🔄 resetHeaderBranding() - clearing all branding elements');
+                
+                const headerCompanyLogo = document.getElementById('headerCompanyLogo');
+                const headerCompanyName = document.getElementById('headerCompanyName');
+                
+                // Hide all elements first
+                if (headerCompanyLogo) {
+                    headerCompanyLogo.style.display = 'none';
+                    headerCompanyLogo.classList.remove('visible');
+                    headerCompanyLogo.src = '';
+                }
+                
+                if (headerCompanyName) {
+                    headerCompanyName.textContent = '';
+                }
+            }
+
+            async updateUIForAuthenticatedUser() {
+                console.log('👤 updateUIForAuthenticatedUser() called');
+                console.log('👤 Current user details:', this.currentUser);
+                
+                const profileBtn = document.querySelector('.profile-btn');
+                const profileDropdown = document.querySelector('.profile-dropdown ul');
+                
+                console.log('🔍 UI Elements found:', {
+                    profileBtn: !!profileBtn,
+                    profileBtnHTML: profileBtn ? profileBtn.outerHTML : 'Not found',
+                    profileDropdown: !!profileDropdown,
+                    currentUser: !!this.currentUser
+                });
+                
+                if (profileBtn && profileDropdown) {
+                    if (this.currentUser) {
+                        // Use centralized display methods
+                        const initials = this.getUserInitials();
+                        const displayName = this.getUserDisplayName();
+                        const email = this.getUserEmail();
+                        
+                        console.log('👤 User data:', { initials, displayName, email });
+                        
+                        // Preload avatar URL to avoid showing initials first
+                        console.log('🖼️ Loading avatar URL...');
+                        const avatarUrl = await this.getUserAvatarUrl();
+                        console.log('🖼️ Avatar URL result:', avatarUrl);
+                        
+                        // Update profile image - now show the correct image immediately
+                        const profileImg = profileBtn.querySelector('img');
+                        console.log('🖼️ Profile image element details:', {
+                            found: !!profileImg,
+                            currentSrc: profileImg ? profileImg.src : 'No image',
+                            currentAlt: profileImg ? profileImg.alt : 'No image'
+                        });
+                        
+                        if (profileImg) {
+                            if (avatarUrl) {
+                                console.log('✅ Setting real avatar URL');
+                                profileImg.src = avatarUrl;
+                                profileImg.alt = displayName + ' Avatar';
+                                profileImg.style.display = 'block';
+                            } else {
+                                console.log('🎨 Generating initials avatar');
+                                // Generate initials avatar
+                                this.generateInitialsAvatar(displayName, profileImg);
+                            }
+                        } else {
+                            console.warn('⚠️ Profile image element not found in profile button');
+                            console.log('🔧 Profile button innerHTML:', profileBtn.innerHTML);
+                            // Try to create an img element if none exists
+                            const newImg = document.createElement('img');
+                            newImg.style.cssText = 'width: 40px; height: 40px; border-radius: 50%; object-fit: cover;';
+                            profileBtn.appendChild(newImg);
+                            console.log('🔧 Created new img element in profile button');
+                            this.generateInitialsAvatar(displayName, newImg);
+                        }
+                        
+                        // Create avatar for dropdown (either real avatar or initials)
+                        let dropdownAvatarHtml;
+                        if (avatarUrl) {
+                            dropdownAvatarHtml = `<img src="${avatarUrl}" alt="${displayName} Avatar" style="width: 32px; height: 32px; border-radius: 50%; object-fit: cover;">`;
+                        } else {
+                            dropdownAvatarHtml = `<div style="width: 32px; height: 32px; border-radius: 50%; background: #3498db; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 12px;">${initials}</div>`;
+                        }
+                        
+                        // Update profile dropdown with user info
+                        const userInfoHtml = `
+                            <li style="border-bottom: 1px solid #eee; padding: 12px 16px; background: #f8f9fa;">
+                                <div style="display: flex; align-items: center; gap: 12px;">
+                                    ${dropdownAvatarHtml}
+                                    <div>
+                                        <div style="font-weight: 600; color: #333; font-size: 14px; margin-bottom: 2px;">
+                                            ${displayName}
+                                        </div>
+                                        <div style="color: #666; font-size: 12px;">
+                                            ${email}
+                                        </div>
+                                    </div>
+                                </div>
+                            </li>
+                            <li><a href="account.html"><i class="fas fa-user"></i> Account Settings</a></li>
+                            <li><a href="#" class="logout-link"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+                        `;
+                        
+                        profileDropdown.innerHTML = userInfoHtml;
+                        
+                        // Re-attach logout event listener using class selector
+                        const logoutLink = profileDropdown.querySelector('.logout-link');
+                        if (logoutLink) {
+                            logoutLink.addEventListener('click', (e) => {
+                                e.preventDefault();
+                                console.log('🚪 Logout clicked from dropdown');
+                                this.logout();
+                            });
+                        }
+                        
+                        // Update menu visibility based on user permissions
+                        await this.updateMenuVisibility();
+                    }
+                }
+            }
+
+            // Get user display name
+            getUserDisplayName() {
+                if (!this.currentUser) return 'User';
+                
+                const cleanName = (name) => {
+                    if (!name || typeof name !== 'string') return '';
+                    return name.trim().replace(/\s+/g, ' ');
+                };
+                
+                const potentialNames = [
+                    this.currentUser.displayName,
+                    this.currentUser.name,
+                    this.currentUser.username
+                ];
+                
+                for (const name of potentialNames) {
+                    const cleaned = cleanName(name);
+                    if (cleaned) return cleaned;
+                }
+                
+                if (this.currentUser.email) {
+                    const emailUsername = this.currentUser.email.split('@')[0];
+                    const cleaned = cleanName(emailUsername);
+                    if (cleaned) return cleaned;
+                }
+                
+                return 'User';
+            }
+
+            // Get user initials for avatar display
+            getUserInitials() {
+                const displayName = this.getUserDisplayName();
+                
+                if (!displayName || displayName === 'User') return 'U';
+                
+                const words = displayName.split(' ').filter(word => word.length > 0);
+                if (words.length === 1) {
+                    return words[0].substring(0, 2).toUpperCase();
+                } else {
+                    return words.slice(0, 2).map(word => word.charAt(0)).join('').toUpperCase();
+                }
+            }
+
+            // Get user email
+            getUserEmail() {
+                return this.currentUser?.email || '';
+            }
+
+            // Generate initials avatar with enhanced error handling
+            generateInitialsAvatar(name, imgElement) {
+                console.log('🎨 generateInitialsAvatar() called with:', { 
+                    name, 
+                    imgElement: !!imgElement,
+                    imgElementType: imgElement ? imgElement.tagName : 'undefined',
+                    imgElementId: imgElement ? imgElement.id : 'no id',
+                    imgElementClass: imgElement ? imgElement.className : 'no class'
+                });
+                
+                if (!imgElement || !name) {
+                    console.warn('⚠️ Missing imgElement or name for avatar generation');
+                    return;
+                }
+                
+                try {
+                    const initials = this.getUserInitials();
+                    const colors = ['#3498db', '#e74c3c', '#2ecc71', '#f39c12', '#9b59b6', '#1abc9c'];
+                    const backgroundColor = colors[name.length % colors.length];
+                    
+                    console.log('🎨 Generating avatar with:', { initials, backgroundColor, nameLength: name.length });
+                    
+                    const svg = `<svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="20" cy="20" r="20" fill="${backgroundColor}"/><text x="20" y="25" text-anchor="middle" fill="white" font-size="14" font-weight="600" font-family="Arial, sans-serif">${initials}</text></svg>`;
+                    
+                    console.log('🎨 Generated SVG:', svg);
+                    
+                    // Use base64 encoding as primary method (most reliable)
+                    try {
+                        const base64Svg = btoa(svg);
+                        const dataUrl = 'data:image/svg+xml;base64,' + base64Svg;
+                        
+                        console.log('🎨 Base64 data URL generated:', dataUrl.substring(0, 100) + '...');
+                        
+                        imgElement.src = dataUrl;
+                        imgElement.alt = name + ' Avatar';
+                        imgElement.style.display = 'block';
+                        imgElement.style.width = '40px';
+                        imgElement.style.height = '40px';
+                        imgElement.style.borderRadius = '50%';
+                        
+                        console.log('✅ Base64 SVG avatar generated and applied');
+                        console.log('🔍 Image element after update:', {
+                            src: imgElement.src.substring(0, 100) + '...',
+                            alt: imgElement.alt,
+                            width: imgElement.style.width,
+                            height: imgElement.style.height,
+                            display: imgElement.style.display
+                        });
+                        
+                        // Add load event to confirm it worked
+                        imgElement.onload = () => {
+                            console.log('✅ SVG avatar loaded successfully via base64');
+                        };
+                        
+                        imgElement.onerror = (error) => {
+                            console.error('❌ SVG avatar failed to load via base64:', error);
+                            this.createFallbackAvatar(name, imgElement);
+                        };
+                        
+                    } catch (base64Error) {
+                        console.error('❌ Base64 encoding failed:', base64Error);
+                        this.createFallbackAvatar(name, imgElement);
+                    }
+                } catch (error) {
+                    console.error('❌ Error generating initials avatar:', error);
+                    this.createFallbackAvatar(name, imgElement);
+                }
+            }
+            
+            // Fallback avatar creation method
+            createFallbackAvatar(name, imgElement) {
+                console.log('🎨 Creating fallback avatar for:', name);
+                try {
+                    const initials = this.getUserInitials();
+                    const fallbackDiv = document.createElement('div');
+                    fallbackDiv.style.cssText = `
+                        width: 40px; 
+                        height: 40px; 
+                        border-radius: 50%; 
+                        background: #3498db; 
+                        display: flex; 
+                        align-items: center; 
+                        justify-content: center; 
+                        color: white; 
+                        font-weight: 600; 
+                        font-size: 14px;
+                        font-family: Arial, sans-serif;
+                        flex-shrink: 0;
+                    `;
+                    fallbackDiv.textContent = initials;
+                    fallbackDiv.title = name + ' Avatar';
+                    
+                    // Replace the img element with the div
+                    if (imgElement.parentNode) {
+                        imgElement.parentNode.replaceChild(fallbackDiv, imgElement);
+                        console.log('✅ Fallback div avatar created successfully');
+                    }
+                } catch (fallbackError) {
+                    console.error('❌ Even fallback div creation failed:', fallbackError);
+                    // Last resort - just hide the broken image
+                    if (imgElement) {
+                        imgElement.style.display = 'none';
+                    }
+                }
+            }
+
+            // Get user avatar URL with comprehensive Firebase Storage integration
+            async getUserAvatarUrl() {
+                console.log('🖼️ getUserAvatarUrl() called');
+                
+                if (!this.currentUser) {
+                    console.warn('⚠️ No currentUser for avatar URL lookup');
+                    return null;
+                }
+                
+                if (!firebase || !firebase.storage) {
+                    console.warn('⚠️ Firebase Storage not available');
+                    return null;
+                }
+                
+                try {
+                    console.log('🔍 Searching for avatar in Firebase Storage for user:', this.currentUser.uid);
+                    const storage = firebase.storage();
+                    
+                    // Multiple possible storage paths for user avatars
+                    const possiblePaths = [
+                        `profile-pictures/${this.currentUser.uid}`,
+                        `avatars/${this.currentUser.uid}`,
+                        `users/${this.currentUser.uid}/avatar`,
+                        `users/${this.currentUser.uid}/profile`,
+                        `images/profiles/${this.currentUser.uid}`,
+                        `profile-pictures/${this.currentUser.uid}/profile.jpg`,
+                        `avatars/${this.currentUser.uid}/profile.jpg`,
+                        `avatars/${this.currentUser.uid}/avatar.jpg`,
+                        `users/${this.currentUser.uid}/avatar.jpg`
+                    ];
+                    
+                    console.log('🔍 Checking paths:', possiblePaths);
+                    
+                    // Try each path until we find one that works
+                    for (const path of possiblePaths) {
+                        try {
+                            console.log(`🧪 Testing path: ${path}`);
+                            const avatarRef = storage.ref(path);
+                            const downloadURL = await avatarRef.getDownloadURL();
+                            console.log(`✅ Found avatar at path: ${path}`);
+                            console.log(`🔗 Download URL: ${downloadURL}`);
+                            return downloadURL;
+                        } catch (pathError) {
+                            console.log(`❌ Path ${path} failed:`, pathError.code || pathError.message);
+                            // Continue to next path
+                        }
+                    }
+                    
+                    console.log('❌ No avatar found in any storage path');
+                    return null;
+                } catch (error) {
+                    console.error('❌ Error getting user avatar URL:', error);
+                    return null;
+                }
+            }
+        }
+
+        // Reset menu visibility function
+        function resetMenuVisibility() {
+            document.querySelectorAll('[data-feature]').forEach(item => {
+                item.classList.remove('menu-visible');
+            });
+            document.querySelectorAll('.menu-dropdown').forEach(dropdown => {
+                dropdown.classList.remove('menu-visible');
+            });
+        }
+
+        // Emergency fallback - show basic menu items  
+        function showBasicMenu() {
+            console.log('🔧 Emergency fallback: Showing basic menu items');
+            resetMenuVisibility();
+            
+            // Remove loading class
+            const sidebar = document.querySelector('.sidebar');
+            if (sidebar) {
+                sidebar.classList.remove('menu-loading');
+            }
+            
+            const homeItem = document.querySelector('[data-feature="home_view"]');
+            if (homeItem) {
+                homeItem.classList.add('menu-visible');
+                console.log('✅ Showing home menu item as fallback');
+            }
+            
+            // Show fuel management dropdown and fuel consumption analysis since we're on this page
+            const fuelDropdown = document.querySelector('[data-feature="fuel_management"]');
+            const fuelAnalysisItem = document.querySelector('[data-feature="fuel_consumption_analysis"]');
+            
+            if (fuelDropdown) {
+                fuelDropdown.classList.add('menu-visible');
+                console.log('✅ Showing fuel management dropdown as fallback');
+            }
+            
+            if (fuelAnalysisItem) {
+                fuelAnalysisItem.classList.add('menu-visible');
+                console.log('✅ Showing fuel analytics item as fallback');
+            }
+            
+            // Show communication as basic item
+            const communicationItem = document.querySelector('[data-feature="communication_view"]');
+            if (communicationItem) {
+                communicationItem.classList.add('menu-visible');
+                console.log('✅ Showing communication menu as fallback');
+            }
+            
+            console.log('✅ Basic menu items displayed for fuel analytics page');
+        }
+
+        // Feature-based authorization system that takes priority over role permissions
+        async function updateMenuWithFeatureAuthorization() {
+            console.log('🎯 Starting feature-based menu authorization for fuelanalys.html...');
+            
+            try {
+                let currentUser = null;
+                let companyId = null;
+                
+                // Get user and company info using authManager first
+                if (window.authManager && window.authManager.currentUser) {
+                    currentUser = window.authManager.currentUser;
+                    companyId = currentUser.companyId;
+                    console.log('👤 Using AuthManager - User:', currentUser.email, 'Company ID:', companyId);
+                } else if (firebase.auth().currentUser) {
+                    currentUser = firebase.auth().currentUser;
+                    console.log('👤 Using Firebase auth - will search for company');
+                } else {
+                    console.log('❌ No authenticated user found');
+                    resetMenuVisibility();
+                    return;
+                }
+                
+                // If no company ID from authManager, search companies collection
+                if (!companyId && currentUser) {
+                    console.log('🔍 Searching for user company...');
+                    const database = firebase.database();
+                    const companiesRef = database.ref('companies');
+                    const companiesSnapshot = await companiesRef.once('value');
+                    
+                    if (companiesSnapshot.exists()) {
+                        const companies = companiesSnapshot.val();
+                        
+                        for (const [cId, company] of Object.entries(companies)) {
+                            if (company.status !== 'active') continue;
+                            
+                            if (company.users && company.users[currentUser.uid]) {
+                                companyId = cId;
+                                console.log(`✅ Found user in company: ${companyId} (${company.name})`);
+                                break;
+                            }
+                        }
+                    }
+                }
+                
+                if (!companyId) {
+                    console.error('❌ No company ID found, cannot determine authorized features');
+                    resetMenuVisibility();
+                    return;
+                }
+                
+                // Apply feature-based authorization
+                await applyFeatureBasedMenuVisibility(companyId);
+                
+            } catch (error) {
+                console.error('❌ Error in feature-based menu authorization:', error);
+                resetMenuVisibility();
+            }
+        }
+
+        // Apply feature-based menu visibility
+        async function applyFeatureBasedMenuVisibility(companyId) {
+            try {
+                console.log('🔧 Applying feature-based menu visibility for company:', companyId);
+                
+                // Get platform features
+                const database = firebase.database();
+                const featuresSnapshot = await database.ref('/platformFeatures').once('value');
+                
+                if (!featuresSnapshot.exists()) {
+                    console.log('⚠️ No platform features found');
+                    resetMenuVisibility();
+                    return;
+                }
+                
+                const featuresData = featuresSnapshot.val();
+                
+                // Get company's selected features
+                const companySnapshot = await database.ref(`/companies/${companyId}`).once('value');
+                const companyData = companySnapshot.val();
+                
+                if (!companyData) {
+                    console.error('❌ Company data not found');
+                    resetMenuVisibility();
+                    return;
+                }
+                
+                const subscribedFeatureIds = companyData.selectedFeatures || [];
+                console.log('🏢 Company subscribed features:', subscribedFeatureIds);
+                
+                if (subscribedFeatureIds.length === 0) {
+                    console.log('⚠️ Company has no subscribed features');
+                    resetMenuVisibility();
+                    return;
+                }
+                
+                // Collect authorized pages from subscribed features
+                const authorizedPages = [];
+                subscribedFeatureIds.forEach(featureId => {
+                    const feature = featuresData[featureId];
+                    if (feature && feature.status === 'active' && feature.authorizedPages) {
+                        console.log(`📦 Adding pages from feature "${feature.name}":`, feature.authorizedPages);
+                        authorizedPages.push(...feature.authorizedPages);
+                    } else {
+                        console.log(`⚠️ Feature ${featureId} not found or inactive`);
+                    }
+                });
+                
+                console.log('🔐 All authorized pages:', authorizedPages);
+                
+                // Reset all menu items first
+                resetMenuVisibility();
+                
+                // Create set of authorized features
+                const authorizedFeatures = new Set();
+                authorizedPages.forEach(pageInfo => {
+                    if (pageInfo.feature) {
+                        authorizedFeatures.add(pageInfo.feature);
+                    }
+                });
+                
+                console.log('🎯 Authorized features for fuelanalys.html:', Array.from(authorizedFeatures));
+                
+                // Apply menu visibility
+                const allMenuItems = document.querySelectorAll('#roleBasedMenu li[data-feature]');
+                let visibleCount = 0;
+                
+                allMenuItems.forEach(menuItem => {
+                    const featureAttribute = menuItem.getAttribute('data-feature');
+                    const isAuthorized = authorizedFeatures.has(featureAttribute);
+                    const isDropdownContainer = menuItem.classList.contains('menu-dropdown');
+                    
+                    if (isDropdownContainer) {
+                        return; // Handle dropdowns separately after all items are processed
+                    }
+                    
+                    if (isAuthorized) {
+                        menuItem.classList.add('menu-visible');
+                        visibleCount++;
+                        console.log(`✅ Feature authorized - showing menu item: ${featureAttribute}`);
+                    } else {
+                        menuItem.classList.remove('menu-visible');
+                        console.log(`❌ Feature not authorized - hiding menu item: ${featureAttribute}`);
+                    }
+                });
+                
+                // Handle dropdown menus - show if they have visible children
+                const dropdownMenus = document.querySelectorAll('#roleBasedMenu li.menu-dropdown');
+                dropdownMenus.forEach(dropdown => {
+                    const dropdownFeature = dropdown.getAttribute('data-feature');
+                    const submenuItems = dropdown.querySelectorAll('.submenu li[data-feature]');
+                    let hasVisibleChildren = false;
+                    
+                    submenuItems.forEach(submenuItem => {
+                        if (submenuItem.classList.contains('menu-visible')) {
+                            hasVisibleChildren = true;
+                        }
+                    });
+                    
+                    if (hasVisibleChildren || authorizedFeatures.has(dropdownFeature)) {
+                        dropdown.classList.add('menu-visible');
+                        console.log(`✅ Showing dropdown menu: ${dropdownFeature} (has visible children or directly authorized)`);
+                    } else {
+                        dropdown.classList.remove('menu-visible');
+                        console.log(`❌ Hiding dropdown menu: ${dropdownFeature} (no visible children and not authorized)`);
+                    }
+                });
+                
+                console.log(`🎯 Feature-based menu authorization completed for fuelanalys.html - ${visibleCount} items visible`);
+                
+                // Remove loading class after successful authorization
+                const sidebar = document.querySelector('.sidebar');
+                if (sidebar) {
+                    sidebar.classList.remove('menu-loading');
+                }
+            } catch (error) {
+                console.error('❌ Error applying feature-based menu visibility:', error);
+                resetMenuVisibility();
+            }
+        }
+
+        // Make updateMenuWithFeatureAuthorization available globally
+        window.updateMenuWithFeatureAuthorization = updateMenuWithFeatureAuthorization;
+        
+        // Initialize authentication system
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🔧 Initializing centralized AuthManager for fuel analytics page...');
+            console.log('🔍 DOM state - profile button exists:', !!document.querySelector('.profile-btn'));
+            
+            // Ensure DOM elements exist before initializing AuthManager
+            setTimeout(() => {
+                // Initialize AuthManager FIRST for company branding and authentication
+                console.log('🔐 Creating centralized AuthManager instance...');
+                console.log('🔍 Before AuthManager - profile button exists:', !!document.querySelector('.profile-btn'));
+                
+                window.authManager = new AuthManager();
+                
+                console.log('✅ Centralized AuthManager initialization completed - waiting for authentication state');
+                console.log('🔍 After AuthManager - profile button exists:', !!document.querySelector('.profile-btn'));
+                
+                // Force a profile picture update after AuthManager is fully loaded
+                setTimeout(() => {
+                    console.log('🔧 Running forced profile picture update...');
+                    const profileBtn = document.querySelector('.profile-btn');
+                    const profileImg = profileBtn ? profileBtn.querySelector('img') : null;
+                    
+                    console.log('🔍 Profile elements found:', {
+                        profileBtn: !!profileBtn,
+                        profileImg: !!profileImg,
+                        authManager: !!window.authManager,
+                        currentUser: window.authManager ? !!window.authManager.currentUser : false
+                    });
+                    
+                    if (window.authManager && window.authManager.currentUser) {
+                        console.log('🔧 Force calling updateUIForAuthenticatedUser...');
+                        window.authManager.updateUIForAuthenticatedUser();
+                    } else {
+                        console.log('🔧 AuthManager or currentUser not ready, creating fallback image...');
+                        if (profileBtn && !profileImg) {
+                            console.log('🔧 Profile button found but no image - creating fallback');
+                            const newImg = document.createElement('img');
+                            newImg.style.cssText = 'width: 40px; height: 40px; border-radius: 50%; object-fit: cover;';
+                            newImg.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA0MCA0MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMjAiIGN5PSIyMCIgcj0iMjAiIGZpbGw9IiNlNzRjM2MiLz4KPHR4dCB4PSIyMCIgeT0iMjUiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZpbGw9IndoaXRlIiBmb250LXNpemU9IjE0IiBmb250LXdlaWdodD0iNjAwIiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiPlRVPC90ZXh0Pgo8L3N2Zz4K';
+                            newImg.alt = 'Test User Avatar';
+                            profileBtn.appendChild(newImg);
+                            console.log('✅ Fallback profile image added');
+                        }
+                    }
+                }, 1000); // Longer delay to ensure everything is initialized
+                
+            }, 500); // Short delay to ensure DOM is ready
+        });
+
+        // Initialize menu visibility properly through feature-based authorization (like staff.html)
+        document.addEventListener('DOMContentLoaded', () => {
+            // Wait for auth manager to be ready
+            setTimeout(async () => {
+                try {
+                    await updateMenuWithFeatureAuthorization();
+                } catch (error) {
+                    console.error('❌ Error initializing feature-based menu:', error);
+                    showBasicMenu();
+                }
+            }, 1500);
+        });
+    </script>
+
+    <!-- External Service Scripts -->
+    <script src="js/company-data-service-v8.js"></script>
+</head>
+<body class="bg-gray-100">
+    <div class="app-container">
+        <!-- Sidebar -->
+        <nav class="sidebar menu-loading">
+            <div class="logo">
+                <h2>Dreamex Datalab</h2>
+            </div>
+            <ul class="menu" id="roleBasedMenu">
+                <li class="menu-item" data-feature="home_view" data-requires-permission="home_view">
+                    <a href="index.html"><i class="fas fa-home"></i> Home</a>
+                </li>
+                <li class="menu-dropdown" data-feature="health_view" data-requires-permission="health_view">
+                    <a href="#"><i class="fas fa-medkit"></i> Health</a>
+                    <ul class="submenu">
+                        <li data-feature="health_assessment_view" data-requires-permission="health_assessment_view">
+                            <a href="health-assessment.html">Assessment</a>
+                        </li>
+                        <li data-feature="health_consultation_view" data-requires-permission="health_consultation_view">
+                            <a href="health-consultation.html">Consultation</a>
+                        </li>
+                        <li data-feature="medical_folder_view" data-requires-permission="medical_folder_view">
+                            <a href="medical-folder.html">Medical Folder</a>
+                        </li>
+                    </ul>
+                </li>
+                <li class="menu-dropdown" data-feature="safety_view" data-requires-permission="safety_view">
+                    <a href="#"><i class="fas fa-shield-alt"></i> Safety</a>
+                    <ul class="submenu">
+                        <li data-feature="training_view" data-requires-permission="training_view"><a href="trainingboard.html">Training</a></li>
+                        <li data-feature="risk_view" data-requires-permission="risk_view"><a href="riskboard.html">Risk Management</a></li>
+                        <li data-feature="jsa_view" data-requires-permission="jsa_view"><a href="jsaboard.html">Job Safety Analysis</a></li>
+                        <li data-feature="ptw_view" data-requires-permission="ptw_view"><a href="ptwboard.html">Permit to Work</a></li>
+                        <li data-feature="incident_view" data-requires-permission="incident_view"><a href="incidentboard.html">Incident Reports</a></li>
+                        <li data-feature="inspection_view" data-requires-permission="inspection_view"><a href="inspectionboard.html">Inspection</a></li>
+                        <li data-feature="audit_view" data-requires-permission="audit_view"><a href="auditboard.html">Audit</a></li>
+                    </ul>
+                </li>
+                <li class="menu-dropdown" data-feature="fuel_management">
+                    <a href="#"><i class="fas fa-gas-pump"></i> Fuel Management</a>
+                    <ul class="submenu">
+                        <li data-feature="vessel_offloading"><a href="vessel-offloading.html">Vessel Offloading</a></li>
+                        <li data-feature="fuel_storage"><a href="fuel-storage-status.html">Fuel Storage Status</a></li>
+                        <li data-feature="tank_transfer"><a href="tank-transfer.html">Tank-to-Tank Transfer</a></li>
+                        <li data-feature="truck_loading"><a href="fuel-truck-loading.html">Fuel Truck Loading</a></li>
+                        <li data-feature="quality_analysis"><a href="fuel-quality-analysis.html">Fuel Quality Analysis</a></li>
+                        <li data-feature="fuel_distribution"><a href="fueldistrib.html">Fuel Distribution</a></li>
+                        <li data-feature="fuel_consumption_analysis"><a href="fuelanalys.html" class="active">Consumption Analysis</a></li>
+                    </ul>
+                </li>
+                <li class="menu-dropdown" data-feature="environment_view">
+                    <a href="#"><i class="fas fa-leaf"></i> Environment</a>
+                    <ul class="submenu">
+                        <li data-feature="water_view"><a href="waterboard.html">Water Quality</a></li>
+                    </ul>
+                </li>
+                <li class="menu-dropdown" data-feature="security_view">
+                    <a href="#"><i class="fas fa-lock"></i> Security</a>
+                    <ul class="submenu">
+                        <li data-feature="access_view"><a href="accessboard.html">Access Request</a></li>
+                        <li data-feature="access_daily_view"><a href="accessdaily.html">Daily Access Control</a></li>
+                        <li data-feature="removal_view"><a href="removalboard.html">Property Removal</a></li>
+                    </ul>
+                </li>
+                <li class="menu-dropdown" data-feature="logistics_view" data-requires-permission="logistics_view">
+                    <a href="#"><i class="fas fa-truck"></i> Logistics</a>
+                    <ul class="submenu">
+                        <li data-feature="fleet_view" data-requires-permission="fleet_view"><a href="fleetboard.html">Fleet Management</a></li>
+                    </ul>
+                </li>
+                <li class="menu-dropdown" data-feature="hr_view" data-requires-permission="hr_view">
+                    <a href="#"><i class="fas fa-users"></i> HR</a>
+                    <ul class="submenu">
+                        <li data-feature="human_hr_view" data-requires-permission="human_hr_view"><a href="human-hr.html"><i class="fas fa-user-tie"></i> Human HR</a></li>
+                        <li data-feature="staff_management_view" data-requires-permission="staff_management_view"><a href="staff.html">Staffing</a></li>
+                        <li data-feature="authority_to_recruit_view" data-requires-permission="authority_to_recruit_view"><a href="recruit.html">Authority to Recruit</a></li>
+                        <li data-feature="job_advertising_view" data-requires-permission="job_advertising_view"><a href="jobpost.html">Job Advertising</a></li>
+                        <li data-feature="screening_view" data-requires-permission="screening_view"><a href="jobscreen.html">Screening</a></li>
+                        <li data-feature="interview_view" data-requires-permission="interview_view"><a href="interview.html">Interview</a></li>
+                        <li data-feature="offer_view" data-requires-permission="offer_view"><a href="offer.html">Offer Management</a></li>
+                        <li data-feature="contract_view" data-requires-permission="contract_view"><a href="contract.html">Contract Management</a></li>
+                        <li data-feature="onboarding_view" data-requires-permission="onboarding_view"><a href="onboard.html">Onboarding</a></li>
+                        <li data-feature="chart_view" data-requires-permission="chart_view"><a href="chart.html">Chart Setup</a></li>
+                        <li data-feature="chartboard_view" data-requires-permission="chartboard_view"><a href="chartboard.html">Org Chart</a></li>
+                        <li data-feature="kpi_dashboard_view" data-requires-permission="kpi_dashboard_view"><a href="kpi.html">KPI</a></li>
+                    </ul>
+                </li>
+                <li data-feature="communication_view"><a href="info.html"><i class="fas fa-comments"></i> Communication</a></li>
+                <li class="menu-dropdown" data-feature="settings_view">
+                    <a href="#"><i class="fas fa-cog"></i> Settings</a>
+                    <ul class="submenu">
+                        <li data-feature="account_settings_view"><a href="account.html">Account Settings</a></li>
+                        <li data-feature="company_management_view"><a href="companymanagement.html">Company Management</a></li>
+                        <li data-feature="approval_settings_view"><a href="approval-settings.html">Approval Flow Settings</a></li>
+                        <li data-feature="field_setup_view"><a href="fieldsetup.html">Field Setup</a></li>
+                        <li data-feature="preferences_view"><a href="preferences.html">Preferences</a></li>
+                        <li data-feature="notification_settings_view"><a href="notification-settings.html">Notification Settings</a></li>
+                        <li data-feature="audit_log_view"><a href="auditlog.html"><i class="fas fa-history"></i> Audit Log</a></li>
+                        <li data-feature="user_management_view"><a href="users.html">User & Role Management</a></li>
+                        <li data-feature="role_permissions_view"><a href="roles.html">Role Permissions</a></li>
+                    </ul>
+                </li>
+            </ul>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Top Navigation -->
+            <header class="top-nav">
+                <div class="top-nav-left">
+                    <button id="sidebarToggle" class="sidebar-toggle-btn"><i class="fas fa-bars"></i></button>
+                    <img id="headerCompanyLogo" class="header-company-logo" alt="Company Logo" style="display: none;">
+                    <span id="headerCompanyName" class="company-name-header">Fuel Management</span>
+                </div>
+                <div class="top-nav-right">
+                    <div class="user-profile">
+                        <button id="userProfileBtn" class="profile-btn">
+                            <img src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA0MCA0MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMjAiIGN5PSIyMCIgcj0iMjAiIGZpbGw9IiMzNDk4ZGIiLz4KPHR4dCB4PSIyMCIgeT0iMjUiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZpbGw9IndoaXRlIiBmb250LXNpemU9IjE0IiBmb250LXdlaWdodD0iNjAwIiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiPlU8L3R4dD4KPHN2Zz4K" alt="User Avatar">
+                        </button>
+                        <div class="profile-dropdown">
+                            <ul>
+                                <li><a href="account.html"><i class="fas fa-user"></i> Account Settings</a></li>
+                                <li><a href="#" id="logoutBtn"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Page Content -->
+            <div class="content p-6">
+                <div class="flex justify-between items-center mb-6">
+                    <h1 class="text-2xl font-bold text-gray-800">Fuel Consumption Analysis</h1>
+                    <button id="logConsumptionBtn" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg flex items-center">
+                        <i class="fas fa-plus mr-2"></i> Log Consumption Data
+                    </button>
+                </div>
+
+                <!-- Data Table -->
+                <div class="bg-white p-4 rounded-lg shadow-md">
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full bg-white" id="consumptionTable">
+                            <thead class="bg-gray-200">
+                                <tr>
+                                    <th class="py-2 px-4 border-b">Equipment ID</th>
+                                    <th class="py-2 px-4 border-b">Fuel Type</th>
+                                    <th class="py-2 px-4 border-b">Date</th>
+                                    <th class="py-2 px-4 border-b">Hours Operated</th>
+                                    <th class="py-2 px-4 border-b">Fuel Consumed (L)</th>
+                                    <th class="py-2 px-4 border-b">Efficiency (L/hr)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="consumptionTableBody">
+                                <!-- JS will populate this -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modal -->
+            <div id="consumptionModal" class="modal">
+                <div class="modal-content bg-white rounded-lg shadow-xl">
+                    <div class="flex justify-between items-center border-b p-4">
+                        <h2 class="text-xl font-bold">Log Fuel Consumption</h2>
+                        <button class="close-modal text-2xl">&times;</button>
+                    </div>
+                    <div class="p-6">
+                        <form id="consumptionForm">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label for="equipmentId" class="block text-sm font-medium text-gray-700">Equipment ID</label>
+                                    <input type="text" id="equipmentId" name="equipmentId" placeholder="e.g., Excavator-04" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" required>
+                                </div>
+                                <div>
+                                    <label for="fuelType" class="block text-sm font-medium text-gray-700">Fuel Type</label>
+                                    <select id="fuelType" name="fuelType" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" required>
+                                        <option>Diesel</option>
+                                        <option>Gasoline</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label for="consumptionDate" class="block text-sm font-medium text-gray-700">Date</label>
+                                    <input type="date" id="consumptionDate" name="consumptionDate" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" required>
+                                </div>
+                                <div>
+                                    <label for="hoursOperated" class="block text-sm font-medium text-gray-700">Hours Operated</label>
+                                    <input type="number" step="0.1" id="hoursOperated" name="hoursOperated" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" required>
+                                </div>
+                                <div>
+                                    <label for="fuelConsumed" class="block text-sm font-medium text-gray-700">Fuel Consumed (Liters)</label>
+                                    <input type="number" step="0.1" id="fuelConsumed" name="fuelConsumed" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" required>
+                                </div>
+                            </div>
+                            
+                            <div class="flex justify-end mt-6 border-t pt-4">
+                                <button type="button" class="bg-gray-300 hover:bg-gray-400 text-black font-bold py-2 px-4 rounded-lg mr-2" id="cancelBtn">Cancel</button>
+                                <button type="submit" class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg">Save Consumption Data</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const modal = document.getElementById('consumptionModal');
+            const btn = document.getElementById('logConsumptionBtn');
+            const closeBtn = document.querySelector('.close-modal');
+            const cancelBtn = document.getElementById('cancelBtn');
+            const form = document.getElementById('consumptionForm');
+            const tableBody = document.getElementById('consumptionTableBody');
+
+            btn.onclick = () => modal.classList.add('show');
+            closeBtn.onclick = () => modal.classList.remove('show');
+            cancelBtn.onclick = () => modal.classList.remove('show');
+            window.onclick = (event) => {
+                if (event.target == modal) {
+                    modal.classList.remove('show');
+                }
+            };
+
+            form.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                const formData = new FormData(form);
+                const data = Object.fromEntries(formData.entries());
+
+                const hours = parseFloat(data.hoursOperated);
+                const consumed = parseFloat(data.fuelConsumed);
+
+                if (hours <= 0) {
+                    alert("Hours operated must be greater than zero.");
+                    return;
+                }
+
+                const efficiency = (consumed / hours).toFixed(2);
+
+                const newRow = document.createElement('tr');
+                newRow.innerHTML = `
+                    <td class="py-2 px-4 border-b">${data.equipmentId}</td>
+                    <td class="py-2 px-4 border-b">${data.fuelType}</td>
+                    <td class="py-2 px-4 border-b">${new Date(data.consumptionDate).toLocaleDateString()}</td>
+                    <td class="py-2 px-4 border-b">${hours}</td>
+                    <td class="py-2 px-4 border-b">${consumed}</td>
+                    <td class="py-2 px-4 border-b">${efficiency}</td>
+                `;
+                tableBody.appendChild(newRow);
+
+                form.reset();
+                modal.classList.remove('show');
+            });
+        });
+    </script>
+</body>
+</html>

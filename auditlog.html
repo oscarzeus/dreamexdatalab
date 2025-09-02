@@ -1,0 +1,1384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Audit Log - Dreamex Datalab HSE</title>
+
+	<!-- Firebase v8 CDN for compatibility (same as staff.html) -->
+	<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+	<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+	<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+	<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
+
+	<style>
+		/* Icons */
+		@import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css');
+
+		:root {
+			--primary-color: #2c3e50;
+			--secondary-color: #3498db;
+			--accent-color: #e74c3c;
+			--text-color: #333;
+			--bg-color: #f5f6fa;
+			--dark-color: #2c3e50;
+			--sidebar-width: 250px;
+			--bg-primary: #ffffff;
+			--bg-secondary: #f8f9fa;
+			--text-primary: #333333;
+			--text-secondary: #666666;
+			--border-color: #e0e0e0;
+			--spacing-unit: 1rem;
+			--padding-sm: 0.5rem;
+			--padding-md: 1rem;
+			--padding-lg: 1.5rem;
+			--transition-speed: 0.2s;
+		}
+
+		* { margin: 0; padding: 0; box-sizing: border-box; }
+		body { font-family: 'Inter', system-ui, -apple-system, sans-serif; font-size: 0.9rem; color: var(--text-primary); background: #f8f9fa; }
+
+		.app-container { display: flex; min-height: 100vh; }
+
+		/* Sidebar (copied to match staff.html) */
+		.sidebar { width: var(--sidebar-width); background-color: var(--primary-color); color: #fff; padding: 1rem; position: fixed; height: 100vh; overflow-y: auto; z-index: 1000; transition: transform 0.3s ease; }
+		.sidebar.collapsed { transform: translateX(-100%); }
+		.logo h2 { text-align: center; padding: 1rem 0; border-bottom: 1px solid rgba(255,255,255,0.1); }
+		.menu { list-style: none; margin-top: 2rem; }
+		.menu li { margin-bottom: 0.5rem; display: none !important; }
+		.menu li.menu-visible { display: block !important; }
+		.menu a { color: #fff; text-decoration: none; display: flex; align-items: center; padding: 0.75rem 1rem; border-radius: 5px; transition: background-color 0.3s; }
+		.menu a i { margin-right: 10px; }
+		.menu a:hover, .menu a.active { background-color: var(--secondary-color); }
+		.menu-dropdown .submenu { display: none; list-style: none; margin-left: 2rem; margin-top: 0.5rem; }
+		.menu-dropdown:hover .submenu { display: block; }
+
+		/* Main content and top nav */
+		.main-content { flex: 1; margin-left: var(--sidebar-width); padding-top: 3rem; width: calc(100% - var(--sidebar-width)); transition: margin-left 0.3s ease, width 0.3s ease; }
+		/* When sidebar is collapsed, expand content and move header to the left */
+		.main-content.sidebar-collapsed { margin-left: 0; width: 100%; }
+		.main-content.sidebar-collapsed .top-nav { left: 0.5rem; }
+		.top-nav { display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0.75rem; background: #fff; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 0.3rem; position: fixed; top: 0.25rem; right: 0.5rem; left: calc(var(--sidebar-width) + 0.5rem); height: 50px; z-index: 100; transition: left 0.3s ease; }
+		.top-nav-left { display: flex; align-items: center; gap: 1rem; }
+		.sidebar-toggle-btn { background: none; border: none; cursor: pointer; font-size: 1.2rem; padding: 0.5rem; color: var(--text-secondary); }
+		.top-nav-right { display: flex; align-items: center; gap: 1.5rem; margin-left: auto; }
+
+		/* Notifications UI (exact match with staff.html) */
+		.notifications { position: relative; display: flex; align-items: center; }
+		.notification-btn { background: none; border: none; cursor: pointer; position: relative; font-size: 1.2rem; padding: 0.5rem; display: flex; align-items: center; justify-content: center; }
+		.notification-badge { position: absolute; top: -5px; right: -5px; background: var(--accent-color); color: #fff; border-radius: 50%; padding: 0.2rem 0.5rem; font-size: 0.7rem; }
+		
+		.notification-dropdown {
+			display: none;
+			position: absolute;
+			right: 0;
+			top: 100%;
+			width: 320px;
+			background-color: white;
+			border-radius: 8px;
+			box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+			z-index: 1000;
+			border: 1px solid #e9ecef;
+			max-height: 400px;
+			overflow: hidden;
+		}
+
+		.notification-dropdown.show {
+			display: block;
+			animation: slideDown 0.2s ease-out;
+		}
+
+		@keyframes slideDown {
+			from {
+				opacity: 0;
+				transform: translateY(-10px);
+			}
+			to {
+				opacity: 1;
+				transform: translateY(0);
+			}
+		}
+
+		.notification-header {
+			padding: 12px 16px;
+			border-bottom: 1px solid #e9ecef;
+			background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+		}
+
+		.notification-header h3 {
+			margin: 0;
+			color: #333;
+			font-size: 14px;
+			font-weight: 600;
+		}
+
+		.mark-all-read {
+			background: none;
+			border: none;
+			color: #3498db;
+			cursor: pointer;
+			font-size: 12px;
+			padding: 4px 8px;
+			border-radius: 4px;
+			transition: all 0.2s ease;
+		}
+
+		.mark-all-read:hover {
+			background: #e3f2fd;
+			color: #1976d2;
+		}
+
+		.clear-all-notifications {
+			background: none;
+			border: none;
+			color: #e74c3c;
+			cursor: pointer;
+			font-size: 12px;
+			padding: 4px 8px;
+			border-radius: 4px;
+			transition: all 0.2s ease;
+			margin-left: 8px;
+		}
+
+		.clear-all-notifications:hover {
+			background: #fdf2f2;
+			color: #c0392b;
+		}
+
+		.notification-actions {
+			position: absolute;
+			top: 8px;
+			right: 8px;
+			display: none;
+			gap: 4px;
+		}
+
+		.notification-item:hover .notification-actions {
+			display: flex;
+		}
+
+		.mark-read-btn, .delete-notification-btn {
+			background: none;
+			border: none;
+			cursor: pointer;
+			padding: 4px;
+			border-radius: 3px;
+			transition: all 0.2s ease;
+			font-size: 12px;
+		}
+
+		.mark-read-btn {
+			color: #3498db;
+		}
+
+		.mark-read-btn:hover {
+			background: #e3f2fd;
+			color: #1976d2;
+		}
+
+		.delete-notification-btn {
+			color: #e74c3c;
+		}
+
+		.delete-notification-btn:hover {
+			background: #fdf2f2;
+			color: #c0392b;
+		}
+
+		.notification-item.read .mark-read-btn {
+			color: #95a5a6;
+			cursor: default;
+		}
+
+		.notification-item.read .mark-read-btn:hover {
+			background: none;
+			color: #95a5a6;
+		}
+
+		.notification-list {
+			max-height: 320px;
+			overflow-y: auto;
+			padding: 0;
+		}
+
+		.notification-list::-webkit-scrollbar {
+			width: 4px;
+		}
+
+		.notification-list::-webkit-scrollbar-track {
+			background: #f1f1f1;
+		}
+
+		.notification-list::-webkit-scrollbar-thumb {
+			background: #c1c1c1;
+			border-radius: 2px;
+		}
+
+		.notification-item {
+			padding: 12px 16px;
+			border-bottom: 1px solid #f1f1f1;
+			cursor: pointer;
+			transition: background-color 0.2s ease;
+			position: relative;
+		}
+
+		.notification-item:hover {
+			background: #f8f9fa;
+		}
+
+		.notification-item.unread {
+			background: #e8f4fd;
+			border-left: 3px solid #3498db;
+		}
+
+		.notification-item.unread::before {
+			content: '';
+			position: absolute;
+			top: 16px;
+			right: 16px;
+			width: 8px;
+			height: 8px;
+			background: #3498db;
+			border-radius: 50%;
+		}
+
+		.notification-dot {
+			position: absolute;
+			top: 16px;
+			right: 16px;
+			width: 8px;
+			height: 8px;
+			background: #3498db;
+			border-radius: 50%;
+		}
+
+		.notification-icon {
+			width: 32px;
+			height: 32px;
+			border-radius: 50%;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			font-size: 14px;
+			margin-right: 12px;
+			flex-shrink: 0;
+		}
+
+		.notification-icon.info {
+			background: #e3f2fd;
+			color: #1976d2;
+		}
+
+		.notification-icon.success {
+			background: #e8f5e8;
+			color: #2e7d2e;
+		}
+
+		.notification-icon.warning {
+			background: #fff3e0;
+			color: #f57c00;
+		}
+
+		.notification-icon.error {
+			background: #ffebee;
+			color: #d32f2f;
+		}
+
+		.notification-content {
+			flex: 1;
+			min-width: 0;
+		}
+
+		.notification-title {
+			font-weight: 600;
+			font-size: 13px;
+			color: #333;
+			margin-bottom: 2px;
+			line-height: 1.3;
+		}
+
+		.notification-message {
+			font-size: 12px;
+			color: #666;
+			line-height: 1.4;
+			word-wrap: break-word;
+		}
+
+		.notification-time {
+			font-size: 11px;
+			color: #999;
+			margin-top: 4px;
+		}
+
+		.notification-empty {
+			padding: 40px 20px;
+			text-align: center;
+			color: #999;
+		}
+
+		.notification-empty i {
+			font-size: 32px;
+			margin-bottom: 12px;
+			color: #ddd;
+		}
+
+		.notification-empty-title {
+			font-size: 14px;
+			font-weight: 500;
+			margin-bottom: 4px;
+			color: #666;
+		}
+
+		.notification-empty-message {
+			font-size: 12px;
+		}
+
+		/* Profile dropdown */
+		.user-profile { position: relative; }
+		.profile-btn { background: none; border: none; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+		/* Match staff.html avatar size */
+		.profile-btn img { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; }
+		.profile-dropdown { display: none; position: absolute; right: 0; top: 100%; background: #fff; border: 1px solid #e9ecef; border-radius: 8px; min-width: 180px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+		.profile-dropdown.show { display: block; }
+		.profile-dropdown ul { list-style: none; }
+		.profile-dropdown li a { display: block; padding: 10px 12px; color: #333; text-decoration: none; }
+		.profile-dropdown li a:hover { background: #f6f8fa; }
+
+		/* Match staff.html company logo and name sizes */
+		.header-company-logo { width: 40px; height: 40px; border-radius: 8px; object-fit: cover; border: 2px solid #e9ecef; display: none; }
+		.header-company-logo.visible { display: block; }
+		.company-name-header { font-weight: 600; color: #2c3e50; font-size: 1.1rem; display: inline-block; }
+
+		/* Menu visibility helpers (identical behavior) */
+		[data-feature]:not(.menu-visible) { display: none !important; }
+		.menu-dropdown:not(.menu-visible) { display: none !important; }
+		.menu-loading [data-feature] { display: none !important; }
+		.menu-loading .menu-dropdown { display: none !important; }
+
+		/* Page content */
+		.content { padding: 1rem; }
+		.page-header { background: linear-gradient(135deg, #2c3e50, #34495e); color: #fff; padding: 0.8rem 1rem; border-radius: 0; margin-bottom: 1rem; display: flex; align-items: center; justify-content: space-between; }
+		.page-actions { display: flex; gap: 0.5rem; }
+		.filters { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.75rem; }
+		.filters input, .filters select { padding: 0.5rem 0.6rem; border: 1px solid #e0e0e0; border-radius: 6px; }
+		.table-wrapper { background: #fff; border: 1px solid #e9ecef; border-radius: 10px; overflow: hidden; }
+		table { width: 100%; border-collapse: collapse; }
+		thead { background: #f7f9fb; }
+		th, td { padding: 0.65rem 0.75rem; border-bottom: 1px solid #f1f3f5; font-size: 0.9rem; }
+		tbody tr:hover { background: #fafcff; }
+		.badge { display: inline-block; padding: 0.2rem 0.5rem; border-radius: 999px; font-size: 0.75rem; }
+		.badge-CREATE { background: #e3fcef; color: #0f5132; }
+		.badge-UPDATE { background: #fff3cd; color: #664d03; }
+		.badge-DELETE { background: #fde2e2; color: #842029; }
+		.badge-APPROVAL { background: #e7f0ff; color: #084298; }
+		.muted { color: #7f8c8d; }
+	</style>
+
+	<script>
+		// Early permission gating (copied from staff.html)
+		(function(){
+			try {
+				const raw = localStorage.getItem('userPermissions') || localStorage.getItem('permissions');
+				if(!raw) return; 
+				let perms = [];
+				try { perms = JSON.parse(raw); } catch(e) { return; }
+				if(!Array.isArray(perms)) return;
+				const permSet = new Set(perms);
+				const menuItems = document.querySelectorAll('.sidebar [data-feature]');
+				menuItems.forEach(el => {
+					const feature = el.getAttribute('data-feature');
+					if(feature && permSet.has(feature)) {
+						el.classList.add('menu-visible');
+					} else {
+						el.classList.remove('menu-visible');
+					}
+				});
+				document.querySelectorAll('.sidebar .menu-dropdown').forEach(drop => {
+					const anyChild = drop.querySelector('.submenu [data-feature].menu-visible');
+					if(anyChild) drop.classList.add('menu-visible');
+				});
+			} catch(err) { console.warn('Early permission gating failed', err); }
+		})();
+	</script>
+</head>
+<body>
+	<div class="app-container">
+		<!-- Sidebar (exact structure as staff.html) -->
+		<nav class="sidebar menu-loading">
+			<div class="logo">
+				<h2>Dreamex Datalab</h2>
+			</div>
+			<ul class="menu" id="roleBasedMenu">
+				<li class="menu-item" data-feature="home_view" data-requires-permission="home_view">
+					<a href="index.html"><i class="fas fa-home"></i> Home</a>
+				</li>
+				<li class="menu-dropdown" data-feature="health_view" data-requires-permission="health_view">
+					<a href="#"><i class="fas fa-medkit"></i> Health</a>
+					<ul class="submenu">
+						<li data-feature="health_assessment_view" data-requires-permission="health_assessment_view">
+							<a href="health-assessment.html">Assessment</a>
+						</li>
+						<li data-feature="health_consultation_view" data-requires-permission="health_consultation_view">
+							<a href="health-consultation.html">Consultation</a>
+						</li>
+						<li data-feature="medical_folder_view" data-requires-permission="medical_folder_view">
+							<a href="medical-folder.html">Medical Folder</a>
+						</li>
+					</ul>
+				</li>
+				<li class="menu-dropdown" data-feature="safety_view" data-requires-permission="safety_view">
+					<a href="#"><i class="fas fa-shield-alt"></i> Safety</a>
+					<ul class="submenu">
+						<li data-feature="training_view" data-requires-permission="training_view"><a href="trainingboard.html">Training</a></li>
+						<li data-feature="risk_view" data-requires-permission="risk_view"><a href="riskboard.html">Risk Management</a></li>
+						<li data-feature="jsa_view" data-requires-permission="jsa_view"><a href="jsaboard.html">Job Safety Analysis</a></li>
+						<li data-feature="ptw_view" data-requires-permission="ptw_view"><a href="ptwboard.html">Permit to Work</a></li>
+						<li data-feature="incident_view" data-requires-permission="incident_view"><a href="incidentboard.html">Incident Reports</a></li>
+						<li data-feature="inspection_view" data-requires-permission="inspection_view"><a href="inspectionboard.html">Inspection</a></li>
+						<li data-feature="audit_view" data-requires-permission="audit_view"><a href="auditboard.html">Audit</a></li>
+					</ul>
+				</li>
+				<li class="menu-dropdown" data-feature="fuel_management">
+					<a href="#"><i class="fas fa-gas-pump"></i> Fuel Management</a>
+					<ul class="submenu">
+						<li data-feature="vessel_offloading"><a href="vessel-offloading.html">Vessel Offloading</a></li>
+						<li data-feature="fuel_storage"><a href="fuel-storage-status.html">Fuel Storage Status</a></li>
+						<li data-feature="tank_transfer"><a href="tank-transfer.html">Tank-to-Tank Transfer</a></li>
+						<li data-feature="truck_loading"><a href="fuel-truck-loading.html">Fuel Truck Loading</a></li>
+						<li data-feature="quality_analysis"><a href="fuel-quality-analysis.html">Fuel Quality Analysis</a></li>
+						<li data-feature="fuel_distribution"><a href="fueldistrib.html">Fuel Distribution</a></li>
+						<li data-feature="fuel_consumption_analysis"><a href="fuelanalys.html">Consumption Analysis</a></li>
+					</ul>
+				</li>
+				<li class="menu-dropdown" data-feature="environment_view">
+					<a href="#"><i class="fas fa-leaf"></i> Environment</a>
+					<ul class="submenu">
+						<li data-feature="water_view"><a href="waterboard.html">Water Quality</a></li>
+					</ul>
+				</li>
+				<li class="menu-dropdown" data-feature="security_view">
+					<a href="#"><i class="fas fa-lock"></i> Security</a>
+					<ul class="submenu">
+						<li data-feature="access_view"><a href="accessboard.html">Access Request</a></li>
+						<li data-feature="access_daily_view"><a href="accessdaily.html">Daily Access Control</a></li>
+						<li data-feature="removal_view"><a href="removalboard.html">Property Removal</a></li>
+					</ul>
+				</li>
+				<li class="menu-dropdown" data-feature="logistics_view" data-requires-permission="logistics_view">
+					<a href="#"><i class="fas fa-truck"></i> Logistics</a>
+					<ul class="submenu">
+						<li data-feature="fleet_view" data-requires-permission="fleet_view"><a href="fleetboard.html">Fleet Management</a></li>
+					</ul>
+				</li>
+				<li class="menu-dropdown" data-feature="hr_view" data-requires-permission="hr_view">
+					<a href="#"><i class="fas fa-users"></i> HR</a>
+					<ul class="submenu">
+						<li data-feature="human_hr_view" data-requires-permission="human_hr_view"><a href="human-hr.html"><i class="fas fa-user-tie"></i> Human HR</a></li>
+						<li data-feature="staff_management_view" data-requires-permission="staff_management_view"><a href="staff.html">Staffing</a></li>
+						<li data-feature="authority_to_recruit_view" data-requires-permission="authority_to_recruit_view"><a href="recruit.html">Authority to Recruit</a></li>
+						<li data-feature="job_advertising_view" data-requires-permission="job_advertising_view"><a href="jobpost.html">Job Advertising</a></li>
+						<li data-feature="screening_view" data-requires-permission="screening_view"><a href="jobscreen.html">Screening</a></li>
+						<li data-feature="interview_view" data-requires-permission="interview_view"><a href="interview.html">Interview</a></li>
+						<li data-feature="offer_view" data-requires-permission="offer_view"><a href="offer.html">Offer Management</a></li>
+						<li data-feature="contract_view" data-requires-permission="contract_view"><a href="contract.html">Contract Management</a></li>
+						<li data-feature="onboarding_view" data-requires-permission="onboarding_view"><a href="onboard.html">Onboarding</a></li>
+						<li data-feature="kpi_dashboard_view" data-requires-permission="kpi_dashboard_view"><a href="kpi.html">KPI</a></li>
+					</ul>
+				</li>
+				<li data-feature="communication_view"><a href="info.html"><i class="fas fa-comments"></i> Communication</a></li>
+				<li class="menu-dropdown" data-feature="settings_view">
+					<a href="#"><i class="fas fa-cog"></i> Settings</a>
+					<ul class="submenu">
+						<li data-feature="account_settings_view"><a href="account.html">Account Settings</a></li>
+						<li data-feature="company_management_view"><a href="companymanagement.html">Company Management</a></li>
+						<li data-feature="approval_settings_view"><a href="approval-settings.html">Approval Flow Settings</a></li>
+						<li data-feature="field_setup_view"><a href="fieldsetup.html">Field Setup</a></li>
+						<li data-feature="preferences_view"><a href="preferences.html">Preferences</a></li>
+						<li data-feature="notification_settings_view"><a href="notification-settings.html">Notification Settings</a></li>
+						<li data-feature="audit_log_view"><a href="auditlog.html"><i class="fas fa-history"></i> Audit Log</a></li>
+						<li data-feature="user_management_view"><a href="users.html">User & Role Management</a></li>
+						<li data-feature="role_permissions_view"><a href="roles.html">Role Permissions</a></li>
+					</ul>
+				</li>
+			</ul>
+		</nav>
+
+		<!-- Main Content -->
+		<main class="main-content">
+			<header class="top-nav">
+				<div class="top-nav-left">
+					<button id="sidebarToggle" class="sidebar-toggle-btn"><i class="fas fa-bars"></i></button>
+					<img id="headerCompanyLogo" class="header-company-logo" alt="Company Logo">
+					<span id="headerCompanyName" class="company-name-header"></span>
+				</div>
+				<div class="top-nav-right">
+					<div class="notifications">
+						<button id="notificationBtn" class="notification-btn">
+							<i class="fas fa-bell"></i>
+							<span class="notification-badge">0</span>
+						</button>
+						<div class="notification-dropdown">
+							<div class="notification-header">
+								<h3><i class="fas fa-bell" style="margin-right:6px;color:#3498db;"></i>Notifications</h3>
+								<div>
+									<button class="mark-all-read">Mark all as read</button>
+									<button class="clear-all-notifications">Clear all</button>
+								</div>
+							</div>
+							<div class="notification-list" id="notificationList">
+								<div class="notification-empty" id="notificationEmpty">
+									<i class="fas fa-bell-slash"></i>
+									<div class="notification-empty-title">No notifications</div>
+									<div class="notification-empty-message">You're all caught up!</div>
+								</div>
+							</div>
+							<div class="notification-footer">
+								<button id="refreshNotificationsBtn" style="background:none;border:1px solid #e0e0e0;padding:6px 10px;border-radius:6px;cursor:pointer;">Refresh</button>
+							</div>
+						</div>
+					</div>
+					<div class="user-profile">
+						<button id="userProfileBtn" class="profile-btn">
+							<img src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA0MCA0MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMjAiIGN5PSIyMCIgcj0iMjAiIGZpbGw9IiMzNDk4ZGIiLz4KPHR4dCB4PSIyMCIgeT0iMjUiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZpbGw9IndoaXRlIiBmb250LXNpemU9IjE0IiBmb250LXdlaWdodD0iNjAwIiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiPlU8L3R4dD4KPHN2Zz4K" alt="User Avatar">
+						</button>
+						<div class="profile-dropdown">
+							<ul>
+								<li><a href="profile.html"><i class="fas fa-id-card"></i> Profile</a></li>
+								<li><a href="#" id="logoutBtn"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+							</ul>
+						</div>
+					</div>
+				</div>
+			</header>
+
+			<div class="content">
+				<div class="page-header">
+					<div style="display:flex;align-items:center;gap:0.6rem;">
+						<i class="fas fa-history"></i>
+						<span>Audit Log</span>
+					</div>
+				</div>
+
+				<div class="filters">
+					<input id="searchInput" class="search-input" type="text" placeholder="Search...">
+					<select id="actionFilter">
+						<option value="">All actions</option>
+						<option value="CREATE">CREATE</option>
+						<option value="UPDATE">UPDATE</option>
+						<option value="DELETE">DELETE</option>
+						<option value="APPROVAL">APPROVAL</option>
+					</select>
+					<select id="dateFilter">
+						<option value="">Any time</option>
+						<option value="24h">Last 24 hours</option>
+						<option value="7d">Last 7 days</option>
+						<option value="30d">Last 30 days</option>
+					</select>
+				</div>
+
+				<div class="table-wrapper">
+					<table>
+						<thead>
+							<tr>
+								<th style="width: 200px;">Timestamp</th>
+								<th style="width: 220px;">User</th>
+								<th style="width: 120px;">Action</th>
+								<th style="width: 180px;">Resource</th>
+								<th>Details</th>
+							</tr>
+						</thead>
+						<tbody id="auditLogTableBody">
+							<tr><td colspan="5" class="muted" style="text-align:center;padding:1rem;">Loading audit logs...</td></tr>
+						</tbody>
+					</table>
+				</div>
+			</div>
+		</main>
+	</div>
+
+	<script>
+		// Firebase v8 configuration (same as staff.html)
+		const firebaseConfig = {
+			apiKey: "AIzaSyCUTmTn0rRBb0M-UkQJxnUMrWqXYU_BgIc",
+			authDomain: "users-8be65.firebaseapp.com",
+			databaseURL: "https://users-8be65-default-rtdb.firebaseio.com",
+			projectId: "users-8be65",
+			storageBucket: "users-8be65.firebasestorage.app",
+			messagingSenderId: "909025468149",
+			appId: "1:909025468149:web:fb4e7c4a8b4bd6d1076e4d",
+			measurementId: "G-XHFMRCJQEZ"
+		};
+
+		function initializeFirebase() {
+			if (!window.firebase || !window.firebase.apps || window.firebase.apps.length === 0) {
+				window.firebase.initializeApp(firebaseConfig);
+				console.log('✅ Firebase v8 initialized');
+			}
+			return window.firebase;
+		}
+
+		// Minimal wrappers for v8
+		function getDatabase() { return initializeFirebase().database(); }
+
+		// Auth Manager (trimmed to what's needed for header/menu/notifications)
+		class AuthManager {
+			constructor() {
+				this.db = firebase.database();
+				this.currentUser = this.getCurrentUser();
+				this.currentCompany = null;
+				this.init();
+			}
+
+			getCurrentUser() {
+				try {
+					const raw = localStorage.getItem('currentUser');
+					if (raw) return JSON.parse(raw);
+				} catch(_) {}
+				const user = firebase.auth().currentUser;
+				if (user) return { uid: user.uid, email: user.email };
+				return null;
+			}
+
+			async init() {
+				initializeFirebase();
+				await this.loadUserCompany();
+				await updateMenuWithFeatureAuthorization();
+				this.attachUIHandlers();
+				// Populate user profile avatar in header
+				try { await this.populateUserProfile(); } catch(_) {}
+				// Initial notifications load
+				try {
+					console.log('🔔 Loading initial notifications...');
+					console.log('🔔 Current user:', this.currentUser);
+					console.log('🔔 Database ref:', this.db ? 'Available' : 'Not available');
+					const notifications = await this.loadNotifications();
+					console.log('🔔 Loaded notifications:', notifications);
+					console.log('🔔 Unread count:', notifications.filter(n => !n.read).length);
+					this.updateNotificationBadgeCount(notifications);
+					this.populateNotificationDropdown(notifications);
+					console.log('🔔 Badge updated and dropdown populated');
+				} catch (e) { console.error('Notification init failed:', e); }
+
+				// Set up auth state listener to reload notifications when auth state changes
+				firebase.auth().onAuthStateChanged(async (user) => {
+					if (user && user.uid) {
+						console.log('🔔 Auth state changed, reloading notifications for:', user.email);
+						try {
+							const notifications = await this.loadNotifications();
+							this.updateNotificationBadgeCount(notifications);
+							
+							// Set up real-time listener for notifications to ensure perfect sync with staff.html
+							const notificationsRef = this.db.ref(`notifications/${user.uid}`);
+							notificationsRef.on('value', (snapshot) => {
+								const list = [];
+								if (snapshot.exists()) {
+									snapshot.forEach(child => list.push({ id: child.key, ...child.val() }));
+								}
+								// Sort by timestamp desc
+								list.sort((a,b) => (b.timestamp||0) - (a.timestamp||0));
+								console.log('🔔 Real-time notification update:', list.length, 'notifications');
+								this.updateNotificationBadgeCount(list);
+								
+								// Broadcast to other tabs/windows for perfect sync
+								try {
+									const unreadCount = list.filter(n => !n.read).length;
+									localStorage.setItem('notificationCount', unreadCount.toString());
+									window.dispatchEvent(new CustomEvent('notificationUpdate', { 
+										detail: { count: unreadCount, notifications: list } 
+									}));
+								} catch(_) {}
+								
+								// Only update dropdown if it's currently open
+								const dropdown = document.querySelector('.notification-dropdown');
+								if (dropdown && dropdown.classList.contains('show')) {
+									this.populateNotificationDropdown(list);
+								}
+							});
+						} catch (e) { console.error('Auth state notification setup failed:', e); }
+					}
+				});
+
+				// Listen for notification updates from other tabs/windows
+				window.addEventListener('notificationUpdate', (event) => {
+					console.log('🔔 Cross-tab notification sync:', event.detail.count);
+					const badge = document.querySelector('.notification-badge');
+					if (badge) {
+						const count = event.detail.count;
+						if (count > 0) {
+							badge.textContent = count > 99 ? '99+' : count.toString();
+							badge.style.display = 'block';
+						} else {
+							badge.style.display = 'none';
+						}
+					}
+				});
+
+				// Listen for localStorage changes (cross-tab sync)
+				window.addEventListener('storage', (event) => {
+					if (event.key === 'notificationCount') {
+						console.log('🔔 Storage notification sync:', event.newValue);
+						const badge = document.querySelector('.notification-badge');
+						if (badge && event.newValue !== null) {
+							const count = parseInt(event.newValue);
+							if (count > 0) {
+								badge.textContent = count > 99 ? '99+' : count.toString();
+								badge.style.display = 'block';
+							} else {
+								badge.style.display = 'none';
+							}
+						}
+					}
+				});
+			}
+
+			async loadUserCompany() {
+				// If we already know the companyId, fetch that company's record and apply branding
+				if (this.currentUser?.companyId) {
+					try {
+						const companySnap = await this.db.ref(`companies/${this.currentUser.companyId}`).once('value');
+						if (companySnap.exists()) {
+							this.currentCompany = companySnap.val();
+							if (!this.currentUser.companyName && this.currentCompany.companyName) this.currentUser.companyName = this.currentCompany.companyName;
+							this.updateCompanyBranding();
+							return;
+						}
+					} catch(_) {}
+				}
+				const database = getDatabase();
+				const companiesRef = database.ref('companies');
+				const snap = await companiesRef.once('value');
+				if (!snap.exists()) { this.showFallbackBranding(); return; }
+				const companies = snap.val();
+				const uid = this.currentUser?.uid;
+				for (const [cId, company] of Object.entries(companies)) {
+					if (company.status && company.status !== 'active') continue;
+					let belongs = false;
+					if (company.users) {
+						for (const [uidKey, userRec] of Object.entries(company.users)) {
+							if (uidKey === uid || userRec?.authUid === uid) { belongs = true; break; }
+						}
+					}
+					if (!belongs && company.admin && (company.admin.userId === uid || company.admin.authUid === uid)) {
+						belongs = true;
+					}
+					if (belongs) {
+						this.currentCompany = company;
+						if (!this.currentUser.companyId) this.currentUser.companyId = cId;
+						if (!this.currentUser.companyName && company.companyName) this.currentUser.companyName = company.companyName;
+						this.updateCompanyBranding();
+						return;
+					}
+				}
+				this.showFallbackBranding();
+			}
+
+			updateCompanyBranding() {
+				const nameEl = document.getElementById('headerCompanyName');
+				const logoEl = document.getElementById('headerCompanyLogo');
+				if (!this.currentCompany) { this.showFallbackBranding(); return; }
+				if (nameEl) nameEl.textContent = this.currentCompany.companyName || this.currentCompany.name || '';
+				if (logoEl) {
+					const url = (this.currentCompany.logo || this.currentCompany.logoUrl || '').toString().trim();
+					if (url) {
+						logoEl.src = url;
+						logoEl.style.display = 'inline-block';
+						logoEl.onerror = () => { logoEl.style.display = 'none'; };
+					} else {
+						logoEl.style.display = 'none';
+					}
+				}
+			}
+
+			showFallbackBranding() {
+				const nameEl = document.getElementById('headerCompanyName');
+				const logoEl = document.getElementById('headerCompanyLogo');
+				if (nameEl) nameEl.textContent = '';
+				if (logoEl) logoEl.style.display = 'none';
+			}
+
+			async getUserAvatarUrl() {
+				try {
+					// Prefer values already on the user object
+					const candidates = [
+						this.currentUser?.photoURL,
+						this.currentUser?.profilePicture,
+						this.currentUser?.avatarUrl
+					].filter(Boolean);
+					for (const url of candidates) { if (url && typeof url === 'string' && url.startsWith('http')) return url; }
+
+					// Try user profile in Realtime DB
+					if (this.currentUser?.uid) {
+						const userSnap = await this.db.ref(`users/${this.currentUser.uid}`).once('value');
+						if (userSnap.exists()) {
+							const u = userSnap.val();
+							if (u.profilePicture || u.photoURL || u.photo) return u.profilePicture || u.photoURL || u.photo;
+						}
+						// Company-scoped user store
+						if (this.currentUser.companyId) {
+							const cuSnap = await this.db.ref(`companies/${this.currentUser.companyId}/users/${this.currentUser.uid}`).once('value');
+							if (cuSnap.exists()) {
+								const cu = cuSnap.val();
+								if (cu.profilePicture || cu.photoURL || cu.photo) return cu.profilePicture || cu.photoURL || cu.photo;
+							}
+						}
+					}
+
+					// Try Firebase Storage conventional path
+					if (this.currentUser?.uid && window.firebase?.storage) {
+						try {
+							const storage = window.firebase.storage();
+							const ref = storage.ref(`avatars/${this.currentUser.uid}/profile.jpg`);
+							return await ref.getDownloadURL();
+						} catch(_) {}
+					}
+				} catch(_) {}
+				return null;
+			}
+
+			async populateUserProfile() {
+				// Update profile button avatar
+				const btnImg = document.querySelector('#userProfileBtn img');
+				if (btnImg) {
+					const url = await this.getUserAvatarUrl();
+					if (url) {
+						btnImg.src = url;
+						btnImg.onerror = () => { /* keep default fallback if load fails */ };
+					}
+				}
+
+				// Populate profile dropdown with user information (like staff.html)
+				const profileDropdown = document.querySelector('.profile-dropdown ul');
+				if (profileDropdown && this.currentUser) {
+					const initials = this.getUserInitials();
+					const displayName = this.getUserDisplayName();
+					const email = this.getUserEmail();
+					
+					// Get avatar URL for dropdown
+					const avatarUrl = await this.getUserAvatarUrl();
+					
+					// Create avatar for dropdown (either real avatar or initials)
+					let dropdownAvatarHtml;
+					if (avatarUrl) {
+						dropdownAvatarHtml = `<img src="${avatarUrl}" alt="${displayName} Avatar" style="width: 24px; height: 24px; border-radius: 50%; object-fit: cover;">`;
+					} else {
+						dropdownAvatarHtml = `<div style="width: 24px; height: 24px; border-radius: 50%; background: #3498db; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 10px;">${initials}</div>`;
+					}
+					
+					// Update profile dropdown with user info
+					const userInfoHtml = `
+						<li style="border-bottom: 1px solid #eee; padding: 6px 10px; background: #f8f9fa;">
+							<div style="display: flex; align-items: center; gap: 6px;">
+								${dropdownAvatarHtml}
+								<div>
+									<div style="font-weight: 600; color: #333; font-size: 12px; margin-bottom: 1px;">
+										${displayName}
+									</div>
+									<div style="color: #666; font-size: 10px;">
+										${email}
+									</div>
+								</div>
+							</div>
+						</li>
+						<li><a href="profile.html"><i class="fas fa-id-card"></i> Profile</a></li>
+						<li><a href="#" id="logoutBtn"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+					`;
+					
+					profileDropdown.innerHTML = userInfoHtml;
+				}
+			}
+
+			// Helper methods for user info (matching staff.html)
+			getUserDisplayName() {
+				if (!this.currentUser) return 'User';
+				
+				const cleanName = (name) => {
+					if (!name || typeof name !== 'string') return '';
+					return name.trim().replace(/\s+/g, ' ');
+				};
+				
+				const potentialNames = [
+					this.currentUser.displayName,
+					this.currentUser.name,
+					this.currentUser.username
+				];
+				
+				for (const name of potentialNames) {
+					const cleaned = cleanName(name);
+					if (cleaned) return cleaned;
+				}
+				
+				if (this.currentUser.email) {
+					const emailUsername = this.currentUser.email.split('@')[0];
+					const cleaned = cleanName(emailUsername);
+					if (cleaned) return cleaned;
+				}
+				
+				return 'User';
+			}
+
+			getUserInitials() {
+				const displayName = this.getUserDisplayName();
+				
+				if (!displayName || displayName === 'User') return 'U';
+				
+				const words = displayName.split(' ').filter(word => word.length > 0);
+				if (words.length === 1) {
+					return words[0].substring(0, 2).toUpperCase();
+				} else {
+					return words.slice(0, 2).map(word => word.charAt(0)).join('').toUpperCase();
+				}
+			}
+
+			getUserEmail() {
+				return this.currentUser?.email || '';
+			}
+
+			async loadNotifications() {
+				try {
+					if (!this.currentUser) {
+						console.log('No authenticated user for notifications');
+						return [];
+					}
+
+					const notificationsRef = this.db.ref(`notifications/${this.currentUser.uid}`);
+					const snapshot = await notificationsRef.once('value');
+					
+					if (snapshot.exists()) {
+						const notificationsData = snapshot.val();
+						const notifications = Object.keys(notificationsData).map(key => ({
+							id: key,
+							...notificationsData[key]
+						}));
+						
+						// Sort by timestamp (newest first)
+						return notifications.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+					}
+					
+					return [];
+				} catch (error) {
+					console.error('Error loading notifications:', error);
+					return [];
+				}
+			}
+
+			updateNotificationBadgeCount(notifications) {
+				const badge = document.querySelector('.notification-badge');
+				if (!badge) return;
+
+				const unreadCount = notifications.filter(n => !n.read).length;
+				
+				if (unreadCount > 0) {
+					badge.textContent = unreadCount > 99 ? '99+' : unreadCount.toString();
+					badge.style.display = 'block';
+				} else {
+					badge.style.display = 'none';
+				}
+			}
+
+			populateNotificationDropdown(notifications) {
+				console.log('🔔 Populating notification dropdown with:', notifications.length, 'notifications');
+				
+				const notificationsList = document.querySelector('.notification-list');
+				const emptyState = document.querySelector('.notification-empty');
+				
+				console.log('Notifications list element:', notificationsList);
+				console.log('Empty state element:', emptyState);
+				
+				if (!notificationsList) {
+					console.error('❌ Notifications list element not found!');
+					return;
+				}
+
+				// Clear existing notifications
+				notificationsList.innerHTML = '';
+
+				if (notifications.length === 0) {
+					console.log('📭 No notifications to display');
+					if (emptyState) {
+						emptyState.style.display = 'block';
+					}
+					return;
+				} else {
+					console.log('📬 Displaying', notifications.length, 'notifications');
+					if (emptyState) {
+						emptyState.style.display = 'none';
+					}
+				}
+
+				// Populate notifications
+				notifications.slice(0, 10).forEach((notification, index) => {
+					console.log(`📝 Adding notification ${index + 1}:`, notification.title);
+					
+					const notificationItem = document.createElement('div');
+					notificationItem.className = `notification-item ${notification.read ? 'read' : 'unread'}`;
+					
+					const timeAgo = this.formatTimeAgo(notification.timestamp);
+					
+					notificationItem.innerHTML = `
+						<div class="notification-content">
+							<div class="notification-title">${notification.title || 'New Notification'}</div>
+							<div class="notification-message">${notification.message || 'You have a new notification'}</div>
+							<div class="notification-time">${timeAgo}</div>
+						</div>
+						<div class="notification-actions">
+							${!notification.read ? 
+								`<button class="mark-read-btn" title="Mark as read" onclick="markNotificationAsRead('${notification.id}')">
+									<i class="fas fa-check"></i>
+								</button>` : 
+								`<button class="mark-read-btn" title="Already read" disabled>
+									<i class="fas fa-check"></i>
+								</button>`
+							}
+							<button class="delete-notification-btn" title="Delete notification" onclick="deleteNotificationWithConfirm('${notification.id}')">
+								<i class="fas fa-trash"></i>
+							</button>
+						</div>
+						${!notification.read ? '<div class="notification-dot"></div>' : ''}
+					`;
+					
+					notificationsList.appendChild(notificationItem);
+				});
+
+				console.log('✅ Notification dropdown populated successfully');
+
+				// Update badge with unread count
+				this.updateNotificationBadgeCount(notifications);
+			}
+
+			formatTimeAgo(timestamp) {
+				if (!timestamp) return 'Just now';
+				const now = Date.now();
+				const diff = now - timestamp;
+				const minutes = Math.floor(diff / 60000);
+				const hours = Math.floor(diff / 3600000);
+				const days = Math.floor(diff / 86400000);
+				if (minutes < 1) return 'Just now';
+				if (minutes < 60) return `${minutes}m ago`;
+				if (hours < 24) return `${hours}h ago`;
+				return `${days}d ago`;
+			}
+
+			async refreshNotifications() {
+				const notifications = await this.loadNotifications();
+				this.updateNotificationBadgeCount(notifications);
+				this.populateNotificationDropdown(notifications);
+			}
+
+			async markAllNotificationsAsRead() {
+				if (!this.currentUser) return;
+				const ref = this.db.ref(`notifications/${this.currentUser.uid}`);
+				const snap = await ref.once('value');
+				if (snap.exists()) {
+					const updates = {};
+					snap.forEach(child => { updates[`${child.key}/read`] = true; });
+					await ref.update(updates);
+				}
+				await this.refreshNotifications();
+			}
+
+			async clearAllNotifications() {
+				if (!this.currentUser) return;
+				await this.db.ref(`notifications/${this.currentUser.uid}`).remove();
+				const badge = document.querySelector('.notification-badge');
+				if (badge) badge.style.display = 'none';
+				await this.refreshNotifications();
+			}
+
+			async markNotificationAsRead(notificationId) {
+				if (!this.currentUser || !notificationId) return;
+				await this.db.ref(`notifications/${this.currentUser.uid}/${notificationId}/read`).set(true);
+				await this.refreshNotifications();
+			}
+
+			async deleteNotification(notificationId) {
+				if (!this.currentUser || !notificationId) return;
+				await this.db.ref(`notifications/${this.currentUser.uid}/${notificationId}`).remove();
+				await this.refreshNotifications();
+			}
+
+			attachUIHandlers() {
+				// Sidebar toggle
+				const sidebarToggle = document.getElementById('sidebarToggle');
+				if (sidebarToggle) {
+					sidebarToggle.addEventListener('click', () => {
+						const sidebar = document.querySelector('.sidebar');
+						const main = document.querySelector('.main-content');
+						if (!sidebar || !main) return;
+						sidebar.classList.toggle('collapsed');
+						main.classList.toggle('sidebar-collapsed');
+						const isCollapsed = sidebar.classList.contains('collapsed');
+						try { localStorage.setItem('sidebarCollapsed', String(isCollapsed)); } catch(_) {}
+					});
+				}
+
+				// Restore previous sidebar state
+				try {
+					const isCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
+					if (isCollapsed) {
+						const sidebar = document.querySelector('.sidebar');
+						const main = document.querySelector('.main-content');
+						if (sidebar && main) { sidebar.classList.add('collapsed'); main.classList.add('sidebar-collapsed'); }
+					}
+				} catch(_) {}
+
+				// Notifications dropdown
+				const notifBtn = document.getElementById('notificationBtn');
+				const notifDrop = document.querySelector('.notification-dropdown');
+				if (notifBtn && notifDrop) {
+					notifBtn.addEventListener('click', async () => {
+						notifDrop.classList.toggle('show');
+						await this.refreshNotifications();
+					});
+					document.getElementById('refreshNotificationsBtn')?.addEventListener('click', async () => {
+						await this.refreshNotifications();
+					});
+					// Wire header buttons
+					const markAllBtn = notifDrop.querySelector('.mark-all-read');
+					const clearAllBtn = notifDrop.querySelector('.clear-all-notifications');
+					markAllBtn?.addEventListener('click', async () => { await this.markAllNotificationsAsRead(); });
+					clearAllBtn?.addEventListener('click', async () => { await this.clearAllNotifications(); });
+				}
+
+				// Profile dropdown
+				const profileBtn = document.getElementById('userProfileBtn');
+				const profileDrop = document.querySelector('.profile-dropdown');
+				if (profileBtn && profileDrop) {
+					profileBtn.addEventListener('click', () => profileDrop.classList.toggle('show'));
+				}
+
+				// Logout (using event delegation since logout button is dynamically created)
+				document.addEventListener('click', async (e) => {
+					if (e.target.id === 'logoutBtn' || (e.target.closest('#logoutBtn'))) {
+						e.preventDefault();
+						try { 
+							await firebase.auth().signOut(); 
+							localStorage.clear(); 
+							location.href = 'login.html'; 
+						} catch(err) { 
+							console.error(err); 
+						}
+					}
+				});
+			}
+		}
+
+		// Feature-based authorization (copied from staff.html with minimal changes)
+		async function updateMenuWithFeatureAuthorization() {
+			try {
+				let currentUser = null; let companyId = null;
+				if (window.authManager && window.authManager.currentUser) {
+					currentUser = window.authManager.currentUser; companyId = currentUser.companyId;
+				} else if (firebase.auth().currentUser) { currentUser = firebase.auth().currentUser; }
+				if (!companyId && currentUser) {
+					const database = getDatabase();
+					const companiesRef = database.ref('companies');
+					const companiesSnapshot = await companiesRef.once('value');
+					if (companiesSnapshot.exists()) {
+						const companies = companiesSnapshot.val();
+						for (const [cId, company] of Object.entries(companies)) {
+							if (company.status !== 'active') continue;
+							if (company.users && company.users[currentUser.uid]) { companyId = cId; break; }
+						}
+					}
+					if (window.authManager && !window.authManager.currentUser.companyId && companyId) {
+						window.authManager.currentUser.companyId = companyId;
+					}
+				}
+				if (!companyId) { resetMenuVisibility(); return; }
+				await applyFeatureBasedMenuVisibility(companyId);
+			} catch (err) { console.error('Menu auth error:', err); resetMenuVisibility(); }
+		}
+
+		async function applyFeatureBasedMenuVisibility(companyId) {
+			try {
+				const database = getDatabase();
+				const featuresSnapshot = await database.ref('/platformFeatures').once('value');
+				if (!featuresSnapshot.exists()) { resetMenuVisibility(); return; }
+				const featuresData = featuresSnapshot.val();
+				const companySnapshot = await database.ref(`/companies/${companyId}`).once('value');
+				const companyData = companySnapshot.val();
+				if (!companyData) { resetMenuVisibility(); return; }
+				const subscribedFeatureIds = companyData.selectedFeatures || [];
+				if (subscribedFeatureIds.length === 0) { resetMenuVisibility(); return; }
+				const authorizedFeatures = new Set();
+				subscribedFeatureIds.forEach(fid => { const f = featuresData[fid]; if (f && f.status === 'active' && f.authorizedPages) { f.authorizedPages.forEach(p => p.feature && authorizedFeatures.add(p.feature)); } });
+				resetMenuVisibility();
+				const allMenuItems = document.querySelectorAll('#roleBasedMenu li[data-feature]');
+				allMenuItems.forEach(menuItem => {
+					const feature = menuItem.getAttribute('data-feature');
+					const isDropdown = menuItem.classList.contains('menu-dropdown');
+					if (isDropdown) return;
+					if (authorizedFeatures.has(feature)) menuItem.classList.add('menu-visible'); else menuItem.classList.remove('menu-visible');
+				});
+				const dropdowns = document.querySelectorAll('#roleBasedMenu li.menu-dropdown');
+				dropdowns.forEach(drop => {
+					const dropdownFeature = drop.getAttribute('data-feature');
+					const anyChildVisible = !!drop.querySelector('.submenu li[data-feature].menu-visible');
+					if (anyChildVisible || authorizedFeatures.has(dropdownFeature)) drop.classList.add('menu-visible'); else drop.classList.remove('menu-visible');
+				});
+				const sidebar = document.querySelector('.sidebar'); if (sidebar) sidebar.classList.remove('menu-loading');
+			} catch (err) { console.error('Feature menu error:', err); resetMenuVisibility(); }
+		}
+
+		function resetMenuVisibility() {
+			document.querySelectorAll('#roleBasedMenu li').forEach(el => el.classList.remove('menu-visible'));
+			const sidebar = document.querySelector('.sidebar'); if (sidebar) sidebar.classList.remove('menu-loading');
+			const homeItem = document.querySelector('[data-feature="home_view"]'); if (homeItem) homeItem.classList.add('menu-visible');
+		}
+
+		window.updateMenuWithFeatureAuthorization = updateMenuWithFeatureAuthorization;
+
+		// AUDIT LOG VIEWER (company-scoped, real-time)
+		const AuditLog = {
+			logs: [],
+			unsubscribe: null,
+			start() {
+				this.setupFilters();
+				this.attachListenerWhenReady();
+			},
+			setupFilters() {
+				const searchInput = document.getElementById('searchInput');
+				const actionFilter = document.getElementById('actionFilter');
+				const dateFilter = document.getElementById('dateFilter');
+				[searchInput, actionFilter, dateFilter].forEach(el => el && el.addEventListener('input', () => this.render()));
+				[actionFilter, dateFilter].forEach(el => el && el.addEventListener('change', () => this.render()));
+			},
+			attachListenerWhenReady() {
+				const waitForCompany = async (retries = 30) => {
+					while (retries-- > 0) {
+						const cid = window.authManager?.currentUser?.companyId;
+						if (cid) return cid;
+						await new Promise(r => setTimeout(r, 200));
+					}
+					return null;
+				};
+				waitForCompany().then(companyId => {
+					if (!companyId) { this.renderError('No company context found.'); return; }
+					const db = getDatabase();
+					const ref = db.ref(`companies/${companyId}/auditLogs`);
+					ref.on('value', (snap) => {
+						const arr = [];
+						if (snap.exists()) {
+							snap.forEach(child => arr.push({ id: child.key, ...child.val() }));
+						}
+						// sort newest first
+						arr.sort((a,b) => (b.timestamp||0) - (a.timestamp||0));
+						this.logs = arr;
+						this.render();
+					}, (err) => {
+						console.error('Audit logs listener error:', err);
+						this.renderError('Failed to load audit logs.');
+					});
+				});
+			},
+			render() {
+				const tbody = document.getElementById('auditLogTableBody');
+				if (!tbody) return;
+				const search = (document.getElementById('searchInput')?.value || '').toLowerCase();
+				const action = document.getElementById('actionFilter')?.value || '';
+				const dateRange = document.getElementById('dateFilter')?.value || '';
+				const since = this.dateThreshold(dateRange);
+				const filtered = this.logs.filter(l => {
+					const matchesAction = !action || (l.action || '').toUpperCase() === action;
+					const matchesSearch = !search || JSON.stringify(l).toLowerCase().includes(search);
+					const matchesDate = !since || (l.timestamp && l.timestamp >= since);
+					return matchesAction && matchesSearch && matchesDate;
+				});
+				if (filtered.length === 0) {
+					tbody.innerHTML = '<tr><td colspan="5" class="muted" style="text-align:center;padding:1rem;">No audit logs found</td></tr>';
+					return;
+				}
+				tbody.innerHTML = '';
+				filtered.forEach(l => {
+					const tr = document.createElement('tr');
+					const timeStr = l.timestamp ? new Date(l.timestamp).toLocaleString() : '';
+					tr.innerHTML = `
+						<td>${timeStr}</td>
+						<td>${l.userEmail || l.userName || l.userId || ''}</td>
+						<td><span class="badge badge-${(l.action||'').toUpperCase()}">${(l.action||'').toUpperCase()}</span></td>
+						<td>${l.resourceType || ''}</td>
+						<td>${l.details || l.message || ''}</td>`;
+					tbody.appendChild(tr);
+				});
+			},
+			renderError(msg) {
+				const tbody = document.getElementById('auditLogTableBody');
+				if (!tbody) return;
+				tbody.innerHTML = `<tr><td colspan="5" class="muted" style="text-align:center;padding:1rem;">${msg}</td></tr>`;
+			},
+			dateThreshold(key) {
+				const now = Date.now();
+				if (key === '24h') return now - 24*60*60*1000;
+				if (key === '7d') return now - 7*24*60*60*1000;
+				if (key === '30d') return now - 30*24*60*60*1000;
+				return null;
+			}
+		};
+
+		document.addEventListener('DOMContentLoaded', async () => {
+			initializeFirebase();
+			window.authManager = new AuthManager();
+			AuditLog.start();
+
+			// Keep notifications badge in sync like staff/recruitboard: refresh every 30s
+			try {
+				setInterval(async () => {
+					try {
+						if (window.authManager && window.authManager.currentUser) {
+							const updated = await window.authManager.loadNotifications();
+							window.authManager.updateNotificationBadgeCount(updated);
+						}
+					} catch (_) { /* ignore periodic refresh errors */ }
+				}, 30000);
+			} catch (_) { /* ignore timer setup errors */ }
+
+			// Expose a manual refresh helper for parity and external calls
+			window.refreshNotifications = async () => {
+				try {
+					const notes = await window.authManager.loadNotifications();
+					window.authManager.updateNotificationBadgeCount(notes);
+					window.authManager.populateNotificationDropdown(notes);
+				} catch (e) { console.error('Manual refreshNotifications failed:', e); }
+			};
+		});
+
+		// Expose helpers for notification item actions
+		window.markNotificationAsRead = async (id) => {
+			try { await window.authManager?.markNotificationAsRead(id); } catch(e) { console.error(e); }
+		};
+		window.deleteNotificationWithConfirm = async (id) => {
+			try {
+				if (confirm('Delete this notification?')) {
+					await window.authManager?.deleteNotification(id);
+				}
+			} catch(e) { console.error(e); }
+		};
+
+		// TEMPORARY TEST FUNCTION - Remove after testing
+		window.createTestNotification = async () => {
+			try {
+				if (!window.authManager?.currentUser) {
+					alert('No user logged in');
+					return;
+				}
+				const db = getDatabase();
+				const notificationRef = db.ref(`notifications/${window.authManager.currentUser.uid}`).push();
+				await notificationRef.set({
+					title: 'Test Notification',
+					message: 'This is a test notification to verify the badge works',
+					timestamp: Date.now(),
+					read: false
+				});
+				await window.authManager.refreshNotifications();
+				console.log('Test notification created');
+			} catch(e) {
+				console.error('Error creating test notification:', e);
+			}
+		};
+	</script>
+</body>
+</html>
+

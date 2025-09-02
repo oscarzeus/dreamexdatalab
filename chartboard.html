@@ -1,0 +1,2268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Organization Board - Dreamex Datalab HSE</title>
+    <!-- Firebase v8 -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
+    <!-- D3.js for advanced org chart visualization -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <!-- Font Awesome -->
+    <style>
+        @import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css');
+        :root { 
+            --primary-color:#2c3e50; 
+            --secondary-color:#3498db; 
+            --accent-color:#3498db; 
+            --text-color:#333; 
+            --bg-color:#f5f6fa; 
+            --sidebar-width:250px; 
+            --blue:#3498db; 
+            --green:#2ecc71; 
+            --purple:#9b59b6; 
+            --orange:#e67e22; 
+            --red:#e74c3c; 
+            --font-family:'Inter',system-ui,-apple-system,sans-serif; 
+            --base-font-size:.9rem; 
+            --font-scale:1; 
+            --bg-primary:#ffffff; 
+            --bg-secondary:#f8f9fa; 
+            --text-primary:#333333; 
+            --text-secondary:#666666; 
+            --border-color:#e0e0e0; 
+            --spacing-unit:1rem; 
+            --padding-sm:.5rem; 
+            --padding-md:1rem; 
+            --padding-lg:1.5rem; 
+            --transition-speed:.2s; 
+        }
+        
+        [data-theme="dark"] { 
+            --bg-primary:#1a1a1a; 
+            --bg-secondary:#2d2d2d; 
+            --text-primary:#ffffff; 
+            --text-secondary:#cccccc; 
+            --border-color:#404040; 
+        }
+        
+        * {margin:0;padding:0;box-sizing:border-box;}
+        body {font-family:var(--font-family); font-size:var(--base-font-size); line-height:calc(1.5 * var(--font-scale)); color:var(--text-primary); background:#f8f9fa;}
+        .app-container {display:flex; min-height:100vh;}
+        .sidebar {width:var(--sidebar-width); background:var(--primary-color); color:#fff; padding:1rem; position:fixed; height:100vh; overflow-y:auto; z-index:1000; transition:transform .3s ease;}
+        .sidebar.collapsed {transform:translateX(-100%);} 
+        .main-content {flex:1; margin-left:var(--sidebar-width); padding:.5rem; padding-top:4rem; width:calc(100% - var(--sidebar-width));}
+        .main-content { transition: margin-left .3s ease, width .3s ease; }
+        .main-content.sidebar-collapsed { margin-left: 0; width: 100%; }
+        .top-nav {display:flex; justify-content:space-between; align-items:center; padding:.5rem .75rem; background:#fff; box-shadow:0 2px 5px rgba(0,0,0,.1); margin-bottom:.3rem; position:fixed; top:.25rem; right:.5rem; left:calc(var(--sidebar-width) + .5rem); height:50px; min-height:50px; z-index:100; transition:left .3s ease;}
+        .top-nav.sidebar-collapsed { left: .5rem; }
+        .top-nav-left {display:flex; align-items:center; gap:1rem;}
+        .sidebar-toggle-btn {background:none; border:none; cursor:pointer; font-size:1.2rem; padding:.5rem; display:flex; align-items:center; justify-content:center; color:var(--text-secondary);} 
+        .menu {list-style:none; margin-top:2rem;}
+        .menu li {margin-bottom:.5rem;}
+        .menu a {color:#fff; text-decoration:none; display:flex; align-items:center; padding:.75rem 1rem; border-radius:5px; transition:background-color .3s;}
+        .menu a i {margin-right:10px;}
+        .menu a:hover, .menu a.active {background:var(--secondary-color);} 
+        .menu-dropdown .submenu {display:none; list-style:none; margin-left:2rem; margin-top:.5rem;}
+        .menu-dropdown:hover .submenu {display:block;}
+        .content {width:100%; margin:0; padding:.75rem; background:#fff; border-radius:6px; box-shadow:0 1px 3px rgba(0,0,0,.08); min-height:calc(100vh - 6rem);} 
+        
+        /* Button Styles */
+        .btn {padding:.5rem 1rem; border:none; border-radius:6px; cursor:pointer; font-size:.8rem; font-weight:600; transition:.2s; display:inline-flex; align-items:center; gap:.5rem; text-decoration:none;} 
+        .btn-primary {background:var(--primary-color); color:#fff;} 
+        .btn-secondary {background:var(--secondary-color); color:#fff;} 
+        .btn-success {background:var(--green); color:#fff;} 
+        .btn-danger {background:var(--red); color:#fff;} 
+        .btn:hover {opacity:.9; transform:translateY(-1px);} 
+        
+        /* Page Header */
+        .page-header {margin-bottom:1.5rem; padding-bottom:1rem; border-bottom:2px solid var(--border-color); display:flex; justify-content:space-between; align-items:center;}
+        .page-header h1 {font-size:1.5rem; color:var(--primary-color); margin:0; display:flex; align-items:center; gap:.75rem;}
+        .page-header h1 i {color:var(--secondary-color);}
+        
+        /* Controls */
+        .controls-section {margin-bottom:1.5rem; padding:1rem; background:#f8f9fa; border-radius:8px; display:flex; gap:1rem; align-items:center; flex-wrap:wrap;}
+        .control-group {display:flex; flex-direction:column; gap:.25rem;}
+        .control-group label {font-size:.75rem; font-weight:600; color:var(--text-secondary); text-transform:uppercase;}
+        .control-group select, .control-group input {padding:.4rem .6rem; border:1px solid #ddd; border-radius:4px; font-size:.8rem;}
+        
+        /* Organization Chart Styles */
+        .org-chart-container {width:100%; height:calc(100vh - 200px); overflow:auto; border:1px solid #e0e0e0; border-radius:8px; background:#fff; position:relative;}
+        .org-chart-svg {width:100%; height:100%; min-width:800px; min-height:600px;}
+        
+        /* Node Styles */
+        .org-node {cursor:pointer; transition:all 0.3s ease;}
+        .org-node rect {stroke:#2c3e50; stroke-width:2; fill:#ffffff; rx:8; ry:8;}
+        .org-node.level-0 rect {fill:#e3f2fd; stroke:#1976d2;}
+        .org-node.level-1 rect {fill:#f3e5f5; stroke:#7b1fa2;}
+        .org-node.level-2 rect {fill:#e8f5e8; stroke:#388e3c;}
+        .org-node.level-3 rect {fill:#fff3e0; stroke:#f57c00;}
+        .org-node.level-4 rect {fill:#fce4ec; stroke:#c2185b;}
+
+        /* Text styling tweaks for clarity */
+        .org-node text.title { font-weight:600; font-size:13px; }
+        .org-node text.department { font-size:11px; fill:#555; }
+        .org-node text.level { font-size:10px; fill:#777; }
+
+        /* Add extra vertical spacing between stacked groups */
+        g.org-node { margin-bottom:20px; }
+        
+        .org-node text.title {font-weight:bold; font-size:14px; fill:#2c3e50;}
+        .org-node text.department {font-size:11px; fill:#666;}
+        .org-node text.level {font-size:10px; fill:#999;}
+        
+        /* Connection Lines */
+        .org-link {fill:none; stroke:#bdc3c7; stroke-width:2;}
+        .org-link.parent-child {stroke:#3498db;}
+        
+        /* Zoom Controls */
+        .zoom-controls {position:absolute; top:10px; right:10px; display:flex; flex-direction:column; gap:.5rem; z-index:10;}
+        .zoom-btn {width:40px; height:40px; border:none; border-radius:50%; background:#fff; box-shadow:0 2px 8px rgba(0,0,0,.15); cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:1.2rem; color:var(--primary-color); transition:.2s;}
+        .zoom-btn:hover {background:#f0f0f0; transform:scale(1.1);}
+        
+        /* Legend */
+        .chart-legend {position:absolute; bottom:10px; left:10px; background:#fff; padding:1rem; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,.15); font-size:.75rem;}
+        .legend-item {display:flex; align-items:center; gap:.5rem; margin-bottom:.5rem;}
+        .legend-color {width:20px; height:15px; border-radius:3px;}
+        
+        /* Statistics */
+        .stats-mini {display:flex; gap:2rem; margin-bottom:1rem;}
+        .stat-mini {text-align:center;}
+        .stat-mini .number {font-size:1.5rem; font-weight:bold; color:var(--primary-color); margin:0;}
+        .stat-mini .label {font-size:.75rem; color:var(--text-secondary); margin:0;}
+        
+        /* Empty State */
+        .empty-state {text-align:center; padding:4rem 2rem; color:#6c757d;}
+        .empty-state i {font-size:4rem; margin-bottom:1rem; opacity:0.5;}
+        .empty-state h3 {margin-bottom:1rem; font-weight:normal;}
+        .empty-state p {margin-bottom:2rem; font-size:.9rem;}
+        
+        /* Tooltip */
+        .tooltip {position:absolute; background:rgba(0,0,0,0.8); color:white; padding:.5rem .75rem; border-radius:4px; font-size:.75rem; pointer-events:none; z-index:1000; opacity:0; transition:opacity .2s;}
+        .tooltip.show {opacity:1;}
+        
+        /* Header User Profile Styles */
+        .user-profile {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .profile-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 0.25rem;
+            display: flex;
+            align-items: center;
+        }
+
+        .profile-btn img {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+
+        .profile-dropdown {
+            display: none;
+            position: absolute;
+            top: 100%;
+            right: 0;
+            background: #fff;
+            border-radius: 4px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            min-width: 200px;
+            z-index: 2000;
+            border: 1px solid #e0e0e0;
+        }
+
+        .profile-dropdown.show {
+            display: block;
+        }
+
+        .profile-dropdown ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .profile-dropdown ul li {
+            padding: 0;
+        }
+
+        .profile-dropdown ul li a {
+            display: flex;
+            align-items: center;
+            padding: 12px 16px;
+            color: #333;
+            text-decoration: none;
+            transition: background-color 0.2s;
+        }
+
+        .profile-dropdown ul li a:hover {
+            background-color: #f8f9fa;
+        }
+
+        .profile-dropdown ul li a i {
+            margin-right: 10px;
+            width: 16px;
+            color: #666;
+        }
+
+        /* Notification Styles */
+        .notification-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            position: relative;
+            padding: 0.5rem;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 0.5rem;
+        }
+
+        .notification-badge {
+            position: absolute;
+            top: 2px;
+            right: 2px;
+            background: #e74c3c;
+            color: white;
+            border-radius: 50%;
+            padding: 2px 6px;
+            font-size: 0.7rem;
+            min-width: 18px;
+            text-align: center;
+            display: none;
+        }
+
+        .notification-dropdown {
+            display: none;
+            position: absolute;
+            top: 100%;
+            right: 0;
+            background: #fff;
+            border-radius: 4px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            min-width: 300px;
+            max-width: 400px;
+            z-index: 1000;
+        }
+
+        .notification-dropdown.show {
+            display: block;
+        }
+
+        .notification-header {
+            padding: 12px 16px;
+            border-bottom: 1px solid #eee;
+            font-weight: 600;
+            color: #333;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .notification-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .notification-actions button {
+            background: none;
+            border: none;
+            color: #666;
+            cursor: pointer;
+            font-size: 0.75rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 3px;
+            transition: background-color 0.2s;
+        }
+
+        .notification-actions button:hover {
+            background-color: #f0f0f0;
+        }
+
+        .notification-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .notification-item {
+            padding: 12px 16px;
+            border-bottom: 1px solid #f0f0f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 8px;
+        }
+
+        .notification-item.unread {
+            background-color: #f8f9fa;
+            border-left: 3px solid #3498db;
+        }
+
+        .notification-content {
+            flex: 1;
+        }
+
+        .notification-title {
+            font-weight: 600;
+            font-size: 0.85rem;
+            color: #333;
+            margin-bottom: 4px;
+        }
+
+        .notification-message {
+            font-size: 0.75rem;
+            color: #666;
+            line-height: 1.4;
+            margin-bottom: 4px;
+        }
+
+        .notification-time {
+            font-size: 0.7rem;
+            color: #999;
+        }
+
+        .notification-empty {
+            padding: 40px 20px;
+            text-align: center;
+            color: #999;
+        }
+
+        .notification-empty i {
+            font-size: 32px;
+            margin-bottom: 12px;
+            color: #ddd;
+        }
+
+        .notification-empty-title {
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 4px;
+            color: #666;
+        }
+
+        .notification-empty-message {
+            font-size: 12px;
+            color: #999;
+        }
+
+        /* Menu Loading and Permission Styles */
+        .sidebar.menu-loading .menu-item,
+        .sidebar.menu-loading .menu-dropdown,
+        .sidebar.menu-loading li[data-feature],
+        .sidebar.menu-loading [data-feature] {
+            display: none !important;
+        }
+
+        .menu-loading [data-feature] {
+            display: none !important;
+        }
+
+        .menu-loading .menu-dropdown {
+            display: none !important;
+        }
+
+        /* Hide menu items by default - only show when explicitly marked visible */
+        [data-feature]:not(.menu-visible) {
+            display: none !important;
+        }
+
+        .sidebar .menu [data-feature] { 
+            display: none !important; 
+        }
+        
+        .sidebar .menu [data-feature].menu-visible { 
+            display: block !important; 
+        }
+
+        .menu-dropdown:not(.menu-visible) {
+            display: none !important;
+        }
+
+        /* Header Company Logo Styles */
+        .header-company-logo {
+            height: 32px;
+            width: auto;
+            border-radius: 4px;
+            object-fit: contain;
+        }
+
+        .header-logo-placeholder {
+            height: 32px;
+            width: 32px;
+            background: #f0f0f0;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #999;
+            font-size: 14px;
+        }
+
+        .company-name-header {
+            font-weight: 600;
+            color: var(--text-primary);
+            font-size: 0.9rem;
+        }
+
+        .top-nav-right {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+    </style>
+</head>
+<body>
+<div class="app-container">
+    <!-- Left Sidebar -->
+    <nav class="sidebar menu-loading">
+        <div class="logo">
+            <h2>Dreamex Datalab</h2>
+        </div>
+        <ul class="menu" id="roleBasedMenu">
+            <li class="menu-item" data-feature="home_view" data-requires-permission="home_view">
+                <a href="index.html"><i class="fas fa-home"></i> Home</a>
+            </li>
+            <li class="menu-dropdown" data-feature="health_view" data-requires-permission="health_view">
+                <a href="#"><i class="fas fa-medkit"></i> Health</a>
+                <ul class="submenu">
+                    <li data-feature="health_assessment_view" data-requires-permission="health_assessment_view">
+                        <a href="health-assessment.html">Assessment</a>
+                    </li>
+                    <li data-feature="health_consultation_view" data-requires-permission="health_consultation_view">
+                        <a href="health-consultation.html">Consultation</a>
+                    </li>
+                    <li data-feature="medical_folder_view" data-requires-permission="medical_folder_view">
+                        <a href="medical-folder.html">Medical Folder</a>
+                    </li>
+                </ul>
+            </li>
+            <li class="menu-dropdown" data-feature="safety_view" data-requires-permission="safety_view">
+                <a href="#"><i class="fas fa-shield-alt"></i> Safety</a>
+                <ul class="submenu">
+                    <li data-feature="training_view" data-requires-permission="training_view"><a href="trainingboard.html">Training</a></li>
+                    <li data-feature="risk_view" data-requires-permission="risk_view"><a href="riskboard.html">Risk Management</a></li>
+                    <li data-feature="jsa_view" data-requires-permission="jsa_view"><a href="jsaboard.html">Job Safety Analysis</a></li>
+                    <li data-feature="ptw_view" data-requires-permission="ptw_view"><a href="ptwboard.html">Permit to Work</a></li>
+                    <li data-feature="incident_view" data-requires-permission="incident_view"><a href="incidentboard.html">Incident Reports</a></li>
+                    <li data-feature="inspection_view" data-requires-permission="inspection_view"><a href="inspectionboard.html">Inspection</a></li>
+                    <li data-feature="audit_view" data-requires-permission="audit_view"><a href="auditboard.html">Audit</a></li>
+                </ul>
+            </li>
+            <li class="menu-dropdown" data-feature="fuel_management" data-requires-permission="fuel_management">
+                <a href="#"><i class="fas fa-gas-pump"></i> Fuel Management</a>
+                <ul class="submenu">
+                    <li data-feature="vessel_offloading" data-requires-permission="vessel_offloading"><a href="vessel-offloading.html">Vessel Offloading</a></li>
+                    <li data-feature="fuel_storage" data-requires-permission="fuel_storage"><a href="fuel-storage-status.html">Fuel Storage Status</a></li>
+                    <li data-feature="tank_transfer" data-requires-permission="tank_transfer"><a href="tank-transfer.html">Tank-to-Tank Transfer</a></li>
+                    <li data-feature="truck_loading" data-requires-permission="truck_loading"><a href="fuel-truck-loading.html">Fuel Truck Loading</a></li>
+                    <li data-feature="quality_analysis" data-requires-permission="quality_analysis"><a href="fuel-quality-analysis.html">Fuel Quality Analysis</a></li>
+                    <li data-feature="fuel_distribution" data-requires-permission="fuel_distribution"><a href="fueldistrib.html">Fuel Distribution</a></li>
+                    <li data-feature="fuel_consumption_analysis" data-requires-permission="fuel_consumption_analysis"><a href="fuelanalys.html">Consumption Analysis</a></li>
+                </ul>
+            </li>
+            <li class="menu-dropdown" data-feature="environment_view" data-requires-permission="environment_view">
+                <a href="#"><i class="fas fa-leaf"></i> Environment</a>
+                <ul class="submenu">
+                    <li data-feature="water_view" data-requires-permission="water_view"><a href="waterboard.html">Water Quality</a></li>
+                </ul>
+            </li>
+            <li class="menu-dropdown" data-feature="security_view" data-requires-permission="security_view">
+                <a href="#"><i class="fas fa-lock"></i> Security</a>
+                <ul class="submenu">
+                    <li data-feature="access_view" data-requires-permission="access_view"><a href="accessboard.html">Access Request</a></li>
+                    <li data-feature="access_daily_view" data-requires-permission="access_view"><a href="accessdaily.html">Daily Access Control</a></li>
+                    <li data-feature="removal_view" data-requires-permission="removal_view"><a href="removalboard.html">Property Removal</a></li>
+                </ul>
+            </li>
+            <li class="menu-dropdown" data-feature="logistics_view" data-requires-permission="logistics_view">
+                <a href="#"><i class="fas fa-truck"></i> Logistics</a>
+                <ul class="submenu">
+                    <li data-feature="fleet_view" data-requires-permission="fleet_view"><a href="fleetboard.html">Fleet Management</a></li>
+                </ul>
+            </li>
+            <li class="menu-dropdown" data-feature="hr_view" data-requires-permission="hr_view">
+                <a href="#"><i class="fas fa-users"></i> HR</a>
+                <ul class="submenu">
+                    <li data-feature="human_hr_view" data-requires-permission="human_hr_view"><a href="human-hr.html"><i class="fas fa-user-tie"></i> Human HR</a></li>
+                    <li data-feature="staff_management_view" data-requires-permission="staff_management_view"><a href="staff.html">Staffing</a></li>
+                    <li data-feature="authority_to_recruit_view" data-requires-permission="authority_to_recruit_view"><a href="recruit.html">Authority to Recruit</a></li>
+                    <li data-feature="job_advertising_view" data-requires-permission="job_advertising_view"><a href="jobpost.html">Job Advertising</a></li>
+                    <li data-feature="screening_view" data-requires-permission="screening_view"><a href="jobscreen.html">Screening</a></li>
+                    <li data-feature="interview_view" data-requires-permission="interview_view"><a href="interview.html">Interview</a></li>
+                    <li data-feature="offer_view" data-requires-permission="offer_view"><a href="offer.html">Offer Management</a></li>
+                    <li data-feature="contract_view" data-requires-permission="contract_view"><a href="contract.html">Contract Management</a></li>
+                    <li data-feature="onboarding_view" data-requires-permission="onboarding_view"><a href="onboard.html">Onboarding</a></li>
+                    <li data-feature="kpi_dashboard_view" data-requires-permission="kpi_dashboard_view"><a href="kpi.html">KPI</a></li>
+                    <li data-feature="org_chart_management_view" data-requires-permission="org_chart_management_view"><a href="chart.html">Organizational Chart</a></li>
+                    <li data-feature="org_chart_board_view" data-requires-permission="org_chart_board_view"><a href="chartboard.html" class="active">Organization Board</a></li>
+                </ul>
+            </li>
+            <li data-feature="communication_view" data-requires-permission="communication_view"><a href="info.html"><i class="fas fa-comments"></i> Communication</a></li>
+            <li class="menu-dropdown" data-feature="settings_view" data-requires-permission="settings_view">
+                <a href="#"><i class="fas fa-cog"></i> Settings</a>
+                <ul class="submenu">
+                    <li data-feature="account_settings_view" data-requires-permission="account_settings_view"><a href="account.html">Account Settings</a></li>
+                    <li data-feature="company_management_view" data-requires-permission="company_management_view"><a href="companymanagement.html">Company Management</a></li>
+                    <li data-feature="approval_settings_view" data-requires-permission="approval_settings_view"><a href="approval-settings.html">Approval Flow Settings</a></li>
+                    <li data-feature="field_setup_view" data-requires-permission="field_setup_view"><a href="fieldsetup.html">Field Setup</a></li>
+                    <li data-feature="preferences_view" data-requires-permission="preferences_view"><a href="preferences.html">Preferences</a></li>
+                    <li data-feature="notification_settings_view" data-requires-permission="notification_settings_view"><a href="notification-settings.html">Notification Settings</a></li>
+                    <li data-feature="audit_log_view" data-requires-permission="audit_log_view"><a href="auditlog.html"><i class="fas fa-history"></i> Audit Log</a></li>
+                    <li data-feature="user_management_view" data-requires-permission="user_management_view"><a href="users.html">User & Role Management</a></li>
+                    <li data-feature="role_permissions_view" data-requires-permission="role_permissions_view"><a href="roles.html">Role Permissions</a></li>
+                </ul>
+            </li>
+        </ul>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content" id="mainContent">
+        <!-- Top Navigation -->
+        <header class="top-nav">
+            <div class="top-nav-left">
+                <button id="sidebarToggle" class="sidebar-toggle-btn">
+                    <i class="fas fa-bars"></i>
+                </button>
+                <img id="headerCompanyLogo" class="header-company-logo" src="" alt="Company Logo">
+                <div id="headerLogoPlaceholder" class="header-logo-placeholder">
+                    <i class="fas fa-building"></i>
+                </div>
+                <span id="headerCompanyName" class="company-name-header"></span>
+            </div>
+            <div class="top-nav-right">
+                <button id="exportBtn" class="btn btn-secondary">
+                    <i class="fas fa-download"></i> Export
+                </button>
+                <div class="notifications">
+                    <button id="notificationBtn" class="notification-btn">
+                        <i class="fas fa-bell"></i>
+                        <span class="notification-badge">0</span>
+                    </button>
+                    <div class="notification-dropdown">
+                        <div class="notification-header">
+                            <h3><i class="fas fa-bell" style="margin-right: 6px; color: #3498db;"></i>Notifications</h3>
+                            <div>
+                                <button class="mark-all-read">Mark all as read</button>
+                                <button class="clear-all-notifications">Clear all</button>
+                            </div>
+                        </div>
+                        <div class="notification-list" id="notificationList">
+                            <!-- Empty state -->
+                            <div class="notification-empty" id="notificationEmpty">
+                                <i class="fas fa-bell-slash"></i>
+                                <div class="notification-empty-title">No notifications</div>
+                                <div class="notification-empty-message">You're all caught up!</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="user-profile">
+                    <button id="userProfileBtn" class="profile-btn">
+                        <img id="userAvatar" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA0MCA0MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMjAiIGN5PSIyMCIgcj0iMjAiIGZpbGw9IiMzNDk4ZGIiLz4KPHN2ZyB4PSI4IiB5PSI4IiB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSI+CjxwYXRoIGQ9Ik0yMCAyMXYtMmE0IDQgMCAwIDAtNC00SDhhNCA0IDAgMCAwLTQgNHYyIiBzdHJva2U9IndoaXRlIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPgo8Y2lyY2xlIGN4PSIxMiIgY3k9IjciIHI9IjQiIHN0cm9rZT0id2hpdGUiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIi8+Cjwvc3ZnPgo8L3N2Zz4K" alt="User Avatar">
+                    </button>
+                    <div class="profile-dropdown">
+                        <ul>
+                            <li><a href="profile.html"><i class="fas fa-id-card"></i> My Profile</a></li>
+                            <li><a href="#" onclick="window.authManager?.logout()"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Page Content -->
+        <section class="content">
+            <div class="page-header">
+                <h1><i class="fas fa-sitemap"></i> Organization Board</h1>
+                <div class="stats-mini">
+                    <div class="stat-mini">
+                        <div class="number" id="totalPositionsCount">0</div>
+                        <div class="label">Positions</div>
+                    </div>
+                    <div class="stat-mini">
+                        <div class="number" id="totalLevelsCount">0</div>
+                        <div class="label">Levels</div>
+                    </div>
+                    <div class="stat-mini">
+                        <div class="number" id="totalDepartmentsCount">0</div>
+                        <div class="label">Departments</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Controls -->
+            <div class="controls-section">
+                <div class="control-group">
+                    <label>View Mode</label>
+                    <select id="viewMode">
+                        <option value="hierarchy">Hierarchy View</option>
+                        <option value="department">Department View</option>
+                        <option value="compact">Compact View</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label>Department Filter</label>
+                    <select id="departmentFilter">
+                        <option value="">All Departments</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label>Level Filter</label>
+                    <select id="levelFilter">
+                        <option value="">All Levels</option>
+                    </select>
+                </div>
+                <button class="btn btn-primary" onclick="refreshChart()">
+                    <i class="fas fa-sync"></i> Refresh
+                </button>
+                <button class="btn btn-secondary" onclick="resetZoom()">
+                    <i class="fas fa-search-minus"></i> Reset Zoom
+                </button>
+            </div>
+
+            <!-- Organization Chart -->
+            <div class="org-chart-container" id="orgChartContainer">
+                <svg class="org-chart-svg" id="orgChartSvg"></svg>
+                
+                <!-- Zoom Controls -->
+                <div class="zoom-controls">
+                    <button class="zoom-btn" onclick="zoomIn()" title="Zoom In">
+                        <i class="fas fa-plus"></i>
+                    </button>
+                    <button class="zoom-btn" onclick="zoomOut()" title="Zoom Out">
+                        <i class="fas fa-minus"></i>
+                    </button>
+                    <button class="zoom-btn" onclick="fitToScreen()" title="Fit to Screen">
+                        <i class="fas fa-expand"></i>
+                    </button>
+                </div>
+
+                <!-- Legend -->
+                <div class="chart-legend">
+                    <h4 style="margin:0 0 .75rem; font-size:.8rem; color:var(--primary-color);">Hierarchy Levels</h4>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background:#e3f2fd; border:1px solid #1976d2;"></div>
+                        <span>Level 0 (CEO/Top)</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background:#f3e5f5; border:1px solid #7b1fa2;"></div>
+                        <span>Level 1 (Executives)</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background:#e8f5e8; border:1px solid #388e3c;"></div>
+                        <span>Level 2 (Managers)</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background:#fff3e0; border:1px solid #f57c00;"></div>
+                        <span>Level 3+ (Staff)</span>
+                    </div>
+                </div>
+
+                <!-- Empty State -->
+                <div class="empty-state" id="emptyState" style="display:none;">
+                    <i class="fas fa-sitemap"></i>
+                    <h3>No Organizational Structure Found</h3>
+                    <p>Create job positions in the Organizational Chart Management page to see the organization structure here.</p>
+                    <a href="chart.html" class="btn btn-primary">
+                        <i class="fas fa-plus"></i> Create Positions
+                    </a>
+                </div>
+            </div>
+
+            <!-- Tooltip -->
+            <div class="tooltip" id="tooltip"></div>
+        </section>
+    </main>
+</div>
+
+<script>
+// Firebase Configuration
+const firebaseConfig = {
+    apiKey: "AIzaSyCUTmTn0rRBb0M-UkQJxnUMrWqXYU_BgIc",
+    authDomain: "users-8be65.firebaseapp.com",
+    databaseURL: "https://users-8be65-default-rtdb.firebaseio.com",
+    projectId: "users-8be65",
+    storageBucket: "users-8be65.firebasestorage.app",
+    messagingSenderId: "909025468149",
+    appId: "1:909025468149:web:fb4e7c4a8b4bd6d1076e4d",
+    measurementId: "G-XHFMRCJQEZ"
+};
+
+// Initialize Firebase
+if (!window.firebase || !window.firebase.apps || window.firebase.apps.length === 0) {
+    window.firebase.initializeApp(firebaseConfig);
+}
+
+// Global variables
+let currentUser = null;
+let currentCompany = null;
+let positions = [];
+let svg, g, zoom;
+let width, height;
+
+// Initialize page
+document.addEventListener('DOMContentLoaded', function() {
+    // Wait for AuthManager to be ready
+    setTimeout(() => {
+        initializePage();
+        setupEventListeners();
+        initializeChart();
+    }, 100);
+});
+
+async function initializePage() {
+    try {
+        console.log('Initializing chartboard page...');
+        
+        // Check for authenticated user via AuthManager
+        if (!window.authManager || !window.authManager.currentUser) {
+            console.warn('No authenticated user found');
+            window.location.href = 'login.html';
+            return;
+        }
+
+        // Use AuthManager's current user
+        currentUser = window.authManager.currentUser;
+        console.log('Current user:', currentUser.email);
+
+        // Load company data
+        const companySnapshot = await firebase.database().ref(`users/${currentUser.uid}/companyId`).once('value');
+        const companyId = companySnapshot.val();
+        
+        console.log('Company ID from user:', companyId);
+        
+        if (companyId) {
+            const companyDataSnapshot = await firebase.database().ref(`companies/${companyId}`).once('value');
+            currentCompany = { id: companyId, ...companyDataSnapshot.val() };
+            console.log('Current company:', currentCompany.name || currentCompany.id);
+        } else {
+            console.warn('No company ID found for user');
+        }
+
+        await loadPositions();
+        updateStatistics();
+        populateFilters();
+        renderOrganizationChart();
+        
+        // Initialize header
+        initializeHeader();
+
+        // Initialize feature-based menu authorization
+        await updateMenuWithFeatureAuthorization();
+
+    } catch (error) {
+        console.error('Error initializing page:', error);
+    }
+}
+
+function initializeHeader() {
+    // Set up company logo and name
+    if (currentCompany) {
+        const headerCompanyName = document.getElementById('headerCompanyName');
+        if (headerCompanyName) {
+            // Prefer companyName (as used across app), fallback to name
+            headerCompanyName.textContent = currentCompany.companyName || currentCompany.name || 'Company';
+        }
+        
+        // Handle company logo
+        const headerCompanyLogo = document.getElementById('headerCompanyLogo');
+        const headerLogoPlaceholder = document.getElementById('headerLogoPlaceholder');
+        
+        // Support both `logo` and `logoUrl` fields
+        const logoUrl = currentCompany.logo || currentCompany.logoUrl;
+        if (logoUrl && headerCompanyLogo) {
+            headerCompanyLogo.src = logoUrl;
+            headerCompanyLogo.style.display = 'block';
+            if (headerLogoPlaceholder) {
+                headerLogoPlaceholder.style.display = 'none';
+            }
+        } else {
+            if (headerCompanyLogo) {
+                headerCompanyLogo.style.display = 'none';
+            }
+            if (headerLogoPlaceholder) {
+                headerLogoPlaceholder.style.display = 'flex';
+            }
+        }
+    }
+}
+
+function setupEventListeners() {
+    // Sidebar toggle
+    const sidebarToggle = document.getElementById('sidebarToggle');
+    if (sidebarToggle) {
+        sidebarToggle.addEventListener('click', toggleSidebar);
+    }
+    
+    // Filter changes
+    const viewMode = document.getElementById('viewMode');
+    const departmentFilter = document.getElementById('departmentFilter');
+    const levelFilter = document.getElementById('levelFilter');
+    
+    if (viewMode) {
+        viewMode.addEventListener('change', renderOrganizationChart);
+    }
+    if (departmentFilter) {
+        departmentFilter.addEventListener('change', renderOrganizationChart);
+    }
+    if (levelFilter) {
+        levelFilter.addEventListener('change', renderOrganizationChart);
+    }
+    
+    // Export button
+    const exportBtn = document.getElementById('exportBtn');
+    if (exportBtn) {
+        exportBtn.addEventListener('click', exportChart);
+    }
+    
+    // User Profile Dropdown
+    const userProfileBtn = document.getElementById('userProfileBtn');
+    const profileDropdown = document.querySelector('.profile-dropdown');
+    
+    console.log('Profile elements found:', {
+        button: !!userProfileBtn,
+        dropdown: !!profileDropdown
+    });
+    
+    if (userProfileBtn && profileDropdown) {
+        userProfileBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            console.log('Profile button clicked, current show state:', profileDropdown.classList.contains('show'));
+            profileDropdown.classList.toggle('show');
+            console.log('Profile dropdown toggled, new show state:', profileDropdown.classList.contains('show'));
+        });
+    } else {
+        console.error('Profile dropdown elements not found:', {
+            userProfileBtn: userProfileBtn,
+            profileDropdown: profileDropdown
+        });
+    }
+    
+    // Notification dropdown
+    const notificationBtn = document.getElementById('notificationBtn');
+    const notificationDropdown = document.querySelector('.notification-dropdown');
+    
+    if (notificationBtn && notificationDropdown) {
+        notificationBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            notificationDropdown.classList.toggle('show');
+        });
+    }
+    
+    // Close dropdowns when clicking outside
+    document.addEventListener('click', function(e) {
+        if (profileDropdown && !profileDropdown.contains(e.target) && !userProfileBtn.contains(e.target)) {
+            profileDropdown.classList.remove('show');
+        }
+        if (notificationDropdown && !notificationDropdown.contains(e.target) && !notificationBtn.contains(e.target)) {
+            notificationDropdown.classList.remove('show');
+        }
+    });
+}
+
+function toggleSidebar() {
+    const sidebar = document.querySelector('.sidebar');
+    const mainContent = document.getElementById('mainContent');
+    const topNav = document.querySelector('.top-nav');
+    
+    if (sidebar) {
+        sidebar.classList.toggle('collapsed');
+    }
+    if (mainContent) {
+        mainContent.classList.toggle('sidebar-collapsed');
+    }
+    if (topNav) {
+        topNav.classList.toggle('sidebar-collapsed');
+    }
+}
+
+async function loadPositions() {
+    if (!currentCompany) {
+        console.warn('No currentCompany found for loading positions');
+        return;
+    }
+    
+    console.log('Loading positions for company:', currentCompany.id);
+    
+    try {
+        const snapshot = await firebase.database().ref(`companies/${currentCompany.id}/orgChart`).once('value');
+        const positionData = snapshot.val();
+        
+        console.log('Raw position data from Firebase:', positionData);
+        
+        positions = positionData ? Object.values(positionData).filter(p => p.isActive !== false) : [];
+        
+        console.log('Filtered positions:', positions.length, positions);
+        
+    } catch (error) {
+        console.error('Error loading positions:', error);
+    }
+}
+
+function initializeChart() {
+    console.log('Initializing D3 chart...');
+    
+    const container = document.getElementById('orgChartContainer');
+    if (!container) {
+        console.error('Chart container not found!');
+        return;
+    }
+    
+    width = container.clientWidth;
+    height = container.clientHeight;
+    
+    console.log('Chart dimensions:', width, 'x', height);
+
+    svg = d3.select('#orgChartSvg')
+        .attr('width', width)
+        .attr('height', height);
+        
+    if (svg.empty()) {
+        console.error('SVG element not found!');
+        return;
+    }
+
+    // Create zoom behavior
+    zoom = d3.zoom()
+        .scaleExtent([0.1, 3])
+        .on('zoom', (event) => {
+            g.attr('transform', event.transform);
+        });
+
+    svg.call(zoom);
+
+    // Create main group for zooming and panning
+    g = svg.append('g');
+    
+    console.log('D3 chart initialized successfully');
+}
+
+function updateStatistics() {
+    document.getElementById('totalPositionsCount').textContent = positions.length;
+    document.getElementById('totalLevelsCount').textContent = Math.max(...positions.map(p => p.hierarchyLevel || 0), 0) + 1;
+    document.getElementById('totalDepartmentsCount').textContent = new Set(positions.map(p => p.department)).size;
+}
+
+function populateFilters() {
+    // Populate department filter
+    const departments = [...new Set(positions.map(p => p.department))].sort();
+    const deptFilter = document.getElementById('departmentFilter');
+    deptFilter.innerHTML = '<option value="">All Departments</option>';
+    departments.forEach(dept => {
+        deptFilter.innerHTML += `<option value="${dept}">${dept}</option>`;
+    });
+
+    // Populate level filter
+    const levels = [...new Set(positions.map(p => p.hierarchyLevel || 0))].sort((a, b) => a - b);
+    const levelFilter = document.getElementById('levelFilter');
+    levelFilter.innerHTML = '<option value="">All Levels</option>';
+    levels.forEach(level => {
+        levelFilter.innerHTML += `<option value="${level}">Level ${level}</option>`;
+    });
+}
+
+function renderOrganizationChart() {
+    console.log('Rendering organization chart with', positions.length, 'positions');
+    
+    // Clear previous chart
+    if (g) {
+        g.selectAll('*').remove();
+    }
+
+    if (positions.length === 0) {
+        console.log('No positions found, showing empty state');
+        document.getElementById('emptyState').style.display = 'block';
+        return;
+    }
+
+    console.log('Hiding empty state, rendering chart');
+    document.getElementById('emptyState').style.display = 'none';
+
+    // Filter positions based on current filters
+    let filteredPositions = [...positions];
+    
+    const deptFilter = document.getElementById('departmentFilter').value;
+    const levelFilter = document.getElementById('levelFilter').value;
+    
+    if (deptFilter) {
+        filteredPositions = filteredPositions.filter(p => p.department === deptFilter);
+    }
+    
+    if (levelFilter !== '') {
+        filteredPositions = filteredPositions.filter(p => (p.hierarchyLevel || 0) == levelFilter);
+    }
+
+    // Build hierarchy
+    const hierarchy = buildHierarchy(filteredPositions);
+    
+    // Create tree layout
+    const viewMode = document.getElementById('viewMode').value;
+    if (viewMode === 'hierarchy') {
+        renderHierarchyChart(hierarchy);
+    } else if (viewMode === 'department') {
+        renderDepartmentChart(filteredPositions);
+    } else {
+        renderCompactChart(hierarchy);
+    }
+}
+
+function buildHierarchy(positionList) {
+    const positionMap = {};
+    
+    // Create position map
+    positionList.forEach(position => {
+        positionMap[position.id] = { 
+            ...position, 
+            children: [],
+            x: 0,
+            y: 0
+        };
+    });
+    
+    // Build parent-child relationships
+    const roots = [];
+    positionList.forEach(position => {
+        if (position.reportsTo && positionMap[position.reportsTo]) {
+            positionMap[position.reportsTo].children.push(positionMap[position.id]);
+        } else {
+            roots.push(positionMap[position.id]);
+        }
+    });
+    
+    return roots;
+}
+
+function renderHierarchyChart(hierarchy) {
+    if (hierarchy.length === 0) return;
+    // ================= Improved Organized Hierarchy Layout =================
+    // Combine multiple root nodes under a hidden dummy root so D3 can space them nicely
+    const dummyRoot = { id: '__root__', jobTitle: 'ROOT', children: hierarchy };
+    const rootHierarchy = d3.hierarchy(dummyRoot, d => d.children);
+
+    // Layout configuration
+    const NODE_WIDTH = 180;           // visual width incl. padding
+    const NODE_HEIGHT = 90;           // visual height incl. padding
+    const HORIZONTAL_GAP = 40;        // gap between sibling columns
+    const VERTICAL_GAP = 120;         // gap between levels
+    const SIDE_MARGIN = 40;           // left/right padding inside svg
+    const TOP_MARGIN = 40;            // top margin
+
+    // Compute leaf count & depth for dynamic sizing
+    const allNodes = rootHierarchy.descendants();
+    const leaves = rootHierarchy.leaves();
+    const depth = d3.max(allNodes, d => d.depth); // includes dummy root
+    const effectiveDepth = depth - 1; // exclude dummy root
+
+    // Dynamic required size
+    const requiredWidth = Math.max(width, (leaves.length * (NODE_WIDTH + HORIZONTAL_GAP)) + (SIDE_MARGIN * 2));
+    const requiredHeight = Math.max(height, (effectiveDepth * (NODE_HEIGHT + VERTICAL_GAP)) + TOP_MARGIN + NODE_HEIGHT);
+
+    // Update svg size if needed
+    d3.select('#orgChartSvg')
+        .attr('width', requiredWidth)
+        .attr('height', requiredHeight);
+
+    // Create tree layout (x spans horizontal width, y depth vertically)
+    const treeLayout = d3.tree()
+        .size([requiredWidth - (SIDE_MARGIN * 2), (effectiveDepth * (NODE_HEIGHT + VERTICAL_GAP))])
+        .separation((a, b) => (a.parent === b.parent ? 1 : 1.4));
+
+    treeLayout(rootHierarchy);
+
+    // Filter out dummy root for rendering
+    const nodesToRender = allNodes.filter(d => d.data.id !== '__root__');
+    const linksToRender = rootHierarchy.links().filter(l => l.source.data.id !== '__root__');
+
+    // Draw links (top-down)
+    g.selectAll('.org-link')
+        .data(linksToRender)
+        .enter()
+        .append('path')
+        .attr('class', 'org-link parent-child')
+        .attr('d', d3.linkVertical()
+            .x(d => d.x + SIDE_MARGIN)
+            .y(d => (d.y) + TOP_MARGIN)
+        );
+
+    // Node groups
+    const nodeGroups = g.selectAll('.org-node')
+        .data(nodesToRender, d => d.data.id)
+        .enter()
+        .append('g')
+        .attr('class', d => `org-node level-${d.data.hierarchyLevel || 0}`)
+        .attr('transform', d => `translate(${d.x + SIDE_MARGIN}, ${d.y + TOP_MARGIN})`)
+        .on('click', showPositionDetails)
+        .on('mouseover', showTooltip)
+        .on('mouseout', hideTooltip);
+
+    // Rectangle (centered)
+    nodeGroups.append('rect')
+        .attr('width', NODE_WIDTH)
+        .attr('height', NODE_HEIGHT)
+        .attr('x', -NODE_WIDTH / 2)
+        .attr('y', -NODE_HEIGHT / 2)
+        .attr('rx', 10)
+        .attr('ry', 10);
+
+    // Title
+    nodeGroups.append('text')
+        .attr('class', 'title')
+        .attr('text-anchor', 'middle')
+        .attr('y', -18)
+        .text(d => truncateText(d.data.jobTitle || '(No Title)', 20));
+
+    // Department
+    nodeGroups.append('text')
+        .attr('class', 'department')
+        .attr('text-anchor', 'middle')
+        .attr('y', 0)
+        .text(d => truncateText(d.data.department || '', 22));
+
+    // Level / meta
+    nodeGroups.append('text')
+        .attr('class', 'level')
+        .attr('text-anchor', 'middle')
+        .attr('y', 18)
+        .text(d => `Level ${d.data.hierarchyLevel || 0}`);
+
+    // Auto-fit to container view (without altering stored size) – similar to Fit button but immediate
+    fitChartToContainer();
+
+    function fitChartToContainer() {
+        try {
+            const svgEl = d3.select('#orgChartSvg');
+            const groupNode = g.node();
+            if (!groupNode) return;
+            const bounds = groupNode.getBBox();
+            const containerEl = document.getElementById('orgChartContainer');
+            if (!containerEl || bounds.width === 0 || bounds.height === 0) return;
+
+            const fullWidth = containerEl.clientWidth;
+            const fullHeight = containerEl.clientHeight;
+            const scale = Math.min(1, 0.9 / Math.max(bounds.width / fullWidth, bounds.height / fullHeight));
+            const translateX = (fullWidth - bounds.width * scale) / 2 - bounds.x * scale;
+            const translateY = Math.max(10, (fullHeight - bounds.height * scale) / 2 - bounds.y * scale);
+
+            svgEl.transition().duration(500).call(
+                zoom.transform,
+                d3.zoomIdentity.translate(translateX, translateY).scale(scale)
+            );
+        } catch (e) {
+            console.warn('Auto-fit failed:', e);
+        }
+    }
+
+    // Re-fit on window resize (debounced)
+    let resizeTimer;
+    window.addEventListener('resize', () => {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(() => fitChartToContainer(), 200);
+    }, { once: true }); // once per render
+    // ========================================================================
+}
+
+function renderDepartmentChart(positionList) {
+    const departments = groupBy(positionList, 'department');
+    const deptNames = Object.keys(departments);
+    
+    let yOffset = 100;
+    const deptSpacing = 200;
+    
+    deptNames.forEach((deptName, deptIndex) => {
+        const deptPositions = departments[deptName];
+        const xOffset = 150;
+        const posSpacing = 180;
+        
+        // Department header
+        g.append('text')
+            .attr('x', 50)
+            .attr('y', yOffset - 20)
+            .attr('class', 'department-header')
+            .style('font-size', '16px')
+            .style('font-weight', 'bold')
+            .style('fill', '#2c3e50')
+            .text(deptName);
+        
+        deptPositions.forEach((position, posIndex) => {
+            const nodeGroup = g.append('g')
+                .attr('class', `org-node level-${position.hierarchyLevel || 0}`)
+                .attr('transform', `translate(${xOffset + posIndex * posSpacing}, ${yOffset})`)
+                .on('click', () => showPositionDetails({ data: position }))
+                .on('mouseover', (event) => showTooltip(event, { data: position }))
+                .on('mouseout', hideTooltip);
+
+            nodeGroup.append('rect')
+                .attr('width', 160)
+                .attr('height', 80)
+                .attr('x', -80)
+                .attr('y', -40);
+
+            nodeGroup.append('text')
+                .attr('class', 'title')
+                .attr('text-anchor', 'middle')
+                .attr('y', -15)
+                .text(truncateText(position.jobTitle, 18));
+
+            nodeGroup.append('text')
+                .attr('class', 'level')
+                .attr('text-anchor', 'middle')
+                .attr('y', 0)
+                .text(`Level ${position.hierarchyLevel || 0}`);
+
+            // Find reports to
+            const reportsTo = positionList.find(p => p.id === position.reportsTo);
+            if (reportsTo) {
+                nodeGroup.append('text')
+                    .attr('class', 'department')
+                    .attr('text-anchor', 'middle')
+                    .attr('y', 15)
+                    .text(`→ ${truncateText(reportsTo.jobTitle, 15)}`);
+            }
+        });
+        
+        yOffset += deptSpacing;
+    });
+}
+
+function renderCompactChart(hierarchy) {
+    if (hierarchy.length === 0) return;
+
+    let yPos = 100;
+    const levelSpacing = 120;
+    
+    // Group by hierarchy level
+    const allNodes = [];
+    function collectNodes(nodes, level = 0) {
+        nodes.forEach(node => {
+            node.level = level;
+            allNodes.push(node);
+            if (node.children) {
+                collectNodes(node.children, level + 1);
+            }
+        });
+    }
+    collectNodes(hierarchy);
+    
+    const nodesByLevel = groupBy(allNodes, 'level');
+    const levels = Object.keys(nodesByLevel).sort((a, b) => a - b);
+    
+    levels.forEach(level => {
+        const levelNodes = nodesByLevel[level];
+        const xSpacing = Math.max(180, (width - 200) / levelNodes.length);
+        
+        levelNodes.forEach((node, index) => {
+            const xPos = 100 + index * xSpacing;
+            
+            const nodeGroup = g.append('g')
+                .attr('class', `org-node level-${node.hierarchyLevel || 0}`)
+                .attr('transform', `translate(${xPos}, ${yPos})`)
+                .on('click', () => showPositionDetails({ data: node }))
+                .on('mouseover', (event) => showTooltip(event, { data: node }))
+                .on('mouseout', hideTooltip);
+
+            nodeGroup.append('rect')
+                .attr('width', 160)
+                .attr('height', 60)
+                .attr('x', -80)
+                .attr('y', -30);
+
+            nodeGroup.append('text')
+                .attr('class', 'title')
+                .attr('text-anchor', 'middle')
+                .attr('y', -10)
+                .text(truncateText(node.jobTitle, 18));
+
+            nodeGroup.append('text')
+                .attr('class', 'department')
+                .attr('text-anchor', 'middle')
+                .attr('y', 8)
+                .text(truncateText(node.department, 18));
+        });
+        
+        yPos += levelSpacing;
+    });
+}
+
+function groupBy(array, key) {
+    return array.reduce((result, item) => {
+        const group = item[key];
+        if (!result[group]) {
+            result[group] = [];
+        }
+        result[group].push(item);
+        return result;
+    }, {});
+}
+
+function truncateText(text, maxLength) {
+    if (!text) return '';
+    return text.length > maxLength ? text.substring(0, maxLength - 3) + '...' : text;
+}
+
+function showPositionDetails(d) {
+    const position = d.data;
+    const reportsTo = positions.find(p => p.id === position.reportsTo);
+    const directReports = positions.filter(p => p.reportsTo === position.id);
+    
+    alert(`Position Details:
+    
+Job Title: ${position.jobTitle}
+Department: ${position.department}
+Reports To: ${reportsTo ? reportsTo.jobTitle : 'None'}
+Hierarchy Level: ${position.hierarchyLevel || 0}
+Employment Type: ${position.employmentType || 'Not specified'}
+Direct Reports: ${directReports.length}
+
+Description: ${position.jobDescription || 'No description provided'}`);
+}
+
+function showTooltip(event, d) {
+    const position = d.data;
+    const tooltip = document.getElementById('tooltip');
+    const directReports = positions.filter(p => p.reportsTo === position.id).length;
+    
+    tooltip.innerHTML = `
+        <strong>${position.jobTitle}</strong><br>
+        ${position.department}<br>
+        Level ${position.hierarchyLevel || 0}<br>
+        ${directReports} direct report(s)
+    `;
+    
+    tooltip.style.left = event.pageX + 10 + 'px';
+    tooltip.style.top = event.pageY - 10 + 'px';
+    tooltip.classList.add('show');
+}
+
+function hideTooltip() {
+    document.getElementById('tooltip').classList.remove('show');
+}
+
+function refreshChart() {
+    loadPositions().then(() => {
+        updateStatistics();
+        populateFilters();
+        renderOrganizationChart();
+    });
+}
+
+function resetZoom() {
+    svg.transition().duration(750).call(
+        zoom.transform,
+        d3.zoomIdentity
+    );
+}
+
+function zoomIn() {
+    svg.transition().duration(300).call(
+        zoom.scaleBy,
+        1.5
+    );
+}
+
+function zoomOut() {
+    svg.transition().duration(300).call(
+        zoom.scaleBy,
+        1 / 1.5
+    );
+}
+
+function fitToScreen() {
+    const bounds = g.node().getBBox();
+    const parent = svg.node().parentElement;
+    const fullWidth = parent.clientWidth;
+    const fullHeight = parent.clientHeight;
+    const width = bounds.width;
+    const height = bounds.height;
+    const midX = bounds.x + width / 2;
+    const midY = bounds.y + height / 2;
+    
+    if (width === 0 || height === 0) return;
+    
+    const scale = 0.85 / Math.max(width / fullWidth, height / fullHeight);
+    const translate = [fullWidth / 2 - scale * midX, fullHeight / 2 - scale * midY];
+    
+    svg.transition().duration(750).call(
+        zoom.transform,
+        d3.zoomIdentity.translate(translate[0], translate[1]).scale(scale)
+    );
+}
+
+function exportChart() {
+    // Create a new SVG element for export
+    const svgClone = svg.node().cloneNode(true);
+    svgClone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    
+    // Add CSS styles to the exported SVG
+    const style = document.createElementNS('http://www.w3.org/2000/svg', 'style');
+    style.textContent = `
+        .org-node rect { stroke: #2c3e50; stroke-width: 2; fill: #ffffff; }
+        .org-node.level-0 rect { fill: #e3f2fd; stroke: #1976d2; }
+        .org-node.level-1 rect { fill: #f3e5f5; stroke: #7b1fa2; }
+        .org-node.level-2 rect { fill: #e8f5e8; stroke: #388e3c; }
+        .org-node.level-3 rect { fill: #fff3e0; stroke: #f57c00; }
+        .org-node text.title { font-weight: bold; font-size: 14px; fill: #2c3e50; }
+        .org-node text.department { font-size: 11px; fill: #666; }
+        .org-node text.level { font-size: 10px; fill: #999; }
+        .org-link { fill: none; stroke: #bdc3c7; stroke-width: 2; }
+    `;
+    svgClone.insertBefore(style, svgClone.firstChild);
+    
+    // Create blob and download
+    const serializer = new XMLSerializer();
+    const svgString = serializer.serializeToString(svgClone);
+    const blob = new Blob([svgString], { type: 'image/svg+xml' });
+    const url = URL.createObjectURL(blob);
+    
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `org-chart-${new Date().toISOString().split('T')[0]}.svg`;
+    link.click();
+    
+    URL.revokeObjectURL(url);
+}
+
+function logout() {
+    if (window.authManager) {
+        window.authManager.logout();
+    } else {
+        localStorage.removeItem('currentUser');
+        window.location.href = 'login.html';
+    }
+}
+
+// ============================================
+// Enhanced menu visibility system based on roles.html template
+
+// Reset all menu items to hidden
+function resetMenuVisibility() {
+    document.querySelectorAll('[data-feature]').forEach(item => {
+        item.classList.remove('menu-visible');
+    });
+    document.querySelectorAll('.menu-dropdown').forEach(dropdown => {
+        dropdown.classList.remove('menu-visible');
+    });
+}
+
+// Emergency fallback - show basic menu items
+function showBasicMenu() {
+    console.log('🔧 Emergency fallback: Showing basic menu items');
+    resetMenuVisibility();
+    
+    // Remove loading class
+    const sidebar = document.querySelector('.sidebar');
+    if (sidebar) {
+        sidebar.classList.remove('menu-loading');
+    }
+    
+    // Show essential menu items for testing
+    const essentialFeatures = [
+        'home_view',
+        'hr_view',
+        'staff_management_view',
+        'org_chart_management_view',
+        'org_chart_board_view',
+        'settings_view',
+        'account_settings_view'
+    ];
+    
+    essentialFeatures.forEach(feature => {
+        const item = document.querySelector(`[data-feature="${feature}"]`);
+        if (item) {
+            item.classList.add('menu-visible');
+            console.log(`✅ Emergency fallback: Showing ${feature}`);
+        }
+    });
+    
+    // Also show dropdown containers if they have visible children
+    const dropdowns = document.querySelectorAll('.menu-dropdown');
+    dropdowns.forEach(dropdown => {
+        const visibleChildren = dropdown.querySelectorAll('.submenu li.menu-visible');
+        if (visibleChildren.length > 0) {
+            dropdown.classList.add('menu-visible');
+        }
+    });
+}
+
+// Feature-based authorization system that takes priority over role permissions
+async function updateMenuWithFeatureAuthorization() {
+    // Prevent multiple simultaneous executions
+    if (window.isMenuUpdateInProgress) {
+        console.log('🔄 Menu update already in progress, skipping...');
+        return;
+    }
+    
+    window.isMenuUpdateInProgress = true;
+    console.log('🎯 Starting feature-based menu authorization for chartboard.html...');
+    
+    try {
+        let currentUser = null;
+        let companyId = null;
+        let userRole = null;
+        
+        // Get user and company info using authManager first
+        if (window.authManager && window.authManager.currentUser) {
+            currentUser = window.authManager.currentUser;
+            companyId = currentUser.companyId;
+            userRole = currentUser.role;
+            console.log('👤 Using AuthManager - User:', currentUser.email, 'Company ID:', companyId, 'Role:', userRole);
+        } else if (firebase.auth().currentUser) {
+            currentUser = firebase.auth().currentUser;
+            console.log('👤 Using Firebase auth - will search for company and role');
+        } else {
+            console.log('❌ No authenticated user found');
+            resetMenuVisibility();
+            return;
+        }
+        
+        // If no company ID from authManager, search companies collection
+        if (!companyId && currentUser) {
+            console.log('🔍 Searching for user company and role...');
+            const database = firebase.database();
+            const companiesRef = database.ref('companies');
+            const companiesSnapshot = await companiesRef.once('value');
+            
+            if (companiesSnapshot.exists()) {
+                const companies = companiesSnapshot.val();
+                
+                for (const [cId, company] of Object.entries(companies)) {
+                    if (company.status !== 'active') continue;
+                    
+                    if (company.users && company.users[currentUser.uid]) {
+                        companyId = cId;
+                        console.log(`✅ Found user in company: ${companyId} (${company.name})`);
+                        break;
+                    }
+                }
+            }
+        }
+        
+        if (!companyId) {
+            console.error('❌ No company ID found, using emergency fallback menu');
+            showBasicMenu();
+            return;
+        }
+        
+        if (!userRole) {
+            console.warn('⚠️ No user role found, proceeding with company features only');
+        }
+        
+        // STEP 1: Apply company feature-based authorization
+        console.log('🏢 STEP 1: Applying company feature authorization...');
+        const authorizedPages = await applyFeatureBasedMenuVisibility(companyId);
+        
+        // STEP 2: Filter by user role permissions within authorized features
+        if (userRole) {
+            console.log('👤 STEP 2: Applying role-based filtering within authorized features...');
+            await applyRoleBasedFiltering(companyId, userRole, authorizedPages);
+        } else {
+            console.log('⚠️ STEP 2: Skipping role-based filtering (no role found)');
+            showSidebarAfterAuth();
+        }
+        
+    } catch (error) {
+        console.error('❌ Error in feature-based menu authorization:', error);
+        console.log('🔧 Using emergency fallback menu due to error');
+        showBasicMenu();
+    } finally {
+        // Reset the flag to allow future updates
+        window.isMenuUpdateInProgress = false;
+    }
+}
+
+// Apply feature-based menu visibility
+async function applyFeatureBasedMenuVisibility(companyId) {
+    try {
+        console.log('🔧 Applying feature-based menu visibility for company:', companyId);
+        
+        // Get platform features
+        const database = firebase.database();
+        const featuresSnapshot = await database.ref('/platformFeatures').once('value');
+        
+        if (!featuresSnapshot.exists()) {
+            console.log('⚠️ No platform features found, using emergency fallback');
+            showBasicMenu();
+            return [];
+        }
+        
+        const featuresData = featuresSnapshot.val();
+        
+        // Get company's selected features
+        const companySnapshot = await database.ref(`/companies/${companyId}`).once('value');
+        const companyData = companySnapshot.val();
+        
+        if (!companyData) {
+            console.error('❌ Company data not found, using emergency fallback');
+            showBasicMenu();
+            return [];
+        }
+        
+        const subscribedFeatureIds = companyData.selectedFeatures || [];
+        console.log('🏢 Company subscribed features:', subscribedFeatureIds);
+        
+        if (subscribedFeatureIds.length === 0) {
+            console.log('⚠️ Company has no subscribed features, using emergency fallback');
+            showBasicMenu();
+            return [];
+        }
+        
+        // Collect authorized pages from subscribed features
+        const authorizedPages = [];
+        subscribedFeatureIds.forEach(featureId => {
+            const feature = featuresData[featureId];
+            if (feature && feature.status === 'active' && feature.authorizedPages) {
+                console.log(`📦 Adding pages from feature "${feature.name}":`, feature.authorizedPages);
+                authorizedPages.push(...feature.authorizedPages);
+            } else {
+                console.log(`⚠️ Feature ${featureId} not found or inactive`);
+            }
+        });
+        
+        console.log('🔐 All authorized pages:', authorizedPages);
+        
+        // Reset all menu items first
+        resetMenuVisibility();
+        
+        // Create set of authorized features
+        const authorizedFeatures = new Set();
+        authorizedPages.forEach(pageInfo => {
+            if (pageInfo.feature) {
+                authorizedFeatures.add(pageInfo.feature);
+            }
+        });
+        
+        console.log('🎯 Authorized features for chartboard.html:', Array.from(authorizedFeatures));
+        
+        // Apply menu visibility
+        const allMenuItems = document.querySelectorAll('#roleBasedMenu li[data-feature]');
+        let visibleCount = 0;
+        
+        allMenuItems.forEach(menuItem => {
+            const featureAttribute = menuItem.getAttribute('data-feature');
+            const isAuthorized = authorizedFeatures.has(featureAttribute);
+            const isDropdownContainer = menuItem.classList.contains('menu-dropdown');
+            
+            if (isDropdownContainer) {
+                return; // Handle dropdowns separately after all items are processed
+            }
+            
+            if (isAuthorized) {
+                menuItem.classList.add('menu-visible');
+                visibleCount++;
+                console.log(`✅ Feature authorized - showing menu item: ${featureAttribute}`);
+            } else {
+                menuItem.classList.remove('menu-visible');
+                console.log(`❌ Feature not authorized - hiding menu item: ${featureAttribute}`);
+            }
+        });
+        
+        // Handle dropdown menus - show if they have visible children
+        const dropdownMenus = document.querySelectorAll('#roleBasedMenu li.menu-dropdown');
+        dropdownMenus.forEach(dropdown => {
+            const dropdownFeature = dropdown.getAttribute('data-feature');
+            const submenuItems = dropdown.querySelectorAll('.submenu li[data-feature]');
+            let hasVisibleChildren = false;
+            
+            submenuItems.forEach(submenuItem => {
+                if (submenuItem.classList.contains('menu-visible')) {
+                    hasVisibleChildren = true;
+                }
+            });
+            
+            if (hasVisibleChildren || authorizedFeatures.has(dropdownFeature)) {
+                dropdown.classList.add('menu-visible');
+                console.log(`✅ Showing dropdown menu: ${dropdownFeature} (has visible children or directly authorized)`);
+            } else {
+                dropdown.classList.remove('menu-visible');
+                console.log(`❌ Hiding dropdown menu: ${dropdownFeature} (no visible children and not authorized)`);
+            }
+        });
+        
+        console.log(`🎯 Feature-based menu authorization completed for chartboard.html - ${visibleCount} items visible`);
+        
+        // Return authorized pages for role-based filtering
+        return authorizedPages;
+        
+    } catch (error) {
+        console.error('❌ Error applying feature-based menu visibility:', error);
+        showBasicMenu();
+        return [];
+    }
+}
+
+// Apply role-based filtering within company authorized features
+async function applyRoleBasedFiltering(companyId, userRole, authorizedPages) {
+    try {
+        console.log('🎭 Applying role-based filtering within authorized features...');
+        console.log('👤 User role:', userRole);
+        console.log('📄 Authorized pages from features:', authorizedPages);
+        
+        // Get role permissions for this company
+        const database = firebase.database();
+        const rolesSnapshot = await database.ref(`companies/${companyId}/roles`).once('value');
+        
+        if (!rolesSnapshot.exists()) {
+            console.warn('⚠️ No roles found for company, showing all authorized features');
+            showSidebarAfterAuth();
+            return;
+        }
+        
+        const rolesData = rolesSnapshot.val();
+        const roleData = rolesData[userRole];
+        
+        if (!roleData) {
+            console.warn(`⚠️ Role "${userRole}" not found, hiding items requiring permissions`);
+            hideItemsRequiringPermissions();
+            showSidebarAfterAuth();
+            return;
+        }
+        
+        const permissions = roleData.permissions || {};
+        console.log('🔑 User permissions:', permissions);
+        
+        // Apply role-based filtering to visible menu items
+        filterMenuByPermissions(permissions);
+        
+        showSidebarAfterAuth();
+        
+    } catch (error) {
+        console.error('❌ Error in role-based filtering:', error);
+        hideItemsRequiringPermissions();
+        showSidebarAfterAuth();
+    }
+}
+
+// Filter currently visible menu items by role permissions
+function filterMenuByPermissions(permissions) {
+    const visibleMenuItems = document.querySelectorAll('#roleBasedMenu li.menu-visible[data-requires-permission]');
+    let filteredCount = 0;
+    
+    visibleMenuItems.forEach(menuItem => {
+        const requiredPermission = menuItem.getAttribute('data-requires-permission');
+        
+        if (requiredPermission) {
+            let hasPermission = false;
+            
+            // Check if permission contains dot notation (feature.action)
+            if (requiredPermission.includes('.')) {
+                const [feature, action] = requiredPermission.split('.');
+                hasPermission = permissions[feature] && permissions[feature][action] === true;
+            } else {
+                // Check simple permission name directly
+                hasPermission = permissions[requiredPermission] === true;
+                
+                // Also check if the permission exists as a nested object with 'view' action
+                if (!hasPermission && permissions[requiredPermission]) {
+                    hasPermission = permissions[requiredPermission].view === true;
+                }
+            }
+            
+            if (!hasPermission) {
+                menuItem.classList.remove('menu-visible');
+                console.log(`🚫 Permission denied - hiding menu item: ${requiredPermission}`);
+                filteredCount++;
+            } else {
+                console.log(`✅ Permission granted - keeping menu item: ${requiredPermission}`);
+            }
+        }
+    });
+    
+    // Handle dropdown menus after filtering individual items
+    const dropdownMenus = document.querySelectorAll('#roleBasedMenu li.menu-dropdown');
+    dropdownMenus.forEach(dropdown => {
+        const submenuItems = dropdown.querySelectorAll('.submenu li');
+        let hasVisibleChildren = false;
+        
+        submenuItems.forEach(submenuItem => {
+            if (submenuItem.classList.contains('menu-visible')) {
+                hasVisibleChildren = true;
+            }
+        });
+        
+        if (!hasVisibleChildren) {
+            dropdown.classList.remove('menu-visible');
+            console.log(`🚫 Hiding dropdown menu - no visible children after role filtering`);
+        }
+    });
+    
+    console.log(`🎭 Role-based filtering completed - ${filteredCount} items filtered out`);
+}
+
+// Hide menu items that require permissions (for users without role permissions)
+function hideItemsRequiringPermissions() {
+    const itemsRequiringPermissions = document.querySelectorAll('#roleBasedMenu li[data-requires-permission]');
+    itemsRequiringPermissions.forEach(item => {
+        item.classList.remove('menu-visible');
+        console.log(`🚫 Hiding item requiring permissions: ${item.getAttribute('data-requires-permission')}`);
+    });
+}
+
+// Show sidebar and remove loading state after authentication and filtering
+function showSidebarAfterAuth() {
+    const sidebar = document.querySelector('.sidebar');
+    if (sidebar) {
+        sidebar.classList.remove('menu-loading');
+        console.log('✅ Menu authorization complete - sidebar visible');
+    }
+}
+
+// Make updateMenuWithFeatureAuthorization available globally
+window.updateMenuWithFeatureAuthorization = updateMenuWithFeatureAuthorization;
+
+// Initialize menu visibility properly through authManager (like roles.html and dashboard.html)
+document.addEventListener('DOMContentLoaded', async () => {
+    // Initialize auth manager immediately
+    try {
+        await updateMenuWithFeatureAuthorization();
+    } catch (error) {
+        console.error('❌ Error initializing feature-based menu:', error);
+        // Skip fallback - keep menu hidden if permissions fail
+    }
+});
+        
+        // ========================================================================================
+        // AUTHMANAGER CLASS - FROM RECRUITBOARD.HTML
+        // ========================================================================================
+        
+        class AuthManager {
+            constructor() {
+                this.db = firebase.database(); // Add database reference
+                this.currentUser = this.getCurrentUser();
+                this.currentCompany = null;
+                this.initializeAuth();
+            }
+
+            getCurrentUser() {
+                const storedUser = localStorage.getItem('currentUser');
+                return storedUser ? JSON.parse(storedUser) : null;
+            }
+
+            setCurrentUser(userData) {
+                localStorage.setItem('currentUser', JSON.stringify(userData));
+                this.currentUser = userData;
+            }
+
+            initializeAuth() {
+                if (!this.currentUser) {
+                    console.warn('No authenticated user found');
+                    return;
+                }
+
+                this.loadUserRole(this.currentUser);
+                this.updateUIForAuthenticatedUser();
+            }
+
+            async loadUserRole(userData) {
+                try {
+                    const userRef = firebase.database().ref(`users/${userData.uid}`);
+                    userRef.once('value', (snapshot) => {
+                        if (snapshot.exists()) {
+                            const data = snapshot.val();
+                            userData.role = data.role || 'standard';
+                            userData.name = data.name || userData.name;
+                            userData.department = data.department || 'Unknown';
+                            this.setCurrentUser(userData);
+                            this.updateUserProfile(userData);
+                        }
+                    });
+                } catch (error) {
+                    console.error('Error loading user role:', error);
+                }
+            }
+
+            updateUIForAuthenticatedUser() {
+                this.updateUserProfile(this.currentUser);
+                this.setupProfileDropdown();
+
+                // Mirror staff.html: inject user info (avatar, name, email) into profile dropdown
+                (async () => {
+                    try {
+                        const profileBtn = document.querySelector('.profile-btn');
+                        const profileDropdownList = document.querySelector('.profile-dropdown ul');
+                        if (!profileBtn || !profileDropdownList || !this.currentUser) return;
+
+                        const initials = this.getUserInitials();
+                        const displayName = this.getUserDisplayName();
+                        const email = this.getUserEmail();
+                        const avatarUrl = await this.getUserAvatarUrl();
+
+                        // Update header avatar image immediately if available
+                        const profileImg = profileBtn.querySelector('img');
+                        if (profileImg) {
+                            if (avatarUrl) {
+                                profileImg.src = avatarUrl;
+                                profileImg.alt = displayName + ' Avatar';
+                            } else {
+                                this.generateInitialsAvatar(displayName, profileImg);
+                            }
+                        }
+
+                        const dropdownAvatarHtml = avatarUrl
+                            ? `<img src="${avatarUrl}" alt="${displayName} Avatar" style="width: 24px; height: 24px; border-radius: 50%; object-fit: cover;">`
+                            : `<div style="width: 24px; height: 24px; border-radius: 50%; background: #3498db; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 10px;">${initials}</div>`;
+
+                        const userInfoHtml = `
+                            <li style="border-bottom: 1px solid #eee; padding: 6px 10px; background: #f8f9fa;">
+                                <div style="display: flex; align-items: center; gap: 6px;">
+                                    ${dropdownAvatarHtml}
+                                    <div>
+                                        <div style=\"font-weight: 600; color: #333; font-size: 12px; margin-bottom: 1px;\">${displayName}</div>
+                                        <div style=\"color: #666; font-size: 10px;\">${email}</div>
+                                    </div>
+                                </div>
+                            </li>
+                            <li><a href="profile.html"><i class="fas fa-id-card"></i> Profile</a></li>
+                            <li><a href="#" class="logout-link"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+                        `;
+
+                        profileDropdownList.innerHTML = userInfoHtml;
+
+                        // Wire logout
+                        const logoutBtn = profileDropdownList.querySelector('.logout-link');
+                        if (logoutBtn) {
+                            logoutBtn.addEventListener('click', (e) => {
+                                e.preventDefault();
+                                this.logout();
+                            });
+                        }
+                    } catch (e) {
+                        console.warn('Profile dropdown update skipped:', e);
+                    }
+                })();
+            }
+
+            // Get user display name
+            getUserDisplayName() {
+                if (!this.currentUser) return 'User';
+                
+                const cleanName = (name) => {
+                    if (!name || typeof name !== 'string') return '';
+                    return name.trim().replace(/\s+/g, ' ');
+                };
+                
+                const potentialNames = [
+                    this.currentUser.displayName,
+                    this.currentUser.name,
+                    this.currentUser.username
+                ];
+                
+                for (const name of potentialNames) {
+                    const cleaned = cleanName(name);
+                    if (cleaned) return cleaned;
+                }
+                
+                if (this.currentUser.email) {
+                    const emailUsername = this.currentUser.email.split('@')[0];
+                    const cleaned = cleanName(emailUsername);
+                    if (cleaned) return cleaned;
+                }
+                
+                return 'User';
+            }
+
+            // Get user initials for avatar display
+            getUserInitials() {
+                const displayName = this.getUserDisplayName();
+                
+                if (!displayName || displayName === 'User') return 'U';
+                
+                const words = displayName.split(' ').filter(word => word.length > 0);
+                if (words.length === 1) {
+                    return words[0].substring(0, 2).toUpperCase();
+                } else {
+                    return words.slice(0, 2).map(word => word.charAt(0)).join('').toUpperCase();
+                }
+            }
+
+            // Get user email
+            getUserEmail() {
+                return this.currentUser?.email || '';
+            }
+
+            // Generate initials avatar
+            generateInitialsAvatar(name, imgElement) {
+                if (!imgElement || !name) return;
+                
+                const initials = this.getUserInitials();
+                const colors = ['#3498db', '#e74c3c', '#2ecc71', '#f39c12', '#9b59b6', '#1abc9c'];
+                const backgroundColor = colors[name.length % colors.length];
+                
+                const svg = `
+                    <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="20" cy="20" r="20" fill="${backgroundColor}"/>
+                        <text x="20" y="25" text-anchor="middle" fill="white" font-size="14" font-weight="600" font-family="Arial, sans-serif">${initials}</text>
+                    </svg>
+                `;
+                
+                imgElement.src = 'data:image/svg+xml;base64,' + btoa(svg);
+                imgElement.alt = name + ' Avatar';
+            }
+
+            // Get user avatar URL or null if not available
+            async getUserAvatarUrl() {
+                if (!this.currentUser) return null;
+                
+                try {
+                    // First, try to get avatar from Firebase Storage (matches roles.html)
+                    const firebase = window.firebase;
+                    const storage = firebase.storage();
+                    const avatarPath = `avatars/${this.currentUser.uid}/profile.jpg`;
+                    const avatarRef = storage.ref(avatarPath);
+                    
+                    try {
+                        const downloadUrl = await avatarRef.getDownloadURL();
+                        console.log('✅ Found avatar in Firebase Storage:', downloadUrl);
+                        return downloadUrl;
+                    } catch (storageError) {
+                        console.log('ℹ️ No avatar found in Firebase Storage, checking user properties...');
+                    }
+                    
+                    // Fallback: Check various sources for avatar URL in user data
+                    const avatarSources = [
+                        this.currentUser.photoURL,
+                        this.currentUser.profilePicture,
+                        this.currentUser.avatar,
+                        this.currentUser.avatarUrl
+                    ];
+                    
+                    for (const url of avatarSources) {
+                        if (url && typeof url === 'string' && url.startsWith('http')) {
+                            console.log('✅ Found avatar in user properties:', url);
+                            return url;
+                        }
+                    }
+                    
+                    console.log('ℹ️ No avatar URL found in any source');
+                    return null;
+                    
+                } catch (error) {
+                    console.error('❌ Error getting avatar URL:', error);
+                    return null;
+                }
+            }
+
+            async updateUserProfile(userData) {
+                console.log('🔄 Updating user profile...');
+                const profileBtn = document.getElementById('userProfileBtn');
+                const userNameElement = document.querySelector('.user-name');
+                const userEmailElement = document.querySelector('.user-email');
+
+                if (profileBtn) {
+                    const profileImg = profileBtn.querySelector('img');
+                    if (profileImg) {
+                        const displayName = this.getUserDisplayName();
+                        const email = this.getUserEmail();
+                        
+                        console.log('👤 User info:', { displayName, email });
+                        
+                        // Preload avatar URL to avoid showing initials first
+                        const avatarUrl = await this.getUserAvatarUrl();
+                        
+                        if (avatarUrl) {
+                            console.log('🖼️ Loading user avatar from URL:', avatarUrl);
+                            profileImg.src = avatarUrl;
+                            profileImg.alt = displayName + ' Avatar';
+                            
+                            // Add error handler to fallback to initials
+                            profileImg.onerror = () => {
+                                console.log('❌ Avatar failed to load, generating initials avatar');
+                                this.generateInitialsAvatar(displayName, profileImg);
+                            };
+                        } else {
+                            console.log('ℹ️ No avatar URL found, generating initials avatar');
+                            // Generate initials avatar
+                            this.generateInitialsAvatar(displayName, profileImg);
+                        }
+                        
+                        // Update user info in dropdown (optional; elements may not exist)
+                        if (userNameElement) {
+                            userNameElement.textContent = displayName;
+                        }
+                        if (userEmailElement) {
+                            userEmailElement.textContent = email;
+                        }
+                        
+                        console.log('✅ User profile updated');
+                    }
+                }
+                
+                // Also update all avatar displays on the page
+                await this.updateUserProfileDisplay();
+            }
+
+            setupProfileDropdown() {
+                const userProfileBtn = document.getElementById('userProfileBtn');
+                const profileDropdown = document.querySelector('.profile-dropdown');
+                
+                if (userProfileBtn && profileDropdown) {
+                    userProfileBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        profileDropdown.classList.toggle('show');
+                    });
+
+                    document.addEventListener('click', (e) => {
+                        if (!userProfileBtn.contains(e.target)) {
+                            profileDropdown.classList.remove('show');
+                        }
+                    });
+                    
+                    // Setup notification dropdown if available
+                    const notificationBtn = document.querySelector('.notification-btn');
+                    const notificationDropdown = document.querySelector('.notification-dropdown');
+                    
+                    if (notificationBtn && notificationDropdown) {
+                        notificationBtn.addEventListener('click', async (e) => {
+                            e.stopPropagation();
+                            
+                            // Refresh notifications when bell is clicked to ensure latest state
+                            console.log('🔔 Notification bell clicked, refreshing notifications...');
+                            if (window.notificationManager) {
+                                try {
+                                    await window.notificationManager.forceRefresh();
+                                    console.log('✅ Notifications refreshed on bell click');
+                                } catch (error) {
+                                    console.warn('⚠️ Error refreshing notifications on bell click:', error);
+                                }
+                            }
+                            
+                            notificationDropdown.classList.toggle('show');
+                        });
+                        
+                        document.addEventListener('click', (e) => {
+                            if (!notificationBtn.contains(e.target) && !notificationDropdown.contains(e.target)) {
+                                notificationDropdown.classList.remove('show');
+                            }
+                        });
+                        
+                        // Handle mark all as read button
+                        const markAllReadBtn = notificationDropdown.querySelector('.mark-all-read');
+                        if (markAllReadBtn) {
+                            markAllReadBtn.addEventListener('click', async () => {
+                                if (window.notificationManager) {
+                                    window.notificationManager.markAllAsRead();
+                                }
+                            });
+                        }
+                        
+                        // Handle clear all notifications button
+                        const clearAllBtn = notificationDropdown.querySelector('.clear-all-notifications');
+                        if (clearAllBtn) {
+                            clearAllBtn.addEventListener('click', async () => {
+                                if (confirm('Are you sure you want to clear all notifications?')) {
+                                    if (window.notificationManager) {
+                                        window.notificationManager.clearAll();
+                                    }
+                                }
+                            });
+                        }
+                    }
+                }
+            }
+
+            // Update user avatar display with profile picture or initials
+            async updateUserAvatarDisplay(elementId = 'userAvatarInitials') {
+                const avatarElement = document.getElementById(elementId);
+                if (avatarElement) {
+                    console.log(`🎭 Updating avatar for element: ${elementId} (${avatarElement.tagName})`);
+                    try {
+                        const avatarUrl = await this.getUserAvatarUrl();
+                        console.log(`🔍 Avatar URL result for ${elementId}:`, avatarUrl);
+                        
+                        // Handle <img> elements differently from div elements
+                        if (avatarElement.tagName === 'IMG') {
+                            if (avatarUrl) {
+                                // For img elements, just update the src
+                                avatarElement.src = avatarUrl;
+                                avatarElement.alt = this.getUserDisplayName() + ' Avatar';
+                                console.log('✅ Profile picture loaded for img element:', elementId);
+                                
+                                // Add error handler to fallback to initials if image fails to load
+                                avatarElement.onerror = () => {
+                                    console.log('❌ Image failed to load, generating initials avatar for:', elementId);
+                                    this.generateInitialsAvatar(this.getUserDisplayName(), avatarElement);
+                                };
+                            } else {
+                                // For img elements without avatar, generate initials avatar
+                                console.log('ℹ️ No avatar URL, generating initials for img element:', elementId);
+                                this.generateInitialsAvatar(this.getUserDisplayName(), avatarElement);
+                            }
+                        } else {
+                            // For div/other elements, use innerHTML
+                            if (avatarUrl) {
+                                // Show custom avatar
+                                avatarElement.innerHTML = `<img src="${avatarUrl}" alt="Profile Picture" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;" onerror="this.style.display='none'; this.parentElement.textContent='${this.getUserInitials()}';">`;
+                                console.log('✅ Profile picture loaded for element:', elementId);
+                            } else {
+                                // Show initials
+                                avatarElement.textContent = this.getUserInitials();
+                                console.log('✅ User initials displayed for element:', elementId);
+                            }
+                        }
+                    } catch (error) {
+                        console.error(`❌ Error updating avatar for ${elementId}:`, error);
+                        // Fallback based on element type
+                        if (avatarElement.tagName === 'IMG') {
+                            this.generateInitialsAvatar(this.getUserDisplayName(), avatarElement);
+                        } else {
+                            avatarElement.textContent = this.getUserInitials();
+                        }
+                        console.warn('⚠️ Avatar loading failed, showing fallback for element:', elementId);
+                    }
+                } else {
+                    console.warn(`⚠️ Avatar element not found: ${elementId}`);
+                }
+            }
+
+            // Update user avatar initials on page
+            updateUserAvatarInitials(elementId = 'userAvatarInitials') {
+                const avatarElement = document.getElementById(elementId);
+                if (avatarElement) {
+                    avatarElement.textContent = this.getUserInitials();
+                }
+            }
+
+            // Update user profile display elements
+            async updateUserProfileDisplay() {
+                // Update avatar displays with custom images or initials
+                await this.updateUserAvatarDisplay();
+                await this.updateUserAvatarDisplay('userInitials'); // Alternative ID used in some pages
+                await this.updateUserAvatarDisplay('userAvatar'); // Update the main avatar in header
+                
+                // Update user name displays
+                const userNameElements = document.querySelectorAll('#userName, #userDisplayName, .user-name-display');
+                userNameElements.forEach(element => {
+                    element.textContent = this.getUserDisplayName();
+                });
+                
+                // Update user email displays
+                const userEmailElements = document.querySelectorAll('#userEmail, #userDisplayEmail, .user-email-display');
+                userEmailElements.forEach(element => {
+                    element.textContent = this.getUserEmail();
+                });
+            }
+
+            async logout() {
+                try {
+                    await firebase.auth().signOut();
+                    localStorage.removeItem('currentUser');
+                    window.location.href = 'login.html';
+                } catch (error) {
+                    console.error('Logout error:', error);
+                }
+            }
+        }
+
+        // Initialize AuthManager
+        window.authManager = new AuthManager();
+        
+        </script>
+    </body>
+</html>

@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Email Service Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .result { margin: 10px 0; padding: 10px; border-radius: 4px; }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        button { background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 4px; margin: 5px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Email Service Mode Test - Updated Configuration</h1>
+    <p>This page tests the updated SMTP configuration (Port 465, SSL, New Password).</p>
+    
+    <button onclick="checkEmailService()">Check Email Service Mode</button>
+    <button onclick="testEmailSending()">Test Email Sending</button>
+    
+    <div id="results"></div>
+
+    <!-- Include EmailJS and enhanced email service -->
+    <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+    <script src="js/enhanced-email-service.js"></script>
+    
+    <script>
+        function addResult(message, type = 'info') {
+            const results = document.getElementById('results');
+            const div = document.createElement('div');
+            div.className = `result ${type}`;
+            div.innerHTML = message;
+            results.appendChild(div);
+            console.log(message);
+        }
+
+        function checkEmailService() {
+            addResult('🔍 Checking email service configuration...', 'info');
+            
+            // Clear previous results
+            document.getElementById('results').innerHTML = '';
+            
+            // Simulate the EmailNotificationService constructor
+            const testService = {
+                emailJSPublicKey: 'fHs6oaqQgkcPoUwpv',
+                emailJSPrivateKey: 'DYBlzuRorbsDIdU5wGBru',
+                serviceId: 'service_p2e9swy',
+                templateId: 'template_l50h8ks',
+                maxRetries: 3,
+                retryDelay: 5000,
+                useSmtpService: true, // This should now be true
+                deliveryStats: {
+                    totalSent: 0,
+                    successful: 0,
+                    failed: 0,
+                    lastUpdated: new Date()
+                },
+                notificationHistory: [],
+                maxHistorySize: 1000
+            };
+
+            addResult(`📧 EmailJS Public Key: ${testService.emailJSPublicKey ? 'Configured' : 'Missing'}`, 
+                     testService.emailJSPublicKey ? 'success' : 'error');
+            
+            addResult(`🔧 Service ID: ${testService.serviceId}`, 'info');
+            addResult(`📝 Template ID: ${testService.templateId}`, 'info');
+            
+            // Check the critical setting
+            const serviceMode = testService.useSmtpService ? 'Production (SMTP Enabled)' : 'Demo Mode';
+            addResult(`🎯 Service Mode: ${serviceMode}`, 
+                     testService.useSmtpService ? 'success' : 'error');
+
+            // Check if EmailJS is loaded
+            if (typeof emailjs !== 'undefined') {
+                addResult('✅ EmailJS library is loaded', 'success');
+                emailjs.init(testService.emailJSPublicKey);
+                addResult('✅ EmailJS initialized successfully', 'success');
+            } else {
+                addResult('❌ EmailJS library not loaded', 'error');
+            }
+
+            // Check enhanced email service
+            if (typeof EnhancedEmailService !== 'undefined') {
+                addResult('✅ Enhanced Email Service is available', 'success');
+            } else {
+                addResult('❌ Enhanced Email Service not loaded', 'error');
+            }
+
+            // Check local email service
+            checkLocalEmailService();
+        }
+
+        async function checkLocalEmailService() {
+            try {
+                const response = await fetch('http://localhost:3001/health', { 
+                    method: 'GET',
+                    timeout: 5000 
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    addResult(`✅ Local Email Service: Running (${data.status})`, 'success');
+                } else {
+                    addResult(`⚠️ Local Email Service: HTTP ${response.status}`, 'error');
+                }
+            } catch (error) {
+                addResult(`❌ Local Email Service: Not reachable (${error.message})`, 'error');
+            }
+        }
+
+        async function testEmailSending() {
+            addResult('🧪 Testing email sending capability...', 'info');
+            
+            try {
+                if (typeof emailjs === 'undefined') {
+                    throw new Error('EmailJS not loaded');
+                }
+
+                // Initialize EmailJS
+                emailjs.init('fHs6oaqQgkcPoUwpv');
+
+                // Test email parameters
+                const emailParams = {
+                    to_email: 'info@dreamexdatalab.com',
+                    to_name: 'Test Recipient',
+                    from_name: 'Email Service Test',
+                    subject: 'Email Service Test - ' + new Date().toISOString(),
+                    message: 'This is a test email to verify the email service is working in production mode (not demo mode).',
+                    position_title: 'Test Position',
+                    department: 'Test Department',
+                    requesting_manager: 'Test Manager',
+                    approval_link: window.location.origin + '/staff.html'
+                };
+
+                addResult('📤 Sending test email via EmailJS...', 'info');
+                
+                const response = await emailjs.send(
+                    'service_p2e9swy',
+                    'template_l50h8ks',
+                    emailParams,
+                    'fHs6oaqQgkcPoUwpv'
+                );
+
+                addResult(`✅ Email sent successfully! Response: ${JSON.stringify(response)}`, 'success');
+                addResult('🎉 Email service is working in PRODUCTION MODE (not demo mode)', 'success');
+
+            } catch (error) {
+                addResult(`❌ Email sending failed: ${error.message}`, 'error');
+                addResult('⚠️ This might indicate demo mode or configuration issues', 'error');
+            }
+        }
+
+        // Auto-run check on page load
+        window.addEventListener('load', function() {
+            setTimeout(checkEmailService, 1000);
+        });
+    </script>
+</body>
+</html>

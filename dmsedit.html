@@ -1,0 +1,1135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DMS Editor - Dreamex Datalab HSE</title>
+
+  <!-- External deps (match versions used across staff/recruitboard) -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.js"></script>
+
+  <style>
+    :root {
+      --primary-color: #2c3e50;
+      --secondary-color: #3498db;
+      --accent-color: #e74c3c;
+      --sidebar-width: 250px;
+      --bg: #f8f9fa;
+      --text: #333;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, sans-serif; background: var(--bg); color: var(--text); }
+    .app-container { display: flex; min-height: 100vh; }
+    .sidebar { width: var(--sidebar-width); background: var(--primary-color); color: #fff; padding: 1rem; position: fixed; inset: 0 auto 0 0; overflow-y: auto; transition: transform 0.3s ease; }
+    .sidebar.collapsed { transform: translateX(-100%); }
+    .logo h2 { margin: 0; padding: 1rem 0; text-align: center; border-bottom: 1px solid rgba(255,255,255,.1); font-size: 1.1rem; }
+    .menu { list-style: none; padding: 0; margin: 1rem 0 0; }
+    .menu li { margin: .35rem 0; display: none !important; }
+    .menu li.menu-visible { display: block !important; }
+    .menu a { display: flex; gap: .5rem; align-items: center; padding: .6rem .8rem; color: #fff; text-decoration: none; border-radius: 6px; }
+    .menu a:hover { background: var(--secondary-color); }
+    .menu-dropdown .submenu { display: none; list-style: none; margin-left: 1.5rem; margin-top: .3rem; }
+    .menu-dropdown:hover .submenu { display: block; }
+    .menu-dropdown .submenu li { margin: .2rem 0; }
+    .menu-dropdown .submenu a { padding: .4rem .6rem; font-size: .9rem; }
+
+    .main-content { flex: 1; margin-left: var(--sidebar-width); padding: .5rem; transition: margin-left 0.3s ease; }
+    .main-content.sidebar-collapsed { margin-left: 0; }
+    .top-nav { position: sticky; top: .25rem; z-index: 10; display: flex; align-items: center; justify-content: space-between; background: #fff; padding: .5rem .75rem; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,.08); margin: .25rem .25rem .5rem; }
+    .top-nav-left { display: flex; align-items: center; gap: .75rem; }
+    .sidebar-toggle-btn { background: none; border: none; cursor: pointer; color: var(--text); font-size: 1.2rem; padding: .5rem; border-radius: 5px; transition: background-color 0.3s ease; }
+    .sidebar-toggle-btn:hover { background-color: rgba(0, 0, 0, 0.1); }
+    .header-company-logo { width: 40px; height: 40px; border-radius: 8px; object-fit: cover; border: 2px solid #e9ecef; display: none; }
+    .header-company-logo.visible { display: block; }
+    .header-logo-placeholder { width: 40px; height: 40px; border-radius: 8px; background: #f8f9fa; border: 2px dashed #ced4da; display: flex; align-items: center; justify-content: center; color: #6c757d; }
+    .company-name-header { font-weight: 600; color: #2c3e50; font-size: 1rem; }
+    .top-nav-right { display: flex; align-items: center; gap: 1rem; }
+
+    /* Notifications */
+    .notifications { position: relative; }
+    .notification-btn { background: none; border: 0; cursor: pointer; position: relative; padding: .4rem; font-size: 1.1rem; }
+    .notification-badge { position: absolute; top: -6px; right: -6px; background: var(--accent-color); color: #fff; border-radius: 999px; padding: 0 .4rem; font-size: .7rem; display: none; }
+    .notification-dropdown { display: none; position: absolute; top: calc(100% + 6px); right: 0; width: 320px; background: #fff; border: 1px solid #e9ecef; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.12); max-height: 420px; overflow: hidden; }
+    .notification-dropdown.show { display: block; }
+    .notification-header { display: flex; align-items: center; justify-content: space-between; padding: .6rem .75rem; border-bottom: 1px solid #e9ecef; }
+    .notification-list { max-height: 340px; overflow-y: auto; }
+    .notification-item { padding: .65rem .75rem; border-bottom: 1px solid #f1f3f5; }
+    .notification-item.unread { background: #e8f4fd; border-left: 3px solid #3498db; }
+
+    .content { background: #fff; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,.08); padding: .75rem; }
+
+    /* Tabs */
+    .tabs { display: flex; border-bottom: 1px solid #e9ecef; }
+    .tab-btn { background: none; border: none; padding: .6rem .9rem; cursor: pointer; font-weight: 600; color: #64748b; }
+    .tab-btn.active { color: #1e293b; border-bottom: 2px solid var(--secondary-color); }
+    .tab-panel { display: none; padding: .75rem; }
+    .tab-panel.active { display: block; }
+
+    textarea#dmsEditor { width: 100%; min-height: 50vh; padding: .75rem; border: 1px solid #e1e5ea; border-radius: 8px; font: 14px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  .preview-area, .flowchart-area { min-height: 50vh; border: 1px dashed #e1e5ea; border-radius: 8px; padding: .75rem; background: #fafbfc; }
+  .editor-grid { display: grid; grid-template-columns: 1fr; gap: .75rem; }
+  .field { display: flex; flex-direction: column; gap: .3rem; }
+  .field label { font-weight: 600; font-size: .9rem; color: #374151; }
+  .field input[type="text"], .field select, .field textarea { padding: .55rem .65rem; border: 1px solid #e1e5ea; border-radius: 8px; }
+  .muted { color: #6b7280; font-size: .85rem; }
+  .row { display:flex; gap:.75rem; flex-wrap:wrap; }
+  .row .col { flex:1 1 240px; }
+  .steps { border: 1px solid #e5e7eb; border-radius: 8px; padding: .5rem; }
+  .step { display:flex; gap:.5rem; align-items:center; margin:.4rem 0; }
+  .step input { flex:1; }
+  .btn { background:#3498db; color:#fff; border:0; padding:.45rem .7rem; border-radius:6px; cursor:pointer; }
+  .btn.secondary { background:#6b7280; }
+  .btn.ghost { background:transparent; border:1px solid #d1d5db; color:#374151; }
+  .toolbar { display:flex; gap:.5rem; justify-content:flex-end; margin:.5rem 0; }
+
+    @media (max-width: 768px) {
+      .sidebar { position: static; width: 100%; height: auto; }
+      .main-content { margin-left: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-container">
+    <nav class="sidebar menu-loading">
+      <div class="logo"><h2>Dreamex Datalab</h2></div>
+      <ul class="menu" id="roleBasedMenu">
+    <li class="menu-item" data-feature="home_view" data-requires-permission="home_view">
+      <a href="index.html"><i class="fas fa-home"></i> Home</a>
+    </li>
+    <li class="menu-dropdown" data-feature="health_view" data-requires-permission="health_view">
+      <a href="#"><i class="fas fa-medkit"></i> Health</a>
+      <ul class="submenu">
+        <li data-feature="health_assessment_view" data-requires-permission="health_assessment_view">
+          <a href="health-assessment.html">Assessment</a>
+        </li>
+        <li data-feature="health_consultation_view" data-requires-permission="health_consultation_view">
+          <a href="health-consultation.html">Consultation</a>
+        </li>
+        <li data-feature="medical_folder_view" data-requires-permission="medical_folder_view">
+          <a href="medical-folder.html">Medical Folder</a>
+        </li>
+      </ul>
+    </li>
+    <li class="menu-dropdown" data-feature="safety_view" data-requires-permission="safety_view">
+      <a href="#"><i class="fas fa-shield-alt"></i> Safety</a>
+      <ul class="submenu">
+        <li data-feature="training_view" data-requires-permission="training_view"><a href="trainingboard.html">Training</a></li>
+        <li data-feature="risk_view" data-requires-permission="risk_view"><a href="riskboard.html">Risk Management</a></li>
+        <li data-feature="jsa_view" data-requires-permission="jsa_view"><a href="jsaboard.html">Job Safety Analysis</a></li>
+        <li data-feature="ptw_view" data-requires-permission="ptw_view"><a href="ptwboard.html">Permit to Work</a></li>
+        <li data-feature="incident_view" data-requires-permission="incident_view"><a href="incidentboard.html">Incident Reports</a></li>
+        <li data-feature="inspection_view" data-requires-permission="inspection_view"><a href="inspectionboard.html">Inspection</a></li>
+        <li data-feature="audit_view" data-requires-permission="audit_view"><a href="auditboard.html">Audit</a></li>
+      </ul>
+    </li>
+    <li class="menu-dropdown" data-feature="fuel_management">
+      <a href="#"><i class="fas fa-gas-pump"></i> Fuel Management</a>
+      <ul class="submenu">
+        <li data-feature="vessel_offloading"><a href="vessel-offloading.html">Vessel Offloading</a></li>
+        <li data-feature="fuel_storage"><a href="fuel-storage-status.html">Fuel Storage Status</a></li>
+        <li data-feature="tank_transfer"><a href="tank-transfer.html">Tank-to-Tank Transfer</a></li>
+        <li data-feature="truck_loading"><a href="fuel-truck-loading.html">Fuel Truck Loading</a></li>
+        <li data-feature="quality_analysis"><a href="fuel-quality-analysis.html">Fuel Quality Analysis</a></li>
+        <li data-feature="fuel_distribution"><a href="fueldistrib.html">Fuel Distribution</a></li>
+        <li data-feature="fuel_consumption_analysis"><a href="fuelanalys.html">Consumption Analysis</a></li>
+      </ul>
+    </li>
+    <li class="menu-dropdown" data-feature="environment_view">
+      <a href="#"><i class="fas fa-leaf"></i> Environment</a>
+      <ul class="submenu">
+        <li data-feature="water_view"><a href="waterboard.html">Water Quality</a></li>
+      </ul>
+    </li>
+    <li class="menu-dropdown" data-feature="security_view">
+      <a href="#"><i class="fas fa-lock"></i> Security</a>
+      <ul class="submenu">
+  <li data-feature="access_view"><a href="accessboard.html">Access Request</a></li>
+  <li data-feature="access_daily_view"><a href="accessdaily.html">Daily Access Control</a></li>
+        <li data-feature="removal_view"><a href="removalboard.html">Property Removal</a></li>
+      </ul>
+    </li>
+    <li class="menu-dropdown" data-feature="logistics_view" data-requires-permission="logistics_view">
+      <a href="#"><i class="fas fa-truck"></i> Logistics</a>
+      <ul class="submenu">
+        <li data-feature="fleet_view" data-requires-permission="fleet_view"><a href="fleet.html">Fleet Management</a></li>
+      </ul>
+    </li>
+    <li class="menu-dropdown" data-feature="accommodation_view" data-requires-permission="accommodation_view">
+      <a href="#"><i class="fas fa-bed"></i> Accommodation</a>
+      <ul class="submenu">
+        <li data-feature="camp_view" data-requires-permission="camp_view"><a href="camp.html">Camp Management</a></li>
+        <li data-feature="camp_settings_view" data-requires-permission="camp_settings_view"><a href="campset.html">Camp Settings</a></li>
+      </ul>
+    </li>
+    <li class="menu-dropdown" data-feature="hr_view" data-requires-permission="hr_view">
+      <a href="#"><i class="fas fa-users"></i> HR</a>
+      <ul class="submenu">
+        <li data-feature="human_hr_view" data-requires-permission="human_hr_view"><a href="human-hr.html"><i class="fas fa-user-tie"></i> Human HR</a></li>
+        <li data-feature="staff_management_view" data-requires-permission="staff_management_view"><a href="staff.html">Staffing</a></li>
+        <li data-feature="authority_to_recruit_view" data-requires-permission="authority_to_recruit_view"><a href="recruit.html">Authority to Recruit</a></li>
+        <li data-feature="job_advertising_view" data-requires-permission="job_advertising_view"><a href="jobpost.html">Job Advertising</a></li>
+        <li data-feature="screening_view" data-requires-permission="screening_view"><a href="jobscreen.html">Screening</a></li>
+        <li data-feature="interview_view" data-requires-permission="interview_view"><a href="interview.html">Interview</a></li>
+        <li data-feature="offer_view" data-requires-permission="offer_view"><a href="offer.html">Offer Management</a></li>
+        <li data-feature="contract_view" data-requires-permission="contract_view"><a href="contract.html">Contract Management</a></li>
+        <li data-feature="onboarding_view" data-requires-permission="onboarding_view"><a href="onboard.html">Onboarding</a></li>
+        <li data-feature="chart_view" data-requires-permission="chart_view"><a href="chart.html">Chart Setup</a></li>
+        <li data-feature="chartboard_view" data-requires-permission="chartboard_view"><a href="chartboard.html">Org Chart</a></li>
+        <li data-feature="kpi_dashboard_view" data-requires-permission="kpi_dashboard_view"><a href="kpi.html">KPI</a></li>
+        <li data-feature="action_plan_view" data-requires-permission="action_plan_view"><a href="actionplan.html"><i class="fas fa-tasks"></i> Action Plan Board</a></li>
+      </ul>
+    </li>
+    <li class="menu-dropdown" data-feature="project_management_view" data-requires-permission="project_management_view">
+      <a href="#"><i class="fas fa-project-diagram"></i> Project Management</a>
+      <ul class="submenu">
+        <li data-feature="project_dashboard_view" data-requires-permission="project_dashboard_view"><a href="project-dashboard.html">Project Dashboard</a></li>
+        <li data-feature="project_create_view" data-requires-permission="project_create_view"><a href="project-create.html">Create Project</a></li>
+        <li data-feature="project_list_view" data-requires-permission="project_list_view"><a href="project-list.html">Project List</a></li>
+        <li data-feature="task_management_view" data-requires-permission="task_management_view"><a href="tasks.html">Task Management</a></li>
+        <li data-feature="milestone_tracking_view" data-requires-permission="milestone_tracking_view"><a href="milestones.html">Milestone Tracking</a></li>
+        <li data-feature="resource_allocation_view" data-requires-permission="resource_allocation_view"><a href="resources.html">Resource Allocation</a></li>
+        <li data-feature="project_reports_view" data-requires-permission="project_reports_view"><a href="project-reports.html">Project Reports</a></li>
+        <li data-feature="gantt_chart_view" data-requires-permission="gantt_chart_view"><a href="gantt-chart.html">Gantt Chart</a></li>
+      </ul>
+    </li>
+    <li data-feature="communication_view"><a href="info.html"><i class="fas fa-comments"></i> Communication</a></li>
+    <li class="menu-dropdown" data-feature="settings_view">
+      <a href="#"><i class="fas fa-cog"></i> Settings</a>
+      <ul class="submenu">
+        <li data-feature="account_settings_view"><a href="account.html">Account Settings</a></li>
+        <li data-feature="company_management_view"><a href="companymanagement.html">Company Management</a></li>
+        <li data-feature="approval_settings_view"><a href="approval-settings.html">Approval Flow Settings</a></li>
+        <li data-feature="field_setup_view"><a href="fieldsetup.html">Field Setup</a></li>
+        <li data-feature="preferences_view"><a href="preferences.html">Preferences</a></li>
+        <li data-feature="notification_settings_view"><a href="notification-settings.html">Notification Settings</a></li>
+        <li data-feature="audit_log_view"><a href="auditlog.html"><i class="fas fa-history"></i> Audit Log</a></li>
+        <li data-feature="user_management_view"><a href="users.html">User & Role Management</a></li>
+        <li data-feature="role_permissions_view"><a href="roles.html">Role Permissions</a></li>
+      </ul>
+    </li>
+      </ul>
+    </nav>
+
+    <main class="main-content">
+      <header class="top-nav">
+        <div class="top-nav-left">
+          <button id="sidebarToggle" class="sidebar-toggle-btn">
+            <i class="fas fa-bars"></i>
+          </button>
+          <img id="headerCompanyLogo" class="header-company-logo" alt="Company Logo" />
+          <div id="headerLogoPlaceholder" class="header-logo-placeholder"><i class="fas fa-building"></i></div>
+          <span id="headerCompanyName" class="company-name-header"></span>
+        </div>
+        <div class="top-nav-right">
+          <div class="notifications">
+            <button id="notificationBtn" class="notification-btn" title="Notifications">
+              <i class="fas fa-bell"></i>
+              <span class="notification-badge">0</span>
+            </button>
+            <div class="notification-dropdown" id="notificationDropdown">
+              <div class="notification-header">
+                <h3 style="margin:0;font-size:.95rem;">Notifications</h3>
+                <button id="markAllReadBtn" class="btn-link" style="background:none;border:0;color:#3498db;cursor:pointer;font-size:.85rem;">Mark all as read</button>
+              </div>
+              <div class="notification-list" id="notificationList"></div>
+            </div>
+          </div>
+          <div class="user-profile">
+            <button id="userProfileBtn" class="profile-btn" style="background:none;border:0;cursor:pointer;padding:.25rem;">
+              <img id="userAvatar" src="assets/default-avatar.png" alt="User Avatar" style="width:40px;height:40px;border-radius:50%;object-fit:cover;" />
+            </button>
+            <div class="profile-dropdown" id="profileDropdown" style="display:none;position:absolute;right:.25rem;top:52px;background:#fff;border:1px solid #e9ecef;border-radius:8px;min-width:180px;box-shadow:0 8px 24px rgba(0,0,0,.12);">
+              <ul style="list-style:none;margin:0;padding:6px;">
+                <li><a href="account.html" style="display:flex;gap:.5rem;align-items:center;padding:.5rem;border-radius:6px;color:#333;text-decoration:none;"><i class="fas fa-user"></i> Account Settings</a></li>
+                <li><a href="#" id="logoutLink" style="display:flex;gap:.5rem;align-items:center;padding:.5rem;border-radius:6px;color:#333;text-decoration:none;"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <div class="content">
+        <div class="tabs" role="tablist">
+          <button class="tab-btn active" data-tab="editor">Editor</button>
+          <button class="tab-btn" data-tab="preview">Preview</button>
+          <button class="tab-btn" data-tab="flowchart">Flowchart</button>
+        </div>
+
+        <section id="tab-editor" class="tab-panel active" role="tabpanel" aria-labelledby="tab-editor">
+          <div class="editor-grid">
+            <div class="row">
+              <div class="col field">
+                <label for="docTitle">Title</label>
+                <input id="docTitle" type="text" placeholder="e.g., Incident Reporting Procedure" />
+              </div>
+              <div class="col field">
+                <label for="docType">Type</label>
+                <select id="docType">
+                  <option value="procedure">Procedure</option>
+                  <option value="policy">Policy</option>
+                  <option value="work_instruction">Work Instruction</option>
+                  <option value="form">Form</option>
+                  <option value="guideline">Guideline</option>
+                  <option value="standard">Standard</option>
+                  <option value="manual">Manual</option>
+                  <option value="checklist">Checklist</option>
+                </select>
+              </div>
+              <div class="col field">
+                <label for="docCategory">Category</label>
+                <select id="docCategory">
+                  <option value="">Select Category</option>
+                  <option value="hse">Health, Safety & Environment</option>
+                  <option value="quality">Quality Management</option>
+                  <option value="operations">Operations</option>
+                  <option value="maintenance">Maintenance</option>
+                  <option value="training">Training & Competency</option>
+                  <option value="emergency">Emergency Response</option>
+                  <option value="compliance">Regulatory Compliance</option>
+                  <option value="hr">Human Resources</option>
+                </select>
+              </div>
+            </div>
+            <div class="row">
+              <div class="col field">
+                <label for="docNumber">Document Number</label>
+                <input id="docNumber" type="text" placeholder="e.g., HSE-PROC-001" />
+                <div class="muted">Unique identifier following company numbering system</div>
+              </div>
+              <div class="col field">
+                <label for="docTags">Tags/Keywords</label>
+                <input id="docTags" type="text" placeholder="Comma-separated tags" />
+              </div>
+              <div class="col field">
+                <label for="docLanguage">Language</label>
+                <select id="docLanguage">
+                  <option value="en">English</option>
+                  <option value="es">Spanish</option>
+                  <option value="fr">French</option>
+                  <option value="de">German</option>
+                  <option value="ar">Arabic</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+            </div>
+            <div class="row">
+              <div class="col field">
+                <label for="docPurpose">Purpose</label>
+                <textarea id="docPurpose" rows="3" placeholder="Define the objective and rationale for this document"></textarea>
+              </div>
+              <div class="col field">
+                <label for="docScope">Scope</label>
+                <textarea id="docScope" rows="3" placeholder="Define what is covered and what is excluded"></textarea>
+              </div>
+            </div>
+            <div class="row">
+              <div class="col field">
+                <label for="docOwner">Document Owner</label>
+                <input id="docOwner" type="text" placeholder="Department/Role responsible for this document" />
+                <div class="muted">Department or role responsible for document maintenance</div>
+              </div>
+              <div class="col field">
+                <label for="docApprover">Approver</label>
+                <input id="docApprover" type="text" placeholder="Name or role of approving authority" />
+              </div>
+              <div class="col field">
+                <label for="docReviewCycle">Review Cycle</label>
+                <select id="docReviewCycle">
+                  <option value="annual">Annual</option>
+                  <option value="biannual">Bi-annual</option>
+                  <option value="quarterly">Quarterly</option>
+                  <option value="monthly">Monthly</option>
+                  <option value="adhoc">Ad-hoc</option>
+                </select>
+              </div>
+            </div>
+            <div class="row">
+              <div class="col field">
+                <label for="docEffectiveDate">Effective Date</label>
+                <input id="docEffectiveDate" type="date" />
+              </div>
+              <div class="col field">
+                <label for="docExpiryDate">Next Review Date</label>
+                <input id="docExpiryDate" type="date" />
+              </div>
+              <div class="col field">
+                <label for="docClassification">Classification</label>
+                <select id="docClassification">
+                  <option value="public">Public</option>
+                  <option value="internal">Internal</option>
+                  <option value="confidential">Confidential</option>
+                  <option value="restricted">Restricted</option>
+                </select>
+              </div>
+            </div>
+            <div class="row">
+              <div class="col field">
+                <label for="docRoles">Roles & Responsibilities</label>
+                <textarea id="docRoles" rows="4" placeholder="Define roles and responsibilities for implementation and compliance"></textarea>
+              </div>
+              <div class="col field">
+                <label for="docTraining">Training Requirements</label>
+                <textarea id="docTraining" rows="4" placeholder="Specify any training required for personnel affected by this document"></textarea>
+              </div>
+            </div>
+            <div class="row">
+              <div class="col field">
+                <label for="docCompliance">Compliance References</label>
+                <textarea id="docCompliance" rows="3" placeholder="List applicable regulations, standards, or legal requirements (e.g., ISO 9001, OSHA, etc.)"></textarea>
+              </div>
+              <div class="col field">
+                <label for="docDistribution">Distribution List</label>
+                <textarea id="docDistribution" rows="3" placeholder="Specify roles, departments, or individuals who should receive this document"></textarea>
+              </div>
+            </div>
+            <div class="row">
+              <div class="col field">
+                <label for="docRisk">Risk Assessment</label>
+                <select id="docRisk">
+                  <option value="low">Low Risk</option>
+                  <option value="medium">Medium Risk</option>
+                  <option value="high">High Risk</option>
+                  <option value="critical">Critical Risk</option>
+                </select>
+                <div class="muted">Risk level if this document is not followed</div>
+              </div>
+              <div class="col field">
+                <label for="docRevision">Revision History</label>
+                <textarea id="docRevision" rows="3" placeholder="Summary of changes in this version" readonly></textarea>
+                <div class="muted">Automatically managed by system</div>
+              </div>
+            </div>
+            <div class="field">
+              <label for="docResponsibilities">Legacy Responsibilities</label>
+              <textarea id="docResponsibilities" rows="3" placeholder="One per line (role: responsibility)"></textarea>
+              <div class="muted">Note: Use "Roles & Responsibilities" field above for new documents</div>
+            </div>
+            <div class="field">
+              <label>Steps</label>
+              <div id="stepsContainer" class="steps"></div>
+              <div><button id="addStepBtn" class="btn ghost" type="button"><i class="fas fa-plus"></i> Add Step</button></div>
+            </div>
+            <div class="field">
+              <label for="docReferences">References</label>
+              <textarea id="docReferences" rows="2" placeholder="Link or reference notes"></textarea>
+            </div>
+            <div class="toolbar">
+              <button id="saveDraftBtn" class="btn" type="button">Save Draft</button>
+              <button id="submitReviewBtn" class="btn secondary" type="button">Submit for Review</button>
+            </div>
+          </div>
+        </section>
+
+        <section id="tab-preview" class="tab-panel" role="tabpanel" aria-labelledby="tab-preview">
+          <div class="toolbar">
+            <button id="exportPdfBtn" class="btn ghost" type="button"><i class="fas fa-file-pdf"></i> Export PDF</button>
+            <button id="exportDocxBtn" class="btn ghost" type="button"><i class="fas fa-file-word"></i> Export DOCX</button>
+          </div>
+          <div id="previewArea" class="preview-area">Live preview will render here.</div>
+        </section>
+
+        <section id="tab-flowchart" class="tab-panel" role="tabpanel" aria-labelledby="tab-flowchart">
+          <div id="flowchartArea" class="flowchart-area">Flowchart visualization will render here.</div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    // Firebase v8 configuration (aligned with staff.html)
+    const firebaseConfig = {
+      apiKey: "AIzaSyCUTmTn0rRBb0M-UkQJxnUMrWqXYU_BgIc",
+      authDomain: "users-8be65.firebaseapp.com",
+      databaseURL: "https://users-8be65-default-rtdb.firebaseio.com",
+      projectId: "users-8be65",
+      storageBucket: "users-8be65.firebasestorage.app",
+      messagingSenderId: "909025468149",
+      appId: "1:909025468149:web:fb4e7c4a8b4bd6d1076e4d",
+      measurementId: "G-XHFMRCJQEZ"
+    };
+
+  function initializeFirebase() {
+      if (!window.firebase || !window.firebase.apps || window.firebase.apps.length === 0) {
+        window.firebase.initializeApp(firebaseConfig);
+      }
+      return window.firebase;
+    }
+
+    const Auth = {
+      currentUser: null,
+      db: null,
+      init() {
+        initializeFirebase();
+        this.db = firebase.database();
+        this.currentUser = this.getStoredUser();
+        this.wireHeader();
+        this.wireNotifications();
+        this.loadCompanyAndBranding();
+        this.applyMenuVisibility();
+  this.wireTabs();
+  this.initEditor();
+      },
+      getStoredUser() {
+        try { return JSON.parse(localStorage.getItem('currentUser') || 'null'); } catch { return null; }
+      },
+      async loadCompanyAndBranding() {
+        const headerLogo = document.getElementById('headerCompanyLogo');
+        const headerLogoPlaceholder = document.getElementById('headerLogoPlaceholder');
+        const headerCompanyName = document.getElementById('headerCompanyName');
+        if (!this.currentUser) { headerCompanyName.textContent = ''; return; }
+        try {
+          const companiesSnap = await this.db.ref('companies').once('value');
+          if (!companiesSnap.exists()) return;
+          const companies = companiesSnap.val();
+          let companyId = this.currentUser.companyId || null;
+          if (!companyId) {
+            // search membership
+            for (const [cId, company] of Object.entries(companies)) {
+              if (company?.status !== 'active') continue;
+              if (company?.users && (company.users[this.currentUser.uid] || company.users[this.currentUser.authUid])) {
+                companyId = cId; break;
+              }
+            }
+          }
+          if (companyId && companies[companyId]) {
+            const c = companies[companyId];
+            headerCompanyName.textContent = c.companyName || '';
+            const logoUrl = c.logoUrl || c.logo || '';
+            if (logoUrl) {
+              headerLogo.src = logoUrl; headerLogo.classList.add('visible'); headerLogo.style.display = 'block';
+              headerLogoPlaceholder.style.display = 'none';
+            } else {
+              headerLogo.style.display = 'none'; headerLogoPlaceholder.style.display = 'flex';
+            }
+            document.title = document.title.replace('Dreamex Datalab HSE', `${c.companyName || ''} HSE`);
+          } else {
+            headerCompanyName.textContent = '';
+            headerLogo.style.display = 'none'; headerLogoPlaceholder.style.display = 'flex';
+          }
+        } catch (e) { console.warn('Branding load error', e); }
+      },
+      async applyMenuVisibility() {
+        // Reset all
+        document.querySelectorAll('[data-feature]').forEach(el => el.classList.remove('menu-visible'));
+        const sidebar = document.querySelector('.sidebar');
+        // Determine company and role
+        const ctx = await this.loadCompanyContext();
+        if (!ctx) { 
+          this.showBasicMenu();
+          if (sidebar) sidebar.classList.remove('menu-loading'); 
+          return; 
+        }
+        const { companyId, role } = ctx;
+        try {
+          const permSnap = await this.db.ref(`companies/${companyId}/roles/${role}/permissions`).once('value');
+          const permissions = permSnap.exists() ? permSnap.val() : {};
+          const selectedFeaturesSnap = await this.db.ref(`companies/${companyId}/selectedFeatures`).once('value');
+          const selectedFeatures = selectedFeaturesSnap.exists() ? (Array.isArray(selectedFeaturesSnap.val()) ? selectedFeaturesSnap.val() : Object.keys(selectedFeaturesSnap.val())) : [];
+          this.updateMenuWithPermissionsAndFeatures(permissions, selectedFeatures);
+        } catch (e) {
+          console.warn('Menu visibility error', e);
+          this.showBasicMenu();
+        } finally {
+          if (sidebar) sidebar.classList.remove('menu-loading');
+        }
+        // Note: Removed page-level access enforcement to allow logged-out users to access the interface
+      },
+      hasViewPermission(feature) {
+        const el = document.querySelector(`[data-feature="${feature}"]`);
+        return el?.classList?.contains('menu-visible');
+      },
+      async loadCompanyContext() {
+        if (!this.currentUser) return null;
+        try {
+          const companiesSnap = await this.db.ref('companies').once('value');
+          if (!companiesSnap.exists()) return null;
+          const companies = companiesSnap.val();
+          let companyId = this.currentUser.companyId || null;
+          if (!companyId) {
+            for (const [cId, company] of Object.entries(companies)) {
+              if (company?.status !== 'active') continue;
+              if (company?.users && (company.users[this.currentUser.uid] || company.users[this.currentUser.authUid])) { companyId = cId; break; }
+            }
+          }
+          if (!companyId) return null;
+          // Get role from company users
+          const userSnap = await this.db.ref(`companies/${companyId}/users/${this.currentUser.uid}`).once('value');
+          const role = userSnap.exists() ? (userSnap.val()?.role || this.currentUser.role) : (this.currentUser.role || 'employee');
+          this._dmsCtx = { companyId, role };
+          return this._dmsCtx;
+        } catch { return null; }
+      },
+      updateMenuWithPermissionsAndFeatures(permissions = {}, selectedFeatures = []) {
+        const menuItems = document.querySelectorAll('[data-feature]');
+        const featureSelected = (featureId) => {
+          if (!selectedFeatures || selectedFeatures.length === 0) return true; // if not configured, don't block
+          const candidates = [featureId, featureId.replace(/_view$/, ''), featureId.replace(/_edit$/, ''), 'documents', 'dms', 'document_management'];
+          return candidates.some(c => selectedFeatures.includes(c));
+        };
+        let visible = 0;
+        menuItems.forEach(item => {
+          const feature = item.getAttribute('data-feature');
+          const requires = item.getAttribute('data-requires-permission');
+          const permVal = permissions?.[requires || feature];
+          const hasView = permVal === true || (permVal && (permVal.view === true || permVal.access === 'view' || permVal.read === true));
+          if ((!requires || hasView) && featureSelected(feature)) {
+            item.classList.add('menu-visible');
+            visible++;
+          }
+        });
+        
+        // If no items are visible and we have a logged-in user, show basic menu
+        if (visible === 0 && this.currentUser) {
+          this.showBasicMenu();
+        } else {
+          // show parent dropdowns with visible children
+          document.querySelectorAll('.menu-dropdown').forEach(dd => {
+            const anyChild = dd.querySelectorAll('.submenu li.menu-visible').length > 0;
+            if (anyChild || dd.matches('.menu-visible')) dd.classList.add('menu-visible');
+          });
+        }
+      },
+      showBasicMenu() {
+        // Show essential menu items when role-based permissions aren't available
+        const basicMenuItems = [
+          'home_view',
+          'communication_view'
+        ];
+        
+        // Add settings items if user is logged in (basic admin capability)
+        if (this.currentUser) {
+          basicMenuItems.push('settings_view', 'account_settings_view', 'role_permissions_view', 'approval_settings_view');
+        }
+        
+        basicMenuItems.forEach(feature => {
+          const element = document.querySelector(`[data-feature="${feature}"]`);
+          if (element) element.classList.add('menu-visible');
+        });
+        // Show parent dropdowns if they have any visible children
+        document.querySelectorAll('.menu-dropdown').forEach(dd => {
+          const anyChild = dd.querySelectorAll('.submenu li.menu-visible').length > 0;
+          if (anyChild || dd.matches('.menu-visible')) dd.classList.add('menu-visible');
+        });
+      },
+      wireHeader() {
+        // Sidebar toggle functionality
+        const sidebarToggle = document.getElementById('sidebarToggle');
+        const sidebar = document.querySelector('.sidebar');
+        const mainContent = document.querySelector('.main-content');
+        if (sidebarToggle && sidebar && mainContent) {
+          sidebarToggle.addEventListener('click', () => {
+            sidebar.classList.toggle('collapsed');
+            mainContent.classList.toggle('sidebar-collapsed');
+          });
+        }
+
+        const btn = document.getElementById('userProfileBtn');
+        const dd = document.getElementById('profileDropdown');
+        const logout = document.getElementById('logoutLink');
+        if (btn && dd) {
+          btn.addEventListener('click', (e) => { e.stopPropagation(); dd.style.display = dd.style.display === 'block' ? 'none' : 'block'; });
+          document.addEventListener('click', () => dd.style.display = 'none');
+        }
+        if (logout) logout.addEventListener('click', (e) => { e.preventDefault(); try { firebase.auth().signOut(); } catch {} localStorage.removeItem('currentUser'); window.location.href = 'index.html'; });
+      },
+      async wireNotifications() {
+        const btn = document.getElementById('notificationBtn');
+        const dd = document.getElementById('notificationDropdown');
+        const list = document.getElementById('notificationList');
+        const badge = document.querySelector('.notification-badge');
+        const markAll = document.getElementById('markAllReadBtn');
+        const uid = this.currentUser?.uid;
+        const db = this.db;
+        function render(notifs) {
+          list.innerHTML = '';
+          if (!Array.isArray(notifs) || notifs.length === 0) { list.innerHTML = '<div style="padding:.75rem;color:#6c757d;">No notifications</div>'; badge.style.display = 'none'; return; }
+          const unread = notifs.filter(n => !n.read).length;
+          if (unread > 0) { badge.textContent = unread > 99 ? '99+' : String(unread); badge.style.display = 'block'; } else { badge.style.display = 'none'; }
+          notifs.slice(0, 10).forEach(n => {
+            const div = document.createElement('div');
+            div.className = `notification-item ${n.read ? '' : 'unread'}`;
+            div.innerHTML = `<div style="font-weight:600;font-size:.9rem;">${n.title || 'Notification'}</div><div style="font-size:.85rem;color:#555;margin-top:2px;">${n.message || ''}</div>`;
+            list.appendChild(div);
+          });
+        }
+        let cache = [];
+        async function load() {
+          if (!uid) return render([]);
+          try {
+            const snap = await db.ref(`notifications/${uid}`).once('value');
+            if (!snap.exists()) return render([]);
+            const data = snap.val();
+            cache = Object.keys(data).map(k => ({ id: k, ...data[k] }))
+              .sort((a,b) => (b.timestamp||0) - (a.timestamp||0));
+            render(cache);
+          } catch (e) { render([]); }
+        }
+        if (btn && dd) {
+          btn.addEventListener('click', (e) => { e.stopPropagation(); dd.classList.toggle('show'); });
+          document.addEventListener('click', (e) => { if (!dd.contains(e.target) && !btn.contains(e.target)) dd.classList.remove('show'); });
+        }
+        if (markAll && uid) {
+          markAll.addEventListener('click', async () => {
+            const ref = db.ref(`notifications/${uid}`);
+            const snap = await ref.once('value');
+            if (!snap.exists()) return;
+            const updates = {};
+            Object.keys(snap.val()).forEach(k => updates[`${k}/read`] = true);
+            await ref.update(updates);
+            load();
+          });
+        }
+        load();
+      },
+      wireTabs() {
+        const buttons = document.querySelectorAll('.tab-btn');
+        const panels = { editor: document.getElementById('tab-editor'), preview: document.getElementById('tab-preview'), flowchart: document.getElementById('tab-flowchart') };
+        buttons.forEach(b => b.addEventListener('click', () => {
+          buttons.forEach(x => x.classList.remove('active')); b.classList.add('active');
+          Object.values(panels).forEach(p => p.classList.remove('active'));
+          const key = b.getAttribute('data-tab'); panels[key]?.classList.add('active');
+          if (key === 'preview') {
+            this.renderPreview();
+          }
+          if (key === 'flowchart') {
+            this.renderFlowchart();
+          }
+        }));
+        // Load approval settings for DMS process type
+        this.fetchApprovalFlowConfig();
+        // If editing a specific doc, load it
+        this.loadDocumentFromQuery();
+      }
+      ,
+      initEditor() {
+        // Mermaid config
+        if (window.mermaid && !this._mermaidInit) {
+          window.mermaid.initialize({ startOnLoad: false, securityLevel: 'loose', theme: 'default' });
+          this._mermaidInit = true;
+        }
+        // Steps
+        const stepsContainer = document.getElementById('stepsContainer');
+        const addBtn = document.getElementById('addStepBtn');
+        const addStep = (text = '') => {
+          const div = document.createElement('div');
+          div.className = 'step';
+          div.innerHTML = `<span class="muted">#</span><input type="text" value="${text.replace(/"/g,'&quot;')}" placeholder="Describe the step" /><button class="btn ghost" type="button" title="Remove">&times;</button>`;
+          const removeBtn = div.querySelector('button');
+          removeBtn.addEventListener('click', () => { div.remove(); });
+          stepsContainer.appendChild(div);
+        };
+        addBtn.addEventListener('click', () => addStep(''));
+        // Seed one step
+        if (!stepsContainer.children.length) addStep('Start');
+        // Save and submit
+        document.getElementById('saveDraftBtn').addEventListener('click', () => this.saveDocument('draft'));
+        document.getElementById('submitReviewBtn').addEventListener('click', () => this.saveDocument('in_review'));
+        // Exports
+        document.getElementById('exportPdfBtn').addEventListener('click', () => this.exportPdf());
+        document.getElementById('exportDocxBtn').addEventListener('click', () => this.exportDocx());
+        // Auto local draft
+        ['docTitle','docType','docCategory','docNumber','docLanguage','docTags','docPurpose','docScope','docOwner','docApprover','docRoles','docTraining','docCompliance','docDistribution','docResponsibilities','docReferences'].forEach(id => {
+          const el = document.getElementById(id); if (!el) return; el.addEventListener('input', () => this.persistLocalDraft());
+        });
+      },
+      getDocId() {
+        const params = new URLSearchParams(window.location.search);
+        return params.get('doc') || `DMS-${Date.now()}`;
+      },
+      buildDocModel(statusOverride = null) {
+        const steps = Array.from(document.querySelectorAll('#stepsContainer .step input')).map(i => i.value.trim()).filter(Boolean);
+        const tags = (document.getElementById('docTags').value || '').split(',').map(s => s.trim()).filter(Boolean);
+        const model = {
+          id: this.getDocId(),
+          title: document.getElementById('docTitle').value || '',
+          type: document.getElementById('docType').value || 'procedure',
+          category: document.getElementById('docCategory').value || '',
+          documentNumber: document.getElementById('docNumber').value?.trim() || '',
+          language: document.getElementById('docLanguage').value || 'en',
+          tags,
+          purpose: document.getElementById('docPurpose').value || '',
+          scope: document.getElementById('docScope').value || '',
+          owner: document.getElementById('docOwner').value?.trim() || '',
+          approver: document.getElementById('docApprover').value?.trim() || '',
+          reviewCycle: document.getElementById('docReviewCycle').value || 'annual',
+          effectiveDate: document.getElementById('docEffectiveDate').value || '',
+          expiryDate: document.getElementById('docExpiryDate').value || '',
+          classification: document.getElementById('docClassification').value || 'internal',
+          roles: document.getElementById('docRoles').value?.trim() || '',
+          training: document.getElementById('docTraining').value?.trim() || '',
+          compliance: document.getElementById('docCompliance').value?.trim() || '',
+          distribution: document.getElementById('docDistribution').value?.trim() || '',
+          riskLevel: document.getElementById('docRisk').value || 'low',
+          revisionHistory: document.getElementById('docRevision').value?.trim() || '',
+          responsibilities: document.getElementById('docResponsibilities').value || '',
+          steps,
+          references: document.getElementById('docReferences').value || '',
+          status: statusOverride || 'draft',
+          updated: Date.now(),
+          updatedBy: this.currentUser?.uid || null
+        };
+        return model;
+      },
+      async saveDocument(nextStatus) {
+        // Basic permission check: require document_edit_view only if user is logged in
+        if (this.currentUser && this.hasViewPermission && !this.hasViewPermission('document_edit_view')) {
+          alert('You do not have permission to edit documents.');
+          return;
+        }
+        const model = this.buildDocModel(nextStatus);
+        // Persist local draft regardless
+        this.persistLocalDraft(model);
+        const ctx = await this.loadCompanyContext();
+        if (!ctx) { alert('No company context. Draft saved locally.'); return; }
+        const { companyId } = ctx;
+        const refPath = `companies/${companyId}/dms/documents/${model.id}`;
+        try {
+          // append version if exists
+          const existing = await this.db.ref(refPath).once('value');
+          if (existing.exists()) {
+            const prev = existing.val();
+            const versions = prev.versions || [];
+            versions.push({ timestamp: prev.updated || Date.now(), title: prev.title, purpose: prev.purpose, scope: prev.scope, responsibilities: prev.responsibilities, steps: prev.steps, references: prev.references, updatedBy: this.currentUser?.uid || null });
+            model.versions = versions.slice(-10); // keep last 10
+            model.created = prev.created || prev.updated || Date.now();
+            model.createdBy = prev.createdBy || prev.updatedBy || this.currentUser?.uid || null;
+          } else {
+            model.created = model.updated;
+            model.createdBy = model.updatedBy;
+          }
+          // Derive owner/version
+          const ownerName = (this.currentUser?.name) || (this.currentUser?.displayName) || (this.currentUser?.email) || 'Unknown';
+          model.owner = ownerName;
+          model.version = String((model.versions?.length || 0) + 1);
+
+          // If submitting for review, resolve approvers (level 1) and send notifications
+          if (nextStatus === 'in_review') {
+            if (!this._approvalFlow) { await this.fetchApprovalFlowConfig(); }
+            const flow = this._approvalFlow || {};
+            const selectedRoles = flow.selectedRoles || {};
+            const lvl1 = selectedRoles['level1'] || [];
+            const { companyId } = ctx;
+            const usersSnap = await this.db.ref(`companies/${companyId}/users`).once('value');
+            const allUsers = usersSnap.exists() ? usersSnap.val() : {};
+            const jobTitlesSnap = await this.db.ref(`companies/${companyId}/configuration/jobTitles`).once('value');
+            const jobTitles = jobTitlesSnap.exists() ? jobTitlesSnap.val() : {};
+            const jobTitleValueById = (id) => {
+              const jt = jobTitles?.[id];
+              return (jt && (jt.value || jt.label || id)) || id;
+            };
+            const approverUids = new Set();
+            for (const sel of lvl1) {
+              const val = sel?.value || '';
+              if (val.startsWith('user_')) approverUids.add(val.replace('user_',''));
+              else if (val.startsWith('function_')) {
+                const jtId = val.replace('function_',''); const target = jobTitleValueById(jtId);
+                Object.entries(allUsers).forEach(([uid, u]) => {
+                  if (!u || u.status === 'inactive') return;
+                  const jt = u.jobTitle || u.designation || '';
+                  if (String(jt).toLowerCase() === String(target).toLowerCase()) approverUids.add(uid);
+                });
+              } else if (/^L\+\d+$/.test(val)) {
+                console.warn('Level-based approver not implemented:', val);
+              }
+            }
+            model.approval = { currentLevel: 1, pending: Array.from(approverUids), history: model.approval?.history || [] };
+            const link = `dmsedit.html?doc=${encodeURIComponent(model.id)}&mode=view`;
+            const now = Date.now();
+            const title = 'Document Review Requested';
+            const message = `${ownerName} submitted "${model.title || 'Untitled Document'}" for review.`;
+            const targets = Array.from(approverUids);
+            for (const uid of targets) {
+              const nref = this.db.ref(`notifications/${uid}`).push();
+              await nref.set({ title, message, link, read: false, timestamp: now });
+            }
+          }
+          await this.db.ref(refPath).set(model);
+          alert(nextStatus === 'in_review' ? 'Submitted for review.' : 'Draft saved.');
+        } catch (e) {
+          console.error('Save error', e);
+          alert('Error saving. Draft is stored locally.');
+        }
+      },
+      persistLocalDraft(model = null) {
+        try {
+          const data = model || this.buildDocModel();
+          localStorage.setItem(`dms_draft_${data.id}`, JSON.stringify(data));
+        } catch {}
+      },
+      tryLoadLocalDraft(docId) {
+        try { const raw = localStorage.getItem(`dms_draft_${docId}`); return raw ? JSON.parse(raw) : null; } catch { return null; }
+      },
+      renderPreview() {
+        const doc = this.buildDocModel();
+        const headerLogo = document.getElementById('headerCompanyLogo');
+        const companyName = document.getElementById('headerCompanyName')?.textContent || '';
+        const logoHtml = headerLogo?.src ? `<img src="${headerLogo.src}" style="height:40px;border-radius:6px;border:1px solid #e5e7eb;"/>` : '';
+        const esc = (t) => (t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        const list = (arr) => arr && arr.length ? `<ol>${arr.map(s=>`<li>${esc(s)}</li>`).join('')}</ol>` : '<em class="muted">No steps</em>';
+        const html = `
+          <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:.5rem;">
+            ${logoHtml}
+            <div>
+              <div style="font-size:1.1rem;font-weight:700;">${esc(doc.title||'Untitled Document')}</div>
+              <div class="muted">${esc(companyName)} • ${esc(doc.type)}</div>
+            </div>
+          </div>
+          <h4>Purpose</h4><p>${esc(doc.purpose).replace(/\n/g,'<br>')}</p>
+          <h4>Scope</h4><p>${esc(doc.scope).replace(/\n/g,'<br>')}</p>
+          ${doc.owner ? `<h4>Document Owner</h4><p>${esc(doc.owner)}</p>` : ''}
+          ${doc.approver ? `<h4>Approver</h4><p>${esc(doc.approver)}</p>` : ''}
+          ${doc.reviewCycle ? `<h4>Review Cycle</h4><p>${doc.reviewCycle.charAt(0).toUpperCase() + doc.reviewCycle.slice(1)}</p>` : ''}
+          ${doc.effectiveDate ? `<h4>Effective Date</h4><p>${doc.effectiveDate}</p>` : ''}
+          ${doc.expiryDate ? `<h4>Next Review Date</h4><p>${doc.expiryDate}</p>` : ''}
+          ${doc.classification ? `<h4>Classification</h4><p>${doc.classification.charAt(0).toUpperCase() + doc.classification.slice(1)}</p>` : ''}
+          ${doc.roles ? `<h4>Roles & Responsibilities</h4><p>${esc(doc.roles).replace(/\n/g,'<br>')}</p>` : ''}
+          ${doc.training ? `<h4>Training Requirements</h4><p>${esc(doc.training).replace(/\n/g,'<br>')}</p>` : ''}
+          ${doc.compliance ? `<h4>Compliance References</h4><p>${esc(doc.compliance).replace(/\n/g,'<br>')}</p>` : ''}
+          ${doc.distribution ? `<h4>Distribution List</h4><p>${esc(doc.distribution).replace(/\n/g,'<br>')}</p>` : ''}
+          ${doc.riskLevel ? `<h4>Risk Assessment</h4><p>${doc.riskLevel.charAt(0).toUpperCase() + doc.riskLevel.slice(1)} Risk</p>` : ''}
+          ${doc.responsibilities ? `<h4>Legacy Responsibilities</h4><p>${esc(doc.responsibilities).replace(/\n/g,'<br>')}</p>` : ''}
+          <h4>Steps</h4>${list(doc.steps)}
+          <h4>References</h4><p>${esc(doc.references).replace(/\n/g,'<br>')}</p>
+        `;
+        document.getElementById('previewArea').innerHTML = html;
+      },
+      async renderFlowchart() {
+        if (!window.mermaid) return;
+        const steps = this.buildDocModel().steps;
+        const nodes = steps.length ? steps : ['Start'];
+        let def = 'flowchart TD\n';
+        nodes.forEach((s, idx) => { def += `A${idx}[${s.replace(/\[/g,'(').replace(/\]/g,')')}]\n`; });
+        for (let i=0;i<nodes.length-1;i++) def += `A${i} --> A${i+1}\n`;
+        try {
+          const { svg } = await window.mermaid.render(`dms_flow_${Date.now()}`, def);
+          document.getElementById('flowchartArea').innerHTML = svg;
+          this._lastFlowSvg = svg;
+        } catch (e) {
+          document.getElementById('flowchartArea').textContent = 'Flowchart render error.';
+        }
+      },
+      async exportPdf() {
+        const { jsPDF } = window.jspdf || {};
+        if (!jsPDF) return alert('PDF engine not available');
+        const docModel = this.buildDocModel();
+        if (!this._lastFlowSvg) { await this.renderFlowchart(); }
+        const split = (pdf, text, maxWidth) => pdf.splitTextToSize(String(text||''), maxWidth);
+        const drawWrapped = (pdf, text, x, y, lineHeight, maxWidth) => {
+          const lines = split(pdf, text, maxWidth);
+          lines.forEach((ln) => {
+            if (y > pdf.internal.pageSize.getHeight() - 60) { pdf.addPage(); y = 60; }
+            pdf.text(ln, x, y);
+            y += lineHeight;
+          });
+          return y;
+        };
+        const svgToPngDataUrl = async (svgString, width = 800) => {
+          if (!svgString) return null;
+          return new Promise((resolve) => {
+            const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+            const url = URL.createObjectURL(svgBlob);
+            const img = new Image();
+            img.onload = () => {
+              const w = width;
+              const h = Math.max(100, Math.floor((img.height / img.width) * w));
+              const canvas = document.createElement('canvas');
+              canvas.width = w; canvas.height = h;
+              const ctx = canvas.getContext('2d');
+              ctx.fillStyle = '#ffffff'; ctx.fillRect(0,0,w,h);
+              ctx.drawImage(img, 0, 0, w, h);
+              const dataUrl = canvas.toDataURL('image/png');
+              URL.revokeObjectURL(url);
+              resolve({ dataUrl, width: w, height: h });
+            };
+            img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
+            img.src = url;
+          });
+        };
+        const imgUrlToPngDataUrl = async (url, maxW = 100) => {
+          if (!url) return null;
+          return new Promise((resolve) => {
+            const img = new Image(); img.crossOrigin = 'anonymous';
+            img.onload = () => {
+              const ratio = img.height / img.width;
+              const w = Math.min(maxW, img.width); const h = Math.round(w * ratio);
+              const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h;
+              const ctx = canvas.getContext('2d'); ctx.fillStyle = '#ffffff'; ctx.fillRect(0,0,w,h); ctx.drawImage(img, 0, 0, w, h);
+              resolve({ dataUrl: canvas.toDataURL('image/png'), width: w, height: h });
+            };
+            img.onerror = () => resolve(null);
+            img.src = url;
+          });
+        };
+        const pdf = new jsPDF({ unit: 'pt', format: 'a4' });
+        let y = 60; const x = 40; const pageW = pdf.internal.pageSize.getWidth(); const maxW = pageW - 80;
+        const logoEl = document.getElementById('headerCompanyLogo');
+        const logoSrc = logoEl && logoEl.src ? logoEl.src : null;
+        const logoPng = await imgUrlToPngDataUrl(logoSrc, 80);
+        if (logoPng) { pdf.addImage(logoPng.dataUrl, 'PNG', pageW - 40 - logoPng.width, 30, logoPng.width, logoPng.height); }
+        pdf.setFontSize(16); pdf.text(String(docModel.title || 'Untitled Document'), x, y); y += 24;
+        pdf.setFontSize(10); pdf.text(String(`${(document.getElementById('headerCompanyName')?.textContent)||''} • ${docModel.type}`), x, y); y += 24;
+        const section = (name, text) => {
+          pdf.setFontSize(12);
+          if (y > pdf.internal.pageSize.getHeight() - 60) { pdf.addPage(); y = 60; }
+          pdf.text(name, x, y); y += 16; pdf.setFontSize(10);
+          y = drawWrapped(pdf, text || '', x, y, 14, maxW); y += 6;
+        };
+        section('Purpose', docModel.purpose);
+        section('Scope', docModel.scope);
+        if (docModel.owner) section('Document Owner', docModel.owner);
+        if (docModel.approver) section('Approver', docModel.approver);
+        if (docModel.reviewCycle) section('Review Cycle', docModel.reviewCycle.charAt(0).toUpperCase() + docModel.reviewCycle.slice(1));
+        if (docModel.effectiveDate) section('Effective Date', docModel.effectiveDate);
+        if (docModel.expiryDate) section('Next Review Date', docModel.expiryDate);
+        if (docModel.classification) section('Classification', docModel.classification.charAt(0).toUpperCase() + docModel.classification.slice(1));
+        if (docModel.roles) section('Roles & Responsibilities', docModel.roles);
+        if (docModel.training) section('Training Requirements', docModel.training);
+        if (docModel.compliance) section('Compliance References', docModel.compliance);
+        if (docModel.distribution) section('Distribution List', docModel.distribution);
+        if (docModel.riskLevel) section('Risk Assessment', docModel.riskLevel.charAt(0).toUpperCase() + docModel.riskLevel.slice(1) + ' Risk');
+        if (docModel.responsibilities) section('Legacy Responsibilities', docModel.responsibilities);
+        pdf.setFontSize(12); pdf.text('Steps', x, y); y += 16; pdf.setFontSize(10);
+        (docModel.steps||[]).forEach((s, i) => { y = drawWrapped(pdf, `${i+1}. ${s}`, x, y, 14, maxW); }); y += 6;
+        section('References', docModel.references);
+        const flowPng = await svgToPngDataUrl(this._lastFlowSvg, Math.min(700, maxW));
+        if (flowPng) {
+          if (y > pdf.internal.pageSize.getHeight() - (flowPng.height + 80)) { pdf.addPage(); y = 60; }
+          pdf.setFontSize(12); pdf.text('Process Flowchart', x, y); y += 16;
+          pdf.addImage(flowPng.dataUrl, 'PNG', x, y, flowPng.width, flowPng.height);
+        }
+        pdf.save(`${(docModel.title||'document').replace(/[^a-z0-9\-_]+/gi,'_')}.pdf`);
+      },
+      async exportDocx() {
+        if (!window.docx) return alert('DOCX engine not available');
+        const { Document, Packer, Paragraph, HeadingLevel, ImageRun } = window.docx;
+        const m = this.buildDocModel();
+        if (!this._lastFlowSvg) { await this.renderFlowchart(); }
+        const dataUrlToUint8 = async (dataUrl) => { const res = await fetch(dataUrl); const buf = await res.arrayBuffer(); return new Uint8Array(buf); };
+        const svgToPngDataUrl = async (svgString, width = 1200) => new Promise((resolve) => {
+          if (!svgString) return resolve(null);
+          const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+          const url = URL.createObjectURL(blob);
+          const img = new Image();
+          img.onload = () => {
+            const w = width; const h = Math.max(200, Math.floor((img.height / img.width) * w));
+            const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h;
+            const ctx = canvas.getContext('2d'); ctx.fillStyle = '#ffffff'; ctx.fillRect(0,0,w,h); ctx.drawImage(img,0,0,w,h);
+            const out = canvas.toDataURL('image/png'); URL.revokeObjectURL(url); resolve({ dataUrl: out, width: w, height: h });
+          };
+          img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
+          img.src = url;
+        });
+        const imgUrlToPngDataUrl = async (url, maxW = 300) => new Promise((resolve) => {
+          if (!url) return resolve(null);
+          const img = new Image(); img.crossOrigin = 'anonymous';
+          img.onload = () => {
+            const ratio = img.height / img.width; const w = Math.min(maxW, img.width); const h = Math.round(w * ratio);
+            const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h;
+            const ctx = canvas.getContext('2d'); ctx.fillStyle = '#ffffff'; ctx.fillRect(0,0,w,h); ctx.drawImage(img,0,0,w,h);
+            resolve({ dataUrl: canvas.toDataURL('image/png'), width: w, height: h });
+          };
+          img.onerror = () => resolve(null);
+          img.src = url;
+        });
+        const logoEl = document.getElementById('headerCompanyLogo');
+        const logo = await imgUrlToPngDataUrl(logoEl && logoEl.src ? logoEl.src : null, 300);
+        const flow = await svgToPngDataUrl(this._lastFlowSvg, 1200);
+        const paras = [];
+        if (logo) { paras.push(new Paragraph({ children: [ new ImageRun({ data: await dataUrlToUint8(logo.dataUrl), transformation: { width: 120, height: Math.round(120*(logo.height/logo.width)) } }) ] })); }
+        paras.push(new Paragraph({ text: m.title || 'Untitled Document', heading: HeadingLevel.TITLE }));
+        paras.push(new Paragraph({ text: `${(document.getElementById('headerCompanyName')?.textContent)||''} • ${m.type}` }));
+        paras.push(new Paragraph({ text: 'Purpose', heading: HeadingLevel.HEADING_2 }));
+        (m.purpose||'').split('\n').forEach(s=>paras.push(new Paragraph(s)));
+        paras.push(new Paragraph({ text: 'Scope', heading: HeadingLevel.HEADING_2 }));
+        (m.scope||'').split('\n').forEach(s=>paras.push(new Paragraph(s)));
+        if (m.owner) { paras.push(new Paragraph({ text: 'Document Owner', heading: HeadingLevel.HEADING_2 })); paras.push(new Paragraph(m.owner)); }
+        if (m.approver) { paras.push(new Paragraph({ text: 'Approver', heading: HeadingLevel.HEADING_2 })); paras.push(new Paragraph(m.approver)); }
+        if (m.reviewCycle) { paras.push(new Paragraph({ text: 'Review Cycle', heading: HeadingLevel.HEADING_2 })); paras.push(new Paragraph(m.reviewCycle.charAt(0).toUpperCase() + m.reviewCycle.slice(1))); }
+        if (m.effectiveDate) { paras.push(new Paragraph({ text: 'Effective Date', heading: HeadingLevel.HEADING_2 })); paras.push(new Paragraph(m.effectiveDate)); }
+        if (m.expiryDate) { paras.push(new Paragraph({ text: 'Next Review Date', heading: HeadingLevel.HEADING_2 })); paras.push(new Paragraph(m.expiryDate)); }
+        if (m.classification) { paras.push(new Paragraph({ text: 'Classification', heading: HeadingLevel.HEADING_2 })); paras.push(new Paragraph(m.classification.charAt(0).toUpperCase() + m.classification.slice(1))); }
+        if (m.roles) { paras.push(new Paragraph({ text: 'Roles & Responsibilities', heading: HeadingLevel.HEADING_2 })); (m.roles||'').split('\n').forEach(s=>paras.push(new Paragraph(s))); }
+        if (m.training) { paras.push(new Paragraph({ text: 'Training Requirements', heading: HeadingLevel.HEADING_2 })); (m.training||'').split('\n').forEach(s=>paras.push(new Paragraph(s))); }
+        if (m.compliance) { paras.push(new Paragraph({ text: 'Compliance References', heading: HeadingLevel.HEADING_2 })); (m.compliance||'').split('\n').forEach(s=>paras.push(new Paragraph(s))); }
+        if (m.distribution) { paras.push(new Paragraph({ text: 'Distribution List', heading: HeadingLevel.HEADING_2 })); (m.distribution||'').split('\n').forEach(s=>paras.push(new Paragraph(s))); }
+        if (m.riskLevel) { paras.push(new Paragraph({ text: 'Risk Assessment', heading: HeadingLevel.HEADING_2 })); paras.push(new Paragraph(m.riskLevel.charAt(0).toUpperCase() + m.riskLevel.slice(1) + ' Risk')); }
+        if (m.responsibilities) { paras.push(new Paragraph({ text: 'Legacy Responsibilities', heading: HeadingLevel.HEADING_2 })); (m.responsibilities||'').split('\n').forEach(s=>paras.push(new Paragraph(s))); }
+        paras.push(new Paragraph({ text: 'Steps', heading: HeadingLevel.HEADING_2 }));
+        (m.steps||[]).forEach((s,i)=>paras.push(new Paragraph(`${i+1}. ${s}`)));
+        paras.push(new Paragraph({ text: 'References', heading: HeadingLevel.HEADING_2 }));
+        (m.references||'').split('\n').forEach(s=>paras.push(new Paragraph(s)));
+        if (flow) {
+          paras.push(new Paragraph({ text: 'Process Flowchart', heading: HeadingLevel.HEADING_2 }));
+          const flowW = 600; const flowH = Math.round(flowW * (flow.height/flow.width));
+          paras.push(new Paragraph({ children: [ new ImageRun({ data: await dataUrlToUint8(flow.dataUrl), transformation: { width: flowW, height: flowH } }) ] }));
+        }
+        const docxDoc = new Document({ sections: [{ children: paras }] });
+        const blob = await Packer.toBlob(docxDoc);
+        window.saveAs(blob, `${(m.title||'document').replace(/[^a-z0-9\-_]+/gi,'_')}.docx`);
+      },
+      async fetchApprovalFlowConfig() {
+        try {
+          const ctx = await this.loadCompanyContext();
+          if (!ctx) return;
+          const { companyId } = ctx;
+          const snap = await this.db.ref(`companies/${companyId}/approvalFlows/dms`).once('value');
+          this._approvalFlow = snap.exists() ? snap.val() : null;
+        } catch (e) { console.warn('Approval flow fetch error', e); }
+      },
+      async loadDocumentFromQuery() {
+        const params = new URLSearchParams(window.location.search);
+        const docId = params.get('doc');
+        const mode = params.get('mode');
+        const local = this.tryLoadLocalDraft(docId || this.getDocId());
+        if (local) this.fillEditorFromModel(local);
+        if (!docId) return;
+        const ctx = await this.loadCompanyContext();
+        if (!ctx) return;
+        try {
+          const snap = await this.db.ref(`companies/${ctx.companyId}/dms/documents/${docId}`).once('value');
+          if (snap.exists()) {
+            const doc = snap.val();
+            this.fillEditorFromModel(doc);
+            if (mode === 'view') {
+              // disable inputs
+              document.querySelectorAll('#tab-editor input, #tab-editor textarea, #tab-editor select, #addStepBtn, #saveDraftBtn, #submitReviewBtn').forEach(el => { el.disabled = true; el.style.opacity = .7; });
+            }
+          }
+        } catch (e) { console.warn('Doc load error', e); }
+      }
+      ,
+      fillEditorFromModel(m) {
+        if (!m) return;
+        const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
+        set('docTitle', m.title);
+        set('docType', m.type);
+        set('docTags', (m.tags||[]).join(', '));
+        set('docPurpose', m.purpose);
+        set('docScope', m.scope);
+        set('docResponsibilities', m.responsibilities);
+        set('docReferences', m.references);
+        const stepsContainer = document.getElementById('stepsContainer');
+        stepsContainer.innerHTML = '';
+        (m.steps||['Start']).forEach(s=>{
+          const div = document.createElement('div');
+          div.className = 'step';
+          div.innerHTML = `<span class=\"muted\">#</span><input type=\"text\" value=\"${(s||'').replace(/"/g,'&quot;')}\" placeholder=\"Describe the step\" /><button class=\"btn ghost\" type=\"button\" title=\"Remove\">&times;</button>`;
+          div.querySelector('button').addEventListener('click', () => div.remove());
+          stepsContainer.appendChild(div);
+        });
+      }
+    };
+
+    // Initialize on load
+    window.addEventListener('DOMContentLoaded', () => Auth.init());
+  </script>
+</body>
+</html>

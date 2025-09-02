@@ -1,0 +1,3427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Accommodation - Dreamex Datalab</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <!-- Firebase v8 Scripts for Centralized Authentication -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --secondary-color: #34495e;
+            --accent-color: #e74c3c;
+            --success-color: #27ae60;
+            --warning-color: #f39c12;
+            --info-color: #3498db;
+            --light-color: #ecf0f1;
+            --dark-color: #2c3e50;
+            --sidebar-width: 250px;
+            --header-height: 60px;
+            --transition-speed: 0.2s;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f8f9fa;
+            line-height: 1.6;
+        }
+
+        .app-container {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        /* Sidebar Styles */
+        .sidebar {
+            width: var(--sidebar-width);
+            background: var(--primary-color);
+            color: #fff;
+            padding: 1rem;
+            position: fixed;
+            height: 100vh;
+            overflow-y: auto;
+            z-index: 1000;
+            transition: transform 0.3s ease;
+        }
+
+        /* Sidebar collapsed state */
+        .sidebar.collapsed {
+            transform: translateX(-100%);
+        }
+
+        /* Main content adjustments when sidebar is collapsed */
+        .main-content.sidebar-collapsed {
+            margin-left: 0;
+        }
+
+        .main-content.sidebar-collapsed .top-nav {
+            left: 0.5rem;
+        }
+
+        .logo h2 {
+            text-align: center;
+            padding: 1rem 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .menu {
+            list-style: none;
+            margin-top: 2rem;
+        }
+
+        .menu li {
+            margin-bottom: 0.5rem;
+        }
+
+        .menu a {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            color: #fff;
+            text-decoration: none;
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            transition: background-color var(--transition-speed), color var(--transition-speed);
+        }
+
+        .menu a:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+
+        .menu a.active {
+            background-color: var(--accent-color);
+        }
+
+        .submenu {
+            list-style: none;
+            margin-left: 1rem;
+            margin-top: 0.5rem;
+            display: none;
+        }
+
+        .menu-dropdown:hover .submenu {
+            display: block;
+        }
+
+        .submenu a {
+            font-size: 0.8rem;
+            padding: 0.5rem 1rem;
+        }
+
+        /* Main Content Styles */
+        .main-content {
+            flex: 1;
+            margin-left: var(--sidebar-width);
+            padding: 0.3rem;
+            padding-top: 3.5rem;
+            width: calc(100% - var(--sidebar-width));
+            box-sizing: border-box;
+            transition: margin-left 0.3s ease;
+        }
+
+        .top-nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.5rem 0.75rem;
+            background-color: white;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            margin-bottom: 0.3rem;
+            position: fixed;
+            top: 0.25rem;
+            right: 0.5rem;
+            left: calc(var(--sidebar-width) + 0.5rem);
+            height: 50px;
+            min-height: 50px;
+            z-index: 100;
+            transition: left 0.3s ease;
+        }
+
+        .top-nav-left {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .sidebar-toggle {
+            background: none;
+            border: none;
+            font-size: 1.2rem;
+            cursor: pointer;
+            color: var(--dark-color);
+            padding: 0.5rem;
+            border-radius: 4px;
+            transition: background-color 0.3s ease;
+        }
+
+        .sidebar-toggle:hover {
+            background-color: var(--light-color);
+        }
+
+        /* Company Branding */
+        .company-branding {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .header-company-logo {
+            height: 35px;
+            width: auto;
+            border-radius: 4px;
+        }
+
+        .company-name-header {
+            font-weight: 600;
+            color: var(--dark-color);
+            font-size: 0.9rem;
+        }
+
+        .top-nav-right {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        /* Notification Styles */
+        .notifications {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .notification-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            position: relative;
+            font-size: 1.2rem;
+            padding: 0.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .notification-badge {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            background-color: var(--accent-color);
+            color: white;
+            border-radius: 50%;
+            padding: 0.2rem 0.5rem;
+            font-size: 0.7rem;
+        }
+
+        .notification-dropdown {
+            display: none;
+            position: absolute;
+            right: 0;
+            top: 100%;
+            width: 300px;
+            background-color: white;
+            border-radius: 5px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+        }
+
+        .notification-dropdown.show {
+            display: block;
+        }
+
+        /* User Profile Styles */
+        .user-profile {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .profile-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            border-radius: 50%;
+            overflow: hidden;
+            width: 40px;
+            height: 40px;
+        }
+
+        .profile-btn img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .profile-dropdown {
+            display: none;
+            position: absolute;
+            right: 0;
+            top: 100%;
+            background-color: white;
+            border-radius: 5px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+            min-width: 200px;
+        }
+
+        .profile-dropdown.show {
+            display: block;
+        }
+
+        .profile-dropdown ul {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        .profile-dropdown li {
+            border-bottom: 1px solid #eee;
+        }
+
+        .profile-dropdown li:last-child {
+            border-bottom: none;
+        }
+
+        .profile-dropdown a {
+            display: block;
+            padding: 0.75rem 1rem;
+            color: var(--dark-color);
+            text-decoration: none;
+            transition: background-color 0.2s;
+        }
+
+        .profile-dropdown a:hover {
+            background-color: #f8f9fa;
+        }
+
+        /* Essential Menu Visibility Styles */
+        [data-feature]:not(.menu-visible) {
+            display: none !important;
+        }
+
+        .menu-dropdown:not(.menu-visible) {
+            display: none !important;
+        }
+
+    /* Ensure dropdowns visible during loading like staff.html */
+    .menu-loading [data-feature] { display:block !important; }
+    .menu-loading .menu-dropdown { display:block !important; }
+
+        /* Show menu items by default until permissions are loaded */
+        .menu-loading [data-feature] {
+            display: block !important;
+        }
+
+        /* Page Content */
+        .page-header {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: #fff;
+            padding: 0.55rem 0.75rem;
+            margin: 0.35rem 0 0.5rem 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 10px 28px rgba(0,0,0,0.18), 0 6px 16px rgba(0,0,0,0.14);
+            font-size: 0.9rem;
+        }
+
+        .page-header i {
+            font-size: 1rem;
+        }
+
+        .page-header h1 {
+            color: #fff;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.9rem;
+            margin: 0;
+            font-weight: 600;
+        }
+
+        /* Add New Button */
+        .btn-add-new {
+            background: none;
+            border: none;
+            color: #fff;
+            padding: 0.4rem;
+            font-size: 1.2rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-decoration: none;
+        }
+
+        .btn-add-new:hover {
+            color: rgba(255,255,255,0.8);
+            transform: scale(1.1);
+        }
+
+        .btn-add-new i {
+            font-size: 1.2rem;
+        }
+
+        /* Dashboard Cards */
+        .dashboard-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(75px, 1fr));
+            gap: 0.1rem;
+            margin-bottom: 0.2rem;
+            margin-top: 0.1rem;
+        }
+
+        .card {
+            background: white;
+            border-radius: 3px;
+            padding: 0.2rem;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+            transition: all 0.2s ease;
+            min-height: 35px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            text-align: center;
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 0.05rem;
+        }
+
+        .card-header > div {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .card-title {
+            font-size: 0.55rem;
+            color: #6c757d;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 500;
+            line-height: 1;
+            white-space: nowrap;
+        }
+
+        .card-value {
+            font-size: 0.75rem;
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 0;
+            line-height: 1;
+        }
+
+        .card-icon {
+            font-size: 0.75rem;
+            opacity: 0.3;
+        }
+
+        /* Search and Filter Styles */
+        .table-header {
+            padding: 0.75rem;
+            border-bottom: 1px solid #e2e8f0;
+            background: #f8fafc;
+        }
+
+        .table-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .search-filters {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .search-filters input,
+        .search-filters select {
+            padding: 0.35rem 0.5rem;
+            font-size: 0.75rem;
+            border: 1px solid #cbd5e1;
+            border-radius: 5px;
+            background: white;
+        }
+
+        .search-filters input {
+            width: 180px;
+        }
+
+        .search-filters select {
+            width: 120px;
+            cursor: pointer;
+        }
+
+        .search-filters input:focus,
+        .search-filters select:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+        }
+
+        /* Tab Navigation Styles */
+        .tab-navigation {
+            display: flex;
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px 8px 0 0;
+            margin-bottom: 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .tab-button {
+            flex: 1;
+            padding: 1rem 1.5rem;
+            border: none;
+            background: transparent;
+            border-bottom: 3px solid transparent;
+            cursor: pointer;
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: #64748b;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            justify-content: center;
+        }
+
+        .tab-button:hover {
+            background: #f8fafc;
+            color: var(--primary-color);
+        }
+
+        .tab-button.active {
+            color: var(--primary-color);
+            border-bottom-color: var(--primary-color);
+            background: #f8fafc;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .archive-info {
+            font-size: 0.85rem;
+            color: #64748b;
+            font-style: italic;
+        }
+
+        /* Table Styles - matching campset.html */
+        .table-wrapper { 
+            overflow: hidden;
+            border: 1px solid #e2e8f0; 
+            border-radius: 0 0 8px 8px; 
+            background: white;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.1), 0 2px 8px rgba(0,0,0,0.08);
+            height: calc(100vh - 280px);
+            display: flex;
+            flex-direction: column;
+            transition: box-shadow 0.3s ease;
+            margin-bottom: 0.5rem;
+        }
+        
+        .table-wrapper:hover {
+            box-shadow: 0 12px 32px rgba(0,0,0,0.18), 0 6px 16px rgba(0,0,0,0.12);
+        }
+        
+        .table-scrollable {
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: auto;
+            min-height: 0;
+            width: 100%;
+        }
+
+        .table-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem;
+            background-color: #f8f9fa;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .table-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--dark-color);
+        }
+
+        .table-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 0;
+            table-layout: fixed;
+        }
+        
+        table thead {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            background: #f8f9fa;
+        }
+        
+        table thead th {
+            background: #f8f9fa;
+            color: #495057;
+            padding: 0.8rem;
+            font-weight: 600;
+            font-size: 0.75rem;
+            border-bottom: 2px solid #e9ecef;
+            text-align: left;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        /* Define specific column widths for proper alignment */
+        table th:nth-child(1), table td:nth-child(1) { width: 10%; } /* Room */
+        table th:nth-child(2), table td:nth-child(2) { width: 20%; } /* Employee */
+        table th:nth-child(3), table td:nth-child(3) { width: 15%; } /* Check-in Date */
+        table th:nth-child(4), table td:nth-child(4) { width: 15%; } /* Check-out Date */
+        table th:nth-child(5), table td:nth-child(5) { width: 12%; } /* Period */
+        table th:nth-child(6), table td:nth-child(6) { width: 12%; } /* Status */
+        table th:nth-child(7), table td:nth-child(7) { width: 16%; } /* Actions */
+        
+        table tbody td {
+            padding: 0.6rem 0.8rem;
+            border-bottom: 1px solid #e9ecef;
+            font-size: 0.75rem;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            vertical-align: middle;
+        }
+
+        tbody tr:hover {
+            background-color: #f8f9fa;
+        }
+
+        /* Button Styles */
+        .btn {
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background-color: #34495e;
+        }
+
+        .btn-success {
+            background-color: var(--success-color);
+            color: white;
+        }
+
+        .btn-warning {
+            background-color: var(--warning-color);
+            color: white;
+        }
+
+        .btn-danger {
+            background-color: var(--accent-color);
+            color: white;
+        }
+
+        .btn-sm {
+            padding: 0.25rem 0.5rem;
+            font-size: 0.75rem;
+        }
+
+        /* Status Badges */
+        .status-badge {
+            padding: 0.25rem 0.5rem;
+            border-radius: 12px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .status-occupied {
+            background-color: #fee2e2;
+            color: #991b1b;
+        }
+
+        .status-available {
+            background-color: #dcfce7;
+            color: #166534;
+        }
+
+        .status-maintenance {
+            background-color: #fef3c7;
+            color: #92400e;
+        }
+
+        .status-checkout {
+            background-color: #e0e7ff;
+            color: #3730a3;
+        }
+
+        .status-completed {
+            background-color: #d1fae5;
+            color: #065f46;
+        }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 2000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+        }
+
+        .modal.show {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background-color: white;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 600px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .modal-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--dark-color);
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #666;
+        }
+
+        .modal-body {
+            padding: 1rem;
+        }
+
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.5rem;
+            padding: 1rem;
+            border-top: 1px solid #dee2e6;
+        }
+
+        /* Form Styles */
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.25rem;
+            font-weight: 600;
+            color: var(--dark-color);
+            font-size: 0.85rem;
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 0.85rem;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        /* Responsive */
+        @media (max-width: 1200px) {
+            .dashboard-cards {
+                grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+            }
+            
+            .table-controls {
+                flex-direction: column;
+                gap: 0.5rem;
+            }
+            
+            .search-filters {
+                width: 100%;
+                justify-content: space-between;
+            }
+        }
+
+        @media (max-width: 900px) {
+            .main-content {
+                margin-left: 0;
+            }
+            
+            .sidebar {
+                transform: translateX(-100%);
+                transition: transform 0.3s;
+            }
+            
+            .sidebar.open {
+                transform: translateX(0);
+            }
+            
+            .top-nav {
+                left: 0.5rem;
+            }
+            
+            .page-header {
+                padding: 0.5rem;
+                font-size: 0.85rem;
+                margin: 0.25rem 0 0.4rem 0;
+            }
+            
+            .tab-navigation {
+                flex-wrap: wrap;
+            }
+            
+            .tab-button {
+                flex: 1 1 auto;
+                min-width: 120px;
+                padding: 0.75rem 1rem;
+                font-size: 0.75rem;
+            }
+            
+            .dashboard-cards {
+                grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+                gap: 0.1rem;
+            }
+            
+            .card {
+                min-height: 30px;
+                padding: 0.15rem;
+            }
+            
+            .card-title {
+                font-size: 0.5rem;
+            }
+            
+            .card-value {
+                font-size: 0.7rem;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .top-nav {
+                padding: 0.4rem 0.5rem;
+                height: 45px;
+                min-height: 45px;
+            }
+            
+            .main-content {
+                padding: 0.2rem;
+                padding-top: 3rem;
+            }
+            
+            .page-header {
+                padding: 0.4rem 0.6rem;
+                font-size: 0.8rem;
+            }
+            
+            .page-header .btn-add-new {
+                padding: 0.3rem;
+                font-size: 1rem;
+            }
+            
+            .table-wrapper {
+                height: calc(100vh - 320px);
+            }
+            
+            .table-header {
+                padding: 0.75rem;
+            }
+            
+            .table-title {
+                font-size: 1rem;
+            }
+            
+            table thead th {
+                padding: 0.6rem 0.4rem;
+                font-size: 0.7rem;
+            }
+            
+            table tbody td {
+                padding: 0.5rem 0.4rem;
+                font-size: 0.7rem;
+            }
+            
+            .btn-sm {
+                padding: 0.2rem 0.4rem;
+                font-size: 0.7rem;
+            }
+            
+            .modal-content {
+                width: 95%;
+                margin: 1rem;
+            }
+            
+            .modal-body {
+                padding: 0.75rem;
+            }
+            
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .top-nav {
+                padding: 0.3rem 0.4rem;
+                height: 40px;
+                min-height: 40px;
+            }
+            
+            .main-content {
+                padding-top: 2.5rem;
+            }
+            
+            .page-header {
+                padding: 0.35rem 0.5rem;
+                font-size: 0.75rem;
+            }
+            
+            .tab-button {
+                padding: 0.6rem 0.75rem;
+                font-size: 0.7rem;
+                min-width: 100px;
+            }
+            
+            .dashboard-cards {
+                grid-template-columns: repeat(auto-fit, minmax(60px, 1fr));
+            }
+            
+            .card {
+                min-height: 25px;
+                padding: 0.1rem;
+            }
+            
+            .card-title {
+                font-size: 0.45rem;
+            }
+            
+            .card-value {
+                font-size: 0.65rem;
+            }
+            
+            .table-wrapper {
+                height: calc(100vh - 280px);
+            }
+            
+            table thead th {
+                padding: 0.5rem 0.3rem;
+                font-size: 0.65rem;
+            }
+            
+            table tbody td {
+                padding: 0.4rem 0.3rem;
+                font-size: 0.65rem;
+            }
+            
+            .search-filters {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .search-filters input,
+            .search-filters select {
+                width: 100%;
+                margin-bottom: 0.25rem;
+            }
+            
+            .btn {
+                padding: 0.4rem 0.6rem;
+                font-size: 0.75rem;
+            }
+            
+            .status-badge {
+                font-size: 0.65rem;
+                padding: 0.2rem 0.4rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <nav class="sidebar menu-loading" id="sidebar">
+            <div class="logo">
+                <h2>Dreamex Datalab</h2>
+            </div>
+            <ul class="menu" id="roleBasedMenu">
+                <li class="menu-item" data-feature="home_view" data-requires-permission="home_view">
+                    <a href="index.html"><i class="fas fa-home"></i> Home</a>
+                </li>
+                <li class="menu-dropdown" data-feature="health_view" data-requires-permission="health_view">
+                    <a href="#"><i class="fas fa-medkit"></i> Health</a>
+                    <ul class="submenu">
+                        <li data-feature="health_assessment_view" data-requires-permission="health_assessment_view"><a href="health-assessment.html">Assessment</a></li>
+                        <li data-feature="health_consultation_view" data-requires-permission="health_consultation_view"><a href="health-consultation.html">Consultation</a></li>
+                        <li data-feature="medical_folder_view" data-requires-permission="medical_folder_view"><a href="medical-folder.html">Medical Folder</a></li>
+                    </ul>
+                </li>
+                <li class="menu-dropdown" data-feature="safety_view" data-requires-permission="safety_view">
+                    <a href="#"><i class="fas fa-shield-alt"></i> Safety</a>
+                    <ul class="submenu">
+                        <li data-feature="training_view" data-requires-permission="training_view"><a href="trainingboard.html">Training</a></li>
+                        <li data-feature="risk_view" data-requires-permission="risk_view"><a href="riskboard.html">Risk Management</a></li>
+                        <li data-feature="jsa_view" data-requires-permission="jsa_view"><a href="jsaboard.html">Job Safety Analysis</a></li>
+                        <li data-feature="ptw_view" data-requires-permission="ptw_view"><a href="ptwboard.html">Permit to Work</a></li>
+                        <li data-feature="incident_view" data-requires-permission="incident_view"><a href="incidentboard.html">Incident Reports</a></li>
+                        <li data-feature="inspection_view" data-requires-permission="inspection_view"><a href="inspectionboard.html">Inspection</a></li>
+                        <li data-feature="audit_view" data-requires-permission="audit_view"><a href="auditboard.html">Audit</a></li>
+                    </ul>
+                </li>
+                <li class="menu-dropdown" data-feature="fuel_management">
+                    <a href="#"><i class="fas fa-gas-pump"></i> Fuel Management</a>
+                    <ul class="submenu">
+                        <li data-feature="vessel_offloading"><a href="vessel-offloading.html">Vessel Offloading</a></li>
+                        <li data-feature="fuel_storage"><a href="fuel-storage-status.html">Fuel Storage Status</a></li>
+                        <li data-feature="tank_transfer"><a href="tank-transfer.html">Tank-to-Tank Transfer</a></li>
+                        <li data-feature="truck_loading"><a href="fuel-truck-loading.html">Fuel Truck Loading</a></li>
+                        <li data-feature="quality_analysis"><a href="fuel-quality-analysis.html">Fuel Quality Analysis</a></li>
+                        <li data-feature="fuel_distribution"><a href="fueldistrib.html">Fuel Distribution</a></li>
+                        <li data-feature="fuel_consumption_analysis"><a href="fuelanalys.html">Consumption Analysis</a></li>
+                    </ul>
+                </li>
+                <li class="menu-dropdown" data-feature="environment_view">
+                    <a href="#"><i class="fas fa-leaf"></i> Environment</a>
+                    <ul class="submenu">
+                        <li data-feature="water_view"><a href="waterboard.html">Water Quality</a></li>
+                    </ul>
+                </li>
+                <li class="menu-dropdown" data-feature="security_view">
+                    <a href="#"><i class="fas fa-lock"></i> Security</a>
+                    <ul class="submenu">
+                        <li data-feature="access_view"><a href="accessboard.html">Access Request</a></li>
+                        <li data-feature="access_daily_view"><a href="accessdaily.html">Daily Access Control</a></li>
+                        <li data-feature="removal_view"><a href="removalboard.html">Property Removal</a></li>
+                    </ul>
+                </li>
+                <li class="menu-dropdown" data-feature="logistics_view" data-requires-permission="logistics_view">
+                    <a href="#"><i class="fas fa-truck"></i> Logistics</a>
+                    <ul class="submenu">
+                        <li data-feature="fleet_view" data-requires-permission="fleet_view"><a href="fleet.html">Fleet Management</a></li>
+                    </ul>
+                </li>
+                <li class="menu-dropdown" data-feature="accommodation_view" data-requires-permission="accommodation_view">
+                    <a href="#"><i class="fas fa-bed"></i> Accommodation</a>
+                    <ul class="submenu">
+                        <li data-feature="camp_view" data-requires-permission="camp_view"><a href="camp.html">Camp Management</a></li>
+                        <li data-feature="camp_settings_view" data-requires-permission="camp_settings_view"><a href="campset.html">Camp Settings</a></li>
+                    </ul>
+                </li>
+                <li class="menu-dropdown" data-feature="hr_view" data-requires-permission="hr_view">
+                    <a href="#"><i class="fas fa-users"></i> HR</a>
+                    <ul class="submenu">
+                        <li data-feature="human_hr_view" data-requires-permission="human_hr_view"><a href="human-hr.html"><i class="fas fa-user-tie"></i> Human HR</a></li>
+                        <li data-feature="staff_management_view" data-requires-permission="staff_management_view"><a href="staff.html">Staffing</a></li>
+                        <li data-feature="authority_to_recruit_view" data-requires-permission="authority_to_recruit_view"><a href="recruit.html">Authority to Recruit</a></li>
+                        <li data-feature="job_advertising_view" data-requires-permission="job_advertising_view"><a href="jobpost.html">Job Advertising</a></li>
+                        <li data-feature="screening_view" data-requires-permission="screening_view"><a href="jobscreen.html">Screening</a></li>
+                        <li data-feature="interview_view" data-requires-permission="interview_view"><a href="interview.html">Interview</a></li>
+                        <li data-feature="offer_view" data-requires-permission="offer_view"><a href="offer.html">Offer Management</a></li>
+                        <li data-feature="contract_view" data-requires-permission="contract_view"><a href="contract.html">Contract Management</a></li>
+                        <li data-feature="onboarding_view" data-requires-permission="onboarding_view"><a href="onboard.html">Onboarding</a></li>
+                        <li data-feature="chart_view" data-requires-permission="chart_view"><a href="chart.html">Chart Setup</a></li>
+                        <li data-feature="chartboard_view" data-requires-permission="chartboard_view"><a href="chartboard.html">Org Chart</a></li>
+                        <li data-feature="kpi_dashboard_view" data-requires-permission="kpi_dashboard_view"><a href="kpi.html">KPI</a></li>
+                    </ul>
+                </li>
+                <li data-feature="communication_view"><a href="info.html"><i class="fas fa-comments"></i> Communication</a></li>
+                <li class="menu-dropdown" data-feature="settings_view">
+                    <a href="#"><i class="fas fa-cog"></i> Settings</a>
+                    <ul class="submenu">
+                        <li data-feature="account_settings_view"><a href="account.html">Account Settings</a></li>
+                        <li data-feature="company_management_view"><a href="companymanagement.html">Company Management</a></li>
+                        <li data-feature="approval_settings_view"><a href="approval-settings.html">Approval Flow Settings</a></li>
+                        <li data-feature="field_setup_view"><a href="fieldsetup.html">Field Setup</a></li>
+                        <li data-feature="preferences_view"><a href="preferences.html">Preferences</a></li>
+                        <li data-feature="notification_settings_view"><a href="notification-settings.html">Notification Settings</a></li>
+                        <li data-feature="audit_log_view"><a href="auditlog.html"><i class="fas fa-history"></i> Audit Log</a></li>
+                        <li data-feature="user_management_view"><a href="users.html">User & Role Management</a></li>
+                        <li data-feature="role_permissions_view"><a href="roles.html">Role Permissions</a></li>
+                    </ul>
+                </li>
+            </ul>
+        </nav>
+
+        <main class="main-content">
+            <nav class="top-nav">
+                <div class="top-nav-left">
+                    <button class="sidebar-toggle" id="sidebarToggle">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <div class="company-branding">
+                        <img id="headerCompanyLogo" class="header-company-logo" alt="Company Logo">
+                        <span id="headerCompanyName" class="company-name-header"></span>
+                    </div>
+                </div>
+                <div class="top-nav-right">
+                    <div class="notifications">
+                        <button id="notificationBtn" class="notification-btn">
+                            <i class="fas fa-bell"></i>
+                            <span class="notification-badge">0</span>
+                        </button>
+                        <div class="notification-dropdown">
+                            <div class="notification-header">
+                                <h3>Notifications</h3>
+                                <button class="mark-all-read">Mark all as read</button>
+                            </div>
+                            <div class="notification-list">
+                                <!-- Notifications will be dynamically added here -->
+                            </div>
+                        </div>
+                    </div>
+                    <div class="user-profile">
+                        <button id="userProfileBtn" class="profile-btn">
+                            <img src="" alt="User Avatar" style="display: block;" />
+                        </button>
+                        <div class="profile-dropdown">
+                            <ul></ul>
+                        </div>
+                    </div>
+                </div>
+            </nav>
+
+            <div class="page-header">
+                <div style="display: flex; align-items: center; gap: 0.6rem;">
+                    <i class="fas fa-bed"></i>
+                    <span>Accommodation</span>
+                </div>
+                <button type="button" class="btn-add-new" onclick="openAssignmentModal()" title="New Assignment">
+                    <i class="fas fa-plus"></i>
+                </button>
+            </div>
+
+            <div class="dashboard-cards">
+                <div class="card">
+                    <div class="card-header">
+                        <div>
+                            <div class="card-title">Total Rooms</div>
+                            <div class="card-value" id="totalRooms">--</div>
+                        </div>
+                        <i class="fas fa-bed card-icon"></i>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <div>
+                            <div class="card-title">Occupied Rooms</div>
+                            <div class="card-value" id="occupiedRooms">--</div>
+                        </div>
+                        <i class="fas fa-user-check card-icon"></i>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <div>
+                            <div class="card-title">Available Rooms</div>
+                            <div class="card-value" id="availableRooms">--</div>
+                        </div>
+                        <i class="fas fa-door-open card-icon"></i>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <div>
+                            <div class="card-title">Occupancy Rate</div>
+                            <div class="card-value" id="occupancyRate">--</div>
+                        </div>
+                        <i class="fas fa-chart-pie card-icon"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab Navigation -->
+            <div class="tab-navigation">
+                <button class="tab-button active" onclick="switchTab('active')" id="activeTab">
+                    <i class="fas fa-bed"></i> Active Assignments
+                </button>
+                <button class="tab-button" onclick="switchTab('archives')" id="archivesTab">
+                    <i class="fas fa-archive"></i> Archives
+                </button>
+            </div>
+
+            <!-- Active Assignments Tab -->
+            <div id="activeContent" class="tab-content active">
+                <div class="table-wrapper">
+                    <div class="table-header">
+                        <div class="table-controls">
+                            <div class="search-filters">
+                                <input type="text" id="searchAssignments" placeholder="Search employee / room" />
+                                <select id="filterStatus">
+                                    <option value="">All Status</option>
+                                    <option value="assigned">Assigned</option>
+                                    <option value="checked_in">Checked In</option>
+                                    <option value="cancelled">Cancelled</option>
+                                </select>
+                                <select id="filterRoom">
+                                    <option value="">All Rooms</option>
+                                </select>
+                            </div>
+                            <div class="table-actions">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="table-scrollable">
+                        <table id="assignmentsTable">
+                        <thead>
+                            <tr>
+                                <th>Room</th>
+                                <th>Employee</th>
+                                <th>Check-in Date</th>
+                                <th>Check-out Date</th>
+                                <th>Period</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Sample data - will be populated dynamically -->
+                            <tr>
+                                <td>A-101</td>
+                                <td>John Smith</td>
+                                <td>2025-08-01</td>
+                                <td>2025-08-28</td>
+                            <td>4 weeks</td>
+                            <td><span class="status-badge status-occupied">Occupied</span></td>
+                            <td>
+                                <button class="btn btn-sm btn-warning" onclick="extendStay(1)">Extend</button>
+                                <button class="btn btn-sm btn-danger" onclick="checkOut(1)">Check Out</button>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>A-102</td>
+                            <td>--</td>
+                            <td>--</td>
+                            <td>--</td>
+                            <td>--</td>
+                            <td><span class="status-badge status-available">Available</span></td>
+                            <td>
+                                <button class="btn btn-sm btn-success" onclick="assignRoom('A-102')">Assign</button>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>B-201</td>
+                            <td>--</td>
+                            <td>--</td>
+                            <td>--</td>
+                            <td>--</td>
+                            <td><span class="status-badge status-maintenance">Maintenance</span></td>
+                            <td>
+                                <button class="btn btn-sm btn-primary" onclick="markAvailable('B-201')">Mark Available</button>
+                            </td>
+                        </tr>
+                    </tbody>
+                    </table>
+                </div>
+            </div>
+            </div>
+
+            <!-- Archives Tab -->
+            <div id="archivesContent" class="tab-content">
+                <div class="table-wrapper">
+                    <div class="table-header">
+                        <div class="table-controls">
+                            <div class="search-filters">
+                                <input type="text" id="searchArchives" placeholder="Search archived records" />
+                                <select id="filterArchiveRoom">
+                                    <option value="">All Rooms</option>
+                                </select>
+                                <input type="date" id="filterArchiveDate" title="Filter by check-out date" />
+                            </div>
+                            <div class="table-actions">
+                                <span class="archive-info">Completed assignments and check-outs</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="table-scrollable">
+                        <table id="archivesTable">
+                            <thead>
+                                <tr>
+                                    <th>Room</th>
+                                    <th>Employee</th>
+                                    <th>Check-in Date</th>
+                                    <th>Check-out Date</th>
+                                    <th>Duration</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Archived assignments will be populated dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Assignment Modal -->
+    <div id="assignmentModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">Room Assignment</h3>
+                <button class="modal-close" onclick="closeModal('assignmentModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="assignmentForm">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="employeeSelect">Employee</label>
+                            <select id="employeeSelect" name="employee" required>
+                                <option value="">Select Employee</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="roomSelect">Room</label>
+                            <select id="roomSelect" name="room" required>
+                                <option value="">Select Room</option>
+                                <!-- Rooms will be populated dynamically -->
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="checkInDate">Check-in Date</label>
+                            <input type="date" id="checkInDate" name="checkInDate" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="checkOutDate">Expected Check-out Date</label>
+                            <input type="date" id="checkOutDate" name="checkOutDate" required>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="periodType">Assignment Period</label>
+                        <select id="periodType" name="periodType">
+                            <option value="rotation">Standard Rotation (4 weeks)</option>
+                            <option value="extended">Extended Stay (8 weeks)</option>
+                            <option value="permanent">Permanent Assignment</option>
+                            <option value="custom">Custom Period</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="notes">Notes</label>
+                        <textarea id="notes" name="notes" rows="3" placeholder="Additional notes or special requirements..."></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" onclick="saveAssignment()">Save Assignment</button>
+                <button class="btn" onclick="closeModal('assignmentModal')">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Check-in Modal -->
+    <div id="checkInModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">Employee Check-in</h3>
+                <button class="modal-close" onclick="closeModal('checkInModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="checkInForm">
+                    <div class="form-group">
+                        <label for="checkInEmployee">Employee</label>
+                        <select id="checkInEmployee" name="employee" required>
+                            <option value="">Select Employee</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="actualCheckInDate">Actual Check-in Date</label>
+                        <input type="datetime-local" id="actualCheckInDate" name="checkInDate" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="checkInNotes">Check-in Notes</label>
+                        <textarea id="checkInNotes" name="notes" rows="3" placeholder="Room condition, special requests, etc..."></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-success" onclick="processCheckIn()">Check In</button>
+                <button class="btn" onclick="closeModal('checkInModal')">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Check-out Modal -->
+    <div id="checkOutModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">Employee Check-out</h3>
+                <button class="modal-close" onclick="closeModal('checkOutModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="checkOutForm">
+                    <div class="form-group">
+                        <label for="checkOutEmployee">Employee</label>
+                        <select id="checkOutEmployee" name="employee" required>
+                            <option value="">Select Employee</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="actualCheckOutDate">Actual Check-out Date</label>
+                        <input type="datetime-local" id="actualCheckOutDate" name="checkOutDate" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="roomCondition">Room Condition</label>
+                        <select id="roomCondition" name="condition">
+                            <option value="good">Good - Ready for next occupant</option>
+                            <option value="cleaning">Needs Cleaning</option>
+                            <option value="maintenance">Needs Maintenance</option>
+                            <option value="damage">Damaged - Requires Repair</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="checkOutNotes">Check-out Notes</label>
+                        <textarea id="checkOutNotes" name="notes" rows="3" placeholder="Room condition details, damages, etc..."></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-danger" onclick="processCheckOut()">Check Out</button>
+                <button class="btn" onclick="closeModal('checkOutModal')">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Centralized Firebase Configuration (from firebase-config-v8.js)
+        const firebaseConfig = {
+            apiKey: "AIzaSyCUTmTn0rRBb0M-UkQJxnUMrWqXYU_BgIc",
+            authDomain: "users-8be65.firebaseapp.com",
+            databaseURL: "https://users-8be65-default-rtdb.firebaseio.com",
+            projectId: "users-8be65",
+            storageBucket: "users-8be65.firebasestorage.app",
+            messagingSenderId: "909025468149",
+            appId: "1:909025468149:web:fb4e7c4a8b4bd6d1076e4d",
+            measurementId: "G-XHFMRCJQEZ"
+        };
+
+        // Initialize Firebase v8 if not already initialized
+        function initializeFirebase() {
+            if (!window.firebase || !window.firebase.apps || window.firebase.apps.length === 0) {
+                window.firebase.initializeApp(firebaseConfig);
+                console.log('✅ Firebase v8 initialized successfully for centralized auth');
+            }
+            return window.firebase;
+        }
+
+        // Initialize Firebase
+        const firebase = initializeFirebase();
+
+        // Centralized AuthManager Class (integrated from js/auth.js)
+        class AuthManager {
+            constructor() {
+                this.currentUser = this.getCurrentUser();
+                this.currentCompany = null;
+                this.db = null;
+                this.auth = null;
+                this.storage = null;
+                this.initializeAuth();
+            }
+
+            getCurrentUser() {
+                try {
+                    const user = localStorage.getItem('currentUser');
+                    return user ? JSON.parse(user) : null;
+                } catch (error) {
+                    console.error('Error getting current user:', error);
+                    return null;
+                }
+            }
+
+            async initializeAuth() {
+                console.log('🔐 Starting centralized authentication initialization...');
+                
+                try {
+                    // Initialize Firebase services
+                    this.auth = firebase.auth();
+                    this.db = firebase.database();
+                    this.storage = firebase.storage();
+                    
+                    console.log('✅ Firebase services initialized for centralized auth');
+
+                    // Set up auth state listener
+                    this.auth.onAuthStateChanged(async (user) => {
+                        if (user) {
+                            console.log('🔐 User authenticated via Firebase:', user.email);
+                            await this.loadUserData(user);
+                        } else {
+                            console.log('🔐 No Firebase user, setting guest mode');
+                            this.currentUser = { 
+                                uid: 'guest', 
+                                displayName: 'Guest User',
+                                email: 'guest@dreamex-datalab.com'
+                            };
+                            this.updateUIForAuthenticatedUser();
+                        }
+                    });
+
+                    // Check if we have stored user data
+                    if (this.currentUser && this.currentUser.uid !== 'guest') {
+                        await this.loadUserRole(this.currentUser);
+                        await this.loadUserCompany();
+                        this.updateUIForAuthenticatedUser();
+                    } else if (!this.currentUser) {
+                        // Set guest mode
+                        this.currentUser = { 
+                            uid: 'guest', 
+                            displayName: 'Guest User',
+                            email: 'guest@dreamex-datalab.com'
+                        };
+                        this.updateUIForAuthenticatedUser();
+                    }
+                    
+                } catch (error) {
+                    console.error('❌ Error initializing centralized authentication:', error);
+                    // Fallback to guest mode
+                    this.currentUser = { 
+                        uid: 'guest', 
+                        displayName: 'Guest User',
+                        email: 'guest@dreamex-datalab.com'
+                    };
+                    this.updateUIForAuthenticatedUser();
+                }
+            }
+
+            async loadUserData(user) {
+                try {
+                    const snap = await this.db.ref(`users/${user.uid}`).once('value');
+                    const data = snap.val();
+                    
+                    if (data && data.companyId) {
+                        this.currentUser = { ...user, ...data };
+                        localStorage.setItem('currentUser', JSON.stringify(this.currentUser));
+                        await this.loadCompanyData(data.companyId);
+                        this.updateUIForAuthenticatedUser();
+                    } else {
+                        this.currentUser = user;
+                        this.updateUIForAuthenticatedUser();
+                    }
+                } catch (e) {
+                    console.error('User load error', e);
+                }
+            }
+
+            async loadCompanyData(cid) {
+                try {
+                    const snap = await this.db.ref(`companies/${cid}`).once('value');
+                    this.currentCompany = snap.val();
+                } catch (e) {
+                    console.error('Company load error', e);
+                }
+            }
+
+            async loadUserRole(user) {
+                try {
+                    if (!user || user.uid === 'guest') return;
+                    
+                    const userRef = this.db.ref(`users/${user.uid}`);
+                    const snapshot = await userRef.once('value');
+                    
+                    if (snapshot.exists()) {
+                        const userData = snapshot.val();
+                        this.currentUser = { ...user, ...userData };
+                        localStorage.setItem('currentUser', JSON.stringify(this.currentUser));
+                        console.log('✅ User role and data loaded:', userData.role);
+                    }
+                } catch (error) {
+                    console.error('Error loading user role:', error);
+                }
+            }
+
+            async loadUserCompany() {
+                try {
+                    if (!this.currentUser || this.currentUser.uid === 'guest') return;
+                    
+                    const companyId = this.currentUser.companyId;
+                    if (companyId) {
+                        const companyRef = this.db.ref(`companies/${companyId}`);
+                        const snapshot = await companyRef.once('value');
+                        
+                        if (snapshot.exists()) {
+                            this.currentCompany = snapshot.val();
+                            this.updateCompanyBranding();
+                            console.log('✅ Company data loaded:', this.currentCompany.companyName);
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error loading company data:', error);
+                }
+            }
+
+            updateUIForAuthenticatedUser() {
+                this.updateCompanyBranding();
+                this.populateUserProfile();
+                console.log('✅ UI updated for authenticated user');
+            }
+
+            updateCompanyBranding() {
+                const logoEl = document.getElementById('headerCompanyLogo');
+                const nameEl = document.getElementById('headerCompanyName');
+                
+                if (!this.currentCompany) {
+                    if (logoEl) logoEl.style.display = 'none';
+                    if (nameEl) nameEl.textContent = 'Dreamex Datalab';
+                    return;
+                }
+                
+                if (nameEl) nameEl.textContent = this.currentCompany.companyName || 'Dreamex Datalab';
+                
+                const logoUrl = this.currentCompany.logo || this.currentCompany.logoUrl;
+                if (logoEl) {
+                    if (logoUrl) {
+                        logoEl.src = logoUrl;
+                        logoEl.style.display = 'block';
+                    } else {
+                        logoEl.style.display = 'none';
+                    }
+                }
+                
+                // Apply company branding colors
+                if (this.currentCompany.branding) {
+                    const root = document.documentElement;
+                    if (this.currentCompany.branding.primaryColor) {
+                        root.style.setProperty('--primary-color', this.currentCompany.branding.primaryColor);
+                    }
+                    if (this.currentCompany.branding.secondaryColor) {
+                        root.style.setProperty('--secondary-color', this.currentCompany.branding.secondaryColor);
+                    }
+                }
+            }
+
+            getUserDisplayName() {
+                if (!this.currentUser) return 'User';
+                return this.currentUser.displayName || 
+                       (this.currentUser.firstName ? 
+                        `${this.currentUser.firstName} ${this.currentUser.lastName || ''}`.trim() : 
+                        (this.currentUser.email ? this.currentUser.email.split('@')[0] : 'User'));
+            }
+
+            getUserInitials() {
+                const name = this.getUserDisplayName();
+                const parts = name.split(' ').filter(Boolean);
+                if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+                return (parts[0][0] + parts[1][0]).toUpperCase();
+            }
+
+            async getUserAvatarUrl() {
+                try {
+                    if (!this.currentUser || this.currentUser.uid === 'guest') return null;
+                    
+                    const avatarRef = this.storage.ref(`avatars/${this.currentUser.uid}/profile.jpg`);
+                    return await avatarRef.getDownloadURL();
+                } catch (e) {
+                    return null;
+                }
+            }
+
+            generateInitialsAvatar(name, img) {
+                const initials = this.getUserInitials();
+                const colors = ['#3498db', '#e74c3c', '#2ecc71', '#9b59b6', '#f39c12'];
+                const bg = colors[initials.charCodeAt(0) % 5];
+                const svg = `<svg width="40" height="40" xmlns='http://www.w3.org/2000/svg'>
+                    <rect width='40' height='40' rx='20' fill='${bg}'/>
+                    <text x='20' y='24' font-size='14' font-family='Arial' fill='#fff' text-anchor='middle' font-weight='600'>${initials}</text>
+                </svg>`;
+                img.src = 'data:image/svg+xml;base64,' + btoa(svg);
+                img.style.display = 'block';
+            }
+
+            async populateUserProfile() {
+                const btn = document.getElementById('userProfileBtn');
+                if (!btn || !this.currentUser) return;
+                
+                const img = btn.querySelector('img');
+                const url = await this.getUserAvatarUrl();
+                
+                if (url) {
+                    img.src = url;
+                } else {
+                    this.generateInitialsAvatar(this.getUserDisplayName(), img);
+                }
+                
+                const dropdown = document.querySelector('.profile-dropdown ul');
+                if (dropdown) {
+                    dropdown.innerHTML = `
+                        <li style='padding:10px 14px; border-bottom:1px solid #eee; display:flex; align-items:center; gap:10px;'>
+                            <div style='width:32px;height:32px;border-radius:50%;overflow:hidden;'>
+                                ${url ? `<img src='${url}' style='width:32px;height:32px;object-fit:cover;'/>` : `<div style="width:32px;height:32px;border-radius:50%;background:#3498db;display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:600;">${this.getUserInitials()}</div>`}
+                            </div>
+                            <div style='display:flex;flex-direction:column;'>
+                                <strong style='font-size:12px;'>${this.getUserDisplayName()}</strong>
+                                <span style='font-size:10px;color:#666;'>${this.currentUser.email || ''}</span>
+                            </div>
+                        </li>
+                        <li><a href='#' id='logoutLink'><i class='fas fa-sign-out-alt'></i> Logout</a></li>
+                    `;
+                    
+                    const logoutLink = document.getElementById('logoutLink');
+                    if (logoutLink) {
+                        logoutLink.addEventListener('click', (e) => {
+                            e.preventDefault();
+                            this.logout();
+                        });
+                    }
+                }
+            }
+
+            async logout() {
+                try {
+                    await this.auth.signOut();
+                    localStorage.removeItem('currentUser');
+                    localStorage.removeItem('user');
+                    window.location.href = 'login.html';
+                } catch (error) {
+                    console.error('Logout error:', error);
+                    // Force logout even if Firebase fails
+                    localStorage.removeItem('currentUser');
+                    localStorage.removeItem('user');
+                    window.location.href = 'login.html';
+                }
+            }
+
+            // Legacy method name compatibility
+            updateUI() {
+                this.updateUIForAuthenticatedUser();
+            }
+
+            // Load company employees for assignment dropdown
+            async loadCompanyEmployees() {
+                try {
+                    if (!this.currentUser || this.currentUser.uid === 'guest') return [];
+                    
+                    const companyId = this.currentUser.companyId;
+                    if (!companyId) return [];
+
+                    console.log('🔍 Loading employees for company:', companyId);
+                    
+                    const companyRef = this.db.ref(`companies/${companyId}`);
+                    const snapshot = await companyRef.once('value');
+                    
+                    if (snapshot.exists()) {
+                        const companyData = snapshot.val();
+                        const employees = [];
+                        
+                        if (companyData.users) {
+                            // Load user details for each company user
+                            const userPromises = Object.keys(companyData.users).map(async (userId) => {
+                                try {
+                                    const userRef = this.db.ref(`users/${userId}`);
+                                    const userSnapshot = await userRef.once('value');
+                                    if (userSnapshot.exists()) {
+                                        const userData = userSnapshot.val();
+                                        return {
+                                            id: userId,
+                                            name: userData.displayName || 
+                                                  (userData.firstName ? `${userData.firstName} ${userData.lastName || ''}`.trim() : 
+                                                   (userData.email ? userData.email.split('@')[0] : 'Unknown User')),
+                                            email: userData.email,
+                                            department: userData.department || 'N/A',
+                                            position: userData.position || 'N/A'
+                                        };
+                                    }
+                                } catch (error) {
+                                    console.error('Error loading user:', userId, error);
+                                    return null;
+                                }
+                            });
+                            
+                            const userResults = await Promise.all(userPromises);
+                            employees.push(...userResults.filter(user => user !== null));
+                        }
+                        
+                        console.log('✅ Loaded employees:', employees.length);
+                        return employees.sort((a, b) => a.name.localeCompare(b.name));
+                    }
+                    
+                    return [];
+                } catch (error) {
+                    console.error('Error loading company employees:', error);
+                    return [];
+                }
+            }
+        }
+
+        // Feature-based authorization system (same as staff.html)
+        function resetMenuVisibility() {
+            document.querySelectorAll('[data-feature]').forEach(item => {
+                item.classList.remove('menu-visible');
+            });
+            document.querySelectorAll('.menu-dropdown').forEach(dropdown => {
+                dropdown.classList.remove('menu-visible');
+            });
+        }
+
+        function showBasicMenu() {
+            console.log('🔧 Emergency fallback: Showing basic menu items');
+            resetMenuVisibility();
+            
+            const sidebar = document.querySelector('.sidebar');
+            if (sidebar) {
+                sidebar.classList.remove('menu-loading');
+            }
+            
+            const homeItem = document.querySelector('[data-feature="home_view"]');
+            if (homeItem) {
+                homeItem.classList.add('menu-visible');
+            }
+        }
+
+        async function updateMenuWithFeatureAuthorization() {
+            console.log('🎯 Starting feature-based menu authorization for camp.html...');
+            
+            try {
+                let currentUser = null;
+                let companyId = null;
+                
+                // Get user and company info using authManager first
+                if (window.authManager && window.authManager.currentUser) {
+                    currentUser = window.authManager.currentUser;
+                    companyId = currentUser.companyId;
+                    console.log('👤 Using AuthManager - User:', currentUser.email, 'Company ID:', companyId);
+                } else if (firebase.auth().currentUser) {
+                    currentUser = firebase.auth().currentUser;
+                    console.log('👤 Using Firebase auth - will search for company');
+                } else {
+                    console.log('❌ No authenticated user found');
+                    resetMenuVisibility();
+                    return;
+                }
+                
+                // If no company ID from authManager, search companies collection
+                if (!companyId && currentUser) {
+                    console.log('🔍 Searching for user company...');
+                    resetMenuVisibility();
+                    return;
+                }
+                
+                if (!companyId && currentUser) {
+                    console.log('🔍 Searching for user company...');
+                    const database = firebase.database();
+                    const companiesRef = database.ref('companies');
+                    const companiesSnapshot = await companiesRef.once('value');
+                    
+                    if (companiesSnapshot.exists()) {
+                        const companies = companiesSnapshot.val();
+                        
+                        for (const [cId, company] of Object.entries(companies)) {
+                            if (company.status !== 'active') continue;
+                            
+                            if (company.users && company.users[currentUser.uid]) {
+                                companyId = cId;
+                                console.log(`✅ Found user in company: ${companyId} (${company.name})`);
+                                break;
+                            }
+                        }
+                    }
+                }
+                
+                if (!companyId) {
+                    console.error('❌ No company ID found, cannot determine authorized features');
+                    resetMenuVisibility();
+                    return;
+                }
+                
+                await applyFeatureBasedMenuVisibility(companyId);
+                
+            } catch (error) {
+                console.error('❌ Error in feature-based menu authorization:', error);
+                resetMenuVisibility();
+            }
+        }
+
+        async function applyFeatureBasedMenuVisibility(companyId) {
+            try {
+                console.log('🔧 Applying feature-based menu visibility for company:', companyId);
+                
+                const database = firebase.database();
+                const featuresSnapshot = await database.ref('/platformFeatures').once('value');
+                
+                if (!featuresSnapshot.exists()) {
+                    console.log('⚠️ No platform features found');
+                    resetMenuVisibility();
+                    return;
+                }
+                
+                const featuresData = featuresSnapshot.val();
+                const companySnapshot = await database.ref(`/companies/${companyId}`).once('value');
+                const companyData = companySnapshot.val();
+                
+                if (!companyData) {
+                    console.error('❌ Company data not found');
+                    resetMenuVisibility();
+                    return;
+                }
+                
+                const subscribedFeatureIds = companyData.selectedFeatures || [];
+                console.log('🏢 Company subscribed features:', subscribedFeatureIds);
+                
+                if (subscribedFeatureIds.length === 0) {
+                    console.log('⚠️ Company has no subscribed features');
+                    resetMenuVisibility();
+                    return;
+                }
+                
+                const authorizedPages = [];
+                subscribedFeatureIds.forEach(featureId => {
+                    const feature = featuresData[featureId];
+                    if (feature && feature.status === 'active' && feature.authorizedPages) {
+                        console.log(`📦 Adding pages from feature "${feature.name}":`, feature.authorizedPages);
+                        authorizedPages.push(...feature.authorizedPages);
+                    } else {
+                        console.log(`⚠️ Feature ${featureId} not found or inactive`);
+                    }
+                });
+                
+                console.log('🔐 All authorized pages:', authorizedPages);
+                
+                resetMenuVisibility();
+                
+                const authorizedFeatures = new Set();
+                authorizedPages.forEach(pageInfo => {
+                    if (pageInfo.feature) {
+                        authorizedFeatures.add(pageInfo.feature);
+                    }
+                });
+                
+                console.log('🎯 Authorized features for camp.html:', Array.from(authorizedFeatures));
+                
+                const allMenuItems = document.querySelectorAll('#roleBasedMenu li[data-feature]');
+                let visibleCount = 0;
+                
+                allMenuItems.forEach(menuItem => {
+                    const featureAttribute = menuItem.getAttribute('data-feature');
+                    const isAuthorized = authorizedFeatures.has(featureAttribute);
+                    const isDropdownContainer = menuItem.classList.contains('menu-dropdown');
+                    
+                    if (isDropdownContainer) {
+                        return;
+                    }
+                    
+                    if (isAuthorized) {
+                        menuItem.classList.add('menu-visible');
+                        visibleCount++;
+                        console.log(`✅ Feature authorized - showing menu item: ${featureAttribute}`);
+                    } else {
+                        menuItem.classList.remove('menu-visible');
+                        console.log(`❌ Feature not authorized - hiding menu item: ${featureAttribute}`);
+                    }
+                });
+                
+                const dropdownMenus = document.querySelectorAll('#roleBasedMenu li.menu-dropdown');
+                dropdownMenus.forEach(dropdown => {
+                    const dropdownFeature = dropdown.getAttribute('data-feature');
+                    const submenuItems = dropdown.querySelectorAll('.submenu li[data-feature]');
+                    let hasVisibleChildren = false;
+                    
+                    submenuItems.forEach(submenuItem => {
+                        if (submenuItem.classList.contains('menu-visible')) {
+                            hasVisibleChildren = true;
+                        }
+                    });
+                    
+                    if (hasVisibleChildren || authorizedFeatures.has(dropdownFeature)) {
+                        dropdown.classList.add('menu-visible');
+                        console.log(`✅ Showing dropdown menu: ${dropdownFeature} (has visible children or directly authorized)`);
+                    } else {
+                        dropdown.classList.remove('menu-visible');
+                        console.log(`❌ Hiding dropdown menu: ${dropdownFeature} (no visible children and not authorized)`);
+                    }
+                });
+                
+                console.log(`🎯 Feature-based menu authorization completed for camp.html - ${visibleCount} items visible`);
+                
+                const sidebar = document.querySelector('.sidebar');
+                if (sidebar) {
+                    sidebar.classList.remove('menu-loading');
+                }
+            } catch (error) {
+                console.error('❌ Error applying feature-based menu visibility:', error);
+                resetMenuVisibility();
+            }
+        }
+
+        window.updateMenuWithFeatureAuthorization = updateMenuWithFeatureAuthorization;
+
+        // Initialize Centralized AuthManager and setup UI
+        let authManager;
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('🚀 Initializing Camp Management with centralized authentication...');
+            
+            // Initialize centralized AuthManager
+            authManager = new AuthManager();
+            
+            // Expose globally for debugging
+            window.authManager = authManager;
+            
+            setupUIInteractions();
+            initCampModule();
+            
+            // Initialize menu authorization with enhanced timing
+            setTimeout(async () => {
+                try {
+                    console.log('🔍 Starting feature-based menu authorization...');
+                    
+                    // Ensure profile is populated with centralized system
+                    if (authManager && authManager.currentUser) {
+                        await authManager.populateUserProfile();
+                        console.log('✅ Profile populated for:', authManager.getUserDisplayName());
+                        
+                        // Force refresh of profile image with better fallback
+                        const profileImg = document.querySelector('#userProfileBtn img');
+                        if (profileImg && (!profileImg.src || profileImg.src === '' || profileImg.src.endsWith('/') || profileImg.src === window.location.href)) {
+                            authManager.generateInitialsAvatar(authManager.getUserDisplayName(), profileImg);
+                            console.log('✅ Generated initials avatar for user');
+                        }
+                    }
+                    
+                    await updateMenuWithFeatureAuthorization();
+                    console.log('✅ Feature-based menu authorization completed');
+                    
+                    // Load initial data
+                    await refreshTable();
+                    console.log('✅ Initial data loaded');
+                    
+                    // Setup filter listeners
+                    setupFilterListeners();
+                    console.log('✅ Filter listeners initialized');
+                } catch (error) {
+                    console.error('❌ Error initializing feature-based menu:', error);
+                    showBasicMenu();
+                }
+            }, 2000); // Increased timeout for centralized auth initialization
+        });
+
+        // UI Interactions
+        function setupUIInteractions() {
+            const sidebarToggle = document.querySelector('#sidebarToggle');
+            if (sidebarToggle) {
+                sidebarToggle.addEventListener('click', toggleSidebar);
+            }
+            
+            // Notification Bell functionality
+            const notificationBtn = document.getElementById('notificationBtn');
+            const notificationDropdown = document.querySelector('.notification-dropdown');
+            if (notificationBtn && notificationDropdown) {
+                notificationBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    notificationDropdown.classList.toggle('show');
+                });
+                
+                document.addEventListener('click', (e) => {
+                    if (!notificationDropdown.contains(e.target) && !notificationBtn.contains(e.target)) {
+                        notificationDropdown.classList.remove('show');
+                    }
+                });
+                
+                const markAllReadBtn = document.querySelector('.mark-all-read');
+                if (markAllReadBtn) {
+                    markAllReadBtn.addEventListener('click', () => {
+                        const badge = document.querySelector('.notification-badge');
+                        if (badge) badge.textContent = '0';
+                        
+                        const notifications = document.querySelectorAll('.notification-item.unread');
+                        notifications.forEach(notification => {
+                            notification.classList.remove('unread');
+                        });
+                    });
+                }
+            }
+            
+            const profileBtn = document.getElementById('userProfileBtn');
+            const profileDropdown = document.querySelector('.profile-dropdown');
+            if (profileBtn && profileDropdown) {
+                profileBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    profileDropdown.classList.toggle('show');
+                });
+                
+                document.addEventListener('click', (e) => {
+                    if (!profileDropdown.contains(e.target) && !profileBtn.contains(e.target)) {
+                        profileDropdown.classList.remove('show');
+                    }
+                });
+            }
+            
+            restoreSidebarState();
+        }
+
+        function toggleSidebar() {
+            const sidebar = document.querySelector('.sidebar');
+            const mainContent = document.querySelector('.main-content');
+            
+            if (sidebar && mainContent) {
+                sidebar.classList.toggle('collapsed');
+                mainContent.classList.toggle('sidebar-collapsed');
+                
+                const isCollapsed = sidebar.classList.contains('collapsed');
+                localStorage.setItem('sidebarCollapsed', isCollapsed);
+            }
+        }
+
+        function restoreSidebarState() {
+            const isCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
+            const sidebar = document.querySelector('.sidebar');
+            const mainContent = document.querySelector('.main-content');
+            
+            if (isCollapsed && sidebar && mainContent) {
+                sidebar.classList.add('collapsed');
+                mainContent.classList.add('sidebar-collapsed');
+            }
+        }
+
+        // Camp Module Functions
+        function initCampModule() {
+            loadDashboardData();
+            setCurrentDateTime();
+        }
+
+        async function loadDashboardData() {
+            try {
+                if (!window.authManager || !window.authManager.currentUser) {
+                    // Use default values if not authenticated
+                    document.getElementById('totalRooms').textContent = '0';
+                    document.getElementById('occupiedRooms').textContent = '0';
+                    document.getElementById('availableRooms').textContent = '0';
+                    document.getElementById('occupancyRate').textContent = '0%';
+                    return;
+                }
+                
+                const companyId = window.authManager.currentUser.companyId;
+                if (!companyId) {
+                    console.log('No company ID found for dashboard data');
+                    return;
+                }
+                
+                // Load room assignments to calculate occupancy
+                const assignmentsRef = window.authManager.db.ref(`companies/${companyId}/roomAssignments`);
+                const assignmentsSnapshot = await assignmentsRef.once('value');
+                
+                // Load total rooms from company settings (could be from campset.html data)
+                const companyRef = window.authManager.db.ref(`companies/${companyId}`);
+                const companySnapshot = await companyRef.once('value');
+                const companyData = companySnapshot.val();
+                
+                let totalRooms = 48; // Default value
+                let occupiedRooms = 0;
+                
+                // Try to get total rooms from company rooms configuration
+                if (companyData && companyData.rooms) {
+                    totalRooms = Object.keys(companyData.rooms).length;
+                }
+                
+                // Calculate occupied rooms from assignments
+                if (assignmentsSnapshot.exists()) {
+                    const assignments = assignmentsSnapshot.val();
+                    occupiedRooms = Object.values(assignments).filter(assignment => 
+                        assignment.status === 'checked_in' || assignment.status === 'assigned'
+                    ).length;
+                }
+                
+                const availableRooms = totalRooms - occupiedRooms;
+                const occupancyRate = totalRooms > 0 ? Math.round((occupiedRooms / totalRooms) * 100) : 0;
+                
+                // Update UI
+                document.getElementById('totalRooms').textContent = totalRooms.toString();
+                document.getElementById('occupiedRooms').textContent = occupiedRooms.toString();
+                document.getElementById('availableRooms').textContent = availableRooms.toString();
+                document.getElementById('occupancyRate').textContent = `${occupancyRate}%`;
+                
+                console.log(`📊 Dashboard updated: ${occupiedRooms}/${totalRooms} rooms occupied (${occupancyRate}%)`);
+                
+            } catch (error) {
+                console.error('Error loading dashboard data:', error);
+                // Fallback to default values
+                document.getElementById('totalRooms').textContent = '0';
+                document.getElementById('occupiedRooms').textContent = '0';
+                document.getElementById('availableRooms').textContent = '0';
+                document.getElementById('occupancyRate').textContent = '0%';
+            }
+        }
+
+        function setCurrentDateTime() {
+            const now = new Date();
+            const currentDate = now.toISOString().split('T')[0];
+            const currentDateTime = now.toISOString().slice(0, 16);
+            
+            document.getElementById('checkInDate').value = currentDate;
+            document.getElementById('actualCheckInDate').value = currentDateTime;
+            document.getElementById('actualCheckOutDate').value = currentDateTime;
+        }
+
+        // Modal Functions
+        async function openAssignmentModal() {
+            document.getElementById('assignmentModal').classList.add('show');
+            
+            // Load company employees and available rooms into dropdowns
+            await Promise.all([
+                loadEmployeesIntoSelect(),
+                loadRoomsIntoSelect()
+            ]);
+        }
+
+        async function openCheckInModal() {
+            document.getElementById('checkInModal').classList.add('show');
+            
+            // Load company employees into dropdown
+            await loadEmployeesIntoCheckInSelect();
+        }
+
+        async function openCheckOutModal() {
+            document.getElementById('checkOutModal').classList.add('show');
+            
+            // Load checked-in employees into dropdown
+            await loadCheckedInEmployeesIntoSelect();
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.remove('show');
+        }
+
+        // Get list of employees who currently have active room assignments
+        async function getAssignedEmployees(companyId) {
+            try {
+                const assignmentsRef = window.authManager.db.ref(`companies/${companyId}/roomAssignments`);
+                const snapshot = await assignmentsRef.once('value');
+                const assignedEmployees = [];
+                
+                if (snapshot.exists()) {
+                    const assignments = snapshot.val();
+                    Object.values(assignments).forEach(assignment => {
+                        if (assignment.status === 'assigned' || assignment.status === 'checked_in') {
+                            assignedEmployees.push(assignment.employeeId);
+                        }
+                    });
+                }
+                
+                return assignedEmployees;
+            } catch (error) {
+                console.error('Error getting assigned employees:', error);
+                return [];
+            }
+        }
+
+        // Get list of rooms that are currently occupied
+        async function getOccupiedRooms(companyId) {
+            try {
+                const assignmentsRef = window.authManager.db.ref(`companies/${companyId}/roomAssignments`);
+                const snapshot = await assignmentsRef.once('value');
+                const occupiedRooms = [];
+                
+                if (snapshot.exists()) {
+                    const assignments = snapshot.val();
+                    Object.values(assignments).forEach(assignment => {
+                        if (assignment.status === 'assigned' || assignment.status === 'checked_in') {
+                            occupiedRooms.push(assignment.roomNumber);
+                        }
+                    });
+                }
+                
+                return occupiedRooms;
+            } catch (error) {
+                console.error('Error getting occupied rooms:', error);
+                return [];
+            }
+        }
+
+        // Load employees into assignment modal dropdown
+        async function loadEmployeesIntoSelect() {
+            const employeeSelect = document.getElementById('employeeSelect');
+            if (!employeeSelect || !window.authManager) return;
+            
+            try {
+                // Show loading state
+                employeeSelect.innerHTML = '<option value="">Loading employees...</option>';
+                employeeSelect.disabled = true;
+                
+                // Load employees from Firebase
+                const employees = await window.authManager.loadCompanyEmployees();
+                
+                // Get currently assigned employees
+                const companyId = window.authManager.currentUser.companyId;
+                const assignedEmployees = await getAssignedEmployees(companyId);
+                
+                // Clear and populate dropdown
+                employeeSelect.innerHTML = '<option value="">Select Employee</option>';
+                
+                employees.forEach(employee => {
+                    // Only add employee if not currently assigned
+                    if (!assignedEmployees.includes(employee.id)) {
+                        const option = document.createElement('option');
+                        option.value = employee.id;
+                        option.textContent = `${employee.name} (${employee.department})`;
+                        option.title = `${employee.name} - ${employee.position} - ${employee.email}`;
+                        employeeSelect.appendChild(option);
+                    }
+                });
+                
+                employeeSelect.disabled = false;
+                console.log('✅ Employee dropdown populated with available employees');
+                
+            } catch (error) {
+                console.error('Error loading employees into dropdown:', error);
+                employeeSelect.innerHTML = '<option value="">Error loading employees</option>';
+                employeeSelect.disabled = false;
+            }
+        }
+
+        // Load available rooms into assignment modal dropdown
+        async function loadRoomsIntoSelect() {
+            const roomSelect = document.getElementById('roomSelect');
+            if (!roomSelect || !window.authManager) return;
+            
+            try {
+                // Show loading state
+                roomSelect.innerHTML = '<option value="">Loading rooms...</option>';
+                roomSelect.disabled = true;
+                
+                // Define available rooms (you can also load this from Firebase if needed)
+                const allRooms = [
+                    { value: 'A-101', label: 'A-101 (Single)', type: 'Single' },
+                    { value: 'A-102', label: 'A-102 (Single)', type: 'Single' },
+                    { value: 'A-103', label: 'A-103 (Single)', type: 'Single' },
+                    { value: 'B-201', label: 'B-201 (Double)', type: 'Double' },
+                    { value: 'B-202', label: 'B-202 (Double)', type: 'Double' },
+                    { value: 'B-203', label: 'B-203 (Double)', type: 'Double' },
+                    { value: 'C-301', label: 'C-301 (Suite)', type: 'Suite' },
+                    { value: 'C-302', label: 'C-302 (Suite)', type: 'Suite' }
+                ];
+                
+                // Get currently occupied rooms
+                const companyId = window.authManager.currentUser.companyId;
+                const occupiedRooms = await getOccupiedRooms(companyId);
+                
+                // Clear and populate dropdown
+                roomSelect.innerHTML = '<option value="">Select Room</option>';
+                
+                allRooms.forEach(room => {
+                    // Only add room if not currently occupied
+                    if (!occupiedRooms.includes(room.value)) {
+                        const option = document.createElement('option');
+                        option.value = room.value;
+                        option.textContent = room.label;
+                        option.title = `${room.value} - ${room.type} Room`;
+                        roomSelect.appendChild(option);
+                    }
+                });
+                
+                roomSelect.disabled = false;
+                console.log('✅ Room dropdown populated with available rooms');
+                
+            } catch (error) {
+                console.error('Error loading rooms into dropdown:', error);
+                roomSelect.innerHTML = '<option value="">Error loading rooms</option>';
+                roomSelect.disabled = false;
+            }
+        }
+
+        // Load employees into check-in modal dropdown
+        async function loadEmployeesIntoCheckInSelect() {
+            const employeeSelect = document.getElementById('checkInEmployee');
+            if (!employeeSelect || !window.authManager) return;
+            
+            try {
+                // Show loading state
+                employeeSelect.innerHTML = '<option value="">Loading employees...</option>';
+                employeeSelect.disabled = true;
+                
+                const companyId = window.authManager.currentUser.companyId;
+                if (!companyId) {
+                    throw new Error('Company ID not found');
+                }
+                
+                // Load assignments that are assigned but not checked in
+                const assignmentsRef = window.authManager.db.ref(`companies/${companyId}/roomAssignments`);
+                const assignmentsSnapshot = await assignmentsRef.orderByChild('status').equalTo('assigned').once('value');
+                
+                // Clear dropdown
+                employeeSelect.innerHTML = '<option value="">Select Employee</option>';
+                
+                if (assignmentsSnapshot.exists()) {
+                    const assignments = assignmentsSnapshot.val();
+                    Object.values(assignments).forEach(assignment => {
+                        const option = document.createElement('option');
+                        option.value = assignment.employeeId;
+                        option.textContent = `${assignment.employeeName} - Room ${assignment.roomNumber}`;
+                        option.title = `${assignment.employeeName} assigned to room ${assignment.roomNumber}`;
+                        employeeSelect.appendChild(option);
+                    });
+                }
+                
+                employeeSelect.disabled = false;
+                console.log('✅ Check-in employee dropdown populated with assigned employees');
+                
+            } catch (error) {
+                console.error('Error loading employees into check-in dropdown:', error);
+                employeeSelect.innerHTML = '<option value="">Error loading employees</option>';
+                employeeSelect.disabled = false;
+            }
+        }
+
+        // Load checked-in employees into check-out modal dropdown
+        async function loadCheckedInEmployeesIntoSelect() {
+            const employeeSelect = document.getElementById('checkOutEmployee');
+            if (!employeeSelect || !window.authManager) return;
+            
+            try {
+                // Show loading state
+                employeeSelect.innerHTML = '<option value="">Loading checked-in employees...</option>';
+                employeeSelect.disabled = true;
+                
+                const companyId = window.authManager.currentUser.companyId;
+                if (!companyId) {
+                    throw new Error('Company ID not found');
+                }
+                
+                // Load assignments that are checked-in
+                const assignmentsRef = window.authManager.db.ref(`companies/${companyId}/roomAssignments`);
+                const assignmentsSnapshot = await assignmentsRef.orderByChild('status').equalTo('checked_in').once('value');
+                
+                // Clear dropdown
+                employeeSelect.innerHTML = '<option value="">Select Employee</option>';
+                
+                if (assignmentsSnapshot.exists()) {
+                    const assignments = assignmentsSnapshot.val();
+                    const checkedInEmployees = [];
+                    
+                    for (const [assignmentId, assignment] of Object.entries(assignments)) {
+                        checkedInEmployees.push({
+                            id: assignment.employeeId,
+                            name: assignment.employeeName,
+                            roomNumber: assignment.roomNumber,
+                            checkInDate: assignment.actualCheckInDate
+                        });
+                    }
+                    
+                    // Sort by name
+                    checkedInEmployees.sort((a, b) => a.name.localeCompare(b.name));
+                    
+                    checkedInEmployees.forEach(employee => {
+                        const option = document.createElement('option');
+                        option.value = employee.id;
+                        option.textContent = `${employee.name} (Room ${employee.roomNumber})`;
+                        option.title = `${employee.name} - Room ${employee.roomNumber} - Checked in: ${new Date(employee.checkInDate).toLocaleDateString()}`;
+                        employeeSelect.appendChild(option);
+                    });
+                    
+                    console.log('✅ Check-out employee dropdown populated with', checkedInEmployees.length, 'checked-in employees');
+                } else {
+                    console.log('No checked-in employees found');
+                }
+                
+                employeeSelect.disabled = false;
+                
+            } catch (error) {
+                console.error('Error loading checked-in employees:', error);
+                employeeSelect.innerHTML = '<option value="">Error loading employees</option>';
+                employeeSelect.disabled = false;
+            }
+        }
+
+        // Refresh all dropdowns to reflect current availability
+        async function refreshDropdowns() {
+            try {
+                // Refresh assignment modal dropdowns if open
+                const assignmentModal = document.getElementById('assignmentModal');
+                if (assignmentModal && assignmentModal.classList.contains('show')) {
+                    await Promise.all([
+                        loadEmployeesIntoSelect(),
+                        loadRoomsIntoSelect()
+                    ]);
+                }
+                
+                // Refresh check-in modal dropdown if open
+                const checkInModal = document.getElementById('checkInModal');
+                if (checkInModal && checkInModal.classList.contains('show')) {
+                    await loadEmployeesIntoCheckInSelect();
+                }
+                
+                // Refresh check-out modal dropdown if open
+                const checkOutModal = document.getElementById('checkOutModal');
+                if (checkOutModal && checkOutModal.classList.contains('show')) {
+                    await loadCheckedInEmployeesIntoSelect();
+                }
+                
+                console.log('✅ Dropdowns refreshed');
+            } catch (error) {
+                console.error('Error refreshing dropdowns:', error);
+            }
+        }
+
+        // Action Functions
+        
+        // Check if employee has any active room assignments
+        async function checkExistingAssignment(employeeId, companyId) {
+            try {
+                const assignmentsRef = window.authManager.db.ref(`companies/${companyId}/roomAssignments`);
+                const snapshot = await assignmentsRef.orderByChild('employeeId').equalTo(employeeId).once('value');
+                
+                if (snapshot.exists()) {
+                    const assignments = snapshot.val();
+                    
+                    // Check for active assignments (assigned or checked_in status)
+                    for (const [assignmentId, assignment] of Object.entries(assignments)) {
+                        if (assignment.status === 'assigned' || assignment.status === 'checked_in') {
+                            return {
+                                hasActiveAssignment: true,
+                                assignment: assignment,
+                                assignmentId: assignmentId
+                            };
+                        }
+                    }
+                }
+                
+                return { hasActiveAssignment: false };
+            } catch (error) {
+                console.error('Error checking existing assignments:', error);
+                throw error;
+            }
+        }
+
+        // Check if room is already assigned to another employee
+        async function checkRoomAvailability(roomNumber, companyId) {
+            try {
+                const assignmentsRef = window.authManager.db.ref(`companies/${companyId}/roomAssignments`);
+                const snapshot = await assignmentsRef.orderByChild('roomNumber').equalTo(roomNumber).once('value');
+                
+                if (snapshot.exists()) {
+                    const assignments = snapshot.val();
+                    
+                    // Check for active assignments (assigned or checked_in status)
+                    for (const [assignmentId, assignment] of Object.entries(assignments)) {
+                        if (assignment.status === 'assigned' || assignment.status === 'checked_in') {
+                            return {
+                                isOccupied: true,
+                                assignment: assignment,
+                                assignmentId: assignmentId
+                            };
+                        }
+                    }
+                }
+                
+                return { isOccupied: false };
+            } catch (error) {
+                console.error('Error checking room availability:', error);
+                throw error;
+            }
+        }
+
+        async function saveAssignment() {
+            const form = document.getElementById('assignmentForm');
+            const formData = new FormData(form);
+            const assignmentData = Object.fromEntries(formData);
+            
+            console.log('Saving assignment:', assignmentData);
+            
+            try {
+                if (!window.authManager || !window.authManager.currentUser) {
+                    throw new Error('Authentication required');
+                }
+                
+                const companyId = window.authManager.currentUser.companyId;
+                if (!companyId) {
+                    throw new Error('Company ID not found');
+                }
+                
+                // Check if employee already has an active assignment
+                const existingCheck = await checkExistingAssignment(assignmentData.employee, companyId);
+                if (existingCheck.hasActiveAssignment) {
+                    const existingAssignment = existingCheck.assignment;
+                    const statusText = existingAssignment.status === 'assigned' ? 'assigned to' : 'checked into';
+                    throw new Error(`Employee is already ${statusText} room ${existingAssignment.roomNumber}. Please unassign or check out the employee from the current room before assigning a new room.`);
+                }
+                
+                // Check if room is already assigned to another employee
+                const roomCheck = await checkRoomAvailability(assignmentData.room, companyId);
+                if (roomCheck.isOccupied) {
+                    const existingAssignment = roomCheck.assignment;
+                    const statusText = existingAssignment.status === 'assigned' ? 'assigned to' : 'occupied by';
+                    throw new Error(`Room ${assignmentData.room} is already ${statusText} ${existingAssignment.employeeName}. Please select a different room or check out the current occupant.`);
+                }
+                
+                // Get employee details
+                const employeeRef = window.authManager.db.ref(`users/${assignmentData.employee}`);
+                const employeeSnapshot = await employeeRef.once('value');
+                const employeeData = employeeSnapshot.val();
+                
+                // Create assignment object
+                const assignment = {
+                    id: `assignment_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                    employeeId: assignmentData.employee,
+                    employeeName: employeeData ? (employeeData.displayName || `${employeeData.firstName} ${employeeData.lastName}`.trim()) : 'Unknown',
+                    employeeEmail: employeeData ? employeeData.email : '',
+                    roomNumber: assignmentData.room,
+                    checkInDate: assignmentData.checkInDate,
+                    checkOutDate: assignmentData.checkOutDate,
+                    status: 'assigned',
+                    assignedDate: new Date().toISOString(),
+                    assignedBy: window.authManager.currentUser.uid,
+                    companyId: companyId,
+                    actualCheckInDate: null,
+                    actualCheckOutDate: null,
+                    notes: assignmentData.notes || ''
+                };
+                
+                // Save to Firebase
+                const assignmentRef = window.authManager.db.ref(`companies/${companyId}/roomAssignments/${assignment.id}`);
+                await assignmentRef.set(assignment);
+                
+                console.log('✅ Assignment saved successfully:', assignment.id);
+                
+                // Show success message
+                showNotification('Room assignment saved successfully!', 'success');
+                
+                closeModal('assignmentModal');
+                form.reset();
+                await refreshTable();
+                await refreshDropdowns(); // Refresh dropdowns to update availability
+                
+            } catch (error) {
+                console.error('❌ Error saving assignment:', error);
+                showNotification('Error saving assignment: ' + error.message, 'error');
+            }
+        }
+
+        async function processCheckIn() {
+            const form = document.getElementById('checkInForm');
+            const formData = new FormData(form);
+            const checkInData = Object.fromEntries(formData);
+            
+            console.log('Processing check-in:', checkInData);
+            
+            try {
+                if (!window.authManager || !window.authManager.currentUser) {
+                    throw new Error('Authentication required');
+                }
+                
+                const companyId = window.authManager.currentUser.companyId;
+                if (!companyId) {
+                    throw new Error('Company ID not found');
+                }
+                
+                // Get employee details
+                const employeeRef = window.authManager.db.ref(`users/${checkInData.employee}`);
+                const employeeSnapshot = await employeeRef.once('value');
+                const employeeData = employeeSnapshot.val();
+                
+                if (!employeeData) {
+                    throw new Error('Employee not found');
+                }
+                
+                // Find existing assignment or create new one
+                const assignmentsRef = window.authManager.db.ref(`companies/${companyId}/roomAssignments`);
+                const assignmentsSnapshot = await assignmentsRef.orderByChild('employeeId').equalTo(checkInData.employee).once('value');
+                
+                let assignmentId = null;
+                let assignmentData = null;
+                
+                if (assignmentsSnapshot.exists()) {
+                    // Find active assignment
+                    const assignments = assignmentsSnapshot.val();
+                    for (const [id, assignment] of Object.entries(assignments)) {
+                        if (assignment.status === 'assigned' || assignment.status === 'checked_in') {
+                            assignmentId = id;
+                            assignmentData = assignment;
+                            break;
+                        }
+                    }
+                }
+                
+                if (!assignmentId) {
+                    // Create new assignment if none exists
+                    assignmentId = `assignment_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                    assignmentData = {
+                        id: assignmentId,
+                        employeeId: checkInData.employee,
+                        employeeName: employeeData.displayName || `${employeeData.firstName} ${employeeData.lastName}`.trim(),
+                        employeeEmail: employeeData.email,
+                        roomNumber: 'TBD', // Room to be determined
+                        status: 'checked_in',
+                        assignedDate: new Date().toISOString(),
+                        assignedBy: window.authManager.currentUser.uid,
+                        companyId: companyId
+                    };
+                }
+                
+                // Update assignment with check-in details
+                const updatedAssignment = {
+                    ...assignmentData,
+                    status: 'checked_in',
+                    actualCheckInDate: checkInData.checkInDate,
+                    checkInNotes: checkInData.notes || '',
+                    checkedInBy: window.authManager.currentUser.uid,
+                    lastUpdated: new Date().toISOString()
+                };
+                
+                // Save to Firebase
+                const assignmentRef = window.authManager.db.ref(`companies/${companyId}/roomAssignments/${assignmentId}`);
+                await assignmentRef.set(updatedAssignment);
+                
+                console.log('✅ Check-in processed successfully:', assignmentId);
+                
+                // Show success message
+                showNotification(`${employeeData.displayName || employeeData.firstName} checked in successfully!`, 'success');
+                
+                closeModal('checkInModal');
+                form.reset();
+                await refreshTable();
+                await refreshDropdowns(); // Refresh dropdowns to update availability
+                
+            } catch (error) {
+                console.error('❌ Error processing check-in:', error);
+                showNotification('Error processing check-in: ' + error.message, 'error');
+            }
+        }
+
+        async function processCheckOut() {
+            const form = document.getElementById('checkOutForm');
+            const formData = new FormData(form);
+            const checkOutData = Object.fromEntries(formData);
+            
+            console.log('Processing check-out:', checkOutData);
+            
+            try {
+                if (!window.authManager || !window.authManager.currentUser) {
+                    throw new Error('Authentication required');
+                }
+                
+                const companyId = window.authManager.currentUser.companyId;
+                if (!companyId) {
+                    throw new Error('Company ID not found');
+                }
+                
+                // Get employee details
+                const employeeRef = window.authManager.db.ref(`users/${checkOutData.employee}`);
+                const employeeSnapshot = await employeeRef.once('value');
+                const employeeData = employeeSnapshot.val();
+                
+                if (!employeeData) {
+                    throw new Error('Employee not found');
+                }
+                
+                // Find active assignment for the employee
+                const assignmentsRef = window.authManager.db.ref(`companies/${companyId}/roomAssignments`);
+                const assignmentsSnapshot = await assignmentsRef.orderByChild('employeeId').equalTo(checkOutData.employee).once('value');
+                
+                let assignmentId = null;
+                let assignmentData = null;
+                
+                if (assignmentsSnapshot.exists()) {
+                    const assignments = assignmentsSnapshot.val();
+                    for (const [id, assignment] of Object.entries(assignments)) {
+                        if (assignment.status === 'checked_in' || assignment.status === 'assigned') {
+                            assignmentId = id;
+                            assignmentData = assignment;
+                            break;
+                        }
+                    }
+                }
+                
+                if (!assignmentId) {
+                    throw new Error('No active assignment found for this employee');
+                }
+                
+                // Update assignment with check-out details
+                const updatedAssignment = {
+                    ...assignmentData,
+                    status: 'checked_out',
+                    actualCheckOutDate: checkOutData.checkOutDate,
+                    roomCondition: checkOutData.condition,
+                    checkOutNotes: checkOutData.notes || '',
+                    checkedOutBy: window.authManager.currentUser.uid,
+                    lastUpdated: new Date().toISOString()
+                };
+                
+                // Save to Firebase
+                const assignmentRef = window.authManager.db.ref(`companies/${companyId}/roomAssignments/${assignmentId}`);
+                await assignmentRef.set(updatedAssignment);
+                
+                console.log('✅ Check-out processed successfully:', assignmentId);
+                
+                // Show success message
+                showNotification(`${employeeData.displayName || employeeData.firstName} checked out successfully!`, 'success');
+                
+                closeModal('checkOutModal');
+                form.reset();
+                await refreshTable();
+                await refreshDropdowns(); // Refresh dropdowns to update availability
+                
+            } catch (error) {
+                console.error('❌ Error processing check-out:', error);
+                showNotification('Error processing check-out: ' + error.message, 'error');
+            }
+        }
+
+        function assignRoom(roomNumber) {
+            document.getElementById('roomSelect').value = roomNumber;
+            openAssignmentModal();
+        }
+
+        function extendStay(assignmentId) {
+            console.log('Extending stay for assignment:', assignmentId);
+            // Add extension logic here
+        }
+
+        async function quickCheckIn(employeeId) {
+            try {
+                if (!window.authManager || !window.authManager.currentUser) {
+                    throw new Error('Authentication required');
+                }
+                
+                const companyId = window.authManager.currentUser.companyId;
+                if (!companyId) {
+                    throw new Error('Company ID not found');
+                }
+                
+                // Find the assignment for this employee
+                const assignmentsRef = window.authManager.db.ref(`companies/${companyId}/roomAssignments`);
+                const snapshot = await assignmentsRef.orderByChild('employeeId').equalTo(employeeId).once('value');
+                
+                if (!snapshot.exists()) {
+                    throw new Error('No assignment found for this employee');
+                }
+                
+                const assignments = snapshot.val();
+                let assignmentId = null;
+                let assignmentData = null;
+                
+                // Find the active assignment (assigned status)
+                for (const [id, assignment] of Object.entries(assignments)) {
+                    if (assignment.status === 'assigned') {
+                        assignmentId = id;
+                        assignmentData = assignment;
+                        break;
+                    }
+                }
+                
+                if (!assignmentId) {
+                    throw new Error('No active assignment found for this employee');
+                }
+                
+                // Update assignment status to checked_in
+                const updatedAssignment = {
+                    ...assignmentData,
+                    status: 'checked_in',
+                    actualCheckInDate: new Date().toISOString(),
+                    checkedInBy: window.authManager.currentUser.uid,
+                    lastUpdated: new Date().toISOString()
+                };
+                
+                // Save to Firebase
+                const assignmentRef = window.authManager.db.ref(`companies/${companyId}/roomAssignments/${assignmentId}`);
+                await assignmentRef.set(updatedAssignment);
+                
+                console.log('✅ Quick check-in processed successfully:', assignmentId);
+                
+                // Show success message
+                showNotification(`${assignmentData.employeeName} checked in successfully!`, 'success');
+                
+                // Refresh table and dropdowns
+                await refreshTable();
+                await refreshDropdowns();
+                
+            } catch (error) {
+                console.error('❌ Error processing quick check-in:', error);
+                showNotification('Error processing check-in: ' + error.message, 'error');
+            }
+        }
+
+        async function quickCheckOut(employeeId) {
+            try {
+                if (!window.authManager || !window.authManager.currentUser) {
+                    throw new Error('Authentication required');
+                }
+                
+                const companyId = window.authManager.currentUser.companyId;
+                if (!companyId) {
+                    throw new Error('Company ID not found');
+                }
+                
+                // Find the assignment for this employee
+                const assignmentsRef = window.authManager.db.ref(`companies/${companyId}/roomAssignments`);
+                const snapshot = await assignmentsRef.orderByChild('employeeId').equalTo(employeeId).once('value');
+                
+                if (!snapshot.exists()) {
+                    throw new Error('No assignment found for this employee');
+                }
+                
+                const assignments = snapshot.val();
+                let assignmentId = null;
+                let assignmentData = null;
+                
+                // Find the active assignment (checked_in status)
+                for (const [id, assignment] of Object.entries(assignments)) {
+                    if (assignment.status === 'checked_in') {
+                        assignmentId = id;
+                        assignmentData = assignment;
+                        break;
+                    }
+                }
+                
+                if (!assignmentId) {
+                    throw new Error('No checked-in assignment found for this employee');
+                }
+                
+                // Update assignment status to checked_out
+                const updatedAssignment = {
+                    ...assignmentData,
+                    status: 'checked_out',
+                    actualCheckOutDate: new Date().toISOString(),
+                    checkedOutBy: window.authManager.currentUser.uid,
+                    lastUpdated: new Date().toISOString()
+                };
+                
+                // Save to Firebase
+                const assignmentRef = window.authManager.db.ref(`companies/${companyId}/roomAssignments/${assignmentId}`);
+                await assignmentRef.set(updatedAssignment);
+                
+                console.log('✅ Quick check-out processed successfully:', assignmentId);
+                
+                // Show success message
+                showNotification(`${assignmentData.employeeName} checked out successfully!`, 'success');
+                
+                // Refresh table and dropdowns
+                await refreshTable();
+                await refreshDropdowns();
+                
+            } catch (error) {
+                console.error('❌ Error processing quick check-out:', error);
+                showNotification('Error processing check-out: ' + error.message, 'error');
+            }
+        }
+
+        function checkOut(assignmentId) {
+            console.log('Checking out assignment:', assignmentId);
+            // Add checkout logic here
+        }
+
+        function markAvailable(roomNumber) {
+            console.log('Marking room available:', roomNumber);
+            // Add room status update logic here
+            refreshTable();
+        }
+
+        // Archive action functions
+        function viewAssignmentDetails(assignmentId) {
+            console.log('Viewing assignment details:', assignmentId);
+            // TODO: Implement assignment details modal
+            showNotification('Assignment details feature coming soon!', 'info');
+        }
+
+        function generateReport(assignmentId) {
+            console.log('Generating report for assignment:', assignmentId);
+            // TODO: Implement PDF report generation
+            showNotification('Report generation feature coming soon!', 'info');
+        }
+
+        async function refreshTable() {
+            console.log('Refreshing assignments table...');
+            await loadRoomAssignmentsData();
+            await loadDashboardData();
+        }
+
+        // Tab switching functionality
+        function switchTab(tabName) {
+            // Hide all tab contents
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            
+            // Remove active class from all tab buttons
+            document.querySelectorAll('.tab-button').forEach(button => {
+                button.classList.remove('active');
+            });
+            
+            // Show selected tab content
+            document.getElementById(tabName + 'Content').classList.add('active');
+            document.getElementById(tabName + 'Tab').classList.add('active');
+            
+            // Load appropriate data
+            if (tabName === 'active') {
+                loadRoomAssignmentsData();
+            } else if (tabName === 'archives') {
+                loadArchivesData();
+            }
+        }
+
+        // Load archived (checked out) assignments
+        async function loadArchivesData() {
+            try {
+                if (!window.authManager || !window.authManager.currentUser) {
+                    console.log('No authenticated user for loading archives');
+                    return;
+                }
+                
+                const companyId = window.authManager.currentUser.companyId;
+                if (!companyId) {
+                    console.log('No company ID found');
+                    return;
+                }
+                
+                const assignmentsRef = window.authManager.db.ref(`companies/${companyId}/roomAssignments`);
+                const snapshot = await assignmentsRef.once('value');
+                
+                const tableBody = document.querySelector('#archivesTable tbody');
+                if (!tableBody) return;
+                
+                // Clear existing rows
+                tableBody.innerHTML = '';
+                
+                if (snapshot.exists()) {
+                    const assignments = snapshot.val();
+                    // Filter for checked_out status only
+                    let archivedAssignments = Object.values(assignments)
+                        .filter(assignment => assignment.status === 'checked_out')
+                        .sort((a, b) => new Date(b.actualCheckOutDate || b.lastUpdated) - new Date(a.actualCheckOutDate || a.lastUpdated));
+                    
+                    // Apply search filter
+                    const searchTerm = document.getElementById('searchArchives')?.value?.toLowerCase() || '';
+                    if (searchTerm) {
+                        archivedAssignments = archivedAssignments.filter(assignment => 
+                            assignment.employeeName?.toLowerCase().includes(searchTerm) ||
+                            assignment.roomNumber?.toLowerCase().includes(searchTerm)
+                        );
+                    }
+                    
+                    // Apply room filter
+                    const roomFilter = document.getElementById('filterArchiveRoom')?.value || '';
+                    if (roomFilter) {
+                        archivedAssignments = archivedAssignments.filter(assignment => 
+                            assignment.roomNumber === roomFilter
+                        );
+                    }
+                    
+                    // Apply date filter
+                    const dateFilter = document.getElementById('filterArchiveDate')?.value || '';
+                    if (dateFilter) {
+                        const filterDate = new Date(dateFilter).toDateString();
+                        archivedAssignments = archivedAssignments.filter(assignment => {
+                            const checkOutDate = assignment.actualCheckOutDate ? 
+                                new Date(assignment.actualCheckOutDate).toDateString() : '';
+                            return checkOutDate === filterDate;
+                        });
+                    }
+                    
+                    if (archivedAssignments.length > 0) {
+                        archivedAssignments.forEach(assignment => {
+                            const row = document.createElement('tr');
+                            
+                            const checkInDate = assignment.actualCheckInDate ? 
+                                new Date(assignment.actualCheckInDate).toLocaleDateString() : '-';
+                            const checkOutDate = assignment.actualCheckOutDate ? 
+                                new Date(assignment.actualCheckOutDate).toLocaleDateString() : '-';
+                            
+                            // Calculate duration
+                            let duration = '-';
+                            if (assignment.actualCheckInDate && assignment.actualCheckOutDate) {
+                                const days = Math.ceil((new Date(assignment.actualCheckOutDate) - new Date(assignment.actualCheckInDate)) / (1000 * 60 * 60 * 24));
+                                duration = `${days} day${days !== 1 ? 's' : ''}`;
+                            }
+                            
+                            row.innerHTML = `
+                                <td>${assignment.roomNumber}</td>
+                                <td>${assignment.employeeName}</td>
+                                <td>${checkInDate}</td>
+                                <td>${checkOutDate}</td>
+                                <td>${duration}</td>
+                                <td><span class="status-badge status-completed">Completed</span></td>
+                                <td>
+                                    <div class="action-buttons">
+                                        <button class="btn btn-sm btn-info" onclick="viewAssignmentDetails('${assignment.id}')" title="View Details">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-secondary" onclick="generateReport('${assignment.id}')" title="Generate Report">
+                                            <i class="fas fa-file-pdf"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            `;
+                            
+                            tableBody.appendChild(row);
+                        });
+                    } else {
+                        tableBody.innerHTML = '<tr><td colspan="7" class="text-center">No archived assignments found</td></tr>';
+                    }
+                    
+                    console.log(`✅ Loaded ${archivedAssignments.length} archived assignments`);
+                } else {
+                    tableBody.innerHTML = '<tr><td colspan="7" class="text-center">No archived assignments found</td></tr>';
+                }
+                
+            } catch (error) {
+                console.error('Error loading archived assignments:', error);
+                const tableBody = document.querySelector('#archivesTable tbody');
+                if (tableBody) {
+                    tableBody.innerHTML = '<tr><td colspan="7" class="text-center">Error loading archived assignments</td></tr>';
+                }
+            }
+        }
+
+        // Load room assignments from Firebase and populate table
+        async function loadRoomAssignmentsData() {
+            try {
+                if (!window.authManager || !window.authManager.currentUser) {
+                    console.log('No authenticated user for loading assignments');
+                    return;
+                }
+                
+                const companyId = window.authManager.currentUser.companyId;
+                if (!companyId) {
+                    console.log('No company ID found');
+                    return;
+                }
+                
+                const assignmentsRef = window.authManager.db.ref(`companies/${companyId}/roomAssignments`);
+                const snapshot = await assignmentsRef.once('value');
+                
+                const tableBody = document.querySelector('#assignmentsTable tbody');
+                if (!tableBody) return;
+                
+                // Clear existing rows
+                tableBody.innerHTML = '';
+                
+                if (snapshot.exists()) {
+                    const assignments = snapshot.val();
+                    // Filter out checked_out assignments (they belong in archives)
+                    let assignmentArray = Object.values(assignments)
+                        .filter(assignment => assignment.status !== 'checked_out')
+                        .sort((a, b) => 
+                            new Date(b.lastUpdated || b.assignedDate) - new Date(a.lastUpdated || a.assignedDate)
+                        );
+                    
+                    // Apply filters
+                    assignmentArray = applyAssignmentFilters(assignmentArray);
+                    
+                    // Populate room filter dropdown (excluding checked_out)
+                    populateRoomFilter(Object.values(assignments).filter(assignment => assignment.status !== 'checked_out'));
+                    
+                    if (assignmentArray.length > 0) {
+                        assignmentArray.forEach(assignment => {
+                            const row = document.createElement('tr');
+                            
+                            const statusBadge = getStatusBadge(assignment.status);
+                            const checkInDate = assignment.actualCheckInDate ? 
+                                new Date(assignment.actualCheckInDate).toLocaleDateString() : '-';
+                            const checkOutDate = assignment.actualCheckOutDate ? 
+                                new Date(assignment.actualCheckOutDate).toLocaleDateString() : 
+                                (assignment.checkOutDate ? new Date(assignment.checkOutDate).toLocaleDateString() : '-');
+                            
+                            // Calculate period (duration)
+                            let period = '-';
+                            if (assignment.actualCheckInDate && assignment.actualCheckOutDate) {
+                                const days = Math.ceil((new Date(assignment.actualCheckOutDate) - new Date(assignment.actualCheckInDate)) / (1000 * 60 * 60 * 24));
+                                period = `${days} day${days !== 1 ? 's' : ''}`;
+                            } else if (assignment.checkInDate && assignment.checkOutDate) {
+                                const days = Math.ceil((new Date(assignment.checkOutDate) - new Date(assignment.checkInDate)) / (1000 * 60 * 60 * 24));
+                                period = `${days} day${days !== 1 ? 's' : ''}`;
+                            }
+                            
+                            row.innerHTML = `
+                                <td>${assignment.roomNumber}</td>
+                                <td>${assignment.employeeName}</td>
+                                <td>${checkInDate}</td>
+                                <td>${checkOutDate}</td>
+                                <td>${period}</td>
+                                <td>${statusBadge}</td>
+                                <td>
+                                    <div class="action-buttons">
+                                        <button class="btn btn-sm btn-primary" onclick="editAssignment('${assignment.id}')" title="Edit">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                        ${assignment.status === 'assigned' ? 
+                                            `<button class="btn btn-sm btn-success" onclick="quickCheckIn('${assignment.employeeId}')" title="Check In">
+                                                <i class="fas fa-sign-in-alt"></i>
+                                            </button>` : ''}
+                                        ${assignment.status === 'checked_in' ? 
+                                            `<button class="btn btn-sm btn-warning" onclick="quickCheckOut('${assignment.employeeId}')" title="Check Out">
+                                                <i class="fas fa-sign-out-alt"></i>
+                                            </button>` : ''}
+                                    </div>
+                                </td>
+                            `;
+                            
+                            tableBody.appendChild(row);
+                        });
+                    } else {
+                        tableBody.innerHTML = '<tr><td colspan="7" class="text-center">No assignments match the current filters</td></tr>';
+                    }
+                    
+                    console.log(`✅ Loaded ${assignmentArray.length} room assignments`);
+                } else {
+                    tableBody.innerHTML = '<tr><td colspan="7" class="text-center">No room assignments found</td></tr>';
+                }
+                
+            } catch (error) {
+                console.error('Error loading room assignments:', error);
+                const tableBody = document.querySelector('#assignmentsTable tbody');
+                if (tableBody) {
+                    tableBody.innerHTML = '<tr><td colspan="6" class="text-center text-danger">Error loading assignments</td></tr>';
+                }
+            }
+        }
+
+        function getStatusBadge(status) {
+            const badges = {
+                'assigned': '<span class="badge badge-info">Assigned</span>',
+                'checked_in': '<span class="badge badge-success">Checked In</span>',
+                'checked_out': '<span class="badge badge-secondary">Checked Out</span>',
+                'cancelled': '<span class="badge badge-danger">Cancelled</span>'
+            };
+            return badges[status] || '<span class="badge badge-warning">Unknown</span>';
+        }
+
+        // Filter assignments based on search and filter criteria
+        function applyAssignmentFilters(assignments) {
+            const searchTerm = document.getElementById('searchAssignments')?.value.toLowerCase() || '';
+            const statusFilter = document.getElementById('filterStatus')?.value || '';
+            const roomFilter = document.getElementById('filterRoom')?.value || '';
+            
+            return assignments.filter(assignment => {
+                const matchesSearch = !searchTerm || 
+                    assignment.employeeName.toLowerCase().includes(searchTerm) ||
+                    assignment.roomNumber.toLowerCase().includes(searchTerm) ||
+                    (assignment.employeeEmail && assignment.employeeEmail.toLowerCase().includes(searchTerm));
+                
+                const matchesStatus = !statusFilter || assignment.status === statusFilter;
+                const matchesRoom = !roomFilter || assignment.roomNumber === roomFilter;
+                
+                return matchesSearch && matchesStatus && matchesRoom;
+            });
+        }
+
+        // Populate room filter dropdown with unique room numbers
+        function populateRoomFilter(assignments) {
+            const roomSelect = document.getElementById('filterRoom');
+            if (!roomSelect) return;
+            
+            // Get unique room numbers
+            const rooms = [...new Set(assignments.map(a => a.roomNumber))].sort();
+            
+            // Clear existing options except the first "All Rooms" option
+            roomSelect.innerHTML = '<option value="">All Rooms</option>';
+            
+            // Add room options
+            rooms.forEach(room => {
+                if (room && room !== 'TBD') {
+                    const option = document.createElement('option');
+                    option.value = room;
+                    option.textContent = room;
+                    roomSelect.appendChild(option);
+                }
+            });
+        }
+
+        // Setup filter event listeners
+        function setupFilterListeners() {
+            const searchInput = document.getElementById('searchAssignments');
+            const statusFilter = document.getElementById('filterStatus');
+            const roomFilter = document.getElementById('filterRoom');
+            
+            [searchInput, statusFilter, roomFilter].forEach(element => {
+                if (element) {
+                    element.addEventListener('input', () => {
+                        loadRoomAssignmentsData();
+                    });
+                    element.addEventListener('change', () => {
+                        loadRoomAssignmentsData();
+                    });
+                }
+            });
+            
+            // Archive filter listeners
+            const archiveSearchInput = document.getElementById('searchArchives');
+            const archiveRoomFilter = document.getElementById('filterArchiveRoom');
+            const archiveDateFilter = document.getElementById('filterArchiveDate');
+            
+            [archiveSearchInput, archiveRoomFilter, archiveDateFilter].forEach(element => {
+                if (element) {
+                    element.addEventListener('input', () => {
+                        loadArchivesData();
+                    });
+                    element.addEventListener('change', () => {
+                        loadArchivesData();
+                    });
+                }
+            });
+        }
+
+        // Close modals when clicking outside
+        document.addEventListener('click', (e) => {
+            if (e.target.classList.contains('modal')) {
+                e.target.classList.remove('show');
+            }
+        });
+
+        // Notification system
+        function showNotification(message, type = 'info') {
+            // Create notification container if it doesn't exist
+            let container = document.getElementById('notification-container');
+            if (!container) {
+                container = document.createElement('div');
+                container.id = 'notification-container';
+                container.style.cssText = `
+                    position: fixed;
+                    top: 20px;
+                    right: 20px;
+                    z-index: 10000;
+                    max-width: 400px;
+                `;
+                document.body.appendChild(container);
+            }
+            
+            // Create notification element
+            const notification = document.createElement('div');
+            notification.className = `notification notification-${type}`;
+            notification.style.cssText = `
+                background: ${type === 'success' ? '#d4edda' : type === 'error' ? '#f8d7da' : '#d1ecf1'};
+                color: ${type === 'success' ? '#155724' : type === 'error' ? '#721c24' : '#0c5460'};
+                border: 1px solid ${type === 'success' ? '#c3e6cb' : type === 'error' ? '#f5c6cb' : '#b6d4db'};
+                border-radius: 8px;
+                padding: 12px 16px;
+                margin-bottom: 10px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                animation: slideIn 0.3s ease-out;
+            `;
+            
+            const icon = type === 'success' ? '✅' : type === 'error' ? '❌' : 'ℹ️';
+            notification.innerHTML = `
+                <span style="font-size: 16px;">${icon}</span>
+                <span style="flex: 1;">${message}</span>
+                <button onclick="this.parentElement.remove()" style="background: none; border: none; font-size: 18px; cursor: pointer; color: inherit;">×</button>
+            `;
+            
+            container.appendChild(notification);
+            
+            // Auto-remove after 5 seconds
+            setTimeout(() => {
+                if (notification.parentElement) {
+                    notification.style.animation = 'slideOut 0.3s ease-in';
+                    setTimeout(() => notification.remove(), 300);
+                }
+            }, 5000);
+        }
+        
+        // Add CSS for animations
+        if (!document.getElementById('notification-styles')) {
+            const style = document.createElement('style');
+            style.id = 'notification-styles';
+            style.textContent = `
+                @keyframes slideIn {
+                    from { transform: translateX(100%); opacity: 0; }
+                    to { transform: translateX(0); opacity: 1; }
+                }
+                @keyframes slideOut {
+                    from { transform: translateX(0); opacity: 1; }
+                    to { transform: translateX(100%); opacity: 0; }
+                }
+                .badge {
+                    display: inline-block;
+                    padding: 0.25em 0.5em;
+                    font-size: 0.75em;
+                    font-weight: 700;
+                    line-height: 1;
+                    text-align: center;
+                    white-space: nowrap;
+                    vertical-align: baseline;
+                    border-radius: 0.375rem;
+                }
+                .badge-info { background-color: #17a2b8; color: #fff; }
+                .badge-success { background-color: #28a745; color: #fff; }
+                .badge-secondary { background-color: #6c757d; color: #fff; }
+                .badge-danger { background-color: #dc3545; color: #fff; }
+                .badge-warning { background-color: #ffc107; color: #212529; }
+                .action-buttons {
+                    display: flex;
+                    gap: 5px;
+                    justify-content: center;
+                }
+                .btn-sm {
+                    padding: 0.25rem 0.5rem;
+                    font-size: 0.75rem;
+                    border-radius: 0.2rem;
+                }
+                .text-center { text-align: center; }
+                .text-danger { color: #dc3545; }
+            `;
+            document.head.appendChild(style);
+        }
+    </script>
+</body>
+</html>

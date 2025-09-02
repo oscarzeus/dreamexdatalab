@@ -1,0 +1,1894 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Daily Access Control - Dreamex Datalab HSE</title>
+	<!-- Firebase v8 CDN (match other pages) -->
+	<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+	<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+	<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+	<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
+	<!-- jsPDF + AutoTable for PDF export -->
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.29/jspdf.plugin.autotable.min.js"></script>
+	<!-- Font Awesome -->
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+	<meta name="robots" content="noindex, nofollow">
+	<style>
+		/* === Core Variables / Layout (derived from accessboard.html) === */
+		:root { --primary-color:#2c3e50; --secondary-color:#3498db; --accent-color:#3498db; --text-color:#333; --bg-color:#f5f6fa; --sidebar-width:250px; --blue:#3498db; --green:#2ecc71; --orange:#e67e22; --red:#e74c3c; --purple:#9b59b6; --font-family:'Inter',system-ui,-apple-system,sans-serif; --base-font-size:.9rem; --font-scale:1; --bg-primary:#ffffff; --bg-secondary:#f8f9fa; --text-primary:#333; --text-secondary:#666; --border-color:#e0e0e0; --spacing-unit:.9rem; --padding-sm:.45rem; --padding-md:.75rem; --padding-lg:1.2rem; --transition-speed:.2s; }
+		*{margin:0;padding:0;box-sizing:border-box;} body{font-family:var(--font-family);font-size:var(--base-font-size);line-height:1.4;color:var(--text-primary);background:#f8f9fa;}
+		.app-container{display:flex;min-height:100vh;}
+		.sidebar{width:var(--sidebar-width);background:var(--primary-color);color:#fff;padding:1rem;position:fixed;height:100vh;overflow-y:auto;transition:transform .3s ease;}
+		.sidebar.collapsed{transform:translateX(-100%);} .logo h2{text-align:center;padding:1rem 0;border-bottom:1px solid rgba(255,255,255,.1);font-size:1.05rem;}
+		.menu{list-style:none;margin-top:1.5rem;} .menu li{margin-bottom:.45rem;} .menu a{color:#fff;text-decoration:none;display:flex;align-items:center;padding:.65rem .9rem;border-radius:6px;font-size:.78rem;gap:.55rem;letter-spacing:.25px;transition:background .25s;} .menu a:hover,.menu a.active{background:var(--secondary-color);} .menu-dropdown .submenu{display:none;list-style:none;margin-left:1.2rem;margin-top:.35rem;} .menu-dropdown:hover .submenu{display:block;}
+		/* Feature-based visibility */
+		[data-feature]:not(.menu-visible){display:none !important;} .menu-dropdown:not(.menu-visible){display:none !important;} 
+		
+		/* Hide ALL menu items by default during loading */
+		.sidebar.menu-loading .menu-item, .sidebar.menu-loading .menu-dropdown, .sidebar.menu-loading li[data-feature], .sidebar.menu-loading [data-feature] {display:none !important;} .menu-loading [data-feature]{display:none !important;} .menu-loading .menu-dropdown{display:none !important;}
+		.main-content{flex:1;margin-left:var(--sidebar-width);padding:.45rem;width:calc(100% - var(--sidebar-width));box-sizing:border-box;display:flex;flex-direction:column;transition:margin-left .3s ease,width .3s ease;}
+		.main-content.sidebar-collapsed{margin-left:0;width:100%;}
+		/* Top Nav (copied style approach from staff.html) */
+		.top-nav{display:flex;justify-content:space-between;align-items:center;padding:.5rem .75rem;background:#fff;box-shadow:0 2px 5px rgba(0,0,0,.1);margin-bottom:.35rem;position:fixed;top:.25rem;right:.5rem;left:calc(var(--sidebar-width) + .5rem);height:50px;min-height:50px;z-index:100;transition:left .3s ease;}
+		.top-nav-left{display:flex;align-items:center;gap:1rem;font-size:.8rem;font-weight:600;color:var(--text-secondary);} .sidebar-toggle-btn{background:none;border:none;cursor:pointer;font-size:1.15rem;padding:.45rem;color:#666;border-radius:6px;display:flex;align-items:center;justify-content:center;} .sidebar-toggle-btn:hover{background:rgba(0,0,0,.06);}
+		#headerCompanyLogo{width:44px;height:44px;border-radius:6px;object-fit:cover;display:none;background:#fff;border:1px solid #d0d7de;box-shadow:0 1px 2px rgba(0,0,0,.08);} #headerCompanyLogo.visible{display:block;} #headerCompanyName{font-size:.8rem;font-weight:600;letter-spacing:.5px;color:var(--primary-color);max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+		.top-nav-right{display:flex;align-items:center;gap:1.2rem;margin-left:auto;}
+		.notifications{position:relative;display:flex;align-items:center;} .notification-btn{background:none;border:none;cursor:pointer;position:relative;font-size:1.1rem;padding:.45rem;display:flex;align-items:center;justify-content:center;} .notification-badge{position:absolute;top:-5px;right:-5px;background:var(--accent-color);color:#fff;border-radius:50%;padding:.15rem .45rem;font-size:.6rem;}
+		.notification-dropdown{display:none;position:absolute;right:0;top:100%;width:280px;background:#fff;border-radius:6px;box-shadow:0 4px 18px rgba(0,0,0,.12);z-index:1000;}
+		.notification-dropdown.show{display:block;} .notification-list{max-height:280px;overflow-y:auto;}
+		.profile-btn{background:none;border:none;cursor:pointer;padding:.25rem;display:flex;align-items:center;position:relative;} 
+		.profile-btn img{width:40px;height:40px;border-radius:50%;object-fit:cover;}
+		.avatar-initials{width:40px;height:40px;border-radius:50%;background:#3498db;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:14px;font-family:Arial,sans-serif;}
+		.profile-dropdown{display:none;position:absolute;top:100%;right:0;background:#fff;border-radius:6px;box-shadow:0 4px 18px rgba(0,0,0,.12);min-width:200px;z-index:1000;} .profile-dropdown.show{display:block;} .profile-dropdown ul{list-style:none;margin:0;padding:0;} .profile-dropdown ul li a{display:flex;align-items:center;padding:12px 16px;color:#333;text-decoration:none;font-size:.78rem;gap:.6rem;transition:background .2s;} .profile-dropdown ul li a:hover{background:#f5f7fa;}
+		.avatar-initials{width:40px;height:40px;border-radius:50%;background:var(--secondary-color);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:1rem;}
+		/* Page Header (board title) */
+		.page-header{background:linear-gradient(135deg,var(--primary-color),var(--secondary-color));color:#fff;padding:.55rem .75rem;border-radius:0;margin:.35rem 0 .5rem 0;display:flex;align-items:center;justify-content:space-between;box-shadow:0 10px 28px rgba(0,0,0,.18),0 6px 16px rgba(0,0,0,.14);font-size:.9rem;}
+		.page-header i{font-size:1rem;}
+		/* Add New Button */
+		.btn-add-new{background:none;border:none;color:#fff;padding:.4rem;font-size:1.2rem;font-weight:600;cursor:pointer;transition:all 0.2s ease;display:flex;align-items:center;justify-content:center;text-decoration:none;}
+		.btn-add-new:hover{color:rgba(255,255,255,0.8);transform:scale(1.1);}
+		.btn-add-new i{font-size:1.2rem;}
+		/* Filters Bar */
+		.filters-bar{display:flex;flex-wrap:wrap;gap:.5rem;align-items:flex-end;margin-bottom:.5rem;background:#fff;padding:.6rem .65rem;border-radius:0;box-shadow:0 1px 3px rgba(0,0,0,.08);} .filters-bar .form-group{display:flex;flex-direction:column;gap:.25rem;} .filters-bar label{font-size:.6rem;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:#555;} .filters-bar input,.filters-bar select{padding:.4rem .55rem;font-size:.7rem;border:1px solid #d0d7de;border-radius:6px;min-width:160px;background:#fff;} .filters-bar input:focus,.filters-bar select:focus{outline:2px solid var(--secondary-color);outline-offset:0;border-color:var(--secondary-color);}
+		/* Date Range Display */
+		.date-range-display{background:#e8f4fd;border:1px solid #bee5eb;padding:.5rem .7rem;border-radius:6px;font-size:.75rem;color:#0c5460;font-weight:600;display:flex;align-items:center;gap:.5rem;}
+		.date-range-display i{font-size:.9rem;}
+		/* Time Indicator */
+		.current-time{background:#fff3cd;border:1px solid #ffeaa7;padding:.5rem .7rem;border-radius:6px;font-size:.75rem;color:#856404;font-weight:600;display:flex;align-items:center;gap:.5rem;}
+		.current-time i{font-size:.9rem;color:#f39c12;}
+		/* Table */
+		.board-card{background:#fff;border-radius:0;padding:.65rem .75rem;box-shadow:0 1px 3px rgba(0,0,0,.08);display:flex;flex-direction:column;flex:1;min-height:0;}
+		.table-wrapper{overflow:auto;flex:1;}
+		table{width:100%;border-collapse:collapse;font-size:.7rem;} 
+		thead th{position:sticky;top:0;background:#f5f6f9;z-index:2;font-weight:600;text-align:left;padding:.45rem .55rem;border-bottom:1px solid #e3e6eb;font-size:.65rem;letter-spacing:.4px;text-transform:uppercase;color:#555;} 
+		tbody td{padding:.45rem .55rem;border-bottom:1px solid #f0f1f3;vertical-align:middle;line-height:1.25;} 
+		tbody tr:hover{background:#f9fbfe;} 
+		tbody tr:last-child td{border-bottom:none;}
+
+		/* Tabs */
+		.tabs-bar{margin:.35rem 0;}
+		/* Legacy simple tabs (kept for safety) */
+		.tabs{display:flex;gap:.4rem;flex-wrap:wrap;}
+		.tabs .tab{padding:.35rem .6rem;font-size:.7rem;border:1px solid #d0d7de;background:#fff;color:#333;border-radius:6px;cursor:pointer;}
+		.tabs .tab.active{background:var(--secondary-color);border-color:var(--secondary-color);color:#fff;}
+		/* Staff-like tab styles */
+		.content-tabs{margin:0;width:100%;box-shadow:0 32px 96px rgba(0,0,0,0.35),0 20px 48px rgba(0,0,0,0.25),0 10px 24px rgba(0,0,0,0.18);border-radius:0;transition:box-shadow .3s ease;display:flex;flex-direction:column;background:#fff}
+		.content-tabs:hover{box-shadow:0 40px 120px rgba(0,0,0,0.42),0 26px 60px rgba(0,0,0,0.32),0 14px 32px rgba(0,0,0,0.22)}
+		.tab-navigation{display:flex;gap:.5rem;margin:0 0 1rem 0;background:#fff;padding:.5rem;border-radius:0;box-shadow:0 2px 10px rgba(0,0,0,.05)}
+		.tab-nav-btn{padding:.5rem 1.5rem;border:none;background:transparent;border-radius:0;cursor:pointer;font-size:.7rem;font-weight:600;transition:all .3s ease;display:flex;align-items:center;gap:.75rem;color:#6c757d;flex:1;justify-content:center}
+		.tab-nav-btn:hover{background:#f8f9fa;color:#495057}
+		.tab-nav-btn.active{background:linear-gradient(135deg,var(--primary-color),var(--secondary-color));color:#fff;box-shadow:0 4px 15px rgba(52,152,219,.3)}
+		/* Per-tab active colors to mirror staff.html pattern */
+		#dailyTabBtn.active{background:#28a745;color:#fff;box-shadow:0 4px 15px rgba(40,167,69,.4)}
+		#upcomingTabBtn.active{background:#007bff;color:#fff;box-shadow:0 4px 15px rgba(0,123,255,.4)}
+		#expiredTabBtn.active{background:#dc3545;color:#fff;box-shadow:0 4px 15px rgba(220,53,69,.4)}
+		/* Status indicators for time-based access */
+		.access-status{display:inline-flex;align-items:center;gap:.3rem;padding:.25rem .5rem;border-radius:12px;font-size:.6rem;font-weight:600;text-transform:uppercase;}
+		.access-status.active{background:#d4edda;color:#155724;border:1px solid #c3e6cb;}
+		.access-status.expired{background:#f8d7da;color:#721c24;border:1px solid #f5c6cb;}
+		.access-status.future{background:#fff3cd;color:#856404;border:1px solid #ffeaa7;}
+		.access-status i{font-size:.7rem;}
+		/* Time display */
+		.time-display{font-size:.65rem;color:#666;font-family:monospace;}
+		.empty-state{padding:2rem 1rem;text-align:center;color:#666;font-size:.75rem;}
+		/* Row click */
+		tbody tr.clickable-row{cursor:pointer;}
+		tbody tr.clickable-row:active{background:#eef5ff;}
+		/* Equipment section in daily view */
+		.equipment-list{max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.65rem;}
+		/* Status pills removed */
+
+		/* Modal */
+		.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;z-index:2000;padding:.75rem;}
+		.modal-overlay.show{display:flex;}
+		.modal{background:#fff;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.2);max-width:760px;width:100%;overflow:hidden;}
+		.modal-header{display:flex;align-items:center;justify-content:space-between;padding:.8rem 1rem;border-bottom:1px solid #eee;}
+		.modal-header h3{font-size:.95rem;color:#2c3e50;display:flex;align-items:center;gap:.5rem;}
+		.modal-close{background:none;border:none;font-size:1.2rem;cursor:pointer;color:#666;padding:.2rem .4rem;border-radius:6px;}
+		.modal-close:hover{background:#f3f4f6;color:#111;}
+		.modal-body{padding:1rem;}
+		.modal-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.75rem;}
+		.modal-grid .full{grid-column:1 / -1;}
+		.modal-grid .label{display:block;font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#666;margin-bottom:.2rem;}
+		.modal-grid .value{font-size:.8rem;color:#222;}
+		.modal-footer{display:flex;justify-content:flex-end;gap:.5rem;padding:.8rem 1rem;border-top:1px solid #eee;background:#fafbfc;}
+		.modal-footer .btn{padding:.4rem .7rem;border:1px solid #d0d7de;border-radius:6px;background:#fff;color:#333;font-size:.75rem;cursor:pointer;}
+		.modal-footer .btn:hover{background:#f3f4f6;}
+		.modal-footer .btn-link{padding:.4rem .2rem;color:#1d6fd8;text-decoration:none;font-size:.75rem;}
+		/* Attachments list */
+		.attachments-list{display:flex;flex-wrap:wrap;gap:.35rem;}
+		.attachments-list a,.attachments-list span{display:inline-block;font-size:.72rem;padding:.25rem .45rem;border-radius:12px;background:#f3f4f6;color:#333;text-decoration:none;border:1px solid #e5e7eb;}
+		.attachments-list a{color:#1d6fd8;border-color:#dbeafe;background:#eff6ff;}
+	</style>
+</head>
+<body>
+	<div class="app-container">
+		<!-- Sidebar (copied from accessboard.html to retain feature markers) -->
+		<nav class="sidebar menu-loading" id="sideNav">
+			<div class="logo"><h2>Dreamex Datalab</h2></div>
+			<ul class="menu" id="roleBasedMenu">
+				<li class="menu-item" data-feature="home_view" data-requires-permission="home_view">
+					<a href="index.html"><i class="fas fa-home"></i> Home</a>
+				</li>
+				<li class="menu-dropdown" data-feature="health_view" data-requires-permission="health_view">
+					<a href="#"><i class="fas fa-medkit"></i> Health</a>
+					<ul class="submenu">
+						<li data-feature="health_assessment_view" data-requires-permission="health_assessment_view">
+							<a href="health-assessment.html">Assessment</a>
+						</li>
+						<li data-feature="health_consultation_view" data-requires-permission="health_consultation_view">
+							<a href="health-consultation.html">Consultation</a>
+						</li>
+						<li data-feature="medical_folder_view" data-requires-permission="medical_folder_view">
+							<a href="medical-folder.html">Medical Folder</a>
+						</li>
+					</ul>
+				</li>
+				<li class="menu-dropdown" data-feature="safety_view" data-requires-permission="safety_view">
+					<a href="#"><i class="fas fa-shield-alt"></i> Safety</a>
+					<ul class="submenu">
+						<li data-feature="training_view" data-requires-permission="training_view"><a href="trainingboard.html">Training</a></li>
+						<li data-feature="risk_view" data-requires-permission="risk_view"><a href="riskboard.html">Risk Management</a></li>
+						<li data-feature="jsa_view" data-requires-permission="jsa_view"><a href="jsaboard.html">Job Safety Analysis</a></li>
+						<li data-feature="ptw_view" data-requires-permission="ptw_view"><a href="ptwboard.html">Permit to Work</a></li>
+						<li data-feature="incident_view" data-requires-permission="incident_view"><a href="incidentboard.html">Incident Reports</a></li>
+						<li data-feature="inspection_view" data-requires-permission="inspection_view"><a href="inspectionboard.html">Inspection</a></li>
+						<li data-feature="audit_view" data-requires-permission="audit_view"><a href="auditboard.html">Audit</a></li>
+					</ul>
+				</li>
+				<li class="menu-dropdown" data-feature="fuel_management" data-requires-permission="fuel_management">
+					<a href="#"><i class="fas fa-gas-pump"></i> Fuel Management</a>
+					<ul class="submenu">
+						<li data-feature="vessel_offloading" data-requires-permission="vessel_offloading"><a href="vessel-offloading.html">Vessel Offloading</a></li>
+						<li data-feature="fuel_storage" data-requires-permission="fuel_storage"><a href="fuel-storage-status.html">Fuel Storage Status</a></li>
+						<li data-feature="tank_transfer" data-requires-permission="tank_transfer"><a href="tank-transfer.html">Tank-to-Tank Transfer</a></li>
+						<li data-feature="truck_loading" data-requires-permission="truck_loading"><a href="fuel-truck-loading.html">Fuel Truck Loading</a></li>
+						<li data-feature="quality_analysis" data-requires-permission="quality_analysis"><a href="fuel-quality-analysis.html">Fuel Quality Analysis</a></li>
+						<li data-feature="fuel_distribution" data-requires-permission="fuel_distribution"><a href="fueldistrib.html">Fuel Distribution</a></li>
+						<li data-feature="fuel_consumption_analysis" data-requires-permission="fuel_consumption_analysis"><a href="fuelanalys.html">Consumption Analysis</a></li>
+					</ul>
+				</li>
+				<li class="menu-dropdown" data-feature="environment_view" data-requires-permission="environment_view">
+					<a href="#"><i class="fas fa-leaf"></i> Environment</a>
+					<ul class="submenu">
+						<li data-feature="water_view" data-requires-permission="water_view"><a href="waterboard.html">Water Quality</a></li>
+					</ul>
+				</li>
+				<li class="menu-dropdown" data-feature="security_view" data-requires-permission="security_view">
+					<a href="#"><i class="fas fa-lock"></i> Security</a>
+					<ul class="submenu">
+						<li data-feature="access_view" data-requires-permission="access_view"><a href="accessboard.html">Access Request</a></li>
+						<li data-feature="access_daily_view" data-requires-permission="access_daily_view"><a href="accessdaily.html" class="active">Daily Access Control</a></li>
+						<li data-feature="removal_view" data-requires-permission="removal_view"><a href="removalboard.html">Property Removal</a></li>
+					</ul>
+				</li>
+				<li class="menu-dropdown" data-feature="logistics_view" data-requires-permission="logistics_view">
+					<a href="#"><i class="fas fa-truck"></i> Logistics</a>
+					<ul class="submenu">
+						<li data-feature="fleet_view" data-requires-permission="fleet_view"><a href="fleet.html">Fleet Management</a></li>
+					</ul>
+				</li>
+				<li class="menu-dropdown" data-feature="accommodation_view" data-requires-permission="accommodation_view">
+					<a href="#"><i class="fas fa-bed"></i> Accommodation</a>
+					<ul class="submenu">
+						<li data-feature="camp_view" data-requires-permission="camp_view"><a href="camp.html">Camp Management</a></li>
+						<li data-feature="camp_settings_view" data-requires-permission="camp_settings_view"><a href="campset.html">Camp Settings</a></li>
+					</ul>
+				</li>
+				<li class="menu-dropdown" data-feature="hr_view" data-requires-permission="hr_view">
+					<a href="#"><i class="fas fa-users"></i> HR</a>
+					<ul class="submenu">
+						<li data-feature="human_hr_view" data-requires-permission="human_hr_view"><a href="human-hr.html"><i class="fas fa-user-tie"></i> Human HR</a></li>
+						<li data-feature="staff_management_view" data-requires-permission="staff_management_view"><a href="staff.html">Staffing</a></li>
+						<li data-feature="authority_to_recruit_view" data-requires-permission="authority_to_recruit_view"><a href="recruit.html">Authority to Recruit</a></li>
+						<li data-feature="job_advertising_view" data-requires-permission="job_advertising_view"><a href="jobpost.html">Job Advertising</a></li>
+						<li data-feature="screening_view" data-requires-permission="screening_view"><a href="jobscreen.html">Screening</a></li>
+						<li data-feature="interview_view" data-requires-permission="interview_view"><a href="interview.html">Interview</a></li>
+						<li data-feature="offer_view" data-requires-permission="offer_view"><a href="offer.html">Offer Management</a></li>
+						<li data-feature="contract_view" data-requires-permission="contract_view"><a href="contract.html">Contract Management</a></li>
+						<li data-feature="onboarding_view" data-requires-permission="onboarding_view"><a href="onboard.html">Onboarding</a></li>
+						<li data-feature="chart_view" data-requires-permission="chart_view"><a href="chart.html">Chart Setup</a></li>
+						<li data-feature="chartboard_view" data-requires-permission="chartboard_view"><a href="chartboard.html">Org Chart</a></li>
+						<li data-feature="kpi_dashboard_view" data-requires-permission="kpi_dashboard_view"><a href="kpi.html">KPI</a></li>
+						<li data-feature="action_plan_view" data-requires-permission="action_plan_view"><a href="actionplan.html"><i class="fas fa-tasks"></i> Action Plan Board</a></li>
+					</ul>
+				</li>
+				<li class="menu-dropdown" data-feature="project_management_view" data-requires-permission="project_management_view">
+					<a href="#"><i class="fas fa-project-diagram"></i> Project Management</a>
+					<ul class="submenu">
+						<li data-feature="project_dashboard_view" data-requires-permission="project_dashboard_view"><a href="project-dashboard.html">Project Dashboard</a></li>
+						<li data-feature="project_create_view" data-requires-permission="project_create_view"><a href="project-create.html">Create Project</a></li>
+						<li data-feature="project_list_view" data-requires-permission="project_list_view"><a href="project-list.html">Project List</a></li>
+						<li data-feature="task_management_view" data-requires-permission="task_management_view"><a href="tasks.html">Task Management</a></li>
+						<li data-feature="milestone_tracking_view" data-requires-permission="milestone_tracking_view"><a href="milestones.html">Milestone Tracking</a></li>
+						<li data-feature="resource_allocation_view" data-requires-permission="resource_allocation_view"><a href="resources.html">Resource Allocation</a></li>
+						<li data-feature="project_reports_view" data-requires-permission="project_reports_view"><a href="project-reports.html">Project Reports</a></li>
+						<li data-feature="gantt_chart_view" data-requires-permission="gantt_chart_view"><a href="gantt-chart.html">Gantt Chart</a></li>
+					</ul>
+				</li>
+				<li data-feature="communication_view" data-requires-permission="communication_view"><a href="info.html"><i class="fas fa-comments"></i> Communication</a></li>
+				<li class="menu-dropdown" data-feature="settings_view" data-requires-permission="settings_view">
+					<a href="#"><i class="fas fa-cog"></i> Settings</a>
+					<ul class="submenu">
+						<li data-feature="account_settings_view" data-requires-permission="account_settings_view"><a href="account.html">Account Settings</a></li>
+						<li data-feature="company_management_view" data-requires-permission="company_management_view"><a href="companymanagement.html">Company Management</a></li>
+						<li data-feature="approval_settings_view" data-requires-permission="approval_settings_view"><a href="approval-settings.html">Approval Flow Settings</a></li>
+						<li data-feature="field_setup_view" data-requires-permission="field_setup_view"><a href="fieldsetup.html">Field Setup</a></li>
+						<li data-feature="preferences_view" data-requires-permission="preferences_view"><a href="preferences.html">Preferences</a></li>
+						<li data-feature="notification_settings_view" data-requires-permission="notification_settings_view"><a href="notification-settings.html">Notification Settings</a></li>
+						<li data-feature="audit_log_view" data-requires-permission="audit_log_view"><a href="auditlog.html"><i class="fas fa-history"></i> Audit Log</a></li>
+						<li data-feature="user_management_view" data-requires-permission="user_management_view"><a href="users.html">User & Role Management</a></li>
+						<li data-feature="role_permissions_view" data-requires-permission="role_permissions_view"><a href="roles.html">Role Permissions</a></li>
+					</ul>
+				</li>
+			</ul>
+		</nav>
+		<!-- Main Content -->
+		<main class="main-content">
+			<header class="top-nav">
+				<div class="top-nav-left">
+					<button id="sidebarToggle" class="sidebar-toggle-btn" title="Toggle menu"><i class="fas fa-bars"></i></button>
+					<img id="headerCompanyLogo" alt="Company Logo">
+					<span id="headerCompanyName"></span>
+				</div>
+				<div class="top-nav-right">
+					<div class="notifications">
+						<button id="notificationBtn" class="notification-btn" aria-label="Notifications"><i class="fas fa-bell"></i><span class="notification-badge" style="display:none;">0</span></button>
+						<div class="notification-dropdown">
+							<div style="padding:.75rem;border-bottom:1px solid #eee;display:flex;justify-content:space-between;align-items:center;">
+								<strong style="font-size:.7rem;color:#2c3e50;">Notifications</strong>
+								<button class="mark-all-read" style="background:none;border:none;font-size:.6rem;color:var(--secondary-color);cursor:pointer;">Mark all read</button>
+							</div>
+							<div class="notification-list"></div>
+						</div>
+					</div>
+					<div class="user-profile">
+						<button id="userProfileBtn" class="profile-btn" aria-label="Profile">
+							<img id="userAvatarImg" src="" alt="User Avatar" style="display: none;">
+							<div id="userInitials" class="avatar-initials">U</div>
+						</button>
+						<div class="profile-dropdown"><ul></ul></div>
+					</div>
+				</div>
+			</header>
+			<div style="padding-top:3.4rem;"></div>
+			<div class="page-header">
+				<div style="display: flex; align-items: center; gap: 0.6rem;">
+					<i class="fas fa-calendar-check"></i>
+					<span>Daily Access Control</span>
+				</div>
+				<button type="button" class="btn-add-new" onclick="window.location.href='access.html'" title="Create New Access Request">
+					<i class="fas fa-plus"></i>
+				</button>
+			</div>
+			<!-- Filters -->
+			<section class="filters-bar" id="filtersBar">
+				<div class="current-time">
+					<i class="fas fa-clock"></i>
+					<span id="currentTime"></span>
+				</div>
+				<div class="form-group">
+					<label for="searchInput">Search</label>
+					<input type="text" id="searchInput" placeholder="Name, company, area..." autocomplete="off">
+				</div>
+				<div class="form-group">
+					<label for="areaFilter">Area</label>
+					<select id="areaFilter">
+						<option value="">All Areas</option>
+					</select>
+				</div>
+				<div class="form-group">
+					<label for="companyFilter">Company</label>
+					<select id="companyFilter">
+						<option value="">All Companies</option>
+					</select>
+				</div>
+				<button type="button" id="clearFiltersBtn" class="btn btn-secondary" style="padding:.4rem .7rem;font-size:.65rem;border:1px solid #ccc;background:#fff;color:#666;border-radius:6px;cursor:pointer;" title="Clear all filters">
+					<i class="fas fa-times"></i> Clear
+				</button>
+				<button type="button" id="exportCsvBtn" class="btn btn-primary" style="padding:.4rem .7rem;font-size:.65rem;border:none;background:var(--secondary-color);color:#fff;border-radius:6px;cursor:pointer;" title="Export to PDF">
+					<i class="fas fa-download"></i> Export
+				</button>
+			</section>
+			<!-- Status Pills removed -->
+			<!-- Summary removed -->
+			<!-- Main Table -->
+			<section class="tabs-bar">
+				<div class="content-tabs">
+					<div class="tab-navigation" id="accessTabs">
+						<button class="tab-nav-btn active" id="dailyTabBtn" data-tab="daily" title="Visitors scheduled for today">Daily</button>
+						<button class="tab-nav-btn" id="upcomingTabBtn" data-tab="upcoming" title="Visitors scheduled for future dates">Upcoming</button>
+						<button class="tab-nav-btn" id="expiredTabBtn" data-tab="expired" title="Visitors whose visit period ended">Expired</button>
+					</div>
+					<section class="board-card" style="box-shadow:none;">
+						<div class="table-wrapper">
+					<table>
+						<thead>
+							<tr>
+								<th>Visitor Name</th>
+								<th>ID Number</th>
+								<th>Company</th>
+								<th>Area</th>
+								<th>Access Period</th>
+								<th>Status</th>
+								<th>Request Ref</th>
+							</tr>
+						</thead>
+						<tbody id="dailyAccessTableBody">
+							<tr>
+								<td colspan="7" class="empty-state">Loading daily access data...</td>
+							</tr>
+						</tbody>
+					</table>
+					</div>
+				</section>
+			</div>
+		</section>
+		</main>
+	</div>
+
+	<!-- Visitor Details Modal -->
+	<div id="visitorModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="visitorModalTitle">
+		<div class="modal">
+			<div class="modal-header">
+				<h3 id="visitorModalTitle"><i class="fas fa-id-card"></i> Visitor Details</h3>
+				<button class="modal-close" aria-label="Close" onclick="window.dailyAccessManager?.closeVisitorModal()"><i class="fas fa-times"></i></button>
+			</div>
+			<div class="modal-body">
+				<div class="modal-grid">
+					<div>
+						<span class="label">Visitor Name</span>
+						<div class="value" id="vmName"></div>
+					</div>
+					<div>
+						<span class="label">ID Number</span>
+						<div class="value" id="vmId"></div>
+					</div>
+					<div>
+						<span class="label">Company</span>
+						<div class="value" id="vmCompany"></div>
+					</div>
+					<div>
+						<span class="label">Area</span>
+						<div class="value" id="vmArea"></div>
+					</div>
+					<div>
+						<span class="label">Access Start</span>
+						<div class="value" id="vmStart"></div>
+					</div>
+					<div>
+						<span class="label">Access End</span>
+						<div class="value" id="vmEnd"></div>
+					</div>
+					<div class="full">
+						<span class="label">Equipment</span>
+						<div class="value" id="vmEquipment"></div>
+					</div>
+					<div class="full">
+						<span class="label">Request Reference</span>
+						<div class="value"><a id="vmRequestLink" href="#" target="_blank" class="btn-link"></a></div>
+					</div>
+					<div class="full">
+						<span class="label">Attachments</span>
+						<div class="attachments-list" id="vmAttachments"></div>
+					</div>
+					<div class="full">
+						<span class="label">Access History</span>
+						<div id="vmHistory" style="max-height:180px;overflow:auto;border:1px solid #eee;border-radius:6px;padding:.5rem;background:#fafafa;font-size:.75rem;">
+							<em>Loading history…</em>
+						</div>
+					</div>
+				</div>
+			</div>
+			<div class="modal-footer">
+				<button class="btn" id="vmCheckInBtn" title="Mark this visitor as checked in"><i class="fas fa-sign-in-alt"></i> Check In</button>
+				<button class="btn" id="vmCheckOutBtn" title="Mark this visitor as checked out"><i class="fas fa-sign-out-alt"></i> Check Out</button>
+				<button class="btn" onclick="window.dailyAccessManager?.closeVisitorModal()">Close</button>
+			</div>
+		</div>
+	</div>
+	<!-- Load only notification manager; Firebase/Auth are initialized inline to avoid conflicts -->
+	<script src="js/notification-manager.js"></script>
+	<script>
+	/**************** Auth Manager Integration ****************/
+	document.addEventListener('DOMContentLoaded', function() {
+		// Initialize auth manager
+		if (window.authManager) {
+			window.authManager.initialize();
+		}
+		
+		// Initialize daily access manager
+		window.dailyAccessManager = new DailyAccessManager();
+	});
+
+	/**************** Daily Access Manager ****************/
+	class DailyAccessManager {
+		constructor() {
+			this.allRequests = [];
+			this.allVisitors = [];
+			this.filtered = [];
+			// Status pills removed
+			this.currentTime = new Date();
+			this.activeTab = 'daily'; // daily | upcoming | expired
+			
+			this.dom = {
+				tbody: document.getElementById('dailyAccessTableBody'),
+				search: document.getElementById('searchInput'),
+				areaFilter: document.getElementById('areaFilter'),
+				companyFilter: document.getElementById('companyFilter'),
+				// status pills removed; summary removed
+				tabs: document.getElementById('accessTabs'),
+				clearBtn: document.getElementById('clearFiltersBtn'),
+				exportBtn: document.getElementById('exportCsvBtn'),
+				currentTime: document.getElementById('currentTime')
+			};
+
+			this.attachEvents();
+			// status pills removed
+			this.updateCurrentTime();
+			this.startTimeUpdater();
+			this.waitForCompanyThenLoad();
+		}
+
+		attachEvents() {
+			const debounce = (fn, delay = 250) => {
+				let timeout;
+				return (...args) => {
+					clearTimeout(timeout);
+					timeout = setTimeout(() => fn(...args), delay);
+				};
+			};
+
+			const applyFilters = () => this.applyFilters();
+
+			// Attach filter events
+			['search', 'areaFilter', 'companyFilter'].forEach(key => {
+				if (this.dom[key]) {
+					this.dom[key].addEventListener('input', debounce(applyFilters, 180));
+				}
+			});
+
+			this.dom.clearBtn?.addEventListener('click', () => this.clearFilters());
+			this.dom.exportBtn?.addEventListener('click', () => this.exportPdf());
+
+			// Tabs events
+			if (this.dom.tabs) {
+				this.dom.tabs.querySelectorAll('.tab-nav-btn').forEach(tabBtn => {
+					tabBtn.addEventListener('click', () => {
+						const selected = tabBtn.getAttribute('data-tab');
+						if (!selected || selected === this.activeTab) return;
+						this.activeTab = selected;
+						// Toggle active class
+						this.dom.tabs.querySelectorAll('.tab-nav-btn').forEach(b => b.classList.toggle('active', b === tabBtn));
+						this.applyFilters();
+					});
+				});
+			}
+		}
+
+		// renderStatusPills removed
+
+		clearFilters() {
+			if (this.dom.search) this.dom.search.value = '';
+			if (this.dom.areaFilter) this.dom.areaFilter.value = '';
+			if (this.dom.companyFilter) this.dom.companyFilter.value = '';
+			// status pills removed
+			this.applyFilters();
+		}
+
+		updateCurrentTime() {
+			this.currentTime = new Date();
+			if (this.dom.currentTime) {
+				this.dom.currentTime.textContent = this.currentTime.toLocaleString('en-US', {
+					weekday: 'short',
+					year: 'numeric',
+					month: 'short',
+					day: 'numeric',
+					hour: '2-digit',
+					minute: '2-digit',
+					second: '2-digit'
+				});
+			}
+		}
+
+		startTimeUpdater() {
+			// Update time every second
+			setInterval(() => {
+				this.updateCurrentTime();
+				// Re-apply filters to update access status and tab results
+				this.applyFilters();
+			}, 1000);
+		}
+
+		waitForCompanyThenLoad() {
+			const interval = setInterval(() => {
+				const companyId = window.authManager?.currentUser?.companyId;
+				if (companyId) {
+					clearInterval(interval);
+					this.load(companyId);
+				}
+			}, 400);
+			
+			// Timeout after 15 seconds
+			setTimeout(() => clearInterval(interval), 15000);
+		}
+
+		load(companyId) {
+			console.log('📡 Loading access requests for daily view - Company:', companyId);
+			this.companyId = companyId;
+			
+			window.db.ref(`companies/${companyId}/access`).on('value', snapshot => {
+				const data = snapshot.val() || {};
+				this.allRequests = Object.entries(data)
+					.map(([id, record]) => ({ ...record, id }))
+					.filter(record => {
+						const s = ((record && (record.status || record.approvalStatus)) || '').toString().toLowerCase().trim();
+						// Include approved and pending requests; pending will be shown only in Upcoming tab
+						return s === 'approved' || s.startsWith('pend');
+					})
+					.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+
+				this.processVisitors();
+				this.updateFilterOptions();
+				this.applyFilters();
+			});
+		}
+
+		processVisitors() {
+			this.allVisitors = [];
+			
+			this.allRequests.forEach(request => {
+				if (Array.isArray(request.visitors)) {
+					request.visitors.forEach((visitor, visitorIndex) => {
+						// Add request context to visitor
+						const reqStatus = ((request.status || request.approvalStatus) || '').toString().toLowerCase().trim();
+						const visitorWithContext = {
+							...visitor,
+							requestId: request.id,
+							requestRef: request.referenceNumber || request.id,
+							requesterName: request.requesterName,
+							equipment: request.equipment || [],
+							visitorIndex,
+							requestStatus: reqStatus
+						};
+						
+						this.allVisitors.push(visitorWithContext);
+					});
+				}
+			});
+			
+			console.log('📊 Processed visitors:', this.allVisitors.length);
+		}
+
+		updateFilterOptions() {
+			// Update area filter
+			const areas = [...new Set(this.allVisitors.map(v => v.area).filter(Boolean))].sort();
+			if (this.dom.areaFilter) {
+				const currentValue = this.dom.areaFilter.value;
+				this.dom.areaFilter.innerHTML = '<option value="">All Areas</option>' +
+					areas.map(area => `<option value="${area}">${area}</option>`).join('');
+				this.dom.areaFilter.value = currentValue;
+			}
+
+			// Update company filter
+			const companies = [...new Set(this.allVisitors.map(v => v.company).filter(Boolean))].sort();
+			if (this.dom.companyFilter) {
+				const currentValue = this.dom.companyFilter.value;
+				this.dom.companyFilter.innerHTML = '<option value="">All Companies</option>' +
+					companies.map(company => `<option value="${company}">${company}</option>`).join('');
+				this.dom.companyFilter.value = currentValue;
+			}
+		}
+
+		getAccessStatus(visitor) {
+			if (!visitor.startDateTime || !visitor.endDateTime) {
+				return 'future'; // No time specified, treat as future
+			}
+
+			const now = this.currentTime;
+			const start = new Date(visitor.startDateTime);
+			const end = new Date(visitor.endDateTime);
+
+			if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+				return 'future'; // Invalid dates, treat as future
+			}
+
+			if (now >= start && now <= end) {
+				return 'active'; // Currently within access period
+			} else if (now > end) {
+				return 'expired'; // Access period has ended
+			} else {
+				return 'future'; // Access period hasn't started yet
+			}
+		}
+
+		applyFilters() {
+			const searchQuery = (this.dom.search?.value || '').toLowerCase();
+			const areaFilter = this.dom.areaFilter?.value || '';
+			const companyFilter = this.dom.companyFilter?.value || '';
+			// status filter removed
+
+			this.filtered = this.allVisitors.filter(visitor => {
+				// Text search
+				const searchText = [
+					visitor.name,
+					visitor.identification,
+					visitor.company,
+					visitor.area,
+					visitor.requestRef
+				].join(' ').toLowerCase();
+				const matchesSearch = !searchQuery || searchText.includes(searchQuery);
+
+				// Area filter
+				const matchesArea = !areaFilter || visitor.area === areaFilter;
+
+				// Company filter
+				const matchesCompany = !companyFilter || visitor.company === companyFilter;
+
+				// Tab filter
+				const status = this.getAccessStatus(visitor); // active | expired | future (time-based)
+				const isPendingReq = (visitor.requestStatus === 'pending' || (visitor.requestStatus||'').startsWith('pend'));
+				let matchesTab = true;
+				if (this.activeTab === 'daily') {
+					// Daily: exclude pending requests
+					matchesTab = !isPendingReq && ((status === 'active') || this.isToday(visitor));
+				} else if (this.activeTab === 'upcoming') {
+					// Upcoming: include future approved AND any pending requests
+					matchesTab = (status === 'future') || isPendingReq;
+				} else if (this.activeTab === 'expired') {
+					// Expired: exclude pending requests
+					matchesTab = !isPendingReq && (status === 'expired');
+				}
+
+				return matchesSearch && matchesArea && matchesCompany && matchesTab;
+			});
+
+			this.render();
+		}
+
+		isToday(visitor) {
+			// If the visit overlaps today at any time, consider it daily.
+			const start = visitor.startDateTime ? new Date(visitor.startDateTime) : null;
+			const end = visitor.endDateTime ? new Date(visitor.endDateTime) : null;
+			if (!start && !end) return false;
+			const now = this.currentTime;
+			const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+			const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+			const visitStart = start || todayStart;
+			const visitEnd = end || todayEnd;
+			return visitEnd >= todayStart && visitStart <= todayEnd;
+		}
+
+			render() {
+			const tbody = this.dom.tbody;
+			if (!tbody) return;
+
+			if (this.filtered.length === 0) {
+					tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No visitors found for current filters.</td></tr>';
+				return;
+			}
+
+			const rows = this.filtered.map(visitor => {
+				const accessStatus = this.getAccessStatus(visitor);
+				const equipment = Array.isArray(visitor.equipment) ? visitor.equipment : [];
+				const equipmentText = equipment.length > 0 ? 
+					equipment.map(e => e.name || e.item || 'Unknown').join(', ') : 
+					'None';
+
+					const attachments = Array.isArray(visitor.attachments) ? visitor.attachments : (visitor.attachment ? [visitor.attachment] : []);
+					const attachmentsJson = this.escape(JSON.stringify(attachments));
+					const isPendingReq = (visitor.requestStatus === 'pending' || (visitor.requestStatus||'').startsWith('pend'));
+					const statusBadge = isPendingReq 
+						? '<span class="access-status future"><i class="fas fa-clock"></i> Pending</span>'
+						: this.getAccessStatusBadge(accessStatus);
+					return `
+						<tr data-request-id="${visitor.requestId}" data-visitor-index="${visitor.visitorIndex}" data-start="${this.escape(visitor.startDateTime || '')}" data-end="${this.escape(visitor.endDateTime || '')}" data-request-status="${this.escape(visitor.requestStatus || '')}" data-equipment="${this.escape(equipmentText)}" data-attachments='${attachmentsJson}' class="clickable-row">
+						<td><strong>${this.escape(visitor.name || '')}</strong></td>
+						<td class="time-display">${this.escape(visitor.identification || '')}</td>
+						<td>${this.escape(visitor.company || '')}</td>
+						<td>${this.escape(visitor.area || '')}</td>
+						<td class="time-display">
+							${this.fmtDate(visitor.startDateTime)}<br>
+							<small style="opacity:.7;">to ${this.fmtDate(visitor.endDateTime)}</small>
+						</td>
+						<td>${statusBadge}</td>
+						<td>
+							<a href="access.html?id=${visitor.requestId}" 
+							   onclick="event.stopPropagation();" 
+							   style="text-decoration:none;color:#1d6fd8;font-weight:600;">
+								${this.escape(visitor.requestRef)}
+							</a>
+						</td>
+					</tr>
+				`;
+			}).join('');
+
+			tbody.innerHTML = rows;
+			this.bindRowClicks();
+		}
+
+		getAccessStatusBadge(status) {
+			const badges = {
+				'active': '<span class="access-status active"><i class="fas fa-check-circle"></i> Active</span>',
+				'expired': '<span class="access-status expired"><i class="fas fa-times-circle"></i> Expired</span>',
+				'future': '<span class="access-status future"><i class="fas fa-clock"></i> Pending</span>'
+			};
+			return badges[status] || badges['future'];
+		}
+
+		bindRowClicks() {
+			this.dom.tbody?.querySelectorAll('tr[data-request-id]').forEach(tr => {
+				tr.addEventListener('click', (e) => {
+					// Only open modal if the anchor wasn't clicked
+					if ((e.target instanceof HTMLElement) && e.target.closest('a')) return;
+					const requestId = tr.getAttribute('data-request-id');
+					const visitorIndex = parseInt(tr.getAttribute('data-visitor-index') || '-1', 10);
+					const ref = tr.querySelector('td:last-child a')?.textContent?.trim() || requestId || '';
+					const name = tr.children[0]?.textContent?.trim() || '';
+					const idn = tr.children[1]?.textContent?.trim() || '';
+					const company = tr.children[2]?.textContent?.trim() || '';
+					const area = tr.children[3]?.textContent?.trim() || '';
+					const start = tr.getAttribute('data-start') || tr.children[4]?.childNodes?.[0]?.textContent?.trim() || '';
+					const endTxt = tr.getAttribute('data-end') || tr.children[4]?.querySelector('small')?.textContent?.replace(/^to\s+/i,'').trim() || '';
+					const requestStatus = tr.getAttribute('data-request-status') || '';
+					const equip = tr.getAttribute('data-equipment') || '';
+					let atts = [];
+					try { const raw = tr.getAttribute('data-attachments'); if (raw) atts = JSON.parse(raw); } catch {}
+					this.openVisitorModal({ requestId, visitorIndex, ref, name, idn, company, area, start, end: endTxt, equipment: equip, attachments: atts, requestStatus });
+				});
+			});
+		}
+
+		openVisitorModal(v) {
+			const overlay = document.getElementById('visitorModal');
+			if (!overlay) return;
+			// store current context
+			this.currentVisitor = {
+				companyId: this.companyId,
+				requestId: v.requestId,
+				visitorIndex: typeof v.visitorIndex === 'number' ? v.visitorIndex : -1,
+				name: v.name,
+				idn: v.idn
+			};
+			document.getElementById('vmName').textContent = v.name || '';
+			document.getElementById('vmId').textContent = v.idn || '';
+			document.getElementById('vmCompany').textContent = v.company || '';
+			document.getElementById('vmArea').textContent = v.area || '';
+			document.getElementById('vmStart').textContent = v.start || '';
+			document.getElementById('vmEnd').textContent = v.end || '';
+			const equipEl = document.getElementById('vmEquipment');
+			if (equipEl) equipEl.textContent = v.equipment || 'None';
+			const reqLink = document.getElementById('vmRequestLink');
+			if (reqLink) {
+				reqLink.href = `access.html?id=${v.requestId}`;
+				reqLink.textContent = v.ref || v.requestId || 'Open request';
+			}
+				// attachments
+				const attEl = document.getElementById('vmAttachments');
+				if (attEl) {
+					attEl.innerHTML = '';
+					const items = Array.isArray(v.attachments) ? v.attachments : [];
+					if (items.length === 0) {
+						attEl.innerHTML = '<span>None</span>';
+					} else {
+						attEl.innerHTML = items.map(a => {
+							const name = this.escape(a.name || a.filename || 'file');
+							const url = a.url || a.href;
+							if (url) {
+								return `<a href="${this.escape(url)}" target="_blank" rel="noopener">${name}</a>`;
+							}
+							return `<span>${name}</span>`;
+						}).join('');
+					}
+				}
+
+			// Prepare history and buttons
+			const histEl = document.getElementById('vmHistory');
+			if (histEl) histEl.innerHTML = '<em>Loading history…</em>';
+			const checkInBtn = document.getElementById('vmCheckInBtn');
+			const checkOutBtn = document.getElementById('vmCheckOutBtn');
+			// Hide check-in/out for Upcoming tab
+			const isUpcomingView = this.activeTab === 'upcoming';
+			if (checkInBtn) checkInBtn.style.display = isUpcomingView ? 'none' : '';
+			if (checkOutBtn) checkOutBtn.style.display = isUpcomingView ? 'none' : '';
+			if (checkInBtn) checkInBtn.onclick = null;
+			if (checkOutBtn) checkOutBtn.onclick = null;
+			if (!isUpcomingView) {
+				if (checkInBtn) checkInBtn.onclick = () => this.addHistoryEvent('in');
+				if (checkOutBtn) checkOutBtn.onclick = () => this.addHistoryEvent('out');
+			}
+
+			// Listen to history changes
+			this.detachHistoryListener();
+			if (this.companyId && v.requestId != null && typeof this.currentVisitor.visitorIndex === 'number' && this.currentVisitor.visitorIndex >= 0) {
+				this._historyRef = window.db.ref(`companies/${this.companyId}/access/${v.requestId}/visitors/${this.currentVisitor.visitorIndex}/history`);
+				this._historyRef.on('value', snap => {
+					const hist = snap.val() || {};
+					this.renderHistory(hist);
+				});
+			}
+			overlay.classList.add('show');
+			// Close on outside click
+			overlay.addEventListener('click', (e) => { if (e.target === overlay) this.closeVisitorModal(); }, { once: true });
+			// ESC key
+			document.addEventListener('keydown', this._escHandler = (ev) => { if (ev.key === 'Escape') this.closeVisitorModal(); }, { once: true });
+		}
+
+		closeVisitorModal() {
+			const overlay = document.getElementById('visitorModal');
+			if (!overlay) return;
+			overlay.classList.remove('show');
+			if (this._escHandler) {
+				document.removeEventListener('keydown', this._escHandler);
+				this._escHandler = null;
+			}
+			this.detachHistoryListener();
+			this.currentVisitor = null;
+		}
+
+		detachHistoryListener() {
+			if (this._historyRef) {
+				this._historyRef.off();
+				this._historyRef = null;
+			}
+		}
+
+		renderHistory(histObj) {
+			const histEl = document.getElementById('vmHistory');
+			if (!histEl) return;
+			const entries = Object.entries(histObj || {}).map(([key, v]) => ({ key, ...(v || {}) }));
+			entries.sort((a,b) => (a.timestamp||0) - (b.timestamp||0));
+			if (entries.length === 0) {
+				histEl.innerHTML = '<span style="color:#666;">No check-in/out activity yet.</span>';
+				this.updateCheckButtons(null);
+				return;
+			}
+				const lines = entries.map(e => {
+					const when = this.fmtDateTime(e.timestamp);
+					const who = e.by?.name || 'system';
+					const isIn = e.type === 'in';
+					const action = isIn ? 'Checked In' : 'Checked Out';
+					const color = isIn ? '#155724' : '#721c24';
+					return `<div style="display:flex;justify-content:space-between;gap:.5rem;border-bottom:1px dashed #eee;padding:.25rem 0;">
+						<span style="color:${color};"><strong>${action}</strong> by ${this.escape(who)}</span>
+						<span style=\"opacity:.7;\">${this.escape(when)}</span>
+					</div>`;
+				}).join('');
+			histEl.innerHTML = lines;
+			const last = entries[entries.length - 1];
+			this.updateCheckButtons(last?.type || null);
+		}
+
+		updateCheckButtons(lastType) {
+			const checkInBtn = document.getElementById('vmCheckInBtn');
+			const checkOutBtn = document.getElementById('vmCheckOutBtn');
+			const canCheckIn = lastType !== 'in';
+			const canCheckOut = lastType === 'in';
+			if (checkInBtn) { checkInBtn.disabled = !canCheckIn; checkInBtn.style.opacity = canCheckIn ? '1' : '.6'; }
+			if (checkOutBtn) { checkOutBtn.disabled = !canCheckOut; checkOutBtn.style.opacity = canCheckOut ? '1' : '.6'; }
+		}
+
+		fmtDateTime(ts) {
+			const d = new Date(typeof ts === 'number' ? ts : (ts?.toString() || 0));
+			if (isNaN(d.getTime())) return '';
+			return d.toLocaleString('en-US', { year:'numeric', month:'short', day:'2-digit', hour:'2-digit', minute:'2-digit', second:'2-digit' });
+		}
+
+		async addHistoryEvent(type) {
+			try {
+				if (!this.currentVisitor || !this.companyId) return;
+				const { requestId, visitorIndex } = this.currentVisitor;
+				if (requestId == null || visitorIndex == null || visitorIndex < 0) return;
+				const histRef = window.db.ref(`companies/${this.companyId}/access/${requestId}/visitors/${visitorIndex}/history`).push();
+				const user = window.authManager?.currentUser || {};
+				const derivedName = (typeof window.authManager?.getUserDisplayName === 'function' && window.authManager.getUserDisplayName())
+					|| user.displayName
+					|| (user.firstName || user.lastName ? `${user.firstName || ''} ${user.lastName || ''}`.trim() : '')
+					|| user.name
+					|| user.username
+					|| (user.email ? String(user.email).split('@')[0] : null);
+				await histRef.set({
+					type: type === 'out' ? 'out' : 'in',
+					timestamp: Date.now(),
+					by: {
+						uid: user.uid || user.id || null,
+						name: derivedName || null,
+						email: user.email || null
+					}
+				});
+				window.notificationManager?.addNotification({ type: 'Access', message: `Marked ${type === 'in' ? 'Check-In' : 'Check-Out'} for ${this.currentVisitor.name || 'visitor'}.`});
+			} catch (err) {
+				console.error('Failed to add history event', err);
+				window.notificationManager?.addNotification({ type: 'Error', message: 'Failed to record event. Please try again.'});
+			}
+		}
+
+		// renderSummary removed
+
+		exportCsv() {
+			if (this.filtered.length === 0) {
+				window.notificationManager?.addNotification({
+					type: 'Export',
+					message: 'No visitors to export.'
+				});
+				return;
+			}
+
+			const headers = ['Visitor Name', 'ID Number', 'Company', 'Area', 'Start Time', 'End Time', 'Status', 'Equipment', 'Request Ref'];
+			const lines = [headers.join(',')];
+
+			this.filtered.forEach(visitor => {
+				const accessStatus = this.getAccessStatus(visitor);
+				const equipment = Array.isArray(visitor.equipment) ? 
+					visitor.equipment.map(e => e.name || e.item || 'Unknown').join('; ') : 
+					'None';
+
+				const row = [
+					visitor.name || '',
+					visitor.identification || '',
+					visitor.company || '',
+					visitor.area || '',
+					this.fmtDate(visitor.startDateTime),
+					this.fmtDate(visitor.endDateTime),
+					accessStatus.toUpperCase(),
+					equipment,
+					visitor.requestRef
+				];
+
+				lines.push(row.map(value => `"${String(value).replace(/"/g, '""')}"`).join(','));
+			});
+
+			const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+			const url = URL.createObjectURL(blob);
+			const a = document.createElement('a');
+			a.href = url;
+			a.download = `daily_access_${new Date().toISOString().split('T')[0]}.csv`;
+			document.body.appendChild(a);
+			a.click();
+			
+			setTimeout(() => {
+				URL.revokeObjectURL(url);
+				a.remove();
+			}, 500);
+		}
+
+		exportPdf() {
+			// Use the same "No data" guard as CSV
+			if (this.filtered.length === 0) {
+				window.notificationManager?.addNotification({
+					type: 'Export',
+					message: 'No visitors to export.'
+				});
+				return;
+			}
+
+			// Build table data
+			const headers = ['Visitor Name', 'ID Number', 'Company', 'Area', 'Start Time', 'End Time', 'Status', 'Equipment', 'Request Ref'];
+			const rows = this.filtered.map(visitor => {
+				const accessStatus = this.getAccessStatus(visitor);
+				const equipment = Array.isArray(visitor.equipment)
+					? visitor.equipment.map(e => e.name || e.item || 'Unknown').join('; ')
+					: 'None';
+				return [
+					visitor.name || '',
+					visitor.identification || '',
+					visitor.company || '',
+					visitor.area || '',
+					this.fmtDate(visitor.startDateTime),
+					this.fmtDate(visitor.endDateTime),
+					accessStatus.toUpperCase(),
+					equipment,
+					visitor.requestRef || ''
+				];
+			});
+
+			try {
+				// jsPDF UMD usage
+				const { jsPDF } = window.jspdf || window.jspdf || {};
+				const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'A4' });
+
+				// Title and meta
+				const title = 'Daily Access Control - Visitor List';
+				const dateStr = new Date().toLocaleString();
+				doc.setFontSize(14);
+				doc.text(title, 40, 40);
+				doc.setFontSize(10);
+				doc.text(`Exported: ${dateStr}`, 40, 58);
+
+				// AutoTable for content
+				doc.autoTable({
+					head: [headers],
+					body: rows,
+					startY: 75,
+					styles: { fontSize: 9, cellPadding: 4 },
+					headStyles: { fillColor: [52, 152, 219], textColor: 255 },
+					bodyStyles: { valign: 'top' },
+					columnStyles: {
+						0: { cellWidth: 120 }, // Visitor Name
+						1: { cellWidth: 90 },  // ID
+						2: { cellWidth: 120 }, // Company
+						3: { cellWidth: 90 },  // Area
+						4: { cellWidth: 110 }, // Start
+						5: { cellWidth: 110 }, // End
+						6: { cellWidth: 70 },  // Status
+						7: { cellWidth: 160 }, // Equipment
+						8: { cellWidth: 100 }  // Request Ref
+					},
+					margin: { left: 40, right: 40 }
+				});
+
+				// Footer page numbers
+				const pageCount = doc.getNumberOfPages();
+				for (let i = 1; i <= pageCount; i++) {
+					doc.setPage(i);
+					doc.setFontSize(9);
+					doc.text(`Page ${i} of ${pageCount}`, doc.internal.pageSize.getWidth() - 80, doc.internal.pageSize.getHeight() - 20);
+				}
+
+				doc.save(`daily_access_${new Date().toISOString().split('T')[0]}.pdf`);
+			} catch (err) {
+				console.error('PDF export failed', err);
+				window.notificationManager?.addNotification({ type: 'Error', message: 'Failed to export PDF.' });
+			}
+		}
+
+		fmtDate(dateStr) {
+			if (!dateStr) return '';
+			const date = new Date(dateStr);
+			if (isNaN(date.getTime())) return dateStr;
+			
+			return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], {
+				hour: '2-digit',
+				minute: '2-digit'
+			});
+		}
+
+		escape(str) {
+			if (str === undefined || str === null) return '';
+			return String(str).replace(/[&<>"']/g, char => ({
+				'&': '&amp;',
+				'<': '&lt;',
+				'>': '&gt;',
+				'"': '&quot;',
+				"'": '&#39;'
+			}[char] || char));
+		}
+	}
+
+	/**************** Firebase Initialization ****************/
+	(function() {
+		const firebaseConfig = {
+			apiKey: "AIzaSyCUTmTn0rRBb0M-UkQJxnUMrWqXYU_BgIc",
+			authDomain: "users-8be65.firebaseapp.com",
+			databaseURL: "https://users-8be65-default-rtdb.firebaseio.com",
+			projectId: "users-8be65",
+			storageBucket: "users-8be65.firebasestorage.app",
+			messagingSenderId: "829083030831",
+			appId: "1:829083030831:web:36a370e62691e560bc3dda"
+		};
+		
+		if (!window.firebase?.apps?.length) {
+			firebase.initializeApp(firebaseConfig);
+			console.log('✅ Firebase initialized (accessdaily)');
+		}
+		
+		window.db = firebase.database();
+		window.auth = firebase.auth();
+		window.storage = firebase.storage();
+	})();
+
+	/**************** Sidebar & Auth Integration ****************/
+	// Copy auth and sidebar management from accessboard.html
+	class AuthManager {
+		constructor() {
+			this.currentUser = this.getCurrentUser();
+			this.currentCompany = null;
+		}
+
+		getCurrentUser() {
+			try {
+				return JSON.parse(localStorage.getItem('currentUser') || 'null');
+			} catch {
+				return null;
+			}
+		}
+
+		setCurrentUser(user) {
+			localStorage.setItem('currentUser', JSON.stringify(user));
+			localStorage.setItem('user', JSON.stringify(user));
+			this.currentUser = user;
+		}
+
+		initialize() {
+			if (this._initialized) return;
+			if (!this.currentUser) {
+				window.location.href = 'login.html';
+				return;
+			}
+
+			this.bindSidebarToggle();
+			this.bindProfileDropdown();
+			this.initializeAuth();
+			this._initialized = true;
+		}
+
+		bindSidebarToggle() {
+			const toggle = document.getElementById('sidebarToggle');
+			const sidebar = document.querySelector('.sidebar');
+			const mainContent = document.querySelector('.main-content');
+			const topNav = document.querySelector('.top-nav');
+
+			if (toggle && sidebar && mainContent) {
+				toggle.addEventListener('click', () => {
+					const collapsed = sidebar.classList.toggle('collapsed');
+					mainContent.classList.toggle('sidebar-collapsed', collapsed);
+					if (topNav) {
+						topNav.style.left = collapsed ? '.5rem' : 'calc(var(--sidebar-width) + .5rem)';
+					}
+				});
+			}
+		}
+
+		bindProfileDropdown() {
+			const btn = document.getElementById('userProfileBtn');
+			const dropdown = document.querySelector('.profile-dropdown');
+			
+			if (btn && dropdown) {
+				btn.addEventListener('click', e => {
+					e.stopPropagation();
+					dropdown.classList.toggle('show');
+				});
+				
+				document.addEventListener('click', e => {
+					if (!btn.contains(e.target)) {
+						dropdown.classList.remove('show');
+					}
+				});
+			}
+		}
+
+		async initializeAuth() {
+			if (!this.currentUser) {
+				window.location.href = 'login.html';
+				return;
+			}
+
+			try {
+				await this.loadUserCompany();
+				// Update header avatar and initials similar to board pages
+				await this.updateUIForAuthenticatedUser();
+				await this.updateMenuVisibility();
+			} catch (error) {
+				console.error('Auth initialization error:', error);
+				this.showBasicMenu();
+				// Ensure fallback branding is shown even if company loading fails
+				this.showFallbackBranding();
+			}
+		}
+
+		async updateMenuVisibility() {
+			// Call the feature-based authorization function
+			await updateMenuWithFeatureAuthorization();
+		}
+
+		showSidebarAfterAuth() {
+			const sidebar = document.querySelector('.sidebar');
+			if (sidebar) {
+				sidebar.classList.remove('menu-loading');
+			}
+		}
+
+		showBasicMenu() {
+			resetMenuVisibility();
+			// Match staff.html fallback: only show Home
+			const homeItem = document.querySelector('#roleBasedMenu li[data-feature="home_view"]');
+			if (homeItem) {
+				homeItem.classList.add('menu-visible');
+			}
+			this.showSidebarAfterAuth();
+		}
+
+		async loadUserCompany() {
+			if (!this.currentUser) {
+				console.warn('⚠️ No current user for company loading');
+				return;
+			}
+			
+			console.log('🔍 Loading user company for UID:', this.currentUser.uid);
+			
+			try {
+				const snap = await window.db.ref('companies').once('value');
+				if (!snap.exists()) {
+					console.warn('⚠️ No companies found in database');
+					resetMenuVisibility();
+					this.showFallbackBranding();
+					return;
+				}
+				
+				const companies = snap.val();
+				console.log('🔍 Searching through', Object.keys(companies).length, 'companies...');
+				
+				for (const [cid, comp] of Object.entries(companies)) {
+					if (comp.status !== 'active') continue;
+					
+					if (comp.users) {
+						for (const [uid, u] of Object.entries(comp.users)) {
+							if (u.authUid === this.currentUser.uid || uid === this.currentUser.uid) {
+								console.log('✅ Found user in company:', comp.companyName || comp.name, 'with role:', u.role || u.userRole || 'user');
+								this.currentUser.companyId = cid;
+								this.currentUser.companyName = comp.companyName || comp.name;
+								this.currentUser.role = u.role || u.userRole || 'user'; // Set user role from company user record
+								this.currentCompany = comp;
+								this.setCurrentUser(this.currentUser);
+								
+								// Force update company branding immediately
+								setTimeout(() => {
+									this.updateCompanyBranding();
+									console.log('🏢 Company branding force-updated');
+								}, 100);
+								
+								// Update menu visibility using new feature-based system
+								setTimeout(() => updateMenuWithFeatureAuthorization(), 200);
+								return;
+							}
+						}
+					}
+					
+					// Check if user is admin (matching accessboard.html logic)
+					if (comp.admin && (comp.admin.authUid === this.currentUser.uid || comp.admin.userId === this.currentUser.uid)) {
+						console.log('✅ Found user as admin in company:', comp.companyName || comp.name);
+						this.currentUser.companyId = cid;
+						this.currentUser.companyName = comp.companyName || comp.name;
+						this.currentUser.role = 'admin';
+						this.currentCompany = comp;
+						this.setCurrentUser(this.currentUser);
+						
+						// Force update company branding immediately
+						setTimeout(() => {
+							this.updateCompanyBranding();
+							console.log('🏢 Company branding force-updated (admin)');
+						}, 100);
+						
+						// Update menu visibility using new feature-based system
+						setTimeout(() => updateMenuWithFeatureAuthorization(), 200);
+						return;
+					}
+				}
+				
+				console.warn('⚠️ User not found in any active company');
+				resetMenuVisibility();
+				this.showFallbackBranding();
+			} catch (e) {
+				console.error('❌ Company load error:', e);
+				resetMenuVisibility();
+				this.showFallbackBranding();
+			}
+		}
+
+		updateCompanyBranding() {
+			console.log('🏢 Updating company branding...');
+			
+			if (!this.currentCompany) {
+				console.warn('⚠️ No company data, showing fallback branding');
+				this.showFallbackBranding();
+				return;
+			}
+			
+			const logoEl = document.getElementById('headerCompanyLogo');
+			const nameEl = document.getElementById('headerCompanyName');
+			
+			console.log('🔍 Header elements found:', {
+				logo: logoEl ? '✅' : '❌',
+				name: nameEl ? '✅' : '❌'
+			});
+			
+			console.log('✅ Company data:', {
+				name: this.currentCompany.companyName || this.currentCompany.name,
+				logo: this.currentCompany.logo || this.currentCompany.logoUrl ? '✅' : '❌'
+			});
+			
+			// Update company name - exact same logic as accessboard.html
+			const companyName = this.currentCompany.companyName || this.currentCompany.name || '';
+			if (nameEl) {
+				nameEl.textContent = companyName;
+				console.log('✅ Company name updated:', companyName);
+			}
+			
+			// Update company logo - exact same logic as accessboard.html
+			const logoUrl = this.currentCompany.logo || this.currentCompany.logoUrl;
+			if (logoEl) {
+				if (logoUrl) {
+					console.log('🖼️ Loading company logo:', logoUrl);
+					logoEl.src = logoUrl;
+					logoEl.style.display = 'block';
+					logoEl.classList.add('visible');
+					
+					// Add error handler for logo loading
+					logoEl.onerror = () => {
+						console.log('❌ Logo failed to load, generating initials');
+						const svg = this.generateCompanyInitialsSVG(this.getCompanyInitials(companyName));
+						logoEl.src = svg;
+						logoEl.style.display = 'block';
+						logoEl.classList.add('visible');
+					};
+					
+					console.log('✅ Company logo updated');
+				} else {
+					console.log('ℹ️ No logo URL, generating initials');
+					const svg = this.generateCompanyInitialsSVG(this.getCompanyInitials(companyName));
+					logoEl.src = svg;
+					logoEl.style.display = 'block';
+					logoEl.classList.add('visible');
+					console.log('✅ Company initials logo generated');
+				}
+			}
+			
+			// Apply CSS custom branding if available (like accessboard.html)
+			if (this.currentCompany.branding) {
+				const root = document.documentElement;
+				if (this.currentCompany.branding.primaryColor) {
+					root.style.setProperty('--primary-color', this.currentCompany.branding.primaryColor);
+				}
+				if (this.currentCompany.branding.secondaryColor) {
+					root.style.setProperty('--secondary-color', this.currentCompany.branding.secondaryColor);
+				}
+				console.log('✅ Custom CSS branding applied');
+			}
+		}
+
+		showFallbackBranding() {
+			console.log('🏢 Showing fallback branding');
+			const logoEl = document.getElementById('headerCompanyLogo');
+			const nameEl = document.getElementById('headerCompanyName');
+			
+			if (nameEl) {
+				nameEl.textContent = '';  // Don't show hardcoded name as fallback
+				console.log('✅ Fallback company name cleared');
+			}
+			
+			if (logoEl) {
+				const svg = this.generateCompanyInitialsSVG('DX');
+				logoEl.src = svg;
+				logoEl.style.display = 'block';
+				logoEl.classList.add('visible');
+				console.log('✅ Fallback logo set');
+			}
+		}
+
+		getCompanyInitials(name) {
+			if (!name) return 'CO';
+			const parts = name.trim().split(/\s+/);
+			if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+			return (parts[0][0] + parts[1][0]).toUpperCase();
+		}
+
+		generateCompanyInitialsSVG(initials) {
+			const svg = `<svg width="44" height="44" viewBox="0 0 44 44" xmlns="http://www.w3.org/2000/svg">
+				<rect width="44" height="44" rx="6" fill="#f0f3f6"/>
+				<text x="50%" y="52%" dominant-baseline="middle" text-anchor="middle" 
+					  fill="#495057" font-family="Inter,Arial,sans-serif" font-weight="600" font-size="14">${initials}</text>
+			</svg>`;
+			return 'data:image/svg+xml;base64,' + btoa(svg);
+		}
+
+		// --- User profile & avatar (mirrors accessboard.html) ---
+		getUserDisplayName() {
+			if (!this.currentUser) return 'User';
+			const normalize = v => typeof v === 'string' ? v.trim().replace(/\s+/g, ' ') : '';
+			const candidates = [this.currentUser.displayName, this.currentUser.name, this.currentUser.username];
+			for (const c of candidates) {
+				const n = normalize(c);
+				if (n) return n;
+			}
+			if (this.currentUser.email) return normalize(this.currentUser.email.split('@')[0]) || 'User';
+			return 'User';
+		}
+
+		getUserInitials() {
+			const dn = this.getUserDisplayName();
+			const parts = dn.split(' ').filter(Boolean);
+			if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+			return parts.slice(0, 2).map(p => p[0]).join('').toUpperCase();
+		}
+
+		async getUserAvatarUrl() {
+			if (!this.currentUser) return null;
+			const companyId = this.currentUser.companyId || 'default';
+			try {
+				const paths = [
+					`companies/${companyId}/avatars/${this.currentUser.uid}/profile.jpg`,
+					`companies/${companyId}/avatars/${this.currentUser.uid}/profile.png`,
+					`companies/${companyId}/avatars/${this.currentUser.uid}/profile.jpeg`,
+					`companies/${companyId}/avatars/${this.currentUser.uid}/avatar.jpg`,
+					`companies/${companyId}/avatars/${this.currentUser.uid}/avatar.png`,
+					`avatars/${this.currentUser.uid}/profile.jpg`,
+					`avatars/${this.currentUser.uid}/profile.png`,
+					`avatars/${this.currentUser.uid}/avatar.jpg`,
+					`avatars/${this.currentUser.uid}/avatar.png`,
+					`profiles/${this.currentUser.uid}/profile.jpg`,
+					`profiles/${this.currentUser.uid}/profile.png`
+				];
+				for (const p of paths) {
+					try {
+						const ref = window.storage.ref(p);
+						const url = await ref.getDownloadURL();
+						return url;
+					} catch (_) { /* try next */ }
+				}
+				return null;
+			} catch (e) {
+				console.error('Avatar load error:', e);
+				return null;
+			}
+		}
+
+		async updateUIForAuthenticatedUser() {
+			const userAvatarImg = document.getElementById('userAvatarImg');
+			const userInitials = document.getElementById('userInitials');
+			if (!this.currentUser) return;
+
+			// Set initials fallback
+			if (userInitials) userInitials.textContent = this.getUserInitials();
+
+			let avatarUrl = null;
+			try { avatarUrl = await this.getUserAvatarUrl(); } catch {}
+
+			if (avatarUrl && userAvatarImg) {
+				userAvatarImg.src = avatarUrl;
+				userAvatarImg.alt = this.getUserDisplayName() + ' Avatar';
+				userAvatarImg.style.display = 'block';
+				if (userInitials) userInitials.style.display = 'none';
+				userAvatarImg.onerror = () => {
+					userAvatarImg.style.display = 'none';
+					if (userInitials) userInitials.style.display = 'flex';
+				};
+			} else {
+				if (userAvatarImg) userAvatarImg.style.display = 'none';
+				if (userInitials) userInitials.style.display = 'flex';
+			}
+
+			// Mirror recruitboard: populate profile dropdown with user info, Profile link, and Logout
+			try {
+				const profileBtn = document.querySelector('.profile-btn');
+				const profileDropdownList = document.querySelector('.profile-dropdown ul');
+				if (profileBtn && profileDropdownList) {
+					const displayName = this.getUserDisplayName();
+					const email = this.getUserEmail();
+					const initials = this.getUserInitials();
+					const dropdownAvatarHtml = avatarUrl
+						? `<img src="${avatarUrl}" alt="${displayName} Avatar" style="width:24px;height:24px;border-radius:50%;object-fit:cover;">`
+						: `<div style="width:24px;height:24px;border-radius:50%;background:#3498db;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:10px;">${initials}</div>`;
+
+					const userInfoHtml = `
+						<li style="border-bottom:1px solid #eee;padding:6px 10px;background:#f8f9fa;">
+							<div style="display:flex;align-items:center;gap:6px;">
+								${dropdownAvatarHtml}
+								<div>
+									<div style=\"font-weight:600;color:#333;font-size:12px;margin-bottom:1px;\">${displayName}</div>
+									<div style=\"color:#666;font-size:10px;\">${email}</div>
+								</div>
+							</div>
+						</li>
+						<li><a href="profile.html"><i class="fas fa-id-card"></i> Profile</a></li>
+						<li><a href="#" class="logout-link"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+					`;
+
+					profileDropdownList.innerHTML = userInfoHtml;
+
+					const logoutBtn = profileDropdownList.querySelector('.logout-link');
+					if (logoutBtn) {
+						logoutBtn.addEventListener('click', (e) => {
+							e.preventDefault();
+							this.logout();
+						});
+					}
+				}
+			} catch (e) {
+				console.warn('Profile dropdown population skipped:', e);
+			}
+		}
+
+		getUserEmail() {
+			return (this.currentUser && this.currentUser.email) ? this.currentUser.email : '';
+		}
+
+		async logout() {
+			try {
+				await window.auth.signOut();
+				localStorage.removeItem('currentUser');
+				window.location.href = 'login.html';
+			} catch (error) {
+				console.error('Logout error:', error);
+			}
+		}
+
+		// Method to manually refresh company branding
+		refreshCompanyBranding() {
+			console.log('🔄 Manually refreshing company branding...');
+			if (this.currentCompany) {
+				this.updateCompanyBranding();
+			} else {
+				this.loadUserCompany();
+			}
+		}
+
+		// Debug method to test Firebase connection
+		async testFirebaseConnection() {
+			console.log('🔍 Testing Firebase connection...');
+			console.log('📊 Firebase status:', {
+				app: !!window.firebase,
+				db: !!window.db,
+				auth: !!window.auth,
+				storage: !!window.storage,
+				currentUser: !!this.currentUser
+			});
+
+			if (this.currentUser) {
+				console.log('👤 Current user:', {
+					uid: this.currentUser.uid,
+					email: this.currentUser.email,
+					companyId: this.currentUser.companyId
+				});
+			}
+
+			try {
+				console.log('🔍 Testing database access...');
+				const testRef = await window.db.ref('companies').limitToFirst(1).once('value');
+				if (testRef.exists()) {
+					console.log('✅ Database connection successful');
+					const companies = testRef.val();
+					console.log('📊 Sample company data:', Object.keys(companies)[0]);
+				} else {
+					console.warn('⚠️ No companies found in database');
+				}
+			} catch (error) {
+				console.error('❌ Database connection failed:', error);
+			}
+		}
+	}
+
+	// ========================================================================================
+	// FEATURE-BASED MENU AUTHORIZATION SYSTEM
+	// ========================================================================================
+
+	// Reset all menu items to hidden state
+	function resetMenuVisibility() {
+		console.log('🔄 Resetting menu visibility...');
+		document.querySelectorAll('[data-feature]').forEach(item => {
+			item.classList.remove('menu-visible');
+		});
+		const sidebar = document.querySelector('.sidebar');
+		if (sidebar) {
+			sidebar.classList.add('menu-loading');
+		}
+	}
+
+	// Apply feature-based menu visibility (mirrors staff.html)
+	async function applyFeatureBasedMenuVisibility(companyId) {
+		try {
+			console.log('🔧 Applying feature-based menu visibility for company:', companyId);
+			const database = window.db || firebase.database();
+			// Load platform features
+			const featuresSnapshot = await database.ref('/platformFeatures').once('value');
+			if (!featuresSnapshot.exists()) {
+				console.log('⚠️ No platform features found');
+				resetMenuVisibility();
+				return [];
+			}
+			const featuresData = featuresSnapshot.val();
+			// Load company data for selectedFeatures
+			const companySnapshot = await database.ref(`/companies/${companyId}`).once('value');
+			const companyData = companySnapshot.val();
+			if (!companyData) {
+				console.error('❌ Company data not found');
+				resetMenuVisibility();
+				return [];
+			}
+			const subscribedFeatureIds = companyData.selectedFeatures || [];
+			console.log('🏢 Company subscribed features:', subscribedFeatureIds);
+			if (subscribedFeatureIds.length === 0) {
+				console.log('⚠️ Company has no subscribed features');
+				resetMenuVisibility();
+				return [];
+			}
+
+			// Collect authorized pages from subscribed features
+			const authorizedPages = [];
+			subscribedFeatureIds.forEach(featureId => {
+				const feature = featuresData[featureId];
+				if (feature && feature.status === 'active' && feature.authorizedPages) {
+					console.log(`📦 Adding pages from feature "${feature.name}":`, feature.authorizedPages);
+					authorizedPages.push(...feature.authorizedPages);
+				} else {
+					console.log(`⚠️ Feature ${featureId} not found or inactive`);
+				}
+			});
+
+			console.log('🔐 All authorized pages from company features:', authorizedPages);
+			resetMenuVisibility();
+
+			// Build set of authorized features
+			const authorizedFeatures = new Set();
+			authorizedPages.forEach(pageInfo => { if (pageInfo.feature) authorizedFeatures.add(pageInfo.feature); });
+			console.log('🎯 Authorized features for accessdaily.html:', Array.from(authorizedFeatures));
+
+			// Show items with authorized features
+			const allMenuItems = document.querySelectorAll('#roleBasedMenu li[data-feature]');
+			let visibleCount = 0;
+			allMenuItems.forEach(menuItem => {
+				const featureAttribute = menuItem.getAttribute('data-feature');
+				const isAuthorized = authorizedFeatures.has(featureAttribute);
+				const isDropdownContainer = menuItem.classList.contains('menu-dropdown');
+				if (isDropdownContainer) return;
+				if (isAuthorized) {
+					menuItem.classList.add('menu-visible');
+					visibleCount++;
+					console.log(`✅ Feature authorized - showing menu item: ${featureAttribute}`);
+				} else {
+					menuItem.classList.remove('menu-visible');
+				}
+			});
+
+			// Handle dropdowns
+			const dropdownMenus = document.querySelectorAll('#roleBasedMenu li.menu-dropdown');
+			dropdownMenus.forEach(dropdown => {
+				const dropdownFeature = dropdown.getAttribute('data-feature');
+				const submenuItems = dropdown.querySelectorAll('.submenu li[data-feature]');
+				let hasVisibleChildren = false;
+				submenuItems.forEach(submenuItem => { if (submenuItem.classList.contains('menu-visible')) hasVisibleChildren = true; });
+				if (hasVisibleChildren || authorizedFeatures.has(dropdownFeature)) {
+					dropdown.classList.add('menu-visible');
+					console.log(`✅ Showing dropdown menu: ${dropdownFeature}`);
+				} else {
+					dropdown.classList.remove('menu-visible');
+				}
+			});
+
+			console.log(`🎯 Company feature authorization completed - ${visibleCount} items initially visible`);
+			return authorizedPages;
+		} catch (error) {
+			console.error('❌ Error applying feature-based menu visibility:', error);
+			resetMenuVisibility();
+			return [];
+		}
+	}
+
+	// Feature-based authorization system that takes priority over role permissions (mirrors staff.html)
+	async function updateMenuWithFeatureAuthorization() {
+		// Prevent multiple simultaneous executions
+		if (window.isMenuUpdateInProgress) {
+			console.log('🔄 Menu update already in progress, skipping...');
+			return;
+		}
+		window.isMenuUpdateInProgress = true;
+		console.log('🎯 Starting feature-based menu authorization for accessdaily.html...');
+		try {
+			let currentUser = null;
+			let companyId = null;
+			let userRole = null;
+			// Prefer authManager
+			if (window.authManager && window.authManager.currentUser) {
+				currentUser = window.authManager.currentUser;
+				companyId = currentUser.companyId;
+				userRole = currentUser.role;
+				console.log('👤 Using AuthManager - User:', currentUser.email, 'Company ID:', companyId, 'Role:', userRole);
+			} else if (firebase.auth().currentUser) {
+				currentUser = firebase.auth().currentUser;
+				console.log('👤 Using Firebase auth - will search for company and role');
+			}
+
+			// If no companyId, search companies to locate user
+			if (!companyId && currentUser) {
+				console.log('🔍 Searching for user company and role...');
+				const database = firebase.database();
+				const companiesRef = database.ref('companies');
+				const companiesSnapshot = await companiesRef.once('value');
+				if (companiesSnapshot.exists()) {
+					const companies = companiesSnapshot.val();
+					for (const [cId, company] of Object.entries(companies)) {
+						if (company.status !== 'active') continue;
+						if (company.users && company.users[currentUser.uid]) {
+							companyId = cId;
+							userRole = company.users[currentUser.uid].role || company.users[currentUser.uid].userRole;
+							console.log(`✅ Found user in company: ${companyId} (${company.name}) with role: ${userRole}`);
+							break;
+						}
+					}
+				}
+			}
+
+			if (!companyId) {
+				console.error('❌ No company ID found, cannot determine authorized features');
+				resetMenuVisibility();
+				window.isMenuUpdateInProgress = false;
+				return;
+			}
+
+			// STEP 1: Feature-based visibility
+			const authorizedPages = await applyFeatureBasedMenuVisibility(companyId);
+			// STEP 2: Role filtering
+			if (userRole) {
+				await applyRoleBasedFiltering(companyId, userRole, authorizedPages);
+			} else {
+				console.log('⚠️ No user role found, skipping role-based filtering');
+				showSidebarAfterAuth();
+			}
+		} catch (error) {
+			console.error('❌ Error in feature-based menu authorization:', error);
+			resetMenuVisibility();
+		} finally {
+			window.isMenuUpdateInProgress = false;
+		}
+	}
+
+	// Apply role-based filtering within company authorized features (mirrors staff.html)
+	async function applyRoleBasedFiltering(companyId, userRole, authorizedPages) {
+		try {
+			console.log('👤 Applying role-based filtering for role:', userRole);
+			const database = window.db || firebase.database();
+			const permissionsRef = database.ref(`companies/${companyId}/roles/${userRole}/permissions`);
+			const permissionsSnapshot = await permissionsRef.once('value');
+			if (!permissionsSnapshot.exists()) {
+				console.log(`⚠️ No permissions found for role ${userRole} in company ${companyId}`);
+				if (userRole === 'administrator') {
+					console.log('🔑 ADMINISTRATOR FALLBACK - Skipping role filtering (keeping all company features visible)');
+					showSidebarAfterAuth();
+					return;
+				}
+				console.log('❌ No valid permissions found - filtering out items requiring permissions');
+				hideItemsRequiringPermissions();
+				showSidebarAfterAuth();
+				return;
+			}
+			const permissions = permissionsSnapshot.val();
+			console.log('✅ Loaded role permissions:', permissions);
+			filterMenuByPermissions(permissions);
+		} catch (error) {
+			console.error('❌ Error applying role-based filtering:', error);
+			showSidebarAfterAuth();
+		}
+	}
+
+	function filterMenuByPermissions(permissions) {
+		console.log('🔍 Filtering visible menu items by role permissions...');
+		if (!permissions) {
+			console.log('⚠️ No permissions object provided');
+			hideItemsRequiringPermissions();
+			showSidebarAfterAuth();
+			return;
+		}
+		const visibleMenuItems = document.querySelectorAll('#roleBasedMenu li.menu-visible[data-requires-permission]');
+		console.log(`🎯 Found ${visibleMenuItems.length} visible menu items requiring permissions to check`);
+		let hiddenCount = 0;
+		visibleMenuItems.forEach(item => {
+			const requiresPermission = item.getAttribute('data-requires-permission');
+			const feature = item.getAttribute('data-feature');
+			if (requiresPermission) {
+				const hasPermission = permissions[requiresPermission];
+				const hasViewPermission = hasPermission === true || (hasPermission && hasPermission.view === true);
+				if (!hasViewPermission) {
+					item.classList.remove('menu-visible');
+					hiddenCount++;
+					console.log(`❌ Hiding menu item (no permission): ${feature} (requires: ${requiresPermission})`);
+				} else {
+					console.log(`✅ Keeping menu item visible: ${feature} (has permission: ${requiresPermission})`);
+				}
+			}
+		});
+		// Re-check dropdown menus after permission filtering
+		const dropdownMenus = document.querySelectorAll('#roleBasedMenu li.menu-dropdown');
+		dropdownMenus.forEach(dropdown => {
+			const submenuItems = dropdown.querySelectorAll('.submenu li.menu-visible');
+			const dropdownFeature = dropdown.getAttribute('data-feature');
+			if (submenuItems.length === 0) {
+				dropdown.classList.remove('menu-visible');
+				console.log(`❌ Hiding dropdown (no visible children): ${dropdownFeature}`);
+			} else {
+				console.log(`✅ Keeping dropdown visible (has ${submenuItems.length} visible children): ${dropdownFeature}`);
+			}
+		});
+		console.log(`🎯 Role-based filtering completed - ${hiddenCount} items hidden due to lack of permissions`);
+		showSidebarAfterAuth();
+	}
+
+	function hideItemsRequiringPermissions() {
+		console.log('🔒 Hiding all menu items that require permissions...');
+		const itemsRequiringPermissions = document.querySelectorAll('#roleBasedMenu li.menu-visible[data-requires-permission]');
+		let hiddenCount = 0;
+		itemsRequiringPermissions.forEach(item => {
+			const feature = item.getAttribute('data-feature');
+			const requiresPermission = item.getAttribute('data-requires-permission');
+			item.classList.remove('menu-visible');
+			hiddenCount++;
+			console.log(`❌ Hiding menu item (requires permission): ${feature} (${requiresPermission})`);
+		});
+		console.log(`🔒 Hidden ${hiddenCount} items requiring permissions`);
+	}
+
+	function showSidebarAfterAuth() {
+		const sidebar = document.querySelector('.sidebar');
+		if (sidebar) {
+			sidebar.classList.remove('menu-loading');
+			console.log('✅ Sidebar loading state removed - menu authorization complete');
+		}
+	}
+
+	// Expose globally for other scripts to trigger refresh
+	window.updateMenuWithFeatureAuthorization = updateMenuWithFeatureAuthorization;
+
+	// Initialize auth manager globally and ensure company context is loaded
+	document.addEventListener('DOMContentLoaded', function() {
+		console.log('🚀 DOM loaded, initializing company context...');
+		
+		// Initialize auth manager globally
+		if (!window.authManager) {
+			window.authManager = new AuthManager();
+		}
+		
+		if (window.authManager && !window.authManager._initialized) {
+			window.authManager.initialize();
+		}
+		
+		// Make company branding refresh available globally
+		window.refreshCompanyBranding = () => {
+			if (window.authManager) {
+				window.authManager.refreshCompanyBranding();
+				console.log('🔄 Company branding manually refreshed');
+			}
+		};
+
+		// Make Firebase connection test available globally
+		window.testFirebaseConnection = () => {
+			if (window.authManager) {
+				window.authManager.testFirebaseConnection();
+			}
+		};
+		
+		// Additional company context integration
+		setTimeout(async () => {
+			if (window.authManager && window.authManager.currentUser) {
+				console.log('🔄 Ensuring company context is loaded...');
+				console.log('📊 Firebase status:', {
+					app: !!window.firebase,
+					db: !!window.db,
+					auth: !!window.auth,
+					storage: !!window.storage
+				});
+				
+				try {
+					await window.authManager.loadUserCompany();
+					console.log('✅ Company context loaded successfully');
+				} catch (error) {
+					console.error('❌ Error loading company context:', error);
+					window.authManager.showFallbackBranding();
+				}
+			} else {
+				console.warn('⚠️ No current user found for company context loading');
+			}
+		}, 500);
+	});
+	</script>
+</body>
+</html>
