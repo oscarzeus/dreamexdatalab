@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -197,6 +197,12 @@
             display: flex;
             align-items: center;
             gap: 1rem;
+        }
+
+        .company-branding {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
         }
 
         .sidebar-toggle-btn {
@@ -3827,6 +3833,11 @@
             transition: all 0.3s ease-in-out;
         }
 
+        /* Edit Staff Modal should have higher z-index */
+        #addStaffModal {
+            z-index: 1100 !important;
+        }
+
         .modal.show {
             display: flex;
             align-items: center;
@@ -5520,8 +5531,10 @@
                     <button id="sidebarToggle" class="sidebar-toggle-btn">
                         <i class="fas fa-bars"></i>
                     </button>
-                    <img id="headerCompanyLogo" class="header-company-logo" alt="Company Logo">
-                    <span id="headerCompanyName" class="company-name-header"></span>
+                    <div class="company-branding">
+                        <img id="headerCompanyLogo" class="header-company-logo" alt="Company Logo">
+                        <span id="headerCompanyName" class="company-name-header"></span>
+                    </div>
                 </div>
                 <div class="top-nav-right">
                     <div class="notifications">
@@ -6168,6 +6181,10 @@
                                     <input type="text" class="form-control" id="salaryGrade" placeholder="e.g., Grade A, Level 3" readonly>
                                 </div>
                                 <div class="form-group">
+                                    <label for="salaryMin" class="form-label">Minimum Salary (Annual)</label>
+                                    <input type="number" class="form-control" id="salaryMin" min="0" placeholder="60000" readonly>
+                                </div>
+                                <div class="form-group">
                                     <label for="salaryMax" class="form-label">Maximum Salary (Annual)</label>
                                     <input type="number" class="form-control" id="salaryMax" min="0" placeholder="80000" readonly>
                                 </div>
@@ -6302,6 +6319,246 @@
         let approvedPositions = [];
         let releasedPositions = [];
         let currentEditId = null;
+
+        // Helper function to check if a job title is already filled (excluding current edit position)
+        function isJobTitleAlreadyFilled(jobTitle) {
+            return staffData.find(staff => 
+                staff.jobTitle === jobTitle && 
+                staff.approvalStatus !== 'declined' && 
+                staff.status !== 'terminated' &&
+                staff.id !== currentEditId // Exclude current position being edited
+            );
+        }
+
+        // Comprehensive function to populate all form fields systematically
+        async function populateAllFormFields(staff) {
+            console.log('🔄 Starting comprehensive field population...');
+            console.log('Staff data:', staff);
+            
+            // Define all form fields with their mapping strategy
+            const fieldMappings = {
+                // Direct text/number fields
+                'positionCode': { type: 'text', source: ['positionCode', 'jobCode'] },
+                'workingHours': { type: 'number', source: ['workingHours'] },
+                'startDate': { type: 'date', source: ['startDate'] },
+                'endDate': { type: 'date', source: ['endDate'] },
+                'salaryGrade': { type: 'text', source: ['salaryGrade'] },
+                'salaryMin': { type: 'number', source: ['salaryMin'] },
+                'salaryMax': { type: 'number', source: ['salaryMax'] },
+                'requiredExperience': { type: 'number', source: ['requiredExperience'] },
+                'jobDescription': { type: 'textarea', source: ['jobDescription'] },
+                'requiredSkills': { type: 'textarea', source: ['requiredSkills'] },
+                
+                // Dropdown fields with special handling
+                'jobTitle': { 
+                    type: 'dropdown', 
+                    source: ['jobTitle'],
+                    matchStrategy: 'text-first'
+                },
+                'department': { 
+                    type: 'dropdown', 
+                    source: ['departmentId', 'department'],
+                    matchStrategy: 'id-first'
+                },
+                'employmentType': { 
+                    type: 'dropdown', 
+                    source: ['employmentType'],
+                    matchStrategy: 'value-exact'
+                },
+                'employmentStatus': { 
+                    type: 'dropdown', 
+                    source: ['employmentStatus'],
+                    matchStrategy: 'value-exact'
+                },
+                'lineManager': { 
+                    type: 'dropdown', 
+                    source: ['lineManagerId', 'lineManager'],
+                    matchStrategy: 'id-first'
+                },
+                'workLocation': { 
+                    type: 'dropdown', 
+                    source: ['location', 'workLocation'],
+                    matchStrategy: 'value-first'
+                },
+                'requiredEducation': { 
+                    type: 'dropdown', 
+                    source: ['requiredEducation'],
+                    matchStrategy: 'value-exact'
+                }
+            };
+            
+            // Process each field
+            for (const [fieldId, config] of Object.entries(fieldMappings)) {
+                await populateField(fieldId, config, staff);
+            }
+            
+            // Handle special cases
+            await handleSpecialFields(staff);
+            
+            console.log('✅ Field population completed');
+        }
+        
+        // Helper function to populate individual fields
+        async function populateField(fieldId, config, staff) {
+            const element = document.getElementById(fieldId);
+            if (!element) {
+                console.warn(`⚠️ Element not found: ${fieldId}`);
+                return;
+            }
+            
+            // Find the value from source hierarchy
+            let value = null;
+            for (const sourceKey of config.source) {
+                if (staff[sourceKey] !== undefined && staff[sourceKey] !== null && staff[sourceKey] !== '') {
+                    value = staff[sourceKey];
+                    console.log(`📋 ${fieldId}: Using ${sourceKey} = ${value}`);
+                    break;
+                }
+            }
+            
+            if (value === null) {
+                console.log(`📋 ${fieldId}: No value found`);
+                return;
+            }
+            
+            try {
+                if (config.type === 'dropdown') {
+                    await populateDropdownField(element, value, config, fieldId);
+                } else {
+                    // Direct assignment for text, number, date, textarea
+                    element.value = value;
+                    console.log(`✅ ${fieldId}: Set to "${value}"`);
+                }
+            } catch (error) {
+                console.error(`❌ Error setting ${fieldId}:`, error);
+            }
+        }
+        
+        // Helper function to populate dropdown fields with smart matching
+        async function populateDropdownField(element, value, config, fieldId) {
+            const options = Array.from(element.options);
+            console.log(`🔍 ${fieldId}: Available options:`, options.map(opt => ({value: opt.value, text: opt.text})));
+            
+            let matched = false;
+            
+            switch (config.matchStrategy) {
+                case 'id-first':
+                    // Try value match first (for IDs), then text match
+                    const valueMatch = options.find(opt => opt.value === value);
+                    if (valueMatch) {
+                        element.value = value;
+                        console.log(`✅ ${fieldId}: Set by ID match "${value}"`);
+                        matched = true;
+                    } else {
+                        // Try text match as fallback
+                        const textMatch = options.find(opt => opt.text === value);
+                        if (textMatch) {
+                            element.value = textMatch.value;
+                            console.log(`✅ ${fieldId}: Set by text match "${value}" -> "${textMatch.value}"`);
+                            matched = true;
+                        }
+                    }
+                    break;
+                    
+                case 'text-first':
+                    // Try text match first, then value match
+                    const textFirstMatch = options.find(opt => opt.text === value);
+                    if (textFirstMatch) {
+                        element.value = textFirstMatch.value;
+                        console.log(`✅ ${fieldId}: Set by text match "${value}" -> "${textFirstMatch.value}"`);
+                        matched = true;
+                    } else {
+                        const valueFirstMatch = options.find(opt => opt.value === value);
+                        if (valueFirstMatch) {
+                            element.value = value;
+                            console.log(`✅ ${fieldId}: Set by value match "${value}"`);
+                            matched = true;
+                        }
+                    }
+                    break;
+                    
+                case 'value-first':
+                case 'value-exact':
+                    // Direct value match
+                    const directMatch = options.find(opt => opt.value === value);
+                    if (directMatch) {
+                        element.value = value;
+                        console.log(`✅ ${fieldId}: Set by value match "${value}"`);
+                        matched = true;
+                    } else if (config.matchStrategy === 'value-first') {
+                        // Try text match as fallback
+                        const textFallback = options.find(opt => opt.text === value);
+                        if (textFallback) {
+                            element.value = textFallback.value;
+                            console.log(`✅ ${fieldId}: Set by text fallback "${value}" -> "${textFallback.value}"`);
+                            matched = true;
+                        }
+                    }
+                    break;
+            }
+            
+            if (!matched) {
+                // Last resort: set value directly
+                element.value = value;
+                console.log(`⚠️ ${fieldId}: Fallback assignment "${value}"`);
+            }
+        }
+        
+        // Handle special cases and complex fields
+        async function handleSpecialFields(staff) {
+            // Languages
+            if (staff.languages) {
+                console.log('🔄 Loading languages:', staff.languages);
+                loadLanguagesFromData(staff.languages);
+            }
+            
+            // Attachments
+            if (staff.attachments && Array.isArray(staff.attachments) && staff.attachments.length > 0) {
+                console.log('🔄 Loading attachments:', staff.attachments);
+                displayExistingAttachments(staff.attachments);
+            } else {
+                hideExistingAttachments();
+            }
+        }
+
+        // Helper function to wait for dropdown options to be loaded
+        async function waitForDropdownsToLoad(maxAttempts = 20, delayMs = 250) {
+            const checkDropdowns = () => {
+                const jobTitleSelect = document.getElementById('jobTitle');
+                const departmentSelect = document.getElementById('department');
+                const workLocationSelect = document.getElementById('workLocation');
+                const lineManagerSelect = document.getElementById('lineManager');
+                
+                // Check if dropdowns exist and have options (more than just the default "Select..." option)
+                const jobTitleLoaded = jobTitleSelect && jobTitleSelect.options.length > 1;
+                const departmentLoaded = departmentSelect && departmentSelect.options.length > 1;
+                const workLocationLoaded = workLocationSelect && workLocationSelect.options.length > 1;
+                const lineManagerLoaded = lineManagerSelect && lineManagerSelect.options.length > 1;
+                
+                console.log('Dropdown loading status:', {
+                    jobTitle: jobTitleLoaded,
+                    department: departmentLoaded,
+                    workLocation: workLocationLoaded,
+                    lineManager: lineManagerLoaded
+                });
+                
+                // Return true if all critical dropdowns are loaded (job title, department, work location)
+                // Line manager is optional so we don't require it
+                return jobTitleLoaded && departmentLoaded && workLocationLoaded;
+            };
+            
+            for (let attempt = 0; attempt < maxAttempts; attempt++) {
+                if (checkDropdowns()) {
+                    console.log(`✅ All dropdowns loaded after ${attempt + 1} attempts`);
+                    return;
+                }
+                
+                console.log(`⏳ Waiting for dropdowns to load... (attempt ${attempt + 1}/${maxAttempts})`);
+                await new Promise(resolve => setTimeout(resolve, delayMs));
+            }
+            
+            console.warn('⚠️ Timeout waiting for dropdowns to load, proceeding anyway...');
+        }
 
             // Email Service - EmailJS Production Version
         class EmailNotificationService {
@@ -13314,6 +13571,16 @@ Processing Time: ${templateData.processingTime}
                 'temporary': 'Temporary'
             };
             return types[type] || type;
+        }
+
+        function formatEmploymentStatus(status) {
+            const statuses = {
+                'full-time': 'Full-Time',
+                'part-time': 'Part-Time',
+                'casual': 'Casual',
+                'seasonal': 'Seasonal'
+            };
+            return statuses[status] || status;
         }        function formatStatus(status) {
             const statuses = {
                 'active': 'Active',
@@ -14286,6 +14553,16 @@ Processing Time: ${templateData.processingTime}
 
                 refreshCurrentTab();
                 populateFilters();
+                
+                // Update the position details modal if it's currently open and showing the edited position
+                const viewDetailsModal = document.getElementById('viewDetailsModal');
+                if (viewDetailsModal && viewDetailsModal.classList.contains('show') && 
+                    currentViewingStaffId && 
+                    (currentEditId === currentViewingStaffId || currentEditId === currentViewingStaffId.replace(/^(POS_|STAFF_)/, ''))) {
+                    console.log('🔄 Updating position details modal with saved changes...');
+                    await viewDetails(currentEditId);
+                }
+                
                 closeModal();
 
                 // Success notification removed per user request
@@ -14294,6 +14571,7 @@ Processing Time: ${templateData.processingTime}
             } catch (error) {
                 console.error('Error saving staff position:', error);
                 showNotification('Error saving position: ' + error.message, 'error');
+                closeModal(); // Close modal even on error to prevent modal getting stuck
             }
         }
 
@@ -14572,7 +14850,7 @@ Processing Time: ${templateData.processingTime}
             updateLanguageDisplay();
             updateLanguageHiddenInput();
         }        // Edit staff function
-        function editStaff(id) {
+        async function editStaff(id) {
             console.log('editStaff called with id:', id);
             const staff = staffData.find(s => s.id === id);
             if (!staff) {
@@ -14584,12 +14862,16 @@ Processing Time: ${templateData.processingTime}
             console.log('Staff found:', staff);
             currentEditId = id;
             
-            // Set modal title based on approval status
+            // Set modal title based on approval status and include position name
             const modalTitle = document.getElementById('modalTitle');
+            const positionName = staff.jobTitle || 'Unknown Position';
+            const positionCode = staff.positionCode || staff.jobCode || '';
+            const positionInfo = positionCode ? `${positionName} (${positionCode})` : positionName;
+            
             if (staff.approvalStatus === 'approved') {
-                modalTitle.textContent = 'Position Approved';
+                modalTitle.textContent = `Position Approved - ${positionInfo}`;
             } else {
-                modalTitle.textContent = 'Edit Position';
+                modalTitle.textContent = `Edit Position - ${positionInfo}`;
             }
             
             // Reset form first
@@ -14599,56 +14881,23 @@ Processing Time: ${templateData.processingTime}
             selectedLanguages = [];
             updateLanguageDisplay();
             
-            // Populate form fields with special handling for dropdown fields
-            Object.keys(staff).forEach(key => {
-                const element = document.getElementById(key);
-                if (element) {
-                    try {
-                        if (key === 'lineManager' && staff.lineManagerId) {
-                            // For line manager, set the value to the ID
-                            element.value = staff.lineManagerId;
-                        } else if (key === 'department' && staff.departmentId) {
-                            // For department, use the department ID instead of the display name
-                            document.getElementById('department').value = staff.departmentId;
-                        } else if (key === 'location') {
-                            // For location, the form field is actually 'workLocation'
-                            const workLocationElement = document.getElementById('workLocation');
-                            if (workLocationElement) {
-                                workLocationElement.value = staff[key];
-                            }
-                        } else if (key === 'languages') {
-                            // Handle languages separately using the new function
-                            loadLanguagesFromData(staff[key]);
-                        } else {
-                            element.value = staff[key];
-                        }
-                    } catch (error) {
-                        console.warn(`Error setting field ${key}:`, error);
-                    }
-                }
-            });
-
-            // Ensure job code is populated even if it's readonly
-            if (staff.positionCode) {
-                document.getElementById('positionCode').value = staff.positionCode;
-            }
-
-            // Also handle location field specifically if not caught above
-            if (staff.location && document.getElementById('workLocation')) {
-                document.getElementById('workLocation').value = staff.location;
-            }
-
-            // Load languages if present
-            if (staff.languages) {
-                loadLanguagesFromData(staff.languages);
-            }
+            console.log('Loading dropdown data...');
             
-            // Display existing attachments if any
-            if (staff.attachments && Array.isArray(staff.attachments) && staff.attachments.length > 0) {
-                displayExistingAttachments(staff.attachments);
-            } else {
-                hideExistingAttachments();
-            }
+            // Ensure dropdown data is loaded before populating fields
+            loadDepartments();
+            loadJobTitles();
+            loadLineManagers();
+            loadLocations();
+            
+            // Wait for dropdowns to actually be populated (check for options)
+            console.log('Waiting for dropdowns to load...');
+            await waitForDropdownsToLoad();
+            
+            console.log('Populating form fields...');
+            console.log('Staff data to populate:', staff);
+            
+            // Use comprehensive field population
+            await populateAllFormFields(staff);
 
             console.log('Opening modal for edit...');
             
@@ -15012,6 +15261,14 @@ Processing Time: ${templateData.processingTime}
                         <div class="detail-row">
                             <span class="detail-label">Employment Type:</span>
                             <span class="detail-value">${formatValue(formatEmploymentType(staff.employmentType))}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Employment Status:</span>
+                            <span class="detail-value">${formatValue(formatEmploymentStatus(staff.employmentStatus))}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Working Hours/Week:</span>
+                            <span class="detail-value">${formatValue(staff.workingHours ? `${staff.workingHours} hours` : null)}</span>
                         </div>
                         <div class="detail-row">
                             <span class="detail-label">Start Date:</span>
@@ -16958,18 +17215,33 @@ ${positionId},"${staff ? staff.jobTitle : 'Unknown'}","${staff ? staff.departmen
                                 });
                                 
                                 if (jobTitles.size > 0) {
-                                    // Convert to array and sort alphabetically
-                                    const sortedJobTitles = Array.from(jobTitles).sort((a, b) => a.localeCompare(b));
-                                    
-                                    // Add options to dropdown
-                                    sortedJobTitles.forEach(jobTitle => {
-                                        const option = document.createElement('option');
-                                        option.value = jobTitle;
-                                        option.textContent = jobTitle;
-                                        jobTitleSelect.appendChild(option);
+                                    // Filter out job titles that already have positions created
+                                    const availableJobTitles = Array.from(jobTitles).filter(jobTitle => {
+                                        // Check if this job title already exists in staffData (excluding current edit)
+                                        return !isJobTitleAlreadyFilled(jobTitle);
                                     });
                                     
-                                    console.log(`✅ Successfully loaded ${sortedJobTitles.length} unique job titles from organizational chart for company ${currentCompanyId}`);
+                                    if (availableJobTitles.length > 0) {
+                                        // Sort alphabetically
+                                        const sortedJobTitles = availableJobTitles.sort((a, b) => a.localeCompare(b));
+                                        
+                                        // Add options to dropdown
+                                        sortedJobTitles.forEach(jobTitle => {
+                                            const option = document.createElement('option');
+                                            option.value = jobTitle;
+                                            option.textContent = jobTitle;
+                                            jobTitleSelect.appendChild(option);
+                                        });
+                                        
+                                        console.log(`✅ Successfully loaded ${sortedJobTitles.length} available job titles (${jobTitles.size - sortedJobTitles.length} positions already filled) from organizational chart for company ${currentCompanyId}`);
+                                    } else {
+                                        // All positions are filled, show message
+                                        const noAvailableOption = document.createElement('option');
+                                        noAvailableOption.value = '';
+                                        noAvailableOption.textContent = 'All positions are currently filled';
+                                        jobTitleSelect.appendChild(noAvailableOption);
+                                        console.log(`ℹ️ All job titles from organizational chart are already filled for company ${currentCompanyId}`);
+                                    }
                                 } else {
                                     console.log(`ℹ️ No active job titles found in organizational chart for company ${currentCompanyId}, trying field options fallback`);
                                     loadJobTitlesFromFieldOptions(currentCompanyId, jobTitleSelect);
@@ -17028,18 +17300,33 @@ ${positionId},"${staff ? staff.jobTitle : 'Unknown'}","${staff ? staff.departmen
                         // Sort by label for better UX
                         jobTitleArray.sort((a, b) => a.label.localeCompare(b.label));
                         
-                        // Add options to dropdown
-                        jobTitleArray.forEach(jobTitle => {
-                            const option = document.createElement('option');
-                            option.value = jobTitle.label; // Use label as value for compatibility
-                            option.textContent = jobTitle.label; // Display the label
-                            if (jobTitle.department) {
-                                option.title = `Department: ${jobTitle.department}`;
-                            }
-                            jobTitleSelect.appendChild(option);
+                        // Filter out job titles that already have positions created
+                        const availableJobTitles = jobTitleArray.filter(jobTitle => {
+                            // Check if this job title already exists in staffData (excluding current edit)
+                            return !isJobTitleAlreadyFilled(jobTitle.label);
                         });
                         
-                        console.log(`✅ Successfully loaded ${jobTitleArray.length} job titles from field options for company ${currentCompanyId}`);
+                        if (availableJobTitles.length > 0) {
+                            // Add options to dropdown
+                            availableJobTitles.forEach(jobTitle => {
+                                const option = document.createElement('option');
+                                option.value = jobTitle.label; // Use label as value for compatibility
+                                option.textContent = jobTitle.label; // Display the label
+                                if (jobTitle.department) {
+                                    option.title = `Department: ${jobTitle.department}`;
+                                }
+                                jobTitleSelect.appendChild(option);
+                            });
+                            
+                            console.log(`✅ Successfully loaded ${availableJobTitles.length} available job titles (${jobTitleArray.length - availableJobTitles.length} positions already filled) from field options for company ${currentCompanyId}`);
+                        } else {
+                            // All positions are filled, show message
+                            const noAvailableOption = document.createElement('option');
+                            noAvailableOption.value = '';
+                            noAvailableOption.textContent = 'All positions are currently filled';
+                            jobTitleSelect.appendChild(noAvailableOption);
+                            console.log(`ℹ️ All job titles from field options are already filled for company ${currentCompanyId}`);
+                        }
                     } else {
                         console.log(`ℹ️ No job titles found in field options for company ${currentCompanyId}, trying user-role fallback`);
                         loadJobTitlesFromUserRole(currentCompanyId, jobTitleSelect);
@@ -17082,18 +17369,33 @@ ${positionId},"${staff ? staff.jobTitle : 'Unknown'}","${staff ? staff.departmen
                         // Sort by label for better UX
                         fallbackJobTitleArray.sort((a, b) => a.label.localeCompare(b.label));
                         
-                        // Add options to dropdown
-                        fallbackJobTitleArray.forEach(jobTitle => {
-                            const option = document.createElement('option');
-                            option.value = jobTitle.label;
-                            option.textContent = jobTitle.label;
-                            if (jobTitle.department) {
-                                option.title = `Department: ${jobTitle.department}`;
-                            }
-                            jobTitleSelect.appendChild(option);
+                        // Filter out job titles that already have positions created
+                        const availableJobTitles = fallbackJobTitleArray.filter(jobTitle => {
+                            // Check if this job title already exists in staffData (excluding current edit)
+                            return !isJobTitleAlreadyFilled(jobTitle.label);
                         });
                         
-                        console.log(`ℹ️ Successfully loaded ${fallbackJobTitleArray.length} job titles from user-role fallback for company ${currentCompanyId}`);
+                        if (availableJobTitles.length > 0) {
+                            // Add options to dropdown
+                            availableJobTitles.forEach(jobTitle => {
+                                const option = document.createElement('option');
+                                option.value = jobTitle.label;
+                                option.textContent = jobTitle.label;
+                                if (jobTitle.department) {
+                                    option.title = `Department: ${jobTitle.department}`;
+                                }
+                                jobTitleSelect.appendChild(option);
+                            });
+                            
+                            console.log(`ℹ️ Successfully loaded ${availableJobTitles.length} available job titles (${fallbackJobTitleArray.length - availableJobTitles.length} positions already filled) from user-role fallback for company ${currentCompanyId}`);
+                        } else {
+                            // All positions are filled, show message
+                            const noAvailableOption = document.createElement('option');
+                            noAvailableOption.value = '';
+                            noAvailableOption.textContent = 'All positions are currently filled';
+                            jobTitleSelect.appendChild(noAvailableOption);
+                            console.log(`ℹ️ All job titles from user-role fallback are already filled for company ${currentCompanyId}`);
+                        }
                     } else {
                         console.log(`⚠️ No job titles found in any source for company ${currentCompanyId}, loading default titles`);
                         loadDefaultJobTitles(jobTitleSelect);
@@ -17122,14 +17424,29 @@ ${positionId},"${staff ? staff.jobTitle : 'Unknown'}","${staff ? staff.departmen
                 'Assistant'
             ];
             
-            fallbackTitles.forEach(title => {
-                const option = document.createElement('option');
-                option.value = title;
-                option.textContent = title;
-                jobTitleSelect.appendChild(option);
+            // Filter out job titles that already have positions created
+            const availableJobTitles = fallbackTitles.filter(title => {
+                // Check if this job title already exists in staffData (excluding current edit)
+                return !isJobTitleAlreadyFilled(title);
             });
             
-            console.log('Added default job titles to dropdown');
+            if (availableJobTitles.length > 0) {
+                availableJobTitles.forEach(title => {
+                    const option = document.createElement('option');
+                    option.value = title;
+                    option.textContent = title;
+                    jobTitleSelect.appendChild(option);
+                });
+                
+                console.log(`Added ${availableJobTitles.length} available default job titles to dropdown (${fallbackTitles.length - availableJobTitles.length} positions already filled)`);
+            } else {
+                // All default positions are filled
+                const noAvailableOption = document.createElement('option');
+                noAvailableOption.value = '';
+                noAvailableOption.textContent = 'All available positions are currently filled';
+                jobTitleSelect.appendChild(noAvailableOption);
+                console.log('All default job titles are already filled');
+            }
         }
 
         // ========================================================================
@@ -18848,25 +19165,28 @@ ${positionId},"${staff ? staff.jobTitle : 'Unknown'}","${staff ? staff.departmen
         }
 
         // Function to edit staff from modal
-        function editStaffFromModal() {
+        async function editStaffFromModal() {
             if (!currentViewingStaffId) {
                 alert('No staff selected for editing');
                 return;
             }
 
             try {
-                // Close view modal first
-                closeViewModal();
-                
-                // Find the staff data
+                // Find the staff data first
                 const staffItem = staffData.find(staff => staff.firebaseKey === currentViewingStaffId || staff.id === currentViewingStaffId);
                 if (!staffItem) {
                     alert('Staff data not found');
                     return;
                 }
 
-                // Open edit modal with staff data
-                editStaff(staffItem.id);
+                // Close view modal first
+                closeViewModal();
+                
+                // Add a small delay to ensure the view modal is fully closed before opening edit modal
+                setTimeout(async () => {
+                    // Open edit modal with staff data
+                    await editStaff(staffItem.id);
+                }, 100); // 100ms delay should be sufficient
                 
             } catch (error) {
                 console.error('Error editing staff from modal:', error);
