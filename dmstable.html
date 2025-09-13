@@ -1,325 +1,536 @@
 <!DOCTYPE html>
-<html la    .menu a { display: flex; gap: .5rem; align-items: center; padding: .6rem .8rem; color: #fff; text-decoration: none; border-radius: 6px; }
-    .menu a:hover { background: var(--secondary-color); }
-    .menu-dropdown .submenu { display: none; list-style: none; margin-left: 1.5rem; margin-top: .3rem; }
-    .menu-dropdown:hover .submenu { display: block; }
-    .menu-dropdown .submenu li { margin: .2rem 0; }
-    .menu-dropdown .submenu a { padding: .4rem .6rem; font-size: .9rem; }="en">
+<html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>DMS Register - Dreamex Datalab HSE</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DMS Register - Dreamex Datalab HSE</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="css/styles.css">
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        
+        /* === Core Variables / Layout (derived from recruitboard + staff) === */
+        :root { --primary-color:#2c3e50; --secondary-color:#3498db; --accent-color:#3498db; --text-color:#333; --bg-color:#f5f6fa; --sidebar-width:250px; --blue:#3498db; --green:#2ecc71; --orange:#e67e22; --red:#e74c3c; --purple:#9b59b6; --font-family:'Inter',system-ui,-apple-system,sans-serif; --base-font-size:.9rem; --font-scale:1; --bg-primary:#ffffff; --bg-secondary:#f8f9fa; --text-primary:#333; --text-secondary:#666; --border-color:#e0e0e0; --spacing-unit:.9rem; --padding-sm:.45rem; --padding-md:.75rem; --padding-lg:1.2rem; --transition-speed:.2s; }
+        *{margin:0;padding:0;box-sizing:border-box;} body{font-family:var(--font-family);font-size:var(--base-font-size);line-height:1.4;color:var(--text-primary);background:#f8f9fa;}
+        .app-container{display:flex;min-height:100vh;}
+        .sidebar{width:var(--sidebar-width);background:var(--primary-color);color:#fff;padding:1rem;position:fixed;height:100vh;overflow-y:auto;transition:transform .3s ease;}
+        .sidebar.collapsed{transform:translateX(-100%);} .logo h2{text-align:center;padding:1rem 0;border-bottom:1px solid rgba(255,255,255,.1);font-size:1.05rem;}
+        .menu{list-style:none;margin-top:1.5rem;} .menu li{margin-bottom:.45rem;} .menu a{color:#fff;text-decoration:none;display:flex;align-items:center;padding:.65rem .9rem;border-radius:6px;font-size:.78rem;gap:.55rem;letter-spacing:.25px;transition:background .25s;} .menu a:hover,.menu a.active{background:var(--secondary-color);} .menu-dropdown .submenu{display:none;list-style:none;margin-left:1.2rem;margin-top:.35rem;} .menu-dropdown:hover .submenu{display:block;}
+        /* Feature-based visibility */
+        [data-feature]:not(.menu-visible){display:none !important;} .menu-dropdown:not(.menu-visible){display:none !important;} 
+        
+        /* Hide ALL menu items by default during loading - only for sidebar menu */
+        .sidebar.menu-loading .menu-item, .sidebar.menu-loading .menu-dropdown, .sidebar.menu-loading li[data-feature], .sidebar.menu-loading [data-feature] {display:none !important;} .menu-loading [data-feature]{display:none !important;} .menu-loading .menu-dropdown{display:none !important;}
+        .main-content{flex:1;margin-left:var(--sidebar-width);padding:.45rem;width:calc(100% - var(--sidebar-width));box-sizing:border-box;display:flex;flex-direction:column;transition:margin-left .3s ease,width .3s ease;}
+        .main-content.sidebar-collapsed{margin-left:0;width:100%;}
+        /* Top Nav (copied style approach from staff.html) */
+        .top-nav{display:flex;justify-content:space-between;align-items:center;padding:.5rem .75rem;background:#fff;box-shadow:0 2px 5px rgba(0,0,0,.1);margin-bottom:.35rem;position:fixed;top:.25rem;right:.5rem;left:calc(var(--sidebar-width) + .5rem);height:50px;min-height:50px;z-index:100;transition:left .3s ease;}
+        .top-nav-left{display:flex;align-items:center;gap:1rem;font-size:.8rem;font-weight:600;color:var(--text-secondary);} .sidebar-toggle-btn{background:none;border:none;cursor:pointer;font-size:1.15rem;padding:.45rem;color:#666;border-radius:6px;display:flex;align-items:center;justify-content:center;} .sidebar-toggle-btn:hover{background:rgba(0,0,0,.06);}
+    /* Company logo (adjusted to NOT be forced square like camp.html) */
+    #headerCompanyLogo, .header-company-logo {height:35px; width:auto; max-width:140px; border-radius:4px; object-fit:contain; display:none; background:transparent; border:none; box-shadow:none;}
+    #headerCompanyLogo.visible{display:block;}
+    #headerCompanyName{font-size:.8rem;font-weight:600;letter-spacing:.5px;color:var(--primary-color);max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .top-nav-right{display:flex;align-items:center;gap:1.2rem;margin-left:auto;}
+    .user-profile{position:relative;display:flex;align-items:center;}
+        .notifications{position:relative;display:flex;align-items:center;} .notification-btn{background:none;border:none;cursor:pointer;position:relative;font-size:1.1rem;padding:.45rem;display:flex;align-items:center;justify-content:center;} .notification-badge{position:absolute;top:-5px;right:-5px;background:var(--accent-color);color:#fff;border-radius:50%;padding:.15rem .45rem;font-size:.6rem;}
+        .notification-dropdown{display:none;position:absolute;right:0;top:100%;width:280px;background:#fff;border-radius:6px;box-shadow:0 4px 18px rgba(0,0,0,.12);z-index:1000;}
+        .notification-dropdown.show{display:block;} .notification-list{max-height:280px;overflow-y:auto;}
+        /* User Profile Styles (from travel.html) */
+        .profile-btn { background:none; border:none; cursor:pointer; padding:0; }
+        .profile-btn img { width:40px; height:40px; border-radius:50%; object-fit:cover; background:#eee; }
+        .profile-dropdown { position:absolute; top:100%; right:0; background:#fff; border:1px solid #ddd; border-radius:6px; padding:0; display:none; min-width:220px; box-shadow:0 4px 12px rgba(0,0,0,0.12); }
+        .profile-dropdown.show { display:block; }
+        .profile-dropdown ul { list-style:none; margin:0; padding:0; }
+        .profile-dropdown li a { display:flex; align-items:center; gap:8px; padding:10px 14px; text-decoration:none; color:#333; font-size:0.8rem; }
+        .profile-dropdown li a:hover { background:#f5f5f5; }
+        .avatar-initials{width:40px;height:40px;border-radius:50%;background:var(--secondary-color);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:1rem;}
+        
+        /* Content Area Styles */
+        .content{padding:1rem;background:#fff;border-radius:8px;margin:60px 0 0 0;min-height:calc(100vh - 80px);}
+        
+        /* Page Header */
+        .page-header {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: #fff;
+            padding: 0.55rem 0.75rem;
+            border-radius: 0;
+            margin: 0.35rem 0 0.5rem 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 10px 28px rgba(0,0,0,0.18), 0 6px 16px rgba(0,0,0,0.14);
+            font-size: 0.9rem;
+        }
 
-  <!-- External deps (match versions used across staff/recruitboard) -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
-  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+        .page-header i {
+            font-size: 1rem;
+        }
 
-  <style>
-    :root { --primary-color:#2c3e50; --secondary-color:#3498db; --accent-color:#e74c3c; --sidebar-width:250px; --bg:#f8f9fa; --text:#333; }
-    * { box-sizing: border-box; }
-    body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, sans-serif; background: var(--bg); color: var(--text); }
-    .app-container { display: flex; min-height: 100vh; }
-    .sidebar { width: var(--sidebar-width); background: var(--primary-color); color:#fff; padding:1rem; position: fixed; inset: 0 auto 0 0; overflow-y:auto; transition: transform 0.3s ease; }
-    .sidebar.collapsed { transform: translateX(-100%); }
-    .logo h2 { margin:0; padding:1rem 0; text-align:center; border-bottom:1px solid rgba(255,255,255,.1); font-size:1.1rem; }
-    .menu { list-style:none; padding:0; margin:1rem 0 0; }
-    .menu li { margin:.35rem 0; display:none !important; }
-    .menu li.menu-visible { display:block !important; }
-    .menu a { display:flex; gap:.5rem; align-items:center; padding:.6rem .8rem; color:#fff; text-decoration:none; border-radius:6px; }
-    .menu a:hover { background: var(--secondary-color); }
+        .header-main {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+        }
 
-    .main-content { flex:1; margin-left: var(--sidebar-width); padding: .5rem; transition: margin-left 0.3s ease; }
-    .main-content.sidebar-collapsed { margin-left: 0; }
-    .top-nav { position: sticky; top: .25rem; z-index: 10; display:flex; align-items:center; justify-content:space-between; background:#fff; padding:.5rem .75rem; border-radius:8px; box-shadow:0 2px 6px rgba(0,0,0,.08); margin:.25rem .25rem .5rem; }
-    .top-nav-left { display:flex; align-items:center; gap:.75rem; }
-    .sidebar-toggle-btn { background: none; border: none; cursor: pointer; color: var(--text); font-size: 1.2rem; padding: .5rem; border-radius: 5px; transition: background-color 0.3s ease; }
-    .sidebar-toggle-btn:hover { background-color: rgba(0, 0, 0, 0.1); }
-    .header-company-logo { width:40px; height:40px; border-radius:8px; object-fit:cover; border:2px solid #e9ecef; display:none; }
-    .header-company-logo.visible { display:block; }
-    .header-logo-placeholder { width:40px; height:40px; border-radius:8px; background:#f8f9fa; border:2px dashed #ced4da; display:flex; align-items:center; justify-content:center; color:#6c757d; }
-    .company-name-header { font-weight:600; color:#2c3e50; font-size:1rem; }
-    .top-nav-right { display:flex; align-items:center; gap:1rem; }
+        .page-header h1 {
+            color: #fff;
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            font-size: 0.9rem;
+            margin: 0;
+            font-weight: 600;
+        }
 
-    /* Notifications */
-    .notifications { position: relative; }
-    .notification-btn { background:none; border:0; cursor:pointer; position:relative; padding:.4rem; font-size:1.1rem; }
-    .notification-badge { position:absolute; top:-6px; right:-6px; background:var(--accent-color); color:#fff; border-radius:999px; padding:0 .4rem; font-size:.7rem; display:none; }
-    .notification-dropdown { display:none; position:absolute; top:calc(100% + 6px); right:0; width:320px; background:#fff; border:1px solid #e9ecef; border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,.12); max-height:420px; overflow:hidden; }
-    .notification-dropdown.show { display:block; }
-    .notification-header { display:flex; align-items:center; justify-content:space-between; padding:.6rem .75rem; border-bottom:1px solid #e9ecef; }
-    .notification-list { max-height:340px; overflow-y:auto; }
-    .notification-item { padding:.65rem .75rem; border-bottom:1px solid #f1f3f5; }
-    .notification-item.unread { background:#e8f4fd; border-left:3px solid #3498db; }
+        .page-actions {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
 
-    .content { background:#fff; border-radius:8px; box-shadow:0 1px 3px rgba(0,0,0,.08); padding:.75rem; }
-    .filters { display:flex; gap:.5rem; flex-wrap:wrap; margin-bottom:.75rem; }
-    .filters input, .filters select { padding:.45rem .6rem; border:1px solid #e1e5ea; border-radius:6px; }
-    table { width:100%; border-collapse:collapse; }
-    th, td { padding:.6rem; border-bottom:1px solid #eef2f6; text-align:left; }
-    th { background:#f6f8fa; font-weight:600; font-size:.9rem; }
-    
-    .doc-title { font-weight:600; }
-    .version-info { color:#6c757d; font-size:.8rem; }
-    .muted { color:#6c757d; font-size:.8rem; }
-    
-    .status-pill { display:inline-flex; align-items:center; gap:.35rem; padding:.2rem .5rem; border-radius:999px; font-size:.75rem; }
-    .status-draft { background:#fff3cd; color:#8a6d3b; border:1px solid #ffe8a1; }
-    .status-inreview { background:#e8f4fd; color:#0b62a4; border:1px solid #b6e0fe; }
-    .status-approved { background:#e6ffed; color:#227a52; border:1px solid #a7f3d0; }
-    
-    .risk-pill { display:inline-flex; align-items:center; gap:.35rem; padding:.2rem .5rem; border-radius:999px; font-size:.75rem; }
-    .risk-low { background:#e6ffed; color:#227a52; border:1px solid #a7f3d0; }
-    .risk-medium { background:#fff3cd; color:#8a6d3b; border:1px solid #ffe8a1; }
-    .risk-high { background:#ffe6e6; color:#d8292f; border:1px solid #ffcccc; }
-    .risk-critical { background:#ffe6e6; color:#721c24; border:1px solid #ffaaaa; }
-    
-    .category-badge { display:inline-block; padding:.15rem .4rem; border-radius:4px; font-size:.7rem; font-weight:500; margin-top:.2rem; }
-    .category-badge.hse { background:#e74c3c; color:#fff; }
-    .category-badge.quality { background:#9b59b6; color:#fff; }
-    .category-badge.operations { background:#3498db; color:#fff; }
-    .category-badge.maintenance { background:#f39c12; color:#fff; }
-    .category-badge.training { background:#2ecc71; color:#fff; }
-    .category-badge.emergency { background:#e74c3c; color:#fff; }
-    .category-badge.regulatory { background:#34495e; color:#fff; }
-    .category-badge.hr { background:#95a5a6; color:#fff; }
-    
-    .actions button { background:none; border:0; cursor:pointer; padding:.3rem .45rem; border-radius:6px; }
-    .actions button:hover { background:#f0f2f5; }
+        .btn-add-new {
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border: 1px solid rgba(255,255,255,0.3);
+            border-radius: 6px;
+            padding: 0.4rem 0.8rem;
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
 
-    @media (max-width: 768px) {
-      .sidebar { position: static; width: 100%; height: auto; }
-      .main-content { margin-left: 0; }
-      .filters { flex-direction: column; align-items: stretch; }
-    }
-  </style>
+        .btn-add-new:hover {
+            background: rgba(255,255,255,0.3);
+            border-color: rgba(255,255,255,0.5);
+        }
+        
+        .content-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;padding-bottom:1rem;border-bottom:1px solid #e9ecef;}
+        .content-header h1{color:#333;font-size:1.5rem;margin:0;}
+        
+        /* Button Styles */
+        .btn{display:inline-flex;align-items:center;gap:.5rem;padding:.6rem 1.2rem;border:none;border-radius:6px;font-size:.85rem;font-weight:500;cursor:pointer;transition:all .2s;text-decoration:none;justify-content:center;}
+        .btn-primary{background:#2196F3;color:#fff;} .btn-primary:hover{background:#1976D2;}
+        .btn-secondary{background:#6c757d;color:#fff;} .btn-secondary:hover{background:#5a6268;}
+        .btn-success{background:#28a745;color:#fff;} .btn-success:hover{background:#218838;}
+        .btn-danger{background:#dc3545;color:#fff;} .btn-danger:hover{background:#c82333;}
+        .btn-edit{background:#ffc107;color:#000;} .btn-edit:hover{background:#e0a800;}
+        .btn-delete{background:#dc3545;color:#fff;} .btn-delete:hover{background:#c82333;}
+        
+        /* Table Styles */
+        .table-container{background:#fff;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,.1);overflow:hidden;}
+        .data-table{width:100%;border-collapse:collapse;}
+        .data-table thead th{background:#f8f9fa;padding:.6rem;text-align:left;font-weight:600;color:#495057;border-bottom:2px solid #dee2e6;}
+        .data-table tbody td{padding:.6rem;border-bottom:1px solid #dee2e6;vertical-align:middle;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+        .data-table tbody tr:hover{background:#f8f9fa;}
+        .empty-state{text-align:center;padding:3rem;color:#6c757d;}
+        .empty-state i{font-size:3rem;margin-bottom:1rem;color:#dee2e6;}
+        .empty-state p{margin:0.5rem 0;}
+        .empty-state a{color:#2196F3;text-decoration:none;}
+        .empty-state a:hover{text-decoration:underline;}
+
+        /* Search Bar Styles */
+        .search-bar{flex:1;max-width:400px;}
+        .search-bar input{width:100%;padding:.5rem 1rem;border:1px solid #ddd;border-radius:6px;font-size:.85rem;}
+        .search-bar input:focus{outline:none;border-color:#2196F3;box-shadow:0 0 0 2px rgba(33,150,243,.2);}
+
+        /* DMS-specific styles */
+        .severity-badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.9em;
+            font-weight: bold;
+        }
+        .severity-badge.low { background: #4CAF50; color: white; }
+        .severity-badge.medium { background: #FFC107; color: black; }
+        .severity-badge.high { background: #FF9800; color: white; }
+        .severity-badge.critical { background: #F44336; color: white; }
+
+        .status-badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+        .status-badge.pending { background: #FFC107; color: black; }
+        .status-badge.approved { background: #4CAF50; color: white; }
+        .status-badge.rejected { background: #F44336; color: white; }
+
+        /* Custom DMS filters */
+        .filters { 
+            display: flex; 
+            gap: 0.5rem; 
+            flex-wrap: wrap; 
+            margin-bottom: 1rem;
+            padding: 1rem;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        .filters input, .filters select { 
+            padding: 0.45rem 0.6rem; 
+            border: 1px solid #e1e5ea; 
+            border-radius: 6px; 
+            font-size: 0.85rem;
+        }
+        .filters input:focus, .filters select:focus {
+            outline: none;
+            border-color: #3498db;
+            box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+        }
+        
+        /* Document-specific styles */
+        .doc-title { font-weight: 600; color: #2c3e50; }
+        .muted { color: #6c757d; font-size: 0.85rem; margin-top: 2px; }
+        .version-info { color: #495057; font-size: 0.8rem; font-weight: 500; margin-top: 4px; }
+        .category-badge { 
+            display: inline-block;
+            padding: 2px 6px; 
+            border-radius: 4px; 
+            font-size: 0.75rem; 
+            font-weight: 500;
+            margin-top: 4px;
+        }
+        .category-badge.hse { background: #e3f2fd; color: #1976d2; }
+        .category-badge.quality { background: #f3e5f5; color: #7b1fa2; }
+        .category-badge.operations { background: #e8f5e8; color: #388e3c; }
+        .category-badge.maintenance { background: #fff3e0; color: #f57c00; }
+        .category-badge.training { background: #fce4ec; color: #c2185b; }
+        .category-badge.emergency { background: #ffebee; color: #d32f2f; }
+        .category-badge.regulatory { background: #e0f2f1; color: #00796b; }
+        .category-badge.hr { background: #f1f8e9; color: #689f38; }
+        
+        .status-pill { 
+            display: inline-flex; 
+            align-items: center; 
+            gap: 4px; 
+            padding: 4px 8px; 
+            border-radius: 4px; 
+            font-size: 0.8rem; 
+            font-weight: 500;
+        }
+        .status-pill i { font-size: 0.7rem; }
+        .status-draft { background: #fff3cd; color: #856404; }
+        .status-inreview { background: #cff4fc; color: #055160; }
+        .status-approved { background: #d1e7dd; color: #0f5132; }
+        
+        .risk-pill { 
+            display: inline-flex; 
+            align-items: center; 
+            gap: 4px; 
+            padding: 4px 8px; 
+            border-radius: 4px; 
+            font-size: 0.8rem; 
+            font-weight: 500;
+        }
+        .risk-pill i { font-size: 0.7rem; }
+        .risk-low { background: #d1e7dd; color: #0f5132; }
+        .risk-medium { background: #fff3cd; color: #856404; }
+        .risk-high { background: #f8d7da; color: #721c24; }
+        .risk-critical { background: #f5c2c7; color: #58151c; }
+        
+        .actions button {
+            background: none;
+            border: 1px solid #dee2e6;
+            padding: 0.4rem;
+            margin: 0 2px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .actions button:hover {
+            background: #f8f9fa;
+            border-color: #adb5bd;
+        }
+        .actions button i {
+            font-size: 0.85rem;
+        }
+
+        /* Modal Styles */
+        .modal { position:fixed; inset:0; background:rgba(0,0,0,0.55); display:none; align-items:center; justify-content:center; padding:2rem 1rem; z-index:10000; }
+        .modal.show { display:flex; }
+    .modal-content { background:#fff; width:100%; max-width:900px; min-width:600px; border-radius:10px; padding:1.25rem 1.5rem 1.5rem; max-height:85vh; overflow:auto; box-shadow:0 18px 48px rgba(0,0,0,0.25); }
+        .modal-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:0.75rem; }
+        .modal-header h2 { font-size:1.1rem; font-weight:600; }
+        .close-btn { background:none; border:none; font-size:1.2rem; cursor:pointer; color:#666; }
+        .modal-details-row { margin-bottom:0.7rem; }
+        .modal-details-label { font-weight:600; color:#2c3e50; display:inline-block; min-width:120px; }
+        .modal-details-value { color:#333; }
+    </style>
 </head>
 <body>
-  <div class="app-container">
-    <nav class="sidebar menu-loading">
-      <div class="logo"><h2>Dreamex Datalab</h2></div>
-      <ul class="menu" id="roleBasedMenu">
-    <li class="menu-item" data-feature="home_view" data-requires-permission="home_view">
-      <a href="index.html"><i class="fas fa-home"></i> Home</a>
-    </li>
-    <li class="menu-dropdown" data-feature="health_view" data-requires-permission="health_view">
-      <a href="#"><i class="fas fa-medkit"></i> Health</a>
-      <ul class="submenu">
-        <li data-feature="health_assessment_view" data-requires-permission="health_assessment_view">
-          <a href="health-assessment.html">Assessment</a>
-        </li>
-        <li data-feature="health_consultation_view" data-requires-permission="health_consultation_view">
-          <a href="health-consultation.html">Consultation</a>
-        </li>
-        <li data-feature="medical_folder_view" data-requires-permission="medical_folder_view">
-          <a href="medical-folder.html">Medical Folder</a>
-        </li>
-      </ul>
-    </li>
-    <li class="menu-dropdown" data-feature="safety_view" data-requires-permission="safety_view">
-      <a href="#"><i class="fas fa-shield-alt"></i> Safety</a>
-      <ul class="submenu">
-        <li data-feature="training_view" data-requires-permission="training_view"><a href="trainingboard.html">Training</a></li>
-        <li data-feature="risk_view" data-requires-permission="risk_view"><a href="riskboard.html">Risk Management</a></li>
-        <li data-feature="jsa_view" data-requires-permission="jsa_view"><a href="jsaboard.html">Job Safety Analysis</a></li>
-        <li data-feature="ptw_view" data-requires-permission="ptw_view"><a href="ptwboard.html">Permit to Work</a></li>
-        <li data-feature="incident_view" data-requires-permission="incident_view"><a href="incidentboard.html">Incident Reports</a></li>
-        <li data-feature="inspection_view" data-requires-permission="inspection_view"><a href="inspectionboard.html">Inspection</a></li>
-        <li data-feature="audit_view" data-requires-permission="audit_view"><a href="auditboard.html">Audit</a></li>
-      </ul>
-    </li>
-    <li class="menu-dropdown" data-feature="fuel_management">
-      <a href="#"><i class="fas fa-gas-pump"></i> Fuel Management</a>
-      <ul class="submenu">
-        <li data-feature="vessel_offloading"><a href="vessel-offloading.html">Vessel Offloading</a></li>
-        <li data-feature="fuel_storage"><a href="fuel-storage-status.html">Fuel Storage Status</a></li>
-        <li data-feature="tank_transfer"><a href="tank-transfer.html">Tank-to-Tank Transfer</a></li>
-        <li data-feature="truck_loading"><a href="fuel-truck-loading.html">Fuel Truck Loading</a></li>
-        <li data-feature="quality_analysis"><a href="fuel-quality-analysis.html">Fuel Quality Analysis</a></li>
-        <li data-feature="fuel_distribution"><a href="fueldistrib.html">Fuel Distribution</a></li>
-        <li data-feature="fuel_consumption_analysis"><a href="fuelanalys.html">Consumption Analysis</a></li>
-      </ul>
-    </li>
-    <li class="menu-dropdown" data-feature="environment_view">
-      <a href="#"><i class="fas fa-leaf"></i> Environment</a>
-      <ul class="submenu">
-        <li data-feature="water_view"><a href="waterboard.html">Water Quality</a></li>
-      </ul>
-    </li>
-    <li class="menu-dropdown" data-feature="security_view">
-      <a href="#"><i class="fas fa-lock"></i> Security</a>
-      <ul class="submenu">
-  <li data-feature="access_view"><a href="accessboard.html">Access Request</a></li>
-  <li data-feature="access_daily_view"><a href="accessdaily.html">Daily Access Control</a></li>
-        <li data-feature="removal_view"><a href="removalboard.html">Property Removal</a></li>
-      </ul>
-    </li>
-    <li class="menu-dropdown" data-feature="logistics_view" data-requires-permission="logistics_view">
-      <a href="#"><i class="fas fa-truck"></i> Logistics</a>
-      <ul class="submenu">
-        <li data-feature="fleet_view" data-requires-permission="fleet_view"><a href="fleet.html">Fleet Management</a></li>
-      </ul>
-    </li>
-    <li class="menu-dropdown" data-feature="accommodation_view" data-requires-permission="accommodation_view">
-      <a href="#"><i class="fas fa-bed"></i> Accommodation</a>
-      <ul class="submenu">
-        <li data-feature="camp_view" data-requires-permission="camp_view"><a href="camp.html">Camp Management</a></li>
-        <li data-feature="camp_settings_view" data-requires-permission="camp_settings_view"><a href="campset.html">Camp Settings</a></li>
-      </ul>
-    </li>
-    <li class="menu-dropdown" data-feature="hr_view" data-requires-permission="hr_view">
-      <a href="#"><i class="fas fa-users"></i> HR</a>
-      <ul class="submenu">
-        <li data-feature="human_hr_view" data-requires-permission="human_hr_view"><a href="human-hr.html"><i class="fas fa-user-tie"></i> Human HR</a></li>
-        <li data-feature="staff_management_view" data-requires-permission="staff_management_view"><a href="staff.html">Staffing</a></li>
-        <li data-feature="authority_to_recruit_view" data-requires-permission="authority_to_recruit_view"><a href="recruit.html">Authority to Recruit</a></li>
-        <li data-feature="job_advertising_view" data-requires-permission="job_advertising_view"><a href="jobpost.html">Job Advertising</a></li>
-        <li data-feature="screening_view" data-requires-permission="screening_view"><a href="jobscreen.html">Screening</a></li>
-        <li data-feature="interview_view" data-requires-permission="interview_view"><a href="interview.html">Interview</a></li>
-        <li data-feature="offer_view" data-requires-permission="offer_view"><a href="offer.html">Offer Management</a></li>
-        <li data-feature="contract_view" data-requires-permission="contract_view"><a href="contract.html">Contract Management</a></li>
-        <li data-feature="onboarding_view" data-requires-permission="onboarding_view"><a href="onboard.html">Onboarding</a></li>
-        <li data-feature="chart_view" data-requires-permission="chart_view"><a href="chart.html">Chart Setup</a></li>
-        <li data-feature="chartboard_view" data-requires-permission="chartboard_view"><a href="chartboard.html">Org Chart</a></li>
-        <li data-feature="kpi_dashboard_view" data-requires-permission="kpi_dashboard_view"><a href="kpi.html">KPI</a></li>
-        <li data-feature="action_plan_view" data-requires-permission="action_plan_view"><a href="actionplan.html"><i class="fas fa-tasks"></i> Action Plan Board</a></li>
-      </ul>
-    </li>
-    <li class="menu-dropdown" data-feature="project_management_view" data-requires-permission="project_management_view">
-      <a href="#"><i class="fas fa-project-diagram"></i> Project Management</a>
-      <ul class="submenu">
-        <li data-feature="project_dashboard_view" data-requires-permission="project_dashboard_view"><a href="project-dashboard.html">Project Dashboard</a></li>
-        <li data-feature="project_create_view" data-requires-permission="project_create_view"><a href="project-create.html">Create Project</a></li>
-        <li data-feature="project_list_view" data-requires-permission="project_list_view"><a href="project-list.html">Project List</a></li>
-        <li data-feature="task_management_view" data-requires-permission="task_management_view"><a href="tasks.html">Task Management</a></li>
-        <li data-feature="milestone_tracking_view" data-requires-permission="milestone_tracking_view"><a href="milestones.html">Milestone Tracking</a></li>
-        <li data-feature="resource_allocation_view" data-requires-permission="resource_allocation_view"><a href="resources.html">Resource Allocation</a></li>
-        <li data-feature="project_reports_view" data-requires-permission="project_reports_view"><a href="project-reports.html">Project Reports</a></li>
-        <li data-feature="gantt_chart_view" data-requires-permission="gantt_chart_view"><a href="gantt-chart.html">Gantt Chart</a></li>
-      </ul>
-    </li>
-    <li data-feature="communication_view"><a href="info.html"><i class="fas fa-comments"></i> Communication</a></li>
-    <li class="menu-dropdown" data-feature="settings_view">
-      <a href="#"><i class="fas fa-cog"></i> Settings</a>
-      <ul class="submenu">
-        <li data-feature="account_settings_view"><a href="account.html">Account Settings</a></li>
-        <li data-feature="company_management_view"><a href="companymanagement.html">Company Management</a></li>
-        <li data-feature="approval_settings_view"><a href="approval-settings.html">Approval Flow Settings</a></li>
-        <li data-feature="field_setup_view"><a href="fieldsetup.html">Field Setup</a></li>
-        <li data-feature="preferences_view"><a href="preferences.html">Preferences</a></li>
-        <li data-feature="notification_settings_view"><a href="notification-settings.html">Notification Settings</a></li>
-        <li data-feature="audit_log_view"><a href="auditlog.html"><i class="fas fa-history"></i> Audit Log</a></li>
-        <li data-feature="user_management_view"><a href="users.html">User & Role Management</a></li>
-        <li data-feature="role_permissions_view"><a href="roles.html">Role Permissions</a></li>
-      </ul>
-    </li>
-      </ul>
-    </nav>
-
-    <main class="main-content">
-      <header class="top-nav">
-        <div class="top-nav-left">
-          <button id="sidebarToggle" class="sidebar-toggle-btn">
-            <i class="fas fa-bars"></i>
-          </button>
-          <img id="headerCompanyLogo" class="header-company-logo" alt="Company Logo" />
-          <div id="headerLogoPlaceholder" class="header-logo-placeholder"><i class="fas fa-building"></i></div>
-          <span id="headerCompanyName" class="company-name-header"></span>
-        </div>
-        <div class="top-nav-right">
-          <div class="notifications">
-            <button id="notificationBtn" class="notification-btn" title="Notifications">
-              <i class="fas fa-bell"></i>
-              <span class="notification-badge">0</span>
-            </button>
-            <div class="notification-dropdown" id="notificationDropdown">
-              <div class="notification-header">
-                <h3 style="margin:0;font-size:.95rem;">Notifications</h3>
-                <button id="markAllReadBtn" class="btn-link" style="background:none;border:0;color:#3498db;cursor:pointer;font-size:.85rem;">Mark all as read</button>
-              </div>
-              <div class="notification-list" id="notificationList"></div>
+    
+    <div class="app-container">
+        <!-- Left Sidebar -->
+        <nav class="sidebar">
+            <div class="logo">
+                <h2>Dreamex Datalab</h2>
             </div>
-          </div>
-          <div class="user-profile">
-            <button id="userProfileBtn" class="profile-btn" style="background:none;border:0;cursor:pointer;padding:.25rem;">
-              <img id="userAvatar" src="assets/default-avatar.png" alt="User Avatar" style="width:40px;height:40px;border-radius:50%;object-fit:cover;" />
-            </button>
-            <div class="profile-dropdown" id="profileDropdown" style="display:none;position:absolute;right:.25rem;top:52px;background:#fff;border:1px solid #e9ecef;border-radius:8px;min-width:180px;box-shadow:0 8px 24px rgba(0,0,0,.12);">
-              <ul style="list-style:none;margin:0;padding:6px;">
-                <li><a href="account.html" style="display:flex;gap:.5rem;align-items:center;padding:.5rem;border-radius:6px;color:#333;text-decoration:none;"><i class="fas fa-user"></i> Account Settings</a></li>
-                <li><a href="#" id="logoutLink" style="display:flex;gap:.5rem;align-items:center;padding:.5rem;border-radius:6px;color:#333;text-decoration:none;"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
-              </ul>
+            <ul class="menu" id="roleBasedMenu">
+                <li class="menu-item" data-feature="home_view" data-requires-permission="home_view">
+                    <a href="index.html"><i class="fas fa-home"></i> Home</a>
+                </li>
+                <li class="menu-dropdown" data-feature="health_view" data-requires-permission="health_view">
+                    <a href="#"><i class="fas fa-medkit"></i> Health</a>
+                    <ul class="submenu">
+                        <li data-feature="health_assessment_view" data-requires-permission="health_assessment_view">
+                            <a href="health-assessment.html">Assessment</a>
+                        </li>
+                        <li data-feature="health_consultation_view" data-requires-permission="health_consultation_view">
+                            <a href="health-consultation.html">Consultation</a>
+                        </li>
+                        <li data-feature="medical_folder_view" data-requires-permission="medical_folder_view">
+                            <a href="medical-folder.html">Medical Folder</a>
+                        </li>
+                    </ul>
+                </li>
+                <li class="menu-dropdown" data-feature="safety_view" data-requires-permission="safety_view">
+                    <a href="#"><i class="fas fa-shield-alt"></i> Safety</a>
+                    <ul class="submenu">
+                        <li data-feature="training_view" data-requires-permission="training_view"><a href="trainingboard.html">Training</a></li>
+                        <li data-feature="risk_view" data-requires-permission="risk_view"><a href="riskboard.html">Risk Management</a></li>
+                        <li data-feature="jsa_view" data-requires-permission="jsa_view"><a href="jsaboard.html">Job Safety Analysis</a></li>
+                        <li data-feature="ptw_view" data-requires-permission="ptw_view"><a href="ptwboard.html">Permit to Work</a></li>
+                        <li data-feature="incident_view" data-requires-permission="incident_view"><a href="incidentboard.html">Incident Reports</a></li>
+                        <li data-feature="inspection_view" data-requires-permission="inspection_view"><a href="inspectionboard.html">Inspection</a></li>
+                        <li data-feature="audit_view" data-requires-permission="audit_view"><a href="auditboard.html">Audit</a></li>
+                    </ul>
+                </li>
+                <li class="menu-dropdown" data-feature="fuel_management" data-requires-permission="fuel_management">
+                    <a href="#"><i class="fas fa-gas-pump"></i> Fuel Management</a>
+                    <ul class="submenu">
+                        <li data-feature="vessel_offloading" data-requires-permission="vessel_offloading"><a href="vessel-offloading.html">Vessel Offloading</a></li>
+                        <li data-feature="fuel_storage" data-requires-permission="fuel_storage"><a href="fuel-storage-status.html">Fuel Storage Status</a></li>
+                        <li data-feature="tank_transfer" data-requires-permission="tank_transfer"><a href="tank-transfer.html">Tank-to-Tank Transfer</a></li>
+                        <li data-feature="truck_loading" data-requires-permission="truck_loading"><a href="fuel-truck-loading.html">Fuel Truck Loading</a></li>
+                        <li data-feature="quality_analysis" data-requires-permission="quality_analysis"><a href="fuel-quality-analysis.html">Fuel Quality Analysis</a></li>
+                        <li data-feature="fuel_distribution" data-requires-permission="fuel_distribution"><a href="fueldistrib.html">Fuel Distribution</a></li>
+                        <li data-feature="fuel_consumption_analysis" data-requires-permission="fuel_consumption_analysis"><a href="fuelanalys.html">Consumption Analysis</a></li>
+                    </ul>
+                </li>
+                <li class="menu-dropdown" data-feature="environment_view" data-requires-permission="environment_view">
+                    <a href="#"><i class="fas fa-leaf"></i> Environment</a>
+                    <ul class="submenu">
+                        <li data-feature="water_view" data-requires-permission="water_view"><a href="waterboard.html">Water Quality</a></li>
+                    </ul>
+                </li>
+                <li class="menu-dropdown" data-feature="security_view" data-requires-permission="security_view">
+                    <a href="#"><i class="fas fa-lock"></i> Security</a>
+                    <ul class="submenu">
+                        <li data-feature="access_view" data-requires-permission="access_view"><a href="accessboard.html">Access Request</a></li>
+                        <li data-feature="access_daily_view" data-requires-permission="access_daily_view"><a href="accessdaily.html">Daily Access Control</a></li>
+                        <li data-feature="removal_view" data-requires-permission="removal_view"><a href="removalboard.html">Property Removal</a></li>
+                    </ul>
+                </li>
+                <li class="menu-dropdown" data-feature="logistics_view" data-requires-permission="logistics_view">
+                    <a href="#"><i class="fas fa-truck"></i> Logistics</a>
+                    <ul class="submenu">
+                        <li data-feature="fleet_view" data-requires-permission="fleet_view"><a href="fleet.html">Fleet Management</a></li>
+                    </ul>
+                </li>
+                <li class="menu-dropdown" data-feature="accommodation_view" data-requires-permission="accommodation_view">
+                    <a href="#"><i class="fas fa-bed"></i> Accommodation</a>
+                    <ul class="submenu">
+                        <li data-feature="camp_view" data-requires-permission="camp_view"><a href="camp.html">Camp Management</a></li>
+                        <li data-feature="camp_settings_view" data-requires-permission="camp_settings_view"><a href="campset.html">Camp Settings</a></li>
+                    </ul>
+                </li>
+                <li class="menu-dropdown" data-feature="hr_view" data-requires-permission="hr_view">
+                    <a href="#"><i class="fas fa-users"></i> HR</a>
+                    <ul class="submenu">
+                        <li data-feature="human_hr_view" data-requires-permission="human_hr_view"><a href="human-hr.html"><i class="fas fa-user-tie"></i> Human HR</a></li>
+                        <li data-feature="staff_management_view" data-requires-permission="staff_management_view"><a href="staff.html">Staffing</a></li>
+                        <li data-feature="authority_to_recruit_view" data-requires-permission="authority_to_recruit_view"><a href="recruit.html">Authority to Recruit</a></li>
+                        <li data-feature="job_advertising_view" data-requires-permission="job_advertising_view"><a href="jobpost.html">Job Advertising</a></li>
+                        <li data-feature="screening_view" data-requires-permission="screening_view"><a href="jobscreen.html">Screening</a></li>
+                        <li data-feature="interview_view" data-requires-permission="interview_view"><a href="interview.html">Interview</a></li>
+                        <li data-feature="offer_view" data-requires-permission="offer_view"><a href="offer.html">Offer Management</a></li>
+                        <li data-feature="contract_view" data-requires-permission="contract_view"><a href="contract.html">Contract Management</a></li>
+                        <li data-feature="salary_management_view" data-requires-permission="salary_management_view"><a href="salary.html">Salary Management</a></li>
+                        <li data-feature="onboarding_view" data-requires-permission="onboarding_view"><a href="onboard.html">Onboarding</a></li>
+                        <li data-feature="chart_view" data-requires-permission="chart_view"><a href="chart.html">Chart Setup</a></li>
+                        <li data-feature="chartboard_view" data-requires-permission="chartboard_view"><a href="chartboard.html">Org Chart</a></li>
+                        <li data-feature="kpi_dashboard_view" data-requires-permission="kpi_dashboard_view"><a href="kpi.html">KPI</a></li>
+                        <li data-feature="action_plan_view" data-requires-permission="action_plan_view"><a href="actionplan.html"><i class="fas fa-tasks"></i> Action Plan Board</a></li>
+                    </ul>
+                </li>
+                <li class="menu-dropdown" data-feature="project_management_view" data-requires-permission="project_management_view">
+                    <a href="#"><i class="fas fa-project-diagram"></i> Project Management</a>
+                    <ul class="submenu">
+                        <li data-feature="project_dashboard_view" data-requires-permission="project_dashboard_view"><a href="project-dashboard.html">Project Dashboard</a></li>
+                        <li data-feature="project_create_view" data-requires-permission="project_create_view"><a href="project-create.html">Create Project</a></li>
+                        <li data-feature="project_list_view" data-requires-permission="project_list_view"><a href="project-list.html">Project List</a></li>
+                        <li data-feature="task_management_view" data-requires-permission="task_management_view"><a href="tasks.html">Task Management</a></li>
+                        <li data-feature="milestone_tracking_view" data-requires-permission="milestone_tracking_view"><a href="milestones.html">Milestone Tracking</a></li>
+                        <li data-feature="resource_allocation_view" data-requires-permission="resource_allocation_view"><a href="resources.html">Resource Allocation</a></li>
+                        <li data-feature="project_reports_view" data-requires-permission="project_reports_view"><a href="project-reports.html">Project Reports</a></li>
+                        <li data-feature="gantt_chart_view" data-requires-permission="gantt_chart_view"><a href="gantt-chart.html">Gantt Chart</a></li>
+                    </ul>
+                </li>
+                <li data-feature="communication_view" data-requires-permission="communication_view"><a href="info.html"><i class="fas fa-comments"></i> Communication</a></li>
+                <li class="menu-dropdown" data-feature="settings_view" data-requires-permission="settings_view">
+                    <a href="#"><i class="fas fa-cog"></i> Settings</a>
+                    <ul class="submenu">
+                        <li data-feature="account_settings_view" data-requires-permission="account_settings_view"><a href="account.html">Account Settings</a></li>
+                        <li data-feature="company_management_view" data-requires-permission="company_management_view"><a href="companymanagement.html">Company Management</a></li>
+                        <li data-feature="approval_settings_view" data-requires-permission="approval_settings_view"><a href="approval-settings.html">Approval Flow Settings</a></li>
+                        <li data-feature="field_setup_view" data-requires-permission="field_setup_view"><a href="fieldsetup.html">Field Setup</a></li>
+                        <li data-feature="preferences_view" data-requires-permission="preferences_view"><a href="preferences.html">Preferences</a></li>
+                        <li data-feature="notification_settings_view" data-requires-permission="notification_settings_view"><a href="notification-settings.html">Notification Settings</a></li>
+                        <li data-feature="audit_log_view" data-requires-permission="audit_log_view"><a href="auditlog.html"><i class="fas fa-history"></i> Audit Log</a></li>
+                        <li data-feature="user_management_view" data-requires-permission="user_management_view"><a href="users.html">User & Role Management</a></li>
+                        <li data-feature="role_permissions_view" data-requires-permission="role_permissions_view"><a href="roles.html">Role Permissions</a></li>
+                    </ul>
+                </li>
+            </ul>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Top Navigation -->
+            <header class="top-nav">
+                <div class="top-nav-left">
+                    <button id="sidebarToggle" class="sidebar-toggle-btn" title="Toggle menu"><i class="fas fa-bars"></i></button>
+                    <img id="headerCompanyLogo" class="header-company-logo" alt="Company Logo">
+                    <div id="headerLogoPlaceholder" style="width:44px;height:44px;border-radius:6px;background:#f8f9fa;border:2px dashed #ced4da;display:flex;align-items:center;justify-content:center;color:#6c757d;"><i class="fas fa-building"></i></div>
+                    <span id="headerCompanyName"></span>
+                </div>
+                <div class="top-nav-right">
+                    <div class="notifications">
+                        <button id="notificationBtn" class="notification-btn">
+                            <i class="fas fa-bell"></i>
+                            <span class="notification-badge">0</span>
+                        </button>
+                        <div class="notification-dropdown">
+                            <div class="notification-header">
+                                <h3>Notifications</h3>
+                                <button class="mark-all-read">Mark all as read</button>
+                            </div>
+                            <div class="notification-list">
+                                <!-- Notifications will be dynamically added here -->
+                            </div>
+                        </div>
+                    </div>
+                    <div class="user-profile" style="position:relative;">
+                        <button id="userProfileBtn" class="profile-btn"><img src="" alt="User Avatar" /></button>
+                        <div class="profile-dropdown"><ul></ul></div>
+                    </div>
+                </div>
+            </header>
+
+                        <!-- Page Content -->
+                        <div class="content">
+                                <!-- Document Details Modal -->
+                                <div id="docDetailsModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h5><i class="fas fa-file-alt"></i> Document Details</h5>
+            <button class="close-btn" id="closeDocModal">&times;</button>
+        </div>
+        <div class="modal-body" id="docDetailsBody"></div>
+        <div class="modal-footer" id="docDetailsFooter" style="display:flex;gap:1rem;justify-content:flex-end;">
+            <button class="modal-icon-btn" id="modalEditBtn" title="Edit"><i class="fas fa-edit"></i></button>
+            <button class="modal-icon-btn" id="modalExportBtn" title="Export"><i class="fas fa-file-export"></i></button>
+    <style>
+    .modal-icon-btn {
+        background: none !important;
+        border: none !important;
+        box-shadow: none !important;
+        color: #444;
+        font-size: 1.25rem;
+        padding: 0.35rem 0.5rem;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: background 0.15s;
+    }
+    .modal-icon-btn:hover {
+        background: #f0f0f0 !important;
+        color: #222;
+    }
+    .modal-footer {
+        background: none !important;
+        box-shadow: none !important;
+        border: none !important;
+    }
+    </style>
+        </div>
+    </div>
+                                </div>
+                <!-- Page Header -->
+                <div class="page-header">
+                    <div style="display: flex; align-items: center; gap: 0.6rem;">
+                        <i class="fas fa-file-alt"></i>
+                        <span>Document Management System</span>
+                    </div>
+                    <div class="page-actions">
+                        <button type="button" class="btn-add-new" onclick="DMS.editDoc('')" title="Add New Document" style="display: flex !important; background: transparent !important; color: white !important; border: none !important; font-size: 1.2rem !important; padding: 0.4rem !important;">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="filters">
+                    <input id="searchInput" type="text" placeholder="Search title, category, owner..." />
+                    <select id="statusFilter">
+                        <option value="">All Status</option>
+                        <option value="draft">Draft</option>
+                        <option value="in_review">In Review</option>
+                        <option value="approved">Approved</option>
+                    </select>
+                    <select id="typeFilter">
+                        <option value="">All Types</option>
+                        <option value="policy">Policy</option>
+                        <option value="procedure">Procedure</option>
+                        <option value="work_instruction">Work Instruction</option>
+                        <option value="form">Form</option>
+                    </select>
+                    <select id="categoryFilter">
+                        <option value="">All Categories</option>
+                        <option value="hse">HSE</option>
+                        <option value="quality">Quality Management</option>
+                        <option value="operations">Operations</option>
+                        <option value="maintenance">Maintenance</option>
+                        <option value="training">Training</option>
+                        <option value="emergency">Emergency Response</option>
+                        <option value="regulatory">Regulatory Compliance</option>
+                        <option value="hr">HR</option>
+                    </select>
+                    <select id="riskFilter">
+                        <option value="">All Risk Levels</option>
+                        <option value="low">Low Risk</option>
+                        <option value="medium">Medium Risk</option>
+                        <option value="high">High Risk</option>
+                        <option value="critical">Critical Risk</option>
+                    </select>
+                </div>
+
+                <div class="table-container">
+                    <table id="documentsTable" class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Document Info</th>
+                                <th>Type/Category</th>
+                                <th>Owner</th>
+                                <th>Review Cycle</th>
+                                <th>Risk Level</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Rows injected dynamically -->
+                        </tbody>
+                    </table>
+                </div>
             </div>
-          </div>
-        </div>
-      </header>
-
-      <div class="content">
-        <div class="filters">
-          <input id="searchInput" type="text" placeholder="Search title, category, owner..." />
-          <select id="statusFilter">
-            <option value="">All Status</option>
-            <option value="draft">Draft</option>
-            <option value="in_review">In Review</option>
-            <option value="approved">Approved</option>
-          </select>
-          <select id="typeFilter">
-            <option value="">All Types</option>
-            <option value="policy">Policy</option>
-            <option value="procedure">Procedure</option>
-            <option value="work_instruction">Work Instruction</option>
-            <option value="form">Form</option>
-          </select>
-          <select id="categoryFilter">
-            <option value="">All Categories</option>
-            <option value="hse">HSE</option>
-            <option value="quality">Quality Management</option>
-            <option value="operations">Operations</option>
-            <option value="maintenance">Maintenance</option>
-            <option value="training">Training</option>
-            <option value="emergency">Emergency Response</option>
-            <option value="regulatory">Regulatory Compliance</option>
-            <option value="hr">HR</option>
-          </select>
-          <select id="riskFilter">
-            <option value="">All Risk Levels</option>
-            <option value="low">Low Risk</option>
-            <option value="medium">Medium Risk</option>
-            <option value="high">High Risk</option>
-            <option value="critical">Critical Risk</option>
-          </select>
-          <button id="newDocBtn" style="margin-left:auto; background:#3498db;color:#fff;border:0;border-radius:6px;padding:.45rem .7rem;cursor:pointer;">
-            <i class="fas fa-plus"></i> New Document
-          </button>
-        </div>
-
-        <div class="table-wrap">
-          <table id="documentsTable">
-            <thead>
-              <tr>
-                <th>Document Info</th>
-                <th>Type/Category</th>
-                <th>Owner</th>
-                <th>Review Cycle</th>
-                <th>Risk Level</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              <!-- Rows injected dynamically -->
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </main>
-  </div>
+        </main>
+    </div>
 
   <script>
-    // Firebase v8 configuration (aligned with staff.html)
+    // Firebase v8 configuration (aligned with riskboard.html)
     const firebaseConfig = {
       apiKey: "AIzaSyCUTmTn0rRBb0M-UkQJxnUMrWqXYU_BgIc",
       authDomain: "users-8be65.firebaseapp.com",
@@ -328,340 +539,859 @@
       storageBucket: "users-8be65.firebasestorage.app",
       messagingSenderId: "909025468149",
       appId: "1:909025468149:web:fb4e7c4a8b4bd6d1076e4d",
-      measurementId: "G-XHFMRCJQEZ"
-    };
+            measurementId: "G-XHFMRCJQEZ"
+        };
 
-    function initializeFirebase() {
+        function initializeFirebase() {
       if (!window.firebase || !window.firebase.apps || window.firebase.apps.length === 0) {
         window.firebase.initializeApp(firebaseConfig);
       }
       return window.firebase;
     }
 
-    const DMS = {
-      currentUser: null,
-      db: null,
-      docs: [],
-      init() {
-        initializeFirebase();
-        this.db = firebase.database();
-        this.currentUser = this.getStoredUser();
-        this.wireHeader();
-        this.wireNotifications();
-        this.loadCompanyAndBranding();
-        this.applyMenuVisibility();
-        this.bindFilters();
-        this.loadDocuments();
-      },
-      getStoredUser() {
-        try { return JSON.parse(localStorage.getItem('currentUser') || 'null'); } catch { return null; }
-      },
-      async loadCompanyAndBranding() {
-        const headerLogo = document.getElementById('headerCompanyLogo');
-        const headerLogoPlaceholder = document.getElementById('headerLogoPlaceholder');
-        const headerCompanyName = document.getElementById('headerCompanyName');
-        if (!this.currentUser) { headerCompanyName.textContent = ''; return; }
-        try {
-          const companiesSnap = await this.db.ref('companies').once('value');
-          if (!companiesSnap.exists()) return;
-          const companies = companiesSnap.val();
-          let companyId = this.currentUser.companyId || null;
-          if (!companyId) {
-            for (const [cId, company] of Object.entries(companies)) {
-              if (company?.status !== 'active') continue;
-              if (company?.users && (company.users[this.currentUser.uid] || company.users[this.currentUser.authUid])) { companyId = cId; break; }
+    /**************** NotificationManager ****************/
+    class NotificationManager {
+        constructor() {
+            this.notifications = JSON.parse(localStorage.getItem('notifications') || '[]');
+        }
+        save() {
+            localStorage.setItem('notifications', JSON.stringify(this.notifications));
+            this.updateBadge();
+            this.render();
+        }
+        addNotification(n) {
+            this.notifications.unshift({
+                id: Date.now(),
+                timestamp: new Date().toISOString(),
+                read: false,
+                ...n
+            });
+            this.save();
+        }
+        init() {
+            this.bindUI();
+            this.updateBadge();
+            this.render();
+            if (this.notifications.length === 0) {
+                this.addNotification({ type: 'System', message: 'Welcome to DMS Dashboard' });
             }
-          }
-          if (companyId && companies[companyId]) {
-            const c = companies[companyId];
-            headerCompanyName.textContent = c.companyName || '';
-            const logoUrl = c.logoUrl || c.logo || '';
-            if (logoUrl) { headerLogo.src = logoUrl; headerLogo.classList.add('visible'); headerLogo.style.display = 'block'; headerLogoPlaceholder.style.display = 'none'; }
-            else { headerLogo.style.display = 'none'; headerLogoPlaceholder.style.display = 'flex'; }
-            document.title = document.title.replace('Dreamex Datalab HSE', `${c.companyName || ''} HSE`);
-          } else { headerCompanyName.textContent = ''; headerLogo.style.display = 'none'; headerLogoPlaceholder.style.display = 'flex'; }
-        } catch (e) { console.warn('Branding load error', e); }
-      },
-      async applyMenuVisibility() {
-        document.querySelectorAll('[data-feature]').forEach(el => el.classList.remove('menu-visible'));
-        const ctx = await this.loadCompanyContext();
-        const sidebar = document.querySelector('.sidebar');
-        if (!ctx) { 
-          this.showBasicMenu();
-          if (sidebar) sidebar.classList.remove('menu-loading'); 
-          return; 
         }
-        const { companyId, role } = ctx;
-        try {
-          const permSnap = await this.db.ref(`companies/${companyId}/roles/${role}/permissions`).once('value');
-          const permissions = permSnap.exists() ? permSnap.val() : {};
-          const selectedFeaturesSnap = await this.db.ref(`companies/${companyId}/selectedFeatures`).once('value');
-          const selectedFeatures = selectedFeaturesSnap.exists() ? (Array.isArray(selectedFeaturesSnap.val()) ? selectedFeaturesSnap.val() : Object.keys(selectedFeaturesSnap.val())) : [];
-          this.updateMenuWithPermissionsAndFeatures(permissions, selectedFeatures);
-        } catch (e) { 
-          console.warn('Menu visibility error', e);
-          this.showBasicMenu();
-        }
-        finally { if (sidebar) sidebar.classList.remove('menu-loading'); }
-        // Note: Removed page-level access enforcement to allow logged-out users to access the interface
-      },
-      hasViewPermission(feature) {
-        const el = document.querySelector(`[data-feature="${feature}"]`);
-        return el?.classList?.contains('menu-visible');
-      },
-      async loadCompanyContext() {
-        if (!this.currentUser) return null;
-        try {
-          const companiesSnap = await this.db.ref('companies').once('value');
-          if (!companiesSnap.exists()) return null;
-          const companies = companiesSnap.val();
-          let companyId = this.currentUser.companyId || null;
-          if (!companyId) {
-            for (const [cId, company] of Object.entries(companies)) {
-              if (company?.status !== 'active') continue;
-              if (company?.users && (company.users[this.currentUser.uid] || company.users[this.currentUser.authUid])) { companyId = cId; break; }
+        bindUI() {
+            const btn = document.getElementById('notificationBtn');
+            if (btn) {
+                btn.onclick = () => document.querySelector('.notification-dropdown')?.classList.toggle('show');
             }
-          }
-          if (!companyId) return null;
-          const userSnap = await this.db.ref(`companies/${companyId}/users/${this.currentUser.uid}`).once('value');
-          const role = userSnap.exists() ? (userSnap.val()?.role || this.currentUser.role) : (this.currentUser.role || 'employee');
-          this._dmsCtx = { companyId, role };
-          return this._dmsCtx;
-        } catch { return null; }
-      },
-      updateMenuWithPermissionsAndFeatures(permissions = {}, selectedFeatures = []) {
-        const menuItems = document.querySelectorAll('[data-feature]');
-        const featureSelected = (featureId) => {
-          if (!selectedFeatures || selectedFeatures.length === 0) return true;
-          const candidates = [featureId, featureId.replace(/_view$/, ''), featureId.replace(/_edit$/, ''), 'documents', 'dms', 'document_management'];
-          return candidates.some(c => selectedFeatures.includes(c));
-        };
-        let visible = 0;
-        menuItems.forEach(item => {
-          const feature = item.getAttribute('data-feature');
-          const requires = item.getAttribute('data-requires-permission');
-          const permVal = permissions?.[requires || feature];
-          const hasView = permVal === true || (permVal && (permVal.view === true || permVal.access === 'view' || permVal.read === true));
-          if ((!requires || hasView) && featureSelected(feature)) { item.classList.add('menu-visible'); visible++; }
-        });
-        
-        // If no items are visible and we have a logged-in user, show basic menu
-        if (visible === 0 && this.currentUser) {
-          this.showBasicMenu();
-        } else {
-          document.querySelectorAll('.menu-dropdown').forEach(dd => {
-            const anyChild = dd.querySelectorAll('.submenu li.menu-visible').length > 0;
-            if (anyChild || dd.matches('.menu-visible')) dd.classList.add('menu-visible');
-          });
+            document.addEventListener('click', e => {
+                if (!e.target.closest('.notifications'))
+                    document.querySelector('.notification-dropdown')?.classList.remove('show');
+            });
+            const mark = document.querySelector('.mark-all-read');
+            if (mark) {
+                mark.onclick = () => {
+                    this.notifications.forEach(n => n.read = true);
+                    this.save();
+                };
+            }
         }
-      },
-      showBasicMenu() {
-        // Show essential menu items when role-based permissions aren't available
-        const basicMenuItems = [
-          'home_view',
-          'communication_view'
-        ];
-        
-        // Add settings items if user is logged in (basic admin capability)
-        if (this.currentUser) {
-          basicMenuItems.push('settings_view', 'account_settings_view', 'role_permissions_view', 'approval_settings_view');
+        updateBadge() {
+            const badge = document.querySelector('.notification-badge');
+            if (!badge) return;
+            const unread = this.notifications.filter(n => !n.read).length;
+            badge.textContent = unread;
+            badge.style.display = unread ? 'inline-block' : 'none';
         }
-        
-        basicMenuItems.forEach(feature => {
-          const element = document.querySelector(`[data-feature="${feature}"]`);
-          if (element) element.classList.add('menu-visible');
-        });
-        // Show parent dropdowns if they have any visible children
-        document.querySelectorAll('.menu-dropdown').forEach(dd => {
-          const anyChild = dd.querySelectorAll('.submenu li.menu-visible').length > 0;
-          if (anyChild || dd.matches('.menu-visible')) dd.classList.add('menu-visible');
-        });
-      },
-      wireHeader() {
-        // Sidebar toggle functionality
-        const sidebarToggle = document.getElementById('sidebarToggle');
-        const sidebar = document.querySelector('.sidebar');
-        const mainContent = document.querySelector('.main-content');
-        if (sidebarToggle && sidebar && mainContent) {
-          sidebarToggle.addEventListener('click', () => {
-            sidebar.classList.toggle('collapsed');
-            mainContent.classList.toggle('sidebar-collapsed');
-          });
+        render() {
+            const list = document.querySelector('.notification-list');
+            if (!list) return;
+            list.innerHTML = '';
+            if (this.notifications.length === 0) {
+                list.innerHTML = '<div style="padding:.9rem;font-size:.65rem;">No notifications</div>';
+                return;
+            }
+            this.notifications.slice(0, 25).forEach(n => {
+                const d = new Date(n.timestamp);
+                const div = document.createElement('div');
+                div.className = 'notification-item' + (n.read ? ' read' : '');
+                div.style.cssText = 'padding:.65rem .75rem;border-bottom:1px solid #eee;font-size:.62rem;cursor:pointer;' + (n.read ? 'opacity:.6;' : '');
+                div.innerHTML = `<div style="display:flex;justify-content:space-between;font-weight:600;margin-bottom:2px;"><span>${n.type || 'Info'}</span><span style="font-weight:400;color:#555;">${d.toLocaleDateString()} ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span></div><div style="line-height:1.2;">${n.message || ''}</div>`;
+                div.onclick = () => {
+                    n.read = true;
+                    this.save();
+                    if (n.link) location.href = n.link;
+                };
+                list.appendChild(div);
+            });
         }
+    }
+    window.notificationManager = new NotificationManager();
 
-        const btn = document.getElementById('userProfileBtn');
-        const dd = document.getElementById('profileDropdown');
-        const logout = document.getElementById('logoutLink');
-        if (btn && dd) {
-          btn.addEventListener('click', (e) => { e.stopPropagation(); dd.style.display = dd.style.display === 'block' ? 'none' : 'block'; });
-          document.addEventListener('click', () => dd.style.display = 'none');
+    /**************** AuthManager ****************/
+    class AuthManager {
+        constructor() {
+            this.currentUser = this.getCurrentUser();
+            this.currentCompany = null;
+            console.log('🔐 AuthManager(init) dmstable');
+            this.initializeAuth();
         }
-        if (logout) logout.addEventListener('click', (e) => { e.preventDefault(); try { firebase.auth().signOut(); } catch {} localStorage.removeItem('currentUser'); window.location.href = 'index.html'; });
-      },
-      async wireNotifications() {
-        const btn = document.getElementById('notificationBtn');
-        const dd = document.getElementById('notificationDropdown');
-        const list = document.getElementById('notificationList');
-        const badge = document.querySelector('.notification-badge');
-        const markAll = document.getElementById('markAllReadBtn');
-        const uid = this.currentUser?.uid; const db = this.db;
-        function render(notifs) {
-          list.innerHTML = '';
-          if (!Array.isArray(notifs) || notifs.length === 0) { list.innerHTML = '<div style="padding:.75rem;color:#6c757d;">No notifications</div>'; badge.style.display = 'none'; return; }
-          const unread = notifs.filter(n => !n.read).length;
-          if (unread > 0) { badge.textContent = unread > 99 ? '99+' : String(unread); badge.style.display = 'block'; } else { badge.style.display = 'none'; }
-          notifs.slice(0, 10).forEach(n => {
-            const div = document.createElement('div');
-            div.className = `notification-item ${n.read ? '' : 'unread'}`;
-            div.innerHTML = `<div style=\"font-weight:600;font-size:.9rem;\">${n.title || 'Notification'}</div><div style=\"font-size:.85rem;color:#555;margin-top:2px;\">${n.message || ''}</div>`;
-            list.appendChild(div);
-          });
+        getCurrentUser() {
+            try {
+                return JSON.parse(localStorage.getItem('currentUser') || 'null');
+            } catch {
+                return null;
+            }
         }
-        async function load() {
-          if (!uid) return render([]);
-          try {
-            const snap = await db.ref(`notifications/${uid}`).once('value');
-            if (!snap.exists()) return render([]);
-            const data = snap.val();
-            const arr = Object.keys(data).map(k => ({ id:k, ...data[k] }))
-              .sort((a,b) => (b.timestamp||0) - (a.timestamp||0));
-            render(arr);
-          } catch { render([]); }
+        setCurrentUser(u) {
+            localStorage.setItem('currentUser', JSON.stringify(u));
+            localStorage.setItem('user', JSON.stringify(u));
+            this.currentUser = u;
         }
-        if (btn && dd) {
-          btn.addEventListener('click', (e) => { e.stopPropagation(); dd.classList.toggle('show'); });
-          document.addEventListener('click', (e) => { if (!dd.contains(e.target) && !btn.contains(e.target)) dd.classList.remove('show'); });
+        async logout() {
+            try {
+                await firebase.auth().signOut();
+            } catch (e) {
+                console.warn('Logout error', e);
+            }
+            ['currentUser', 'user'].forEach(k => {
+                localStorage.removeItem(k);
+                sessionStorage.removeItem(k);
+            });
+            location.href = 'index.html';
         }
-        if (markAll && uid) {
-          markAll.addEventListener('click', async () => {
-            const ref = db.ref(`notifications/${uid}`);
-            const snap = await ref.once('value');
-            if (!snap.exists()) return;
-            const updates = {}; Object.keys(snap.val()).forEach(k => updates[`${k}/read`] = true);
-            await ref.update(updates); load();
-          });
+        initializeAuth() {
+            console.log('🚀 initializeAuth called');
+            console.log('👤 Current user:', this.currentUser);
+            if (!this.currentUser) {
+                console.warn('No user -> redirect login');
+                location.href = 'login.html';
+                return;
+            }
+            console.log('✅ User:', this.currentUser.email);
+
+            this.loadUserRole(this.currentUser);
+            this.loadUserCompany();
+            
+            // Initialize company branding (will show placeholder if no company)
+            this.updateCompanyBranding();
+
+            // Add small delay to ensure DOM is fully ready
+            setTimeout(() => {
+                console.log('🔄 Starting UI updates...');
+                this.updateUIForAuthenticatedUser();
+                this.updateMenuVisibility();
+                this.bindProfileDropdown();
+                console.log('✅ UI initialization complete');
+            }, 100);
         }
-        load();
-      },
-      bindFilters() {
-        document.getElementById('searchInput').addEventListener('input', () => this.renderTable());
-        document.getElementById('statusFilter').addEventListener('change', () => this.renderTable());
-        document.getElementById('typeFilter').addEventListener('change', () => this.renderTable());
-        document.getElementById('categoryFilter').addEventListener('change', () => this.renderTable());
-        document.getElementById('riskFilter').addEventListener('change', () => this.renderTable());
-        document.getElementById('newDocBtn').addEventListener('click', () => { window.location.href = 'dmsedit.html'; });
-      },
-      async loadDocuments() {
-        // Read documents from company scope if available; otherwise seed sample data
-        const ctx = await this.loadCompanyContext();
-        if (ctx) {
-          const { companyId } = ctx;
-          try {
-            const snap = await this.db.ref(`companies/${companyId}/dms/documents`).once('value');
-            if (snap.exists()) {
-              const data = snap.val();
-              this.docs = Object.keys(data).map(id => ({ id, ...data[id] }))
-                .sort((a,b) => (b.updated||0) - (a.updated||0));
+        bindProfileDropdown() {
+            console.log('🔗 bindProfileDropdown called');
+            const btn = document.getElementById('userProfileBtn');
+            const dd = document.querySelector('.profile-dropdown');
+            console.log('🔍 Elements found:', { btn: !!btn, dropdown: !!dd });
+            if (btn && dd) {
+                console.log('✅ Binding profile dropdown events');
+                btn.addEventListener('click', e => {
+                    console.log('🖱️ Profile button clicked');
+                    e.stopPropagation();
+                    dd.classList.toggle('show');
+                    console.log('📋 Dropdown toggled, show class:', dd.classList.contains('show'));
+                });
+                document.addEventListener('click', e => {
+                    if (!btn.contains(e.target)) {
+                        dd.classList.remove('show');
+                        console.log('🖱️ Clicked outside, hiding dropdown');
+                    }
+                });
+                const logoutLink = dd.querySelector('a[href="#"]:has(.fa-sign-out-alt)') || dd.querySelector('.fa-sign-out-alt')?.closest('a');
+                if (logoutLink) {
+                    logoutLink.addEventListener('click', e => {
+                        e.preventDefault();
+                        this.logout();
+                    });
+                }
             } else {
-              this.docs = [];
+                console.error('❌ Missing elements for profile dropdown:', { btn, dd });
             }
-          } catch { this.docs = []; }
         }
-        if (!this.docs || this.docs.length === 0) {
-          this.docs = [
-            { id:'EX1', title:'Permit to Work Policy', type:'policy', category:'hse', documentNumber:'HSE-POL-001', owner:'HSE Manager', reviewCycle:'annual', riskLevel:'critical', version:'1.2', status:'approved', updated: Date.now()-86400000*2, effectiveDate:'2024-01-01', expiryDate:'2024-12-31' },
-            { id:'EX2', title:'Incident Reporting Procedure', type:'procedure', category:'hse', documentNumber:'HSE-PROC-002', owner:'QA Lead', reviewCycle:'biannual', riskLevel:'high', version:'0.9', status:'in_review', updated: Date.now()-86400000*5, effectiveDate:'2024-03-01', expiryDate:'2024-09-01' },
-            { id:'EX3', title:'Confined Space Entry WI', type:'work_instruction', category:'operations', documentNumber:'OPS-WI-003', owner:'Operations Lead', reviewCycle:'quarterly', riskLevel:'high', version:'0.3', status:'draft', updated: Date.now()-3600*1000, effectiveDate:'', expiryDate:'' },
-          ];
+        resetMenuVisibility() {
+            document.querySelectorAll('[data-feature]').forEach(i => i.classList.remove('menu-visible'));
+            document.querySelectorAll('.menu-dropdown').forEach(d => d.classList.remove('menu-visible'));
         }
-        this.renderTable();
-      },
-      renderTable() {
-        const q = (document.getElementById('searchInput').value || '').toLowerCase();
-        const status = document.getElementById('statusFilter').value;
-        const type = document.getElementById('typeFilter').value;
-        const category = document.getElementById('categoryFilter').value;
-        const risk = document.getElementById('riskFilter').value;
-        const tbody = document.querySelector('#documentsTable tbody');
-        tbody.innerHTML = '';
-        const filtered = this.docs.filter(d => {
-          const hit = d.title.toLowerCase().includes(q) || 
-                     (d.category||'').toLowerCase().includes(q) ||
-                     (d.documentNumber||'').toLowerCase().includes(q) ||
-                     (d.owner||'').toLowerCase().includes(q);
-          const sOk = !status || d.status === status;
-          const tOk = !type || d.type === type;
-          const cOk = !category || d.category === category;
-          const rOk = !risk || d.riskLevel === risk;
-          return hit && sOk && tOk && cOk && rOk;
-        });
-        filtered.forEach(d => {
-          const owner = d.owner || d.updatedBy || '—';
-          const version = d.version || String((d.versions?.length || 0) + 1 || '1.0');
-          const docNumber = d.documentNumber ? `<div class="muted">${d.documentNumber}</div>` : '';
-          const categoryBadge = d.category ? `<span class="category-badge ${d.category}">${this.prettyCategory(d.category)}</span>` : '';
-          const reviewDate = d.expiryDate ? `<div class="muted">Due: ${d.expiryDate}</div>` : '';
-          
-          const tr = document.createElement('tr');
-          tr.innerHTML = `
-            <td>
-              <div class="doc-title">${d.title}</div>
-              ${docNumber}
-              <div class="version-info">v${version}</div>
-            </td>
-            <td>
-              <div>${this.prettyType(d.type)}</div>
-              ${categoryBadge}
-            </td>
-            <td>${owner}</td>
-            <td>
-              <div>${this.prettyReviewCycle(d.reviewCycle)}</div>
-              ${reviewDate}
-            </td>
-            <td>${this.riskPill(d.riskLevel)}</td>
-            <td>${this.statusPill(d.status)}</td>
-            <td class="actions">
-              <button title="View" onclick="DMS.viewDoc('${d.id}')"><i class="fas fa-eye"></i></button>
-              <button title="Edit" onclick="DMS.editDoc('${d.id}')"><i class="fas fa-pen"></i></button>
-              <button title="Export" onclick="DMS.exportDoc('${d.id}')"><i class="fas fa-file-export"></i></button>
-            </td>`;
-          tbody.appendChild(tr);
-        });
-      },
-      prettyType(t) {
-        return ({ policy:'Policy', procedure:'Procedure', work_instruction:'Work Instruction', form:'Form' }[t] || t);
-      },
-      prettyCategory(c) {
-        return ({ hse:'HSE', quality:'Quality Mgmt', operations:'Operations', maintenance:'Maintenance', training:'Training', emergency:'Emergency', regulatory:'Regulatory', hr:'HR' }[c] || c);
-      },
-      prettyReviewCycle(r) {
-        return ({ annual:'Annual', biannual:'Bi-annual', quarterly:'Quarterly', monthly:'Monthly', adhoc:'Ad-hoc' }[r] || r || '—');
-      },
-      statusPill(s) {
-        const map = { draft:'status-draft', in_review:'status-inreview', approved:'status-approved' };
-        const cls = map[s] || '';
-        const label = { draft:'Draft', in_review:'In Review', approved:'Approved' }[s] || s;
-        return `<span class="status-pill ${cls}"><i class="fas fa-circle"></i> ${label}</span>`;
-      },
-      riskPill(r) {
-        const map = { low:'risk-low', medium:'risk-medium', high:'risk-high', critical:'risk-critical' };
-        const cls = map[r] || '';
-        const label = { low:'Low', medium:'Medium', high:'High', critical:'Critical' }[r] || (r || '—');
-        return `<span class="risk-pill ${cls}"><i class="fas fa-exclamation-triangle"></i> ${label}</span>`;
-      },
-      timeAgo(ts) {
-        const d = Math.floor((Date.now()-ts)/1000);
-        if (d < 60) return `${d}s ago`;
-        if (d < 3600) return `${Math.floor(d/60)}m ago`;
-        if (d < 86400) return `${Math.floor(d/3600)}h ago`;
-        return `${Math.floor(d/86400)}d ago`;
-      },
-      viewDoc(id) { window.location.href = `dmsedit.html?doc=${encodeURIComponent(id)}&mode=view`; },
-      editDoc(id) { window.location.href = `dmsedit.html?doc=${encodeURIComponent(id)}&mode=edit`; },
-      exportDoc(id) { alert('Export coming next: PDF & DOCX with branding and flowcharts.'); }
-    };
+        async updateMenuVisibility() {
+            console.log('🎯 Starting feature-based menu authorization for dmstable.html...');
+            const sidebar = document.querySelector('.sidebar');
+            if (!this.currentUser) {
+                this.resetMenuVisibility();
+                sidebar?.classList.remove('menu-loading');
+                return;
+            }
+            const companyId = this.currentUser.companyId;
+            const userRole = this.currentUser.role;
+            console.log('👤 User:', this.currentUser.email, 'Company ID:', companyId, 'Role:', userRole);
+            if (!companyId) {
+                this.resetMenuVisibility();
+                sidebar?.classList.remove('menu-loading');
+                return;
+            }
 
-    window.addEventListener('DOMContentLoaded', () => DMS.init());
+            // STEP 1: Apply company feature-based authorization
+            console.log('🏢 STEP 1: Applying company feature authorization...');
+            const authorizedPages = await this.applyFeatureBasedMenuVisibility(companyId);
+
+            // STEP 2: Filter by user role permissions within authorized features
+            if (userRole && authorizedPages && authorizedPages.length > 0) {
+                console.log('👤 STEP 2: Applying role-based filtering within authorized features...');
+                await this.applyRoleBasedFiltering(companyId, userRole, authorizedPages);
+            } else {
+                console.log('⚠️ STEP 2: Skipping role-based filtering (no role found or no authorized pages)');
+                sidebar?.classList.remove('menu-loading');
+            }
+        }
+        async applyFeatureBasedMenuVisibility(companyId) {
+            try {
+                console.log('🔧 Applying feature-based menu visibility for company:', companyId);
+                const database = firebase.database();
+                const featuresSnapshot = await database.ref('/platformFeatures').once('value');
+                if (!featuresSnapshot.exists()) {
+                    console.log('⚠️ No platform features found');
+                    this.resetMenuVisibility();
+                    return [];
+                }
+                const featuresData = featuresSnapshot.val();
+                const companySnapshot = await database.ref(`/companies/${companyId}`).once('value');
+                const companyData = companySnapshot.val();
+                if (!companyData) {
+                    console.error('❌ Company data not found');
+                    this.resetMenuVisibility();
+                    return [];
+                }
+                const subscribed = companyData.selectedFeatures || [];
+                console.log('🏢 Company subscribed features:', subscribed);
+                if (subscribed.length === 0) {
+                    console.log('⚠️ Company has no subscribed features');
+                    this.resetMenuVisibility();
+                    return [];
+                }
+                const authorizedPages = [];
+                subscribed.forEach(fid => {
+                    const f = featuresData[fid];
+                    if (f && f.status === 'active' && f.authorizedPages) {
+                        console.log(`📦 Adding pages from feature "${f.name}":`, f.authorizedPages);
+                        authorizedPages.push(...f.authorizedPages);
+                    } else {
+                        console.log(`⚠️ Feature ${fid} not found or inactive`);
+                    }
+                });
+                console.log('🔐 All authorized pages from company features:', authorizedPages);
+                const authorizedFeatures = new Set();
+                authorizedPages.forEach(p => {
+                    if (p.feature) authorizedFeatures.add(p.feature);
+                });
+                console.log('🎯 Authorized features for dmstable.html:', Array.from(authorizedFeatures));
+                this.resetMenuVisibility();
+                let visibleCount = 0;
+                document.querySelectorAll('li[data-feature]').forEach(item => {
+                    const feature = item.getAttribute('data-feature');
+                    const isDropdownContainer = item.classList.contains('menu-dropdown');
+
+                    if (isDropdownContainer) {
+                        return; // Handle dropdowns separately after all items are processed
+                    }
+
+                    if (authorizedFeatures.has(feature)) {
+                        item.classList.add('menu-visible');
+                        visibleCount++;
+                        console.log(`✅ Feature authorized - showing menu item: ${feature}`);
+                    } else {
+                        console.log(`❌ Feature not authorized - hiding menu item: ${feature}`);
+                    }
+                });
+                // Handle dropdown menus - show if they have visible children
+                document.querySelectorAll('li.menu-dropdown').forEach(drop => {
+                    const feature = drop.getAttribute('data-feature');
+                    const hasVisible = [...drop.querySelectorAll('.submenu li[data-feature]')].some(li => li.classList.contains('menu-visible'));
+                    if (hasVisible || authorizedFeatures.has(feature)) {
+                        drop.classList.add('menu-visible');
+                        console.log(`✅ Showing dropdown menu: ${feature} (has visible children or directly authorized)`);
+                    } else {
+                        console.log(`❌ Hiding dropdown menu: ${feature} (no visible children and not authorized)`);
+                    }
+                });
+                console.log(`🎯 Company feature authorization completed - ${visibleCount} items initially visible`);
+                // Return authorized pages for role-based filtering
+                return authorizedPages;
+            } catch (e) {
+                console.error('❌ Error applying feature-based menu visibility:', e);
+                this.resetMenuVisibility();
+                return [];
+            }
+        }
+
+        // Apply role-based filtering within company authorized features
+        async applyRoleBasedFiltering(companyId, userRole, authorizedPages) {
+            try {
+                console.log('👤 Applying role-based filtering for role:', userRole);
+
+                // Get user role permissions from company
+                const database = firebase.database();
+                const permissionsRef = database.ref(`companies/${companyId}/roles/${userRole}/permissions`);
+                const permissionsSnapshot = await permissionsRef.once('value');
+
+                if (!permissionsSnapshot.exists()) {
+                    console.log(`⚠️ No permissions found for role ${userRole} in company ${companyId}`);
+
+                    // CRITICAL: If user is administrator but no permissions found, provide full access as fallback
+                    if (userRole === 'administrator') {
+                        console.log('🔑 ADMINISTRATOR FALLBACK - Skipping role filtering (keeping all company features visible)');
+                        this.showSidebarAfterAuth();
+                        return;
+                    }
+
+                    // For other roles without permissions, hide all items with permission requirements
+                    console.log('❌ No valid permissions found - filtering out items requiring permissions');
+                    this.hideItemsRequiringPermissions();
+                    this.showSidebarAfterAuth();
+                    return;
+                }
+
+                const permissions = permissionsSnapshot.val();
+                console.log('✅ Loaded role permissions:', permissions);
+
+                // Apply permission-based filtering
+                this.filterMenuByPermissions(permissions);
+
+            } catch (error) {
+                console.error('❌ Error applying role-based filtering:', error);
+                // Don't hide everything on error - keep company features visible
+                this.showSidebarAfterAuth();
+            }
+        }
+
+        filterMenuByPermissions(permissions) {
+            console.log('🔍 Filtering menu items by permissions...');
+            let filteredCount = 0;
+
+            document.querySelectorAll('[data-requires-permission]').forEach(item => {
+                const requiredPermission = item.getAttribute('data-requires-permission');
+                const feature = item.getAttribute('data-feature');
+
+                if (!requiredPermission) {
+                    console.log(`⚠️ Menu item ${feature} has no required permission`);
+                    return;
+                }
+
+                const hasPermission = this.checkPermission(permissions, requiredPermission);
+
+                if (hasPermission && item.classList.contains('menu-visible')) {
+                    console.log(`✅ Permission granted - keeping menu item: ${feature} (${requiredPermission})`);
+                } else if (item.classList.contains('menu-visible')) {
+                    item.classList.remove('menu-visible');
+                    filteredCount++;
+                    console.log(`❌ Permission denied - hiding menu item: ${feature} (${requiredPermission})`);
+                }
+            });
+
+            // Re-evaluate dropdown visibility after permission filtering
+            document.querySelectorAll('li.menu-dropdown').forEach(drop => {
+                const feature = drop.getAttribute('data-feature');
+                const hasVisibleChildren = [...drop.querySelectorAll('.submenu li[data-feature]')].some(li => li.classList.contains('menu-visible'));
+
+                if (!hasVisibleChildren && drop.classList.contains('menu-visible')) {
+                    drop.classList.remove('menu-visible');
+                    console.log(`❌ Hiding dropdown menu: ${feature} (no visible children after permission filtering)`);
+                }
+            });
+
+            console.log(`🎯 Role-based filtering completed - ${filteredCount} items filtered out`);
+            this.showSidebarAfterAuth();
+        }
+
+        checkPermission(permissions, permissionKey) {
+            if (!permissions || !permissionKey) return false;
+
+            const permission = permissions[permissionKey];
+            if (permission === true) return true;
+            if (typeof permission === 'object' && permission !== null) {
+                return permission.view === true || permission.access === 'view' || permission.read === true;
+            }
+            return false;
+        }
+
+        hideItemsRequiringPermissions() {
+            document.querySelectorAll('[data-requires-permission]').forEach(item => {
+                if (item.classList.contains('menu-visible')) {
+                    item.classList.remove('menu-visible');
+                    const feature = item.getAttribute('data-feature');
+                    console.log(`❌ Hiding menu item requiring permission: ${feature}`);
+                }
+            });
+
+            // Re-evaluate dropdown visibility
+            document.querySelectorAll('li.menu-dropdown').forEach(drop => {
+                const hasVisibleChildren = [...drop.querySelectorAll('.submenu li[data-feature]')].some(li => li.classList.contains('menu-visible'));
+                if (!hasVisibleChildren && drop.classList.contains('menu-visible')) {
+                    drop.classList.remove('menu-visible');
+                    const feature = drop.getAttribute('data-feature');
+                    console.log(`❌ Hiding dropdown menu: ${feature} (no visible children)`);
+                }
+            });
+        }
+
+        showSidebarAfterAuth() {
+            const sidebar = document.querySelector('.sidebar');
+            sidebar?.classList.remove('menu-loading');
+            console.log('🎯 Menu authorization complete - sidebar visible');
+        }
+
+        loadUserRole(user) {
+            console.log('👤 Loading user role for:', user?.email);
+            // Role should be in user object already
+            if (user?.role) {
+                console.log('✅ User role found:', user.role);
+            } else {
+                console.log('⚠️ No role found for user - defaulting to employee');
+                user.role = 'employee';
+            }
+        }
+
+        async loadUserCompany() {
+            if (!this.currentUser?.companyId) {
+                console.log('⚠️ No company ID found for user');
+                return;
+            }
+
+            try {
+                const database = firebase.database();
+                const companySnapshot = await database.ref(`companies/${this.currentUser.companyId}`).once('value');
+                if (companySnapshot.exists()) {
+                    this.currentCompany = companySnapshot.val();
+                    console.log('🏢 Company loaded:', this.currentCompany?.companyName);
+                    this.updateCompanyBranding();
+                }
+            } catch (error) {
+                console.error('❌ Error loading company:', error);
+            }
+        }
+
+        updateCompanyBranding() {
+            const companyLogo = document.getElementById('headerCompanyLogo');
+            const logoPlaceholder = document.getElementById('headerLogoPlaceholder');
+            const companyName = document.getElementById('headerCompanyName');
+
+            if (this.currentCompany) {
+                if (companyName) {
+                    companyName.textContent = this.currentCompany.companyName || '';
+                }
+                
+                const logoUrl = this.currentCompany.logoUrl || this.currentCompany.logo || '';
+                if (companyLogo && logoPlaceholder) {
+                    if (logoUrl) {
+                        // Show company logo
+                        companyLogo.src = logoUrl;
+                        companyLogo.classList.add('visible');
+                        companyLogo.style.display = 'block';
+                        logoPlaceholder.style.display = 'none';
+                        console.log('🏢 Company logo loaded:', logoUrl);
+                        
+                        // Handle logo load error
+                        companyLogo.onerror = () => {
+                            console.warn('🏢 Company logo failed to load, showing placeholder');
+                            companyLogo.style.display = 'none';
+                            companyLogo.classList.remove('visible');
+                            logoPlaceholder.style.display = 'flex';
+                        };
+                    } else {
+                        // Show placeholder
+                        companyLogo.style.display = 'none';
+                        companyLogo.classList.remove('visible');
+                        logoPlaceholder.style.display = 'flex';
+                        console.log('🏢 Using logo placeholder for company:', this.currentCompany.companyName);
+                    }
+                }
+                
+                // Update page title with company name
+                if (this.currentCompany.companyName) {
+                    document.title = document.title.replace('Dreamex Datalab HSE', `${this.currentCompany.companyName} HSE`);
+                }
+            } else {
+                // No company data
+                if (companyName) companyName.textContent = '';
+                if (companyLogo) {
+                    companyLogo.style.display = 'none';
+                    companyLogo.classList.remove('visible');
+                }
+                if (logoPlaceholder) {
+                    logoPlaceholder.style.display = 'flex';
+                }
+            }
+        }
+
+        updateUIForAuthenticatedUser() {
+            console.log('🔄 updateUIForAuthenticatedUser called');
+            this.updateUserAvatar();
+            this.populateProfileDropdown();
+        }
+
+        updateUserAvatar() {
+            console.log('👤 updateUserAvatar called');
+            const avatarImg = document.querySelector('#userProfileBtn img');
+
+            if (!avatarImg) {
+                console.error('❌ Avatar image element not found');
+                return;
+            }
+
+            const user = this.currentUser;
+            if (!user) {
+                console.log('⚠️ No current user for avatar update');
+                return;
+            }
+
+            console.log('👤 Updating avatar for user:', user.email);
+
+            // Try to use profile picture first
+            if (user.photoURL || user.profilePicture) {
+                const photoUrl = user.photoURL || user.profilePicture;
+                console.log('🖼️ Using profile picture:', photoUrl);
+                avatarImg.src = photoUrl;
+
+                avatarImg.onerror = () => {
+                    console.log('❌ Profile picture failed to load, using initials');
+                    this.generateInitialsAvatar(user, avatarImg);
+                };
+            } else {
+                console.log('📝 Using initials for avatar');
+                this.generateInitialsAvatar(user, avatarImg);
+            }
+        }
+
+        generateInitialsAvatar(user, imgElement) {
+            const name = user.displayName || user.firstName || user.name || user.email || 'User';
+            const parts = name.split(' ').filter(p => p.length > 0);
+            let initials = 'U';
+
+            if (parts.length >= 2) {
+                initials = (parts[0][0] + parts[1][0]).toUpperCase();
+            } else if (parts.length === 1) {
+                initials = parts[0][0].toUpperCase();
+            }
+
+            // Create SVG avatar with initials
+            const svg = `data:image/svg+xml;base64,${btoa(`
+                <svg width="40" height="40" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="20" cy="20" r="20" fill="#3498db"/>
+                    <text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" 
+                          font-family="Arial, sans-serif" font-size="16" font-weight="600" fill="white">
+                        ${initials}
+                    </text>
+                </svg>
+            `)}`;
+
+            imgElement.src = svg;
+            console.log('📝 Generated initials avatar:', initials);
+        }
+
+        populateProfileDropdown() {
+            console.log('📋 populateProfileDropdown called');
+            const dropdown = document.querySelector('.profile-dropdown ul');
+            if (!dropdown) {
+                console.error('❌ Profile dropdown not found');
+                return;
+            }
+
+            dropdown.innerHTML = `
+                <li><a href="account.html"><i class="fas fa-user"></i> Account Settings</a></li>
+                <li><a href="#" id="logoutLink"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+            `;
+
+            // Bind logout
+            const logoutLink = dropdown.querySelector('#logoutLink');
+            if (logoutLink) {
+                logoutLink.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    this.logout();
+                });
+            }
+        }
+    }
+
+    /**************** DMS Manager ****************/
+    const DMS = {
+        currentUser: null,
+        db: null,
+        docs: [],
+        init() {
+            initializeFirebase();
+            this.db = firebase.database();
+            this.currentUser = this.getStoredUser();
+            this.wireHeader();
+            this.bindFilters();
+            this.loadDocuments();
+        },
+        getStoredUser() {
+            try { 
+                return JSON.parse(localStorage.getItem('currentUser') || 'null'); 
+            } catch { 
+                return null; 
+            }
+        },
+        wireHeader() {
+            const sidebarToggle = document.getElementById('sidebarToggle');
+            const sidebar = document.querySelector('.sidebar');
+            const mainContent = document.querySelector('.main-content');
+            if (sidebarToggle && sidebar && mainContent) {
+                const topNav = document.querySelector('.top-nav');
+                sidebarToggle.addEventListener('click', () => {
+                    sidebar.classList.toggle('collapsed');
+                    mainContent.classList.toggle('sidebar-collapsed');
+                    if (topNav) {
+                        if (sidebar.classList.contains('collapsed')) {
+                            topNav.style.left = '0.5rem';
+                        } else {
+                            topNav.style.left = 'calc(var(--sidebar-width) + 0.5rem)';
+                        }
+                    }
+                });
+            }
+        },
+        bindFilters() {
+            document.getElementById('searchInput').addEventListener('input', () => this.renderTable());
+            document.getElementById('statusFilter').addEventListener('change', () => this.renderTable());
+            document.getElementById('typeFilter').addEventListener('change', () => this.renderTable());
+            document.getElementById('categoryFilter').addEventListener('change', () => this.renderTable());
+            document.getElementById('riskFilter').addEventListener('change', () => this.renderTable());
+        },
+        async loadDocuments() {
+            // Load documents from Firebase if available; otherwise use sample data
+            if (this.currentUser?.companyId) {
+                try {
+                    const snap = await this.db.ref(`companies/${this.currentUser.companyId}/dms/documents`).once('value');
+                    if (snap.exists()) {
+                        const data = snap.val();
+                        this.docs = Object.keys(data).map(id => ({ id, ...data[id] }))
+                            .sort((a, b) => (b.updated || 0) - (a.updated || 0));
+                    } else {
+                        this.docs = [];
+                    }
+                } catch { 
+                    this.docs = []; 
+                }
+            }
+            if (!this.docs || this.docs.length === 0) {
+                this.docs = [
+                    { id: 'EX1', title: 'Permit to Work Policy', type: 'policy', category: 'hse', documentNumber: 'HSE-POL-001', owner: 'HSE Manager', reviewCycle: 'annual', riskLevel: 'critical', version: '1.2', status: 'approved', updated: Date.now() - 86400000 * 2, effectiveDate: '2024-01-01', expiryDate: '2024-12-31' },
+                    { id: 'EX2', title: 'Incident Reporting Procedure', type: 'procedure', category: 'hse', documentNumber: 'HSE-PROC-002', owner: 'QA Lead', reviewCycle: 'biannual', riskLevel: 'high', version: '0.9', status: 'in_review', updated: Date.now() - 86400000 * 5, effectiveDate: '2024-03-01', expiryDate: '2024-09-01' },
+                    { id: 'EX3', title: 'Confined Space Entry WI', type: 'work_instruction', category: 'operations', documentNumber: 'OPS-WI-003', owner: 'Operations Lead', reviewCycle: 'quarterly', riskLevel: 'high', version: '0.3', status: 'draft', updated: Date.now() - 3600 * 1000, effectiveDate: '', expiryDate: '' },
+                ];
+            }
+            this.renderTable();
+        },
+        renderTable() {
+            const q = (document.getElementById('searchInput').value || '').toLowerCase();
+            const status = document.getElementById('statusFilter').value;
+            const type = document.getElementById('typeFilter').value;
+            const category = document.getElementById('categoryFilter').value;
+            const risk = document.getElementById('riskFilter').value;
+            const tbody = document.querySelector('#documentsTable tbody');
+            tbody.innerHTML = '';
+            const filtered = this.docs.filter(d => {
+                const hit = d.title.toLowerCase().includes(q) ||
+                    (d.category || '').toLowerCase().includes(q) ||
+                    (d.documentNumber || '').toLowerCase().includes(q) ||
+                    (d.owner || '').toLowerCase().includes(q);
+                const sOk = !status || d.status === status;
+                const tOk = !type || d.type === type;
+                const cOk = !category || d.category === category;
+                const rOk = !risk || d.riskLevel === risk;
+                return hit && sOk && tOk && cOk && rOk;
+            });
+                        filtered.forEach(d => {
+                                const owner = d.owner || d.updatedBy || '—';
+                                const version = d.version || String((d.versions?.length || 0) + 1 || '1.0');
+                                const docNumber = d.documentNumber ? ` (${d.documentNumber})` : '';
+                                const categoryBadge = d.category ? `<span class="category-badge ${d.category}">${this.prettyCategory(d.category)}</span>` : '';
+                                const reviewDate = d.expiryDate ? ` - Due: ${d.expiryDate}` : '';
+
+                                const tr = document.createElement('tr');
+                                tr.innerHTML = `
+                        <td><span class="doc-title">${d.title}</span><span class="muted">${docNumber}</span> <span class="version-info">v${version}</span></td>
+                        <td>${DMS.prettyType(d.type)} ${categoryBadge}</td>
+                        <td>${owner}</td>
+                        <td>${DMS.prettyReviewCycle(d.reviewCycle)}<span class="muted">${reviewDate}</span></td>
+                        <td>${DMS.riskPill(d.riskLevel)}</td>
+                        <td>${DMS.statusPill(d.status)}</td>
+                        `;
+                                tr.style.cursor = 'pointer';
+                                tr.addEventListener('click', (e) => {
+                                    DMS.showDocModal(d);
+                                });
+                                tbody.appendChild(tr);
+                        });
+
+        },
+        showDocModal(doc) {
+            const modal = document.getElementById('docDetailsModal');
+            const body = document.getElementById('docDetailsBody');
+            if (!modal || !body) return;
+            // Show all document fields
+            const fields = [
+                { label: 'Title', value: doc.title },
+                { label: 'Document Number', value: doc.documentNumber },
+                { label: 'Type', value: this.prettyType(doc.type) },
+                { label: 'Category', value: this.prettyCategory(doc.category) },
+                { label: 'Owner', value: doc.owner || doc.updatedBy },
+                { label: 'Version', value: doc.version || String((doc.versions?.length || 0) + 1 || '1.0') },
+                { label: 'Review Cycle', value: this.prettyReviewCycle(doc.reviewCycle) },
+                { label: 'Risk Level', value: doc.riskLevel },
+                { label: 'Status', value: doc.status },
+                { label: 'Effective Date', value: doc.effectiveDate },
+                { label: 'Expiry Date', value: doc.expiryDate },
+                { label: 'Classification', value: doc.classification },
+                { label: 'Approver', value: doc.approver },
+                { label: 'Roles', value: doc.roles },
+                { label: 'Training', value: doc.training },
+                { label: 'Compliance', value: doc.compliance },
+                { label: 'Distribution', value: doc.distribution },
+                { label: 'Purpose', value: doc.purpose },
+                { label: 'Scope', value: doc.scope },
+                { label: 'Responsibilities', value: doc.responsibilities },
+                { label: 'References', value: doc.references },
+                { label: 'Revision', value: doc.revision },
+                { label: 'Steps', value: (doc.steps && Array.isArray(doc.steps)) ? doc.steps.join('<br>') : doc.steps },
+                { label: 'Last Updated', value: doc.updated ? new Date(doc.updated).toLocaleString() : '' },
+            ];
+            body.innerHTML = `<div style="overflow-x:auto; min-width:500px; max-width:900px;">
+                ${fields.map(f => `<div class='modal-details-row'><span class='modal-details-label'>${f.label}:</span> <span class='modal-details-value'>${f.value || ''}</span></div>`).join('')}
+            </div>`;
+            // Wire up modal action buttons
+            setTimeout(() => {
+                const editBtn = document.getElementById('modalEditBtn');
+                const exportBtn = document.getElementById('modalExportBtn');
+                if (editBtn) editBtn.onclick = () => {
+                    window.location.href = `dmsedit.html?doc=${encodeURIComponent(doc.id)}&mode=edit`;
+                };
+                if (exportBtn) exportBtn.onclick = () => DMS.exportDoc(doc.id);
+            }, 0);
+            modal.classList.add('show');
+            document.body.style.overflow = 'hidden';
+        },
+        prettyType(t) {
+            return ({ policy: 'Policy', procedure: 'Procedure', work_instruction: 'Work Instruction', form: 'Form' }[t] || t);
+        },
+        prettyCategory(c) {
+            return ({ hse: 'HSE', quality: 'Quality Mgmt', operations: 'Operations', maintenance: 'Maintenance', training: 'Training', emergency: 'Emergency', regulatory: 'Regulatory', hr: 'HR' }[c] || c);
+        },
+        prettyReviewCycle(r) {
+            return ({ annual: 'Annual', biannual: 'Bi-annual', quarterly: 'Quarterly', monthly: 'Monthly', adhoc: 'Ad-hoc' }[r] || r || '—');
+        },
+        statusPill(s) {
+            const map = { draft: 'status-draft', in_review: 'status-inreview', approved: 'status-approved' };
+            const cls = map[s] || '';
+            const label = { draft: 'Draft', in_review: 'In Review', approved: 'Approved' }[s] || s;
+            return `<span class="status-pill ${cls}"><i class="fas fa-circle"></i> ${label}</span>`;
+        },
+        riskPill(r) {
+            const map = { low: 'risk-low', medium: 'risk-medium', high: 'risk-high', critical: 'risk-critical' };
+            const cls = map[r] || '';
+            const label = { low: 'Low', medium: 'Medium', high: 'High', critical: 'Critical' }[r] || (r || '—');
+            return `<span class="risk-pill ${cls}"><i class="fas fa-exclamation-triangle"></i> ${label}</span>`;
+        },
+        viewDoc(id) { window.location.href = `dmsedit.html?doc=${encodeURIComponent(id)}&mode=view`; },
+    editDoc(id) { window.location.href = `dmsedit.html?doc=${encodeURIComponent(id)}&mode=edit`; },
+        exportDoc(id) {
+            // Find the document by id
+            const doc = this.docs.find(d => d.id === id);
+            if (!doc) { alert('Document not found.'); return; }
+            // Prepare content
+            const fields = [
+                { label: 'Title', value: doc.title },
+                { label: 'Document Number', value: doc.documentNumber },
+                { label: 'Type', value: this.prettyType(doc.type) },
+                { label: 'Category', value: this.prettyCategory(doc.category) },
+                { label: 'Owner', value: doc.owner || doc.updatedBy },
+                { label: 'Version', value: doc.version || String((doc.versions?.length || 0) + 1 || '1.0') },
+                { label: 'Review Cycle', value: this.prettyReviewCycle(doc.reviewCycle) },
+                { label: 'Risk Level', value: doc.riskLevel },
+                { label: 'Status', value: doc.status },
+                { label: 'Effective Date', value: doc.effectiveDate },
+                { label: 'Expiry Date', value: doc.expiryDate },
+                { label: 'Classification', value: doc.classification },
+                { label: 'Approver', value: doc.approver },
+                { label: 'Roles', value: doc.roles },
+                { label: 'Training', value: doc.training },
+                { label: 'Compliance', value: doc.compliance },
+                { label: 'Distribution', value: doc.distribution },
+                { label: 'Purpose', value: doc.purpose },
+                { label: 'Scope', value: doc.scope },
+                { label: 'Responsibilities', value: doc.responsibilities },
+                { label: 'References', value: doc.references },
+                { label: 'Revision', value: doc.revision },
+                { label: 'Steps', value: (doc.steps && Array.isArray(doc.steps)) ? doc.steps.join(', ') : doc.steps },
+                { label: 'Last Updated', value: doc.updated ? new Date(doc.updated).toLocaleString() : '' },
+            ];
+            // Create PDF
+            const { jsPDF } = window.jspdf;
+            const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
+            let y = 40;
+            pdf.setFont('helvetica', 'bold');
+            pdf.setFontSize(18);
+            pdf.text('Document Details', 40, y);
+            y += 30;
+            pdf.setFontSize(12);
+            pdf.setFont('helvetica', 'normal');
+            fields.forEach(f => {
+                if (f.value) {
+                    pdf.setFont('helvetica', 'bold');
+                    pdf.text(f.label + ':', 40, y);
+                    pdf.setFont('helvetica', 'normal');
+                    // Handle long text wrapping
+                    const textLines = pdf.splitTextToSize(String(f.value), 480);
+                    pdf.text(textLines, 160, y);
+                    y += 18 * textLines.length;
+                    if (y > 780) { pdf.addPage(); y = 40; }
+                }
+            });
+            // Save PDF
+            const fileName = (doc.title ? doc.title.replace(/[^a-z0-9]/gi, '_') : 'document') + '.pdf';
+            pdf.save(fileName);
+        }
+    }
+    // End of DMS object
+// Modal close logic (must be outside DMS object)
+document.addEventListener('DOMContentLoaded', () => {
+    const modal = document.getElementById('docDetailsModal');
+    const closeBtn = document.getElementById('closeDocModal');
+    if (closeBtn && modal) {
+        closeBtn.addEventListener('click', () => {
+            modal.classList.remove('show');
+            document.body.style.overflow = '';
+        });
+    }
+    // Optional: close modal on outside click
+    window.addEventListener('click', (e) => {
+        if (modal && modal.classList.contains('show') && e.target === modal) {
+            modal.classList.remove('show');
+            document.body.style.overflow = '';
+        }
+    });
+});
+
+
+    // Initialize when DOM is ready
+    window.addEventListener('DOMContentLoaded', () => {
+        console.log('🚀 DMS Table initializing...');
+        
+        // Initialize Firebase first
+        initializeFirebase();
+        
+        // Initialize managers
+        window.notificationManager.init();
+        window.authManager = new AuthManager();
+        
+        // Initialize DMS functionality
+        DMS.init();
+        
+        console.log('✅ DMS Table initialization complete');
+    });
   </script>
 </body>
 </html>
