@@ -1,0 +1,2988 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Security Site Map - Dreamex Datalab HSE</title>
+	<!-- Firebase v8 CDN (match other pages) -->
+	<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+	<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+	<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+	<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
+	<!-- Leaflet for interactive map -->
+	<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+	<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+	<!-- Font Awesome -->
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+	<meta name="robots" content="noindex, nofollow">
+	<style>
+		/* === Core Variables / Layout (derived from accessdaily.html) === */
+		:root { --primary-color:#2c3e50; --secondary-color:#3498db; --accent-color:#3498db; --text-color:#333; --bg-color:#f5f6fa; --sidebar-width:250px; --blue:#3498db; --green:#2ecc71; --orange:#e67e22; --red:#e74c3c; --purple:#9b59b6; --font-family:'Inter',system-ui,-apple-system,sans-serif; --base-font-size:.9rem; --font-scale:1; --bg-primary:#ffffff; --bg-secondary:#f8f9fa; --text-primary:#333; --text-secondary:#666; --border-color:#e0e0e0; --spacing-unit:.9rem; --padding-sm:.45rem; --padding-md:.75rem; --padding-lg:1.2rem; --transition-speed:.2s; }
+		*{margin:0;padding:0;box-sizing:border-box;} body{font-family:var(--font-family);font-size:var(--base-font-size);line-height:1.4;color:var(--text-primary);background:#f8f9fa;}
+		.app-container{display:flex;min-height:100vh;}
+		.sidebar{width:var(--sidebar-width);background:var(--primary-color);color:#fff;padding:1rem;position:fixed;height:100vh;overflow-y:auto;transition:transform .3s ease;}
+		.sidebar.collapsed{transform:translateX(-100%);} .logo h2{text-align:center;padding:1rem 0;border-bottom:1px solid rgba(255,255,255,.1);font-size:1.05rem;}
+		.menu{list-style:none;margin-top:1.5rem;} .menu li{margin-bottom:.45rem;} .menu a{color:#fff;text-decoration:none;display:flex;align-items:center;padding:.65rem .9rem;border-radius:6px;font-size:.78rem;gap:.55rem;letter-spacing:.25px;transition:background .25s;} .menu a:hover,.menu a.active{background:var(--secondary-color);} .menu-dropdown .submenu{display:none;list-style:none;margin-left:1.2rem;margin-top:.35rem;} .menu-dropdown:hover .submenu{display:block;}
+		.main-content{flex:1;margin-left:var(--sidebar-width);padding:.45rem;width:calc(100% - var(--sidebar-width));box-sizing:border-box;display:flex;flex-direction:column;transition:margin-left .3s ease,width .3s ease;}
+		.main-content.sidebar-collapsed{margin-left:0;width:100%;}
+		/* Top Nav (copied style approach from staff.html) */
+		.top-nav{display:flex;justify-content:space-between;align-items:center;padding:.5rem .75rem;background:#fff;box-shadow:0 2px 5px rgba(0,0,0,.1);margin-bottom:.35rem;position:fixed;top:.25rem;right:.5rem;left:calc(var(--sidebar-width) + .5rem);height:50px;min-height:50px;z-index:100;transition:left .3s ease;border-radius:0;}
+		.top-nav.sidebar-collapsed{left:.5rem;}
+		.top-nav-left{display:flex;align-items:center;gap:1rem;font-size:.8rem;font-weight:600;color:var(--text-secondary);} .sidebar-toggle-btn{background:none;border:none;cursor:pointer;font-size:1.15rem;padding:.45rem;color:#666;border-radius:6px;display:flex;align-items:center;justify-content:center;} .sidebar-toggle-btn:hover{background:rgba(0,0,0,.06);}
+		#headerCompanyLogo, .header-company-logo {height:35px; width:auto; max-width:140px; border-radius:0; object-fit:contain; display:none; background:transparent; border:none; box-shadow:none;}
+		#headerCompanyLogo.visible{display:block;} #headerCompanyName{font-size:.8rem;font-weight:600;letter-spacing:.5px;color:var(--primary-color);max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+		.top-nav-right{display:flex;align-items:center;gap:1.2rem;margin-left:auto;}
+		.notifications{position:relative;display:flex;align-items:center;} .notification-btn{background:none;border:none;cursor:pointer;position:relative;font-size:1.1rem;padding:.45rem;display:flex;align-items:center;justify-content:center;} .notification-badge{position:absolute;top:-5px;right:-5px;background:var(--accent-color);color:#fff;border-radius:50%;padding:.15rem .45rem;font-size:.6rem;}
+		.notification-dropdown{display:none;position:absolute;right:0;top:100%;width:280px;background:#fff;border-radius:6px;box-shadow:0 4px 18px rgba(0,0,0,.12);z-index:1000;}
+		.notification-dropdown.show{display:block;} .notification-list{max-height:280px;overflow-y:auto;}
+		.profile-btn{background:none;border:none;cursor:pointer;padding:.25rem;display:flex;align-items:center;position:relative;} 
+		.profile-btn img{width:40px;height:40px;border-radius:50%;object-fit:cover;}
+		.avatar-initials{width:40px;height:40px;border-radius:50%;background:#3498db;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:14px;font-family:Arial,sans-serif;}
+		.profile-dropdown{display:none;position:absolute;top:100%;right:0;background:#fff;border-radius:6px;box-shadow:0 4px 18px rgba(0,0,0,.12);min-width:200px;z-index:1000;} .profile-dropdown.show{display:block;} .profile-dropdown ul{list-style:none;margin:0;padding:0;} .profile-dropdown ul li a{display:flex;align-items:center;padding:12px 16px;color:#333;text-decoration:none;font-size:.78rem;gap:.6rem;transition:background .2s;} .profile-dropdown ul li a:hover{background:#f5f7fa;}
+
+		/* Page Header */
+		.page-header{background:linear-gradient(135deg,var(--primary-color),var(--secondary-color));color:#fff;padding:.55rem .75rem;border-radius:0;margin:.35rem 0 .5rem 0;display:flex;align-items:center;justify-content:space-between;box-shadow:0 10px 28px rgba(0,0,0,.18),0 6px 16px rgba(0,0,0,.14);font-size:.9rem;}
+		.page-header i{font-size:1rem;}
+		/* Add New Button */
+		.btn-add-new{background:none;border:none;color:#fff;padding:.4rem;font-size:1.2rem;font-weight:600;cursor:pointer;transition:all 0.2s ease;display:flex;align-items:center;justify-content:center;text-decoration:none;}
+		.btn-add-new:hover{color:rgba(255,255,255,0.8);transform:scale(1.1);}
+		.btn-add-new i{font-size:1.2rem;}
+
+		/* Map Container */
+		.map-container{background:#fff;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,.1);flex:1;overflow:hidden;display:flex;flex-direction:column;}
+		.map-controls{display:flex;justify-content:space-between;align-items:center;padding:.75rem;border-bottom:1px solid #e9ecef;gap:1rem;}
+		.map-controls h3{margin:0;color:#2c3e50;font-size:.9rem;display:flex;align-items:center;gap:.5rem;}
+		/* Map Toolbar Styles (from mapboard.html) */
+		.map-container {
+			position: relative;
+			width: 100%;
+			max-width: calc(100vw - 40px);
+			margin: 0 auto 2rem auto;
+			padding-left: 60px;
+			box-sizing: border-box;
+		}
+
+		.map-toolbar {
+			position: absolute;
+			left: 0;
+			top: 50%;
+			transform: translateY(-50%);
+			background: white;
+			border-radius: 8px;
+			box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+			z-index: 1000;
+			padding: 10px;
+			display: flex;
+			flex-direction: column;
+			gap: 10px;
+			width: 50px;
+			box-sizing: border-box;
+		}
+
+		.toolbar-section {
+			display: flex;
+			flex-direction: column;
+			gap: 5px;
+		}
+
+		.toolbar-btn {
+			width: 40px;
+			height: 40px;
+			border: none;
+			border-radius: 4px;
+			background: white;
+			color: #2c3e50;
+			cursor: pointer;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			transition: all 0.2s;
+			position: relative;
+		}
+
+		.toolbar-btn:hover {
+			background: #f5f6fa;
+			color: #3498db;
+		}
+
+		.toolbar-btn.active {
+			background: #3498db;
+			color: white;
+		}
+
+		.toolbar-submenu {
+			position: absolute;
+			left: 100%;
+			top: 0;
+			background: white;
+			border-radius: 8px;
+			box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+			padding: 10px;
+			display: none;
+			min-width: 150px;
+			z-index: 1001;
+		}
+
+		.toolbar-btn:hover .toolbar-submenu {
+			display: block;
+		}
+
+		.submenu-item {
+			display: flex;
+			align-items: center;
+			gap: 8px;
+			padding: 8px;
+			cursor: pointer;
+			border-radius: 4px;
+			transition: all 0.2s;
+			color: #2c3e50;
+		}
+
+		.submenu-item:hover {
+			background: #f5f6fa;
+			color: #3498db;
+		}
+
+		.toolbar-divider {
+			width: 100%;
+			height: 1px;
+			background: #e9ecef;
+			margin: 5px 0;
+		}
+
+		.toolbar-tooltip {
+			position: absolute;
+			left: 55px;
+			background: rgba(44, 62, 80, 0.9);
+			color: white;
+			padding: 5px 10px;
+			border-radius: 4px;
+			font-size: 12px;
+			white-space: nowrap;
+			opacity: 0;
+			pointer-events: none;
+			transition: opacity 0.2s;
+		}
+
+		.toolbar-btn:hover .toolbar-tooltip {
+			opacity: 1;
+		}
+
+		.drawing-controls {
+			position: absolute;
+			top: 10px;
+			left: 50%;
+			transform: translateX(-50%);
+			background: white;
+			border-radius: 8px;
+			box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+			padding: 10px;
+			display: none;
+			z-index: 1000;
+		}
+
+		.drawing-controls.active {
+			display: flex;
+			gap: 10px;
+		}
+
+		.color-picker {
+			width: 30px;
+			height: 30px;
+			padding: 0;
+			border: none;
+			border-radius: 4px;
+			cursor: pointer;
+		}
+		#securityMap{flex:1;min-height:500px;}
+
+		/* Legend */
+		.map-legend{position:absolute;top:10px;right:10px;background:rgba(255,255,255,0.95);padding:.75rem;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,.15);font-size:.75rem;z-index:1000;min-width:150px;}
+		.map-legend h4{margin:0 0 .5rem 0;font-size:.8rem;color:#2c3e50;}
+		.legend-item{display:flex;align-items:center;gap:.5rem;margin-bottom:.4rem;}
+		.legend-icon{width:16px;height:16px;border-radius:50%;border:2px solid #333;}
+		.legend-icon.agent-post{background:#2ecc71;}
+		.legend-icon.camera{background:#3498db;}
+		.legend-icon.sensor{background:#e67e22;}
+		.legend-icon.alarm{background:#e74c3c;}
+		.legend-icon.supervisor{background:#9b59b6;border-radius:0;transform:rotate(45deg);}
+
+		/* Side Panel */
+		.side-panel{width:300px;background:#fff;border-left:1px solid #dee2e6;display:flex;flex-direction:column;overflow:hidden;}
+		.side-panel.collapsed{width:0;border:none;}
+		.panel-header{padding:.75rem;border-bottom:1px solid #dee2e6;display:flex;justify-content:space-between;align-items:center;}
+		.panel-header h4{margin:0;color:#2c3e50;font-size:.85rem;}
+		.panel-toggle{background:none;border:none;color:#666;cursor:pointer;padding:.2rem;}
+		.panel-content{flex:1;overflow-y:auto;padding:.75rem;}
+
+		/* Security Item Cards */
+		.security-item{background:#f8f9fa;border:1px solid #dee2e6;border-radius:6px;padding:.6rem;margin-bottom:.5rem;cursor:pointer;transition:all .2s;}
+		.security-item:hover{background:#e9ecef;border-color:#adb5bd;}
+		.security-item.selected{background:#e3f2fd;border-color:#2196f3;}
+		.item-header{display:flex;justify-content:between;align-items:center;margin-bottom:.4rem;}
+		.item-type{font-size:.65rem;text-transform:uppercase;font-weight:600;color:#666;background:#fff;padding:.2rem .4rem;border-radius:4px;}
+		.item-name{font-weight:600;color:#2c3e50;font-size:.8rem;}
+		.item-status{font-size:.7rem;margin-top:.3rem;}
+		.status-active{color:#28a745;}
+		.status-inactive{color:#dc3545;}
+		.status-maintenance{color:#ffc107;}
+
+		/* Modal Styles */
+		.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;align-items:center;justify-content:center;z-index:2000;padding:.75rem;}
+		.modal-overlay.show{display:flex;}
+		.modal{background:#fff;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.2);max-width:600px;width:100%;overflow:hidden;}
+		.modal-header{display:flex;align-items:center;justify-content:space-between;padding:.8rem 1rem;border-bottom:1px solid #eee;}
+		.modal-header h3{font-size:.95rem;color:#2c3e50;display:flex;align-items:center;gap:.5rem;}
+		.modal-close{background:none;border:none;font-size:1.2rem;cursor:pointer;color:#666;padding:.2rem .4rem;border-radius:6px;}
+		.modal-close:hover{background:#f3f4f6;color:#111;}
+		.modal-body{padding:1rem;}
+		.form-group{margin-bottom:1rem;}
+		.form-group label{display:block;font-size:.75rem;font-weight:600;color:#495057;margin-bottom:.4rem;}
+		.form-group input, .form-group select, .form-group textarea{width:100%;padding:.5rem;border:1px solid #ced4da;border-radius:6px;font-size:.8rem;}
+		.form-group textarea{resize:vertical;min-height:80px;}
+		.form-row{display:grid;grid-template-columns:1fr 1fr;gap:1rem;}
+		.modal-footer{display:flex;justify-content:flex-end;gap:.5rem;padding:.8rem 1rem;border-top:1px solid #eee;background:#fafbfc;}
+		.btn{padding:.5rem 1rem;border:1px solid #ced4da;border-radius:6px;background:#fff;color:#495057;font-size:.8rem;cursor:pointer;transition:all .2s;}
+		.btn:hover{background:#f8f9fa;}
+		.btn-primary{background:#007bff;color:#fff;border-color:#007bff;}
+		.btn-primary:hover{background:#0056b3;}
+		.btn-danger{background:#dc3545;color:#fff;border-color:#dc3545;}
+		.btn-danger:hover{background:#c82333;}
+
+		/* Map Layout */
+		.content-area{display:flex;flex:1;min-height:0;gap:.5rem;}
+
+		/* Responsive */
+		@media (max-width: 1024px) {
+			.side-panel{width:280px;}
+			.map-controls{flex-direction:column;align-items:stretch;gap:.5rem;}
+		}
+		@media (max-width: 768px) {
+			.side-panel{position:absolute;right:0;top:0;height:100%;z-index:1001;box-shadow:-2px 0 10px rgba(0,0,0,.1);}
+			.content-area{flex-direction:column;}
+			
+			/* Mobile toolbar styles */
+			.map-container {
+				padding-left: 0;
+				margin-bottom: 1rem;
+				max-width: 100%;
+			}
+
+			.map-toolbar {
+				position: relative;
+				transform: none;
+				top: auto;
+				left: auto;
+				margin-bottom: 1rem;
+				flex-direction: row;
+				flex-wrap: wrap;
+				justify-content: center;
+				width: 100%;
+			}
+			
+			.main-content.sidebar-collapsed{margin-left:0;width:100%;}
+		}
+	</style>
+</head>
+<body>
+	<div class="app-container">
+		<!-- Sidebar (copied from accessdaily.html to retain feature markers) -->
+		<nav class="sidebar" id="sideNav">
+			<div class="logo"><h2>Dreamex Datalab</h2></div>
+			<ul class="menu" id="roleBasedMenu">
+				<li class="menu-item" data-feature="home_view" data-requires-permission="home_view">
+					<a href="index.html"><i class="fas fa-home"></i> Home</a>
+				</li>
+				<li class="menu-dropdown" data-feature="health_view" data-requires-permission="health_view">
+					<a href="#"><i class="fas fa-medkit"></i> Health</a>
+					<ul class="submenu">
+						<li data-feature="health_assessment_view" data-requires-permission="health_assessment_view">
+							<a href="health-assessment.html">Assessment</a>
+						</li>
+						<li data-feature="health_consultation_view" data-requires-permission="health_consultation_view">
+							<a href="health-consultation.html">Consultation</a>
+						</li>
+						<li data-feature="medical_folder_view" data-requires-permission="medical_folder_view">
+							<a href="medical-folder.html">Medical Folder</a>
+						</li>
+					</ul>
+				</li>
+				<li class="menu-dropdown" data-feature="safety_view" data-requires-permission="safety_view">
+					<a href="#"><i class="fas fa-shield-alt"></i> Safety</a>
+					<ul class="submenu">
+						<li data-feature="training_view" data-requires-permission="training_view"><a href="trainingboard.html">Training</a></li>
+						<li data-feature="risk_view" data-requires-permission="risk_view"><a href="riskboard.html">Risk Management</a></li>
+						<li data-feature="jsa_view" data-requires-permission="jsa_view"><a href="jsaboard.html">Job Safety Analysis</a></li>
+						<li data-feature="ptw_view" data-requires-permission="ptw_view"><a href="ptwboard.html">Permit to Work</a></li>
+						<li data-feature="incident_view" data-requires-permission="incident_view"><a href="incidentboard.html">Incident Reports</a></li>
+						<li data-feature="inspection_view" data-requires-permission="inspection_view"><a href="inspectionboard.html">Inspection</a></li>
+						<li data-feature="audit_view" data-requires-permission="audit_view"><a href="auditboard.html">Audit</a></li>
+					</ul>
+				</li>
+				<li class="menu-dropdown" data-feature="fuel_management" data-requires-permission="fuel_management">
+					<a href="#"><i class="fas fa-gas-pump"></i> Fuel Management</a>
+					<ul class="submenu">
+						<li data-feature="vessel_offloading" data-requires-permission="vessel_offloading"><a href="vessel-offloading.html">Vessel Offloading</a></li>
+						<li data-feature="fuel_storage" data-requires-permission="fuel_storage"><a href="fuel-storage-status.html">Fuel Storage Status</a></li>
+						<li data-feature="tank_transfer" data-requires-permission="tank_transfer"><a href="tank-transfer.html">Tank-to-Tank Transfer</a></li>
+						<li data-feature="truck_loading" data-requires-permission="truck_loading"><a href="fuel-truck-loading.html">Fuel Truck Loading</a></li>
+						<li data-feature="quality_analysis" data-requires-permission="quality_analysis"><a href="fuel-quality-analysis.html">Fuel Quality Analysis</a></li>
+						<li data-feature="fuel_distribution" data-requires-permission="fuel_distribution"><a href="fueldistrib.html">Fuel Distribution</a></li>
+						<li data-feature="fuel_consumption_analysis" data-requires-permission="fuel_consumption_analysis"><a href="fuelanalys.html">Consumption Analysis</a></li>
+					</ul>
+				</li>
+				<li class="menu-dropdown" data-feature="environment_view" data-requires-permission="environment_view">
+					<a href="#"><i class="fas fa-leaf"></i> Environment</a>
+					<ul class="submenu">
+						<li data-feature="water_view" data-requires-permission="water_view"><a href="waterboard.html">Water Quality</a></li>
+					</ul>
+				</li>
+				<li class="menu-dropdown" data-feature="security_view" data-requires-permission="security_view">
+					<a href="#"><i class="fas fa-lock"></i> Security</a>
+					<ul class="submenu">
+						<li data-feature="access_view" data-requires-permission="access_view"><a href="accessboard.html">Access Request</a></li>
+						<li data-feature="access_daily_view" data-requires-permission="access_daily_view"><a href="accessdaily.html">Daily Access Control</a></li>
+						<li data-feature="security_site_map_view" data-requires-permission="security_site_map_view"><a href="secur.html" class="active">Security Site Map</a></li>
+						<li data-feature="removal_view" data-requires-permission="removal_view"><a href="removalboard.html">Property Removal</a></li>
+					</ul>
+				</li>
+				<li class="menu-dropdown" data-feature="logistics_view" data-requires-permission="logistics_view">
+					<a href="#"><i class="fas fa-truck"></i> Logistics</a>
+					<ul class="submenu">
+						<li data-feature="fleet_view" data-requires-permission="fleet_view"><a href="fleet.html">Fleet Management</a></li>
+					</ul>
+				</li>
+				<li class="menu-dropdown" data-feature="accommodation_view" data-requires-permission="accommodation_view">
+					<a href="#"><i class="fas fa-bed"></i> Accommodation</a>
+					<ul class="submenu">
+						<li data-feature="camp_view" data-requires-permission="camp_view"><a href="camp.html">Camp Management</a></li>
+						<li data-feature="camp_settings_view" data-requires-permission="camp_settings_view"><a href="campset.html">Camp Settings</a></li>
+					</ul>
+				</li>
+				<li class="menu-dropdown" data-feature="hr_view" data-requires-permission="hr_view">
+					<a href="#"><i class="fas fa-users"></i> HR</a>
+					<ul class="submenu">
+						<li data-feature="human_hr_view" data-requires-permission="human_hr_view"><a href="human-hr.html"><i class="fas fa-user-tie"></i> Human HR</a></li>
+						<li data-feature="staff_management_view" data-requires-permission="staff_management_view"><a href="staff.html">Staffing</a></li>
+						<li data-feature="authority_to_recruit_view" data-requires-permission="authority_to_recruit_view"><a href="recruit.html">Authority to Recruit</a></li>
+						<li data-feature="job_advertising_view" data-requires-permission="job_advertising_view"><a href="jobpost.html">Job Advertising</a></li>
+						<li data-feature="screening_view" data-requires-permission="screening_view"><a href="jobscreen.html">Screening</a></li>
+						<li data-feature="interview_view" data-requires-permission="interview_view"><a href="interview.html">Interview</a></li>
+						<li data-feature="offer_view" data-requires-permission="offer_view"><a href="offer.html">Offer Management</a></li>
+						<li data-feature="contract_view" data-requires-permission="contract_view"><a href="contract.html">Contract Management</a></li>
+						<li data-feature="salary_management_view" data-requires-permission="salary_management_view"><a href="salary.html">Salary Management</a></li>
+						<li data-feature="onboarding_view" data-requires-permission="onboarding_view"><a href="onboard.html">Onboarding</a></li>
+						<li data-feature="chart_view" data-requires-permission="chart_view"><a href="chart.html">Chart Setup</a></li>
+						<li data-feature="chartboard_view" data-requires-permission="chartboard_view"><a href="chartboard.html">Org Chart</a></li>
+						<li data-feature="kpi_dashboard_view" data-requires-permission="kpi_dashboard_view"><a href="kpi.html">KPI</a></li>
+						<li data-feature="action_plan_view" data-requires-permission="action_plan_view"><a href="actionplan.html"><i class="fas fa-tasks"></i> Action Plan Board</a></li>
+					</ul>
+				</li>
+				<li class="menu-dropdown" data-feature="project_management_view" data-requires-permission="project_management_view">
+					<a href="#"><i class="fas fa-project-diagram"></i> Project Management</a>
+					<ul class="submenu">
+						<li data-feature="project_dashboard_view" data-requires-permission="project_dashboard_view"><a href="project-dashboard.html">Project Dashboard</a></li>
+						<li data-feature="project_create_view" data-requires-permission="project_create_view"><a href="project-create.html">Create Project</a></li>
+						<li data-feature="project_list_view" data-requires-permission="project_list_view"><a href="project-list.html">Project List</a></li>
+						<li data-feature="task_management_view" data-requires-permission="task_management_view"><a href="tasks.html">Task Management</a></li>
+						<li data-feature="milestone_tracking_view" data-requires-permission="milestone_tracking_view"><a href="milestones.html">Milestone Tracking</a></li>
+						<li data-feature="resource_allocation_view" data-requires-permission="resource_allocation_view"><a href="resources.html">Resource Allocation</a></li>
+						<li data-feature="project_reports_view" data-requires-permission="project_reports_view"><a href="project-reports.html">Project Reports</a></li>
+						<li data-feature="gantt_chart_view" data-requires-permission="gantt_chart_view"><a href="gantt-chart.html">Gantt Chart</a></li>
+					</ul>
+				</li>
+				<li data-feature="communication_view" data-requires-permission="communication_view"><a href="info.html"><i class="fas fa-comments"></i> Communication</a></li>
+				<li class="menu-dropdown" data-feature="settings_view" data-requires-permission="settings_view">
+					<a href="#"><i class="fas fa-cog"></i> Settings</a>
+					<ul class="submenu">
+						<li data-feature="account_settings_view" data-requires-permission="account_settings_view"><a href="account.html">Account Settings</a></li>
+						<li data-feature="company_management_view" data-requires-permission="company_management_view"><a href="companymanagement.html">Company Management</a></li>
+						<li data-feature="approval_settings_view" data-requires-permission="approval_settings_view"><a href="approval-settings.html">Approval Flow Settings</a></li>
+						<li data-feature="field_setup_view" data-requires-permission="field_setup_view"><a href="fieldsetup.html">Field Setup</a></li>
+						<li data-feature="preferences_view" data-requires-permission="preferences_view"><a href="preferences.html">Preferences</a></li>
+						<li data-feature="notification_settings_view" data-requires-permission="notification_settings_view"><a href="notification-settings.html">Notification Settings</a></li>
+						<li data-feature="audit_log_view" data-requires-permission="audit_log_view"><a href="auditlog.html"><i class="fas fa-history"></i> Audit Log</a></li>
+						<li data-feature="user_management_view" data-requires-permission="user_management_view"><a href="users.html">User & Role Management</a></li>
+						<li data-feature="role_permissions_view" data-requires-permission="role_permissions_view"><a href="roles.html">Role Permissions</a></li>
+					</ul>
+				</li>
+			</ul>
+		</nav>
+
+		<!-- Main Content -->
+		<main class="main-content">
+			<header class="top-nav">
+				<div class="top-nav-left">
+					<button id="sidebarToggle" class="sidebar-toggle-btn" title="Toggle menu"><i class="fas fa-bars"></i></button>
+					<img id="headerCompanyLogo" alt="Company Logo">
+					<span id="headerCompanyName"></span>
+				</div>
+				<div class="top-nav-right">
+					<div class="notifications">
+						<button id="notificationBtn" class="notification-btn" aria-label="Notifications"><i class="fas fa-bell"></i><span class="notification-badge" style="display:none;">0</span></button>
+						<div class="notification-dropdown">
+							<div style="padding:.75rem;border-bottom:1px solid #eee;display:flex;justify-content:space-between;align-items:center;">
+								<strong style="font-size:.7rem;color:#2c3e50;">Notifications</strong>
+								<button class="mark-all-read" style="background:none;border:none;font-size:.6rem;color:var(--secondary-color);cursor:pointer;">Mark all read</button>
+							</div>
+							<div class="notification-list"></div>
+						</div>
+					</div>
+					<div class="user-profile">
+						<button id="userProfileBtn" class="profile-btn" aria-label="Profile">
+							<img id="userAvatarImg" src="" alt="User Avatar" style="display: none;">
+							<div id="userInitials" class="avatar-initials">U</div>
+						</button>
+						<div class="profile-dropdown"><ul></ul></div>
+					</div>
+				</div>
+			</header>
+
+			<div style="padding-top:3.4rem;"></div>
+			<div class="page-header">
+				<div style="display: flex; align-items: center; gap: 0.6rem;">
+					<i class="fas fa-map-marked-alt"></i>
+					<span>Security Site Map</span>
+				</div>
+				<button type="button" class="btn-add-new" onclick="showAddItemModal()" title="Add Security Item">
+					<i class="fas fa-plus"></i>
+				</button>
+			</div>
+
+			<!-- Main Content Area -->
+			<div class="content-area">
+				<!-- Map Container -->
+				<div class="map-container">
+					<div id="securityMap"></div>
+					<div class="map-toolbar">
+						<!-- Navigation Section -->
+						<div class="toolbar-section">
+							<button class="toolbar-btn" id="zoom-in-btn">
+								<i class="fas fa-plus"></i>
+								<div class="toolbar-tooltip">Zoom In</div>
+							</button>
+							<button class="toolbar-btn" id="zoom-out-btn">
+								<i class="fas fa-minus"></i>
+								<div class="toolbar-tooltip">Zoom Out</div>
+							</button>
+							<button class="toolbar-btn" id="reset-view-btn">
+								<i class="fas fa-home"></i>
+								<div class="toolbar-tooltip">Reset View</div>
+							</button>
+						</div>
+						
+						<div class="toolbar-divider"></div>
+						
+						<!-- Security Layers Section -->
+						<div class="toolbar-section">
+							<button class="toolbar-btn active" id="togglePosts" onclick="toggleLayer('posts')">
+								<i class="fas fa-user-shield"></i>
+								<div class="toolbar-tooltip">Agent Posts</div>
+							</button>
+							<button class="toolbar-btn active" id="toggleCameras" onclick="toggleLayer('cameras')">
+								<i class="fas fa-video"></i>
+								<div class="toolbar-tooltip">Cameras</div>
+							</button>
+							<button class="toolbar-btn active" id="toggleSensors" onclick="toggleLayer('sensors')">
+								<i class="fas fa-satellite-dish"></i>
+								<div class="toolbar-tooltip">Sensors</div>
+							</button>
+							<button class="toolbar-btn active" id="toggleAlarms" onclick="toggleLayer('alarms')">
+								<i class="fas fa-exclamation-triangle"></i>
+								<div class="toolbar-tooltip">Alarms</div>
+							</button>
+							<button class="toolbar-btn active" id="toggleSupervisors" onclick="toggleLayer('supervisors')">
+								<i class="fas fa-eye"></i>
+								<div class="toolbar-tooltip">Supervisors</div>
+							</button>
+						</div>
+						
+						<div class="toolbar-divider"></div>
+						
+						<!-- Drawing Section -->
+						<div class="toolbar-section">
+							<button class="toolbar-btn" id="draw-marker-btn">
+								<i class="fas fa-map-marker-alt"></i>
+								<div class="toolbar-tooltip">Add Security Point</div>
+							</button>
+							<button class="toolbar-btn" id="draw-polygon-btn">
+								<i class="fas fa-draw-polygon"></i>
+								<div class="toolbar-tooltip">Draw Security Area</div>
+								<div class="toolbar-submenu">
+									<div class="submenu-item" data-shape="polygon">
+										<i class="fas fa-draw-polygon"></i>
+										<span>Polygon</span>
+									</div>
+									<div class="submenu-item" data-shape="rectangle">
+										<i class="fas fa-square"></i>
+										<span>Rectangle</span>
+									</div>
+									<div class="submenu-item" data-shape="circle">
+										<i class="fas fa-circle"></i>
+										<span>Circle</span>
+									</div>
+								</div>
+							</button>
+							<button class="toolbar-btn" id="draw-line-btn">
+								<i class="fas fa-slash"></i>
+								<div class="toolbar-tooltip">Draw Security Line</div>
+							</button>
+						</div>
+						
+						<div class="toolbar-divider"></div>
+						
+						<!-- Measurement Section -->
+						<div class="toolbar-section">
+							<button class="toolbar-btn" id="measure-distance-btn">
+								<i class="fas fa-ruler"></i>
+								<div class="toolbar-tooltip">Measure Distance</div>
+							</button>
+							<button class="toolbar-btn" id="measure-area-btn">
+								<i class="fas fa-vector-square"></i>
+								<div class="toolbar-tooltip">Measure Area</div>
+							</button>
+						</div>
+						
+						<div class="toolbar-divider"></div>
+						
+						<!-- Tools Section -->
+						<div class="toolbar-section">
+							<button class="toolbar-btn" id="save-map-btn">
+								<i class="fas fa-download"></i>
+								<div class="toolbar-tooltip">Save as Image</div>
+							</button>
+							<button class="toolbar-btn" id="save-state-btn">
+								<i class="fas fa-save"></i>
+								<div class="toolbar-tooltip">Save Map State</div>
+							</button>
+							<button class="toolbar-btn" id="load-state-btn">
+								<i class="fas fa-folder-open"></i>
+								<div class="toolbar-tooltip">Load Map State</div>
+							</button>
+							<button class="toolbar-btn" id="screenshot-btn">
+								<i class="fas fa-camera"></i>
+								<div class="toolbar-tooltip">Take Screenshot</div>
+							</button>
+							<button class="toolbar-btn" id="layers-btn">
+								<i class="fas fa-layer-group"></i>
+								<div class="toolbar-tooltip">Layer Control</div>
+							</button>
+							<button class="toolbar-btn" id="erase-btn">
+								<i class="fas fa-eraser"></i>
+								<div class="toolbar-tooltip">Erase Drawings</div>
+							</button>
+							<button class="toolbar-btn" onclick="testSaveFunction()" style="background:#28a745;color:white;" title="Test Save Function">
+								<i class="fas fa-vial"></i>
+								<div class="toolbar-tooltip">Test Save</div>
+							</button>
+						</div>
+					</div>
+					
+					<!-- Drawing Controls -->
+					<div class="drawing-controls" id="drawing-controls">
+						<input type="color" class="color-picker" id="stroke-color" value="#3498db" title="Stroke Color">
+						<input type="color" class="color-picker" id="fill-color" value="#3498db80" title="Fill Color">
+						<button class="toolbar-btn" id="undo-btn">
+							<i class="fas fa-undo"></i>
+						</button>
+						<button class="toolbar-btn" id="save-drawing-btn">
+							<i class="fas fa-save"></i>
+						</button>
+					</div>
+					
+					<!-- Legend -->
+						<div class="map-legend">
+							<h4><i class="fas fa-info-circle"></i> Legend</h4>
+							<div class="legend-item">
+								<div class="legend-icon agent-post"></div>
+								<span>Agent Posts</span>
+							</div>
+							<div class="legend-item">
+								<div class="legend-icon camera"></div>
+								<span>Cameras</span>
+							</div>
+							<div class="legend-item">
+								<div class="legend-icon sensor"></div>
+								<span>Sensors</span>
+							</div>
+							<div class="legend-item">
+								<div class="legend-icon alarm"></div>
+								<span>Alarms</span>
+							</div>
+							<div class="legend-item">
+								<div class="legend-icon supervisor"></div>
+								<span>Supervisors</span>
+							</div>
+						</div>
+					</div>
+				</div>
+
+				<!-- Side Panel -->
+				<div class="side-panel" id="sidePanel">
+					<div class="panel-header">
+						<h4><i class="fas fa-list"></i> Security Items</h4>
+						<button class="panel-toggle" onclick="togglePanel()">
+							<i class="fas fa-chevron-right"></i>
+						</button>
+					</div>
+					<div class="panel-content" id="panelContent">
+						<!-- Security items will be populated here -->
+					</div>
+				</div>
+			</div>
+		</main>
+	</div>
+
+	<!-- Add/Edit Security Item Modal -->
+	<div id="itemModal" class="modal-overlay">
+		<div class="modal">
+			<div class="modal-header">
+				<h3 id="modalTitle"><i class="fas fa-plus"></i> Add Security Item</h3>
+				<button class="modal-close" onclick="closeModal()">&times;</button>
+			</div>
+			<div class="modal-body">
+				<form id="itemForm">
+					<div class="form-group">
+						<label for="itemType">Type</label>
+						<select id="itemType" required>
+							<option value="agent-post">Agent Post</option>
+							<option value="camera">Camera</option>
+							<option value="sensor">Sensor</option>
+							<option value="alarm">Alarm System</option>
+							<option value="supervisor">Supervisor Area</option>
+						</select>
+					</div>
+					<div class="form-row">
+						<div class="form-group">
+							<label for="itemName">Name/ID</label>
+							<input type="text" id="itemName" required>
+						</div>
+						<div class="form-group">
+							<label for="itemStatus">Status</label>
+							<select id="itemStatus" required>
+								<option value="active">Active</option>
+								<option value="inactive">Inactive</option>
+								<option value="maintenance">Maintenance</option>
+							</select>
+						</div>
+					</div>
+					<div class="form-row">
+						<div class="form-group">
+							<label for="itemLat">Latitude</label>
+							<input type="number" id="itemLat" step="any" required>
+						</div>
+						<div class="form-group">
+							<label for="itemLng">Longitude</label>
+							<input type="number" id="itemLng" step="any" required>
+						</div>
+					</div>
+					<div class="form-group">
+						<label for="itemDescription">Description</label>
+						<textarea id="itemDescription" placeholder="Additional details..."></textarea>
+					</div>
+					<div id="supervisorFields" style="display:none;">
+						<div class="form-group">
+							<label for="supervisedPosts">Supervised Posts (comma-separated IDs)</label>
+							<input type="text" id="supervisedPosts" placeholder="POST-001, POST-002">
+						</div>
+					</div>
+				</form>
+			</div>
+			<div class="modal-footer">
+				<button type="button" class="btn" onclick="closeModal()">Cancel</button>
+				<button type="button" class="btn btn-primary" onclick="saveItem()">Save</button>
+				<button type="button" class="btn btn-danger" id="deleteBtn" onclick="deleteItem()" style="display:none;">Delete</button>
+			</div>
+		</div>
+	</div>
+
+	<script>
+		// Firebase Configuration (Replace with your config)
+		const firebaseConfig = {
+			apiKey: "AIzaSyBc-thg9_7x4_rq9WiOCJUBZIwNwZDNJCg",
+			authDomain: "dreamexdatalab.firebaseapp.com",
+			databaseURL: "https://dreamexdatalab-default-rtdb.firebaseio.com",
+			projectId: "dreamexdatalab",
+			storageBucket: "dreamexdatalab.appspot.com",
+			messagingSenderId: "1001644079439",
+			appId: "1:1001644079439:web:d8ffa9c45daf331b6f7fd1"
+		};
+
+		// Initialize Firebase
+		firebase.initializeApp(firebaseConfig);
+		window.db = firebase.database();
+		window.auth = firebase.auth();
+
+		// Test Firebase connectivity
+		async function testFirebaseConnection() {
+			try {
+				console.log('🔥 Testing Firebase connection...');
+				await db.ref('.info/connected').once('value');
+				console.log('✅ Firebase connection successful');
+				return true;
+			} catch (error) {
+				console.error('❌ Firebase connection failed:', error);
+				return false;
+			}
+		}
+
+		// Test writing to Firebase
+		async function testFirebaseWrite() {
+			try {
+				console.log('🔥 Testing Firebase write permissions...');
+				const testRef = db.ref('test/connectivity');
+				await testRef.set({
+					timestamp: Date.now(),
+					test: true
+				});
+				console.log('✅ Firebase write test successful');
+				
+				// Clean up test data
+				await testRef.remove();
+				return true;
+			} catch (error) {
+				console.error('❌ Firebase write test failed:', error);
+				return false;
+			}
+		}
+
+		// Global Variables
+		let map;
+		let currentUser = null;
+		let securityItems = [];
+		let layers = {
+			posts: L.layerGroup(),
+			cameras: L.layerGroup(),
+			sensors: L.layerGroup(),
+			alarms: L.layerGroup(),
+			supervisors: L.layerGroup()
+		};
+		let editingItem = null;
+
+		/**************** AuthManager (Centralized) ****************/
+		class AuthManager {
+			constructor() {
+				this.currentUser = this.getCurrentUser();
+				this.currentCompany = null;
+				console.log('🔐 AuthManager(init) secur.html');
+				this.initializeAuth();
+			}
+			getCurrentUser() {
+				try {
+					return JSON.parse(localStorage.getItem('currentUser') || 'null');
+				} catch {
+					return null;
+				}
+			}
+			setCurrentUser(u) {
+				localStorage.setItem('currentUser', JSON.stringify(u));
+				localStorage.setItem('user', JSON.stringify(u));
+				this.currentUser = u;
+			}
+			async logout() {
+				try {
+					await firebase.auth().signOut();
+				} catch (e) {
+					console.warn('Logout error', e);
+				}
+				['currentUser', 'user'].forEach(k => {
+					localStorage.removeItem(k);
+					sessionStorage.removeItem(k);
+				});
+				location.href = 'index.html';
+			}
+			initializeAuth() {
+				console.log('🚀 initializeAuth called for secur.html');
+				console.log('👤 Current user:', this.currentUser);
+				if (!this.currentUser) {
+					console.warn('No user session found');
+					// For secur.html, we don't redirect - user can stay on page
+					return;
+				}
+				console.log('✅ User:', this.currentUser.email);
+
+				this.loadUserRole(this.currentUser);
+				this.loadUserCompany();
+				
+				// Update currentUser global for compatibility
+				currentUser = this.currentUser;
+
+				// Initialize UI after short delay
+				setTimeout(() => {
+					console.log('🔄 Starting UI updates for secur.html...');
+					this.updateUIForAuthenticatedUser();
+					this.updateMenuVisibility();
+					this.bindProfileDropdown();
+					console.log('✅ UI initialization complete');
+				}, 100);
+			}
+			bindProfileDropdown() {
+				console.log('🔗 bindProfileDropdown called');
+				const btn = document.getElementById('userProfileBtn');
+				const dd = document.querySelector('.profile-dropdown');
+				if (this._profileDropdownBound) {
+					console.log('ℹ️ Profile dropdown already bound');
+					return;
+				}
+				console.log('🔍 Elements found:', { btn: !!btn, dropdown: !!dd });
+				if (btn && dd) {
+					console.log('✅ Binding profile dropdown events');
+					btn.addEventListener('click', e => {
+						console.log('🖱️ Profile button clicked');
+						e.stopPropagation();
+						dd.classList.toggle('show');
+						console.log('📋 Dropdown toggled, show class:', dd.classList.contains('show'));
+					});
+					document.addEventListener('click', e => {
+						if (!btn.contains(e.target)) {
+							dd.classList.remove('show');
+							console.log('🖱️ Clicked outside, hiding dropdown');
+						}
+					});
+					this._profileDropdownBound = true;
+				} else {
+					console.error('❌ Missing elements for profile dropdown:', { btn, dd });
+				}
+			}
+			loadUserRole(user) {
+				console.log('👤 Loading user role for:', user?.email);
+				if (user?.role) {
+					console.log('✅ User role found:', user.role);
+				} else {
+					console.log('⚠️ No role found for user - defaulting to employee');
+					user.role = 'employee';
+				}
+			}
+			async loadUserCompany() {
+				if (!this.currentUser?.companyId) {
+					console.log('⚠️ No company ID found for user');
+					return;
+				}
+				try {
+					const companySnapshot = await db.ref(`companies/${this.currentUser.companyId}`).once('value');
+					if (companySnapshot.exists()) {
+						this.currentCompany = companySnapshot.val();
+						console.log('🏢 Company loaded:', this.currentCompany?.companyName);
+						this.updateCompanyBranding();
+					}
+				} catch (error) {
+					console.error('❌ Error loading company:', error);
+				}
+			}
+			updateCompanyBranding() {
+				const companyLogo = document.getElementById('headerCompanyLogo');
+				const companyName = document.getElementById('headerCompanyName');
+
+				if (this.currentCompany) {
+					if (companyName) {
+						companyName.textContent = this.currentCompany.companyName || '';
+					}
+					
+					const logoUrl = this.currentCompany.logoUrl || this.currentCompany.logo || '';
+					if (companyLogo) {
+						if (logoUrl) {
+							companyLogo.src = logoUrl;
+							companyLogo.classList.add('visible');
+							companyLogo.style.display = 'block';
+							console.log('🏢 Company logo loaded:', logoUrl);
+							
+							companyLogo.onerror = () => {
+								console.warn('🏢 Company logo failed to load');
+								companyLogo.style.display = 'none';
+								companyLogo.classList.remove('visible');
+							};
+						} else {
+							companyLogo.style.display = 'none';
+							companyLogo.classList.remove('visible');
+							console.log('🏢 No logo for company:', this.currentCompany.companyName);
+						}
+					}
+					
+					if (this.currentCompany.companyName) {
+						document.title = document.title.replace('Dreamex Datalab HSE', `${this.currentCompany.companyName} HSE`);
+					}
+				} else {
+					if (companyName) companyName.textContent = '';
+					if (companyLogo) {
+						companyLogo.style.display = 'none';
+						companyLogo.classList.remove('visible');
+					}
+				}
+			}
+			updateUIForAuthenticatedUser() {
+				console.log('🔄 updateUIForAuthenticatedUser called');
+				this.updateUserAvatar();
+				this.populateProfileDropdown();
+			}
+			updateUserAvatar() {
+				console.log('👤 updateUserAvatar called');
+				const avatarImg = document.getElementById('userAvatarImg');
+				const initialsEl = document.getElementById('userInitials');
+
+				if (!avatarImg || !initialsEl) {
+					console.error('❌ Avatar elements not found');
+					return;
+				}
+
+				const user = this.currentUser;
+				if (!user) {
+					console.log('⚠️ No current user for avatar update');
+					avatarImg.style.display = 'none';
+					initialsEl.style.display = 'flex';
+					initialsEl.textContent = 'U';
+					return;
+				}
+
+				console.log('👤 Updating avatar for user:', user.email);
+
+				if (user.photoURL || user.profilePicture) {
+					const photoUrl = user.photoURL || user.profilePicture;
+					console.log('🖼️ Using profile picture:', photoUrl);
+					avatarImg.src = photoUrl;
+
+					avatarImg.onload = () => {
+						avatarImg.style.display = 'block';
+						initialsEl.style.display = 'none';
+					};
+
+					avatarImg.onerror = () => {
+						console.log('❌ Profile picture failed to load, using initials');
+						this.generateInitialsAvatar(user, initialsEl);
+						avatarImg.style.display = 'none';
+						initialsEl.style.display = 'flex';
+					};
+				} else {
+					console.log('📝 Using initials for avatar');
+					this.generateInitialsAvatar(user, initialsEl);
+					avatarImg.style.display = 'none';
+					initialsEl.style.display = 'flex';
+				}
+			}
+			generateInitialsAvatar(user, initialsElement) {
+				const name = user.displayName || user.firstName || user.name || user.email || 'User';
+				const parts = name.split(' ').filter(p => p.length > 0);
+				let initials = 'U';
+
+				if (parts.length >= 2) {
+					initials = (parts[0][0] + parts[1][0]).toUpperCase();
+				} else if (parts.length === 1) {
+					initials = parts[0][0].toUpperCase();
+				}
+
+				initialsElement.textContent = initials;
+				console.log('📝 Generated initials avatar:', initials);
+			}
+			populateProfileDropdown() {
+				console.log('📋 populateProfileDropdown called');
+				const dropdown = document.querySelector('.profile-dropdown ul');
+				if (!dropdown) {
+					console.error('❌ Profile dropdown not found');
+					return;
+				}
+
+				dropdown.innerHTML = `
+					<li><a href="account.html"><i class="fas fa-user"></i> Account Settings</a></li>
+					<li><a href="#" id="logoutLink"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+				`;
+
+				const logoutLink = dropdown.querySelector('#logoutLink');
+				if (logoutLink) {
+					logoutLink.addEventListener('click', (e) => {
+						e.preventDefault();
+						this.logout();
+					});
+				}
+			}
+			// Simplified menu visibility for secur.html (no complex role filtering needed here)
+			async updateMenuVisibility() {
+				console.log('🎯 Starting feature-based menu authorization for secur.html...');
+				if (!this.currentUser) {
+					console.log('⚠️ No user - keeping basic menu visible');
+					document.querySelector('.sidebar')?.classList.remove('menu-loading');
+					return;
+				}
+
+				try {
+					// Use the existing updateMenuWithFeatureAuthorization function
+					await updateMenuWithFeatureAuthorization();
+				} catch (error) {
+					console.error('❌ Error in menu authorization:', error);
+					document.querySelector('.sidebar')?.classList.remove('menu-loading');
+				}
+			}
+		}
+
+		// Security Map Manager
+		class SecurityMapManager {
+			constructor() {
+				this.initializeMap();
+				this.loadSecurityItems();
+			}
+
+			initializeMap() {
+				// Initialize the map (default coordinates - adjust for your site)
+				map = L.map('securityMap').setView([25.276987, 55.296249], 15); // Dubai coordinates as example
+
+				// Add tile layer
+				L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+					attribution: '© OpenStreetMap contributors'
+				}).addTo(map);
+
+				// Add all layers to map
+				Object.values(layers).forEach(layer => map.addLayer(layer));
+
+				// Map click handler for adding new items
+				map.on('click', (e) => {
+					if (window.addMode) {
+						document.getElementById('itemLat').value = e.latlng.lat.toFixed(6);
+						document.getElementById('itemLng').value = e.latlng.lng.toFixed(6);
+						showAddItemModal();
+						window.addMode = false;
+						map.getContainer().style.cursor = '';
+					}
+				});
+			}
+
+			async loadSecurityItems() {
+				if (!currentUser?.companyId) return;
+
+				try {
+					const snapshot = await db.ref(`companies/${currentUser.companyId}/security/siteMap`).once('value');
+					const data = snapshot.val();
+					
+					if (data) {
+						securityItems = Object.keys(data).map(key => ({id: key, ...data[key]}));
+					} else {
+						securityItems = [];
+					}
+
+					this.renderMapItems();
+					this.renderPanelItems();
+				} catch (error) {
+					console.error('Error loading security items:', error);
+				}
+			}
+
+			renderMapItems() {
+				// Clear existing layers
+				Object.values(layers).forEach(layer => layer.clearLayers());
+
+				securityItems.forEach(item => {
+					const marker = this.createMarker(item);
+					if (marker) {
+						layers[this.getLayerName(item.type)].addLayer(marker);
+					}
+				});
+			}
+
+			createMarker(item) {
+				const iconConfig = this.getIconConfig(item.type, item.status);
+				const marker = L.circleMarker([item.lat, item.lng], iconConfig);
+
+				// Popup content
+				const popupContent = `
+					<div style="font-size:0.8rem;">
+						<strong>${item.name}</strong><br>
+						<em>${this.formatType(item.type)}</em><br>
+						Status: <span class="status-${item.status}">${item.status.charAt(0).toUpperCase() + item.status.slice(1)}</span><br>
+						${item.description ? `<br>${item.description}` : ''}
+						${item.supervisedPosts ? `<br><strong>Supervises:</strong> ${item.supervisedPosts}` : ''}
+						<br><br>
+						<button onclick="editItem('${item.id}')" style="font-size:0.7rem;padding:0.2rem 0.5rem;margin-right:0.3rem;">Edit</button>
+						<button onclick="focusItem('${item.id}')" style="font-size:0.7rem;padding:0.2rem 0.5rem;">Focus</button>
+					</div>
+				`;
+
+				marker.bindPopup(popupContent);
+				marker.on('click', () => this.selectItem(item.id));
+
+				return marker;
+			}
+
+			getIconConfig(type, status) {
+				const colors = {
+					'agent-post': '#2ecc71',
+					'camera': '#3498db',
+					'sensor': '#e67e22',
+					'alarm': '#e74c3c',
+					'supervisor': '#9b59b6'
+				};
+
+				const baseConfig = {
+					radius: type === 'supervisor' ? 8 : 6,
+					fillColor: colors[type] || '#95a5a6',
+					color: '#2c3e50',
+					weight: 2,
+					opacity: status === 'active' ? 1 : 0.5,
+					fillOpacity: status === 'active' ? 0.8 : 0.4
+				};
+
+				// Special styling for supervisors (diamond shape achieved via CSS transform)
+				if (type === 'supervisor') {
+					baseConfig.className = 'supervisor-marker';
+				}
+
+				return baseConfig;
+			}
+
+			getLayerName(type) {
+				const mapping = {
+					'agent-post': 'posts',
+					'camera': 'cameras',
+					'sensor': 'sensors',
+					'alarm': 'alarms',
+					'supervisor': 'supervisors'
+				};
+				return mapping[type] || 'posts';
+			}
+
+			formatType(type) {
+				const types = {
+					'agent-post': 'Agent Post',
+					'camera': 'Security Camera',
+					'sensor': 'Sensor',
+					'alarm': 'Alarm System',
+					'supervisor': 'Supervisor Area'
+				};
+				return types[type] || type;
+			}
+
+			selectItem(itemId) {
+				// Update panel selection
+				document.querySelectorAll('.security-item').forEach(el => el.classList.remove('selected'));
+				const itemElement = document.querySelector(`[data-item-id="${itemId}"]`);
+				if (itemElement) {
+					itemElement.classList.add('selected');
+					itemElement.scrollIntoView({behavior: 'smooth', block: 'nearest'});
+				}
+			}
+
+			renderPanelItems() {
+				const container = document.getElementById('panelContent');
+				
+				if (securityItems.length === 0) {
+					container.innerHTML = '<div style="text-align:center;color:#666;padding:2rem;">No security items found</div>';
+					return;
+				}
+
+				// Group items by type
+				const grouped = securityItems.reduce((acc, item) => {
+					if (!acc[item.type]) acc[item.type] = [];
+					acc[item.type].push(item);
+					return acc;
+				}, {});
+
+				let html = '';
+				Object.keys(grouped).forEach(type => {
+					html += `<h5 style="margin:1rem 0 0.5rem 0;font-size:0.8rem;color:#2c3e50;text-transform:uppercase;">${this.formatType(type)}</h5>`;
+					grouped[type].forEach(item => {
+						html += `
+							<div class="security-item" data-item-id="${item.id}" onclick="mapManager.selectItem('${item.id}'); focusItem('${item.id}')">
+								<div class="item-header">
+									<span class="item-type">${this.formatType(item.type)}</span>
+								</div>
+								<div class="item-name">${item.name}</div>
+								<div class="item-status status-${item.status}">
+									<i class="fas fa-circle"></i> ${item.status.charAt(0).toUpperCase() + item.status.slice(1)}
+								</div>
+								${item.supervisedPosts ? `<div style="font-size:0.7rem;color:#666;margin-top:0.3rem;">Supervises: ${item.supervisedPosts}</div>` : ''}
+							</div>
+						`;
+					});
+				});
+
+				container.innerHTML = html;
+			}
+
+			async saveItem(itemData) {
+				console.log('🔍 SecurityMapManager.saveItem called');
+				console.log('👤 Current user:', currentUser);
+				console.log('🏢 Company ID:', currentUser?.companyId);
+				
+				// Emergency fallback for testing - if no user is authenticated, create a test scenario
+				if (!currentUser || !currentUser.companyId) {
+					console.warn('⚠️ No authenticated user found, checking for test scenario...');
+					
+					// Check if we can create a test user for this session
+					const testUser = {
+						email: 'test@dreamexdatalab.com',
+						companyId: 'TESTCOMPANY001',
+						role: 'admin'
+					};
+					
+					// Ask user if they want to proceed with test data
+					const useTestData = confirm(
+						'No authenticated user found. Would you like to save this security item with test data?\n\n' +
+						'This will save to: companies/TESTCOMPANY001/security/siteMap\n\n' +
+						'Click OK to proceed with test data, or Cancel to login first.'
+					);
+					
+					if (!useTestData) {
+						alert('Please login first to save security items to your company database.');
+						return false;
+					}
+					
+					// Use test user for this save operation
+					currentUser = testUser;
+					console.log('🧪 Using test user for save operation:', testUser);
+				}
+
+				try {
+					const itemId = itemData.id || db.ref().child('companies').child(currentUser.companyId).child('security').child('siteMap').push().key;
+					
+					console.log('💾 Saving to Firebase:', {
+						path: `companies/${currentUser.companyId}/security/siteMap/${itemId}`,
+						data: itemData
+					});
+					
+					// Add timeout protection for Firebase operations
+					const savePromise = db.ref(`companies/${currentUser.companyId}/security/siteMap/${itemId}`).set({
+						...itemData,
+						id: itemId,
+						updatedAt: Date.now(),
+						updatedBy: currentUser.email,
+						createdAt: itemData.createdAt || Date.now()
+					});
+					
+					// Create timeout promise (15 seconds)
+					const timeoutPromise = new Promise((_, reject) => {
+						setTimeout(() => reject(new Error('Firebase save timeout after 15 seconds')), 15000);
+					});
+					
+					// Race between save and timeout
+					await Promise.race([savePromise, timeoutPromise]);
+
+					console.log('✅ Firebase save successful, reloading items...');
+					
+					// Add timeout protection for loading items too
+					const loadPromise = this.loadSecurityItems();
+					const loadTimeoutPromise = new Promise((_, reject) => {
+						setTimeout(() => reject(new Error('Load items timeout after 10 seconds')), 10000);
+					});
+					
+					try {
+						await Promise.race([loadPromise, loadTimeoutPromise]);
+					} catch (loadError) {
+						console.warn('⚠️ Failed to reload items after save:', loadError);
+						// Don't fail the entire save operation if reload fails
+					}
+					
+					// Show success message
+					alert(`Security item "${itemData.name}" saved successfully!`);
+					return itemId;
+				} catch (error) {
+					console.error('❌ Error saving security item:', error);
+					
+					// Fallback: Save to localStorage if Firebase fails
+					console.log('💾 Attempting localStorage fallback...');
+					try {
+						const itemId = itemData.id || 'local_' + Date.now();
+						const localItems = JSON.parse(localStorage.getItem('securityItems') || '[]');
+						
+						// Add or update item
+						const existingIndex = localItems.findIndex(item => item.id === itemId);
+						const newItem = {
+							...itemData,
+							id: itemId,
+							updatedAt: Date.now(),
+							updatedBy: currentUser?.email || 'unknown',
+							createdAt: itemData.createdAt || Date.now(),
+							source: 'localStorage' // Mark as local save
+						};
+						
+						if (existingIndex >= 0) {
+							localItems[existingIndex] = newItem;
+						} else {
+							localItems.push(newItem);
+						}
+						
+						localStorage.setItem('securityItems', JSON.stringify(localItems));
+						
+						// Update the in-memory array and re-render
+						securityItems = localItems;
+						this.renderMapItems();
+						this.renderPanelItems();
+						
+						alert(`Security item "${itemData.name}" saved locally (Firebase unavailable). Data will sync when connection is restored.`);
+						return itemId;
+					} catch (localError) {
+						console.error('❌ localStorage fallback also failed:', localError);
+						alert(`Error saving security item: ${error.message}. Please check your internet connection and try again.`);
+						return false;
+					}
+				}
+			}
+
+			async deleteItem(itemId) {
+				if (!currentUser?.companyId) {
+					console.error('No user or company ID found for deleting security item');
+					alert('You must be logged in and have a company assigned to delete security items.');
+					return false;
+				}
+
+				try {
+					await db.ref(`companies/${currentUser.companyId}/security/siteMap/${itemId}`).remove();
+					await this.loadSecurityItems();
+					return true;
+				} catch (error) {
+					console.error('Error deleting security item:', error);
+					return false;
+				}
+			}
+		}
+
+		// Initialize map manager
+		let mapManager;
+
+		// UI Functions
+		function toggleLayer(layerName) {
+			const button = document.getElementById(`toggle${layerName.charAt(0).toUpperCase() + layerName.slice(1)}`);
+			const layer = layers[layerName];
+			if (!map || !layer) {
+				console.warn('Map or layer not ready yet.');
+				return;
+			}
+
+			if (map.hasLayer(layer)) {
+				map.removeLayer(layer);
+				button.classList.remove('active');
+			} else {
+				map.addLayer(layer);
+				button.classList.add('active');
+			}
+		}
+
+		function togglePanel() {
+			const panel = document.getElementById('sidePanel');
+			const icon = document.querySelector('.panel-toggle i');
+			
+			panel.classList.toggle('collapsed');
+			icon.classList.toggle('fa-chevron-right');
+			icon.classList.toggle('fa-chevron-left');
+
+			// Trigger map resize
+			setTimeout(() => { if (window.map && map.invalidateSize) map.invalidateSize(); }, 300);
+		}
+
+		// ========== TOOLBAR FUNCTIONS ==========
+
+		// Navigation Functions
+		function zoomIn() {
+			if (map) {
+				map.zoomIn();
+				console.log('🔍 Map zoomed in');
+			}
+		}
+
+		function zoomOut() {
+			if (map) {
+				map.zoomOut();
+				console.log('🔍 Map zoomed out');
+			}
+		}
+
+		function resetView() {
+			if (map) {
+				map.setView([4.5709, 114.0075], 13); // Default center for Brunei
+				console.log('🏠 Map view reset to default');
+			}
+		}
+
+		// Drawing Functions
+		let drawingMode = null;
+		let drawingLayer = null;
+		
+		function initDrawingLayer() {
+			if (!drawingLayer) {
+				drawingLayer = L.layerGroup().addTo(map);
+			}
+		}
+
+		function addMarker() {
+			if (!map) return;
+			
+			toggleDrawingMode('marker');
+			console.log('📍 Marker drawing mode activated');
+			
+			// Change cursor and add click handler
+			document.getElementById('securityMap').style.cursor = 'crosshair';
+			
+			// Add one-time click event to place marker
+			map.once('click', function(e) {
+				initDrawingLayer();
+				
+				const marker = L.marker([e.latlng.lat, e.latlng.lng], {
+					draggable: true
+				}).addTo(drawingLayer);
+				
+				// Add popup for editing
+				marker.bindPopup(`
+					<div>
+						<input type="text" id="marker-label" placeholder="Enter label" style="margin-bottom: 5px;">
+						<br>
+						<button onclick="saveMarkerLabel(this)" style="background: #3498db; color: white; border: none; padding: 5px 10px; border-radius: 3px;">Save</button>
+						<button onclick="deleteMarker(this)" style="background: #e74c3c; color: white; border: none; padding: 5px 10px; border-radius: 3px;">Delete</button>
+					</div>
+				`).openPopup();
+				
+				// Reset cursor and mode
+				document.getElementById('securityMap').style.cursor = '';
+				toggleDrawingMode(null);
+			});
+		}
+
+		function drawPolygon() {
+			if (!map) return;
+			
+			toggleDrawingMode('polygon');
+			console.log('📐 Polygon drawing mode activated');
+			showDrawingControls();
+			
+			startPolygonDrawing();
+		}
+
+		function drawRectangle() {
+			if (!map) return;
+			
+			toggleDrawingMode('rectangle');
+			console.log('⬜ Rectangle drawing mode activated');
+			showDrawingControls();
+			
+			startRectangleDrawing();
+		}
+
+		function drawCircle() {
+			if (!map) return;
+			
+			toggleDrawingMode('circle');
+			console.log('⭕ Circle drawing mode activated');
+			showDrawingControls();
+			
+			startCircleDrawing();
+		}
+
+		function drawLine() {
+			if (!map) return;
+			
+			toggleDrawingMode('line');
+			console.log('📏 Line drawing mode activated');
+			showDrawingControls();
+			
+			startLineDrawing();
+		}
+
+		// Drawing Implementation Functions
+		function startPolygonDrawing() {
+			if (!map) return;
+			
+			initDrawingLayer();
+			let points = [];
+			document.getElementById('securityMap').style.cursor = 'crosshair';
+			
+			alert('Click on the map to add polygon points. Double-click to finish.');
+			
+			const clickHandler = function(e) {
+				points.push(e.latlng);
+				
+				// Add temporary marker for each point
+				L.circleMarker(e.latlng, {
+					radius: 4,
+					color: '#3498db',
+					fillColor: '#3498db',
+					fillOpacity: 0.8
+				}).addTo(drawingLayer);
+				
+				if (points.length >= 3) {
+					// Show preview polygon
+					const previewPolygon = L.polygon(points, {
+						color: '#3498db',
+						weight: 2,
+						opacity: 0.8,
+						fillOpacity: 0.2
+					}).addTo(drawingLayer);
+				}
+			};
+			
+			const dblClickHandler = function(e) {
+				if (points.length >= 3) {
+					// Clear temporary markers and preview
+					drawingLayer.clearLayers();
+					
+					// Create final polygon
+					const polygon = L.polygon(points, {
+						color: '#e74c3c',
+						weight: 3,
+						opacity: 0.8,
+						fillOpacity: 0.3
+					}).addTo(drawingLayer);
+					
+					// Add popup for labeling
+					const popupContent = `
+						<div>
+							<label>Security Area Label:</label><br>
+							<input type="text" id="shape-label" placeholder="Enter area name" style="width: 200px;">
+							<br><br>
+							<button onclick="saveShapeLabel(this, '${polygon._leaflet_id}')">Save</button>
+							<button onclick="deleteShape('${polygon._leaflet_id}')">Delete</button>
+						</div>
+					`;
+					polygon.bindPopup(popupContent).openPopup();
+				}
+				
+				// Clean up
+				map.off('click', clickHandler);
+				map.off('dblclick', dblClickHandler);
+				document.getElementById('securityMap').style.cursor = '';
+				toggleDrawingMode(null);
+			};
+			
+			map.on('click', clickHandler);
+			map.on('dblclick', dblClickHandler);
+		}
+
+		function startRectangleDrawing() {
+			if (!map) return;
+			
+			initDrawingLayer();
+			document.getElementById('securityMap').style.cursor = 'crosshair';
+			
+			alert('Click and drag to draw a rectangle.');
+			
+			let startPoint = null;
+			let rectangle = null;
+			
+			const mouseDownHandler = function(e) {
+				startPoint = e.latlng;
+			};
+			
+			const mouseMoveHandler = function(e) {
+				if (startPoint && rectangle) {
+					drawingLayer.removeLayer(rectangle);
+				}
+				if (startPoint) {
+					const bounds = L.latLngBounds(startPoint, e.latlng);
+					rectangle = L.rectangle(bounds, {
+						color: '#3498db',
+						weight: 2,
+						opacity: 0.8,
+						fillOpacity: 0.2
+					}).addTo(drawingLayer);
+				}
+			};
+			
+			const mouseUpHandler = function(e) {
+				if (startPoint && rectangle) {
+					drawingLayer.removeLayer(rectangle);
+					
+					const bounds = L.latLngBounds(startPoint, e.latlng);
+					const finalRectangle = L.rectangle(bounds, {
+						color: '#e74c3c',
+						weight: 3,
+						opacity: 0.8,
+						fillOpacity: 0.3
+					}).addTo(drawingLayer);
+					
+					// Add popup for labeling
+					const popupContent = `
+						<div>
+							<label>Security Area Label:</label><br>
+							<input type="text" id="shape-label" placeholder="Enter area name" style="width: 200px;">
+							<br><br>
+							<button onclick="saveShapeLabel(this, '${finalRectangle._leaflet_id}')">Save</button>
+							<button onclick="deleteShape('${finalRectangle._leaflet_id}')">Delete</button>
+						</div>
+					`;
+					finalRectangle.bindPopup(popupContent).openPopup();
+				}
+				
+				// Clean up
+				map.off('mousedown', mouseDownHandler);
+				map.off('mousemove', mouseMoveHandler);
+				map.off('mouseup', mouseUpHandler);
+				document.getElementById('securityMap').style.cursor = '';
+				toggleDrawingMode(null);
+			};
+			
+			map.on('mousedown', mouseDownHandler);
+			map.on('mousemove', mouseMoveHandler);
+			map.on('mouseup', mouseUpHandler);
+		}
+
+		function startCircleDrawing() {
+			if (!map) return;
+			
+			initDrawingLayer();
+			document.getElementById('securityMap').style.cursor = 'crosshair';
+			
+			alert('Click for center, then click again to set radius.');
+			
+			let center = null;
+			let circle = null;
+			
+			const clickHandler = function(e) {
+				if (!center) {
+					center = e.latlng;
+					// Add center marker
+					L.circleMarker(center, {
+						radius: 4,
+						color: '#3498db',
+						fillColor: '#3498db',
+						fillOpacity: 0.8
+					}).addTo(drawingLayer);
+				} else {
+					const radius = center.distanceTo(e.latlng);
+					
+					// Remove preview circle if exists
+					if (circle) {
+						drawingLayer.removeLayer(circle);
+					}
+					
+					// Create final circle
+					const finalCircle = L.circle(center, {
+						radius: radius,
+						color: '#e74c3c',
+						weight: 3,
+						opacity: 0.8,
+						fillOpacity: 0.3
+					}).addTo(drawingLayer);
+					
+					// Add popup for labeling
+					const popupContent = `
+						<div>
+							<label>Security Area Label:</label><br>
+							<input type="text" id="shape-label" placeholder="Enter area name" style="width: 200px;">
+							<br><br>
+							<button onclick="saveShapeLabel(this, '${finalCircle._leaflet_id}')">Save</button>
+							<button onclick="deleteShape('${finalCircle._leaflet_id}')">Delete</button>
+						</div>
+					`;
+					finalCircle.bindPopup(popupContent).openPopup();
+					
+					// Clean up
+					map.off('click', clickHandler);
+					map.off('mousemove', mouseMoveHandler);
+					document.getElementById('securityMap').style.cursor = '';
+					toggleDrawingMode(null);
+				}
+			};
+			
+			const mouseMoveHandler = function(e) {
+				if (center) {
+					if (circle) {
+						drawingLayer.removeLayer(circle);
+					}
+					const radius = center.distanceTo(e.latlng);
+					circle = L.circle(center, {
+						radius: radius,
+						color: '#3498db',
+						weight: 2,
+						opacity: 0.8,
+						fillOpacity: 0.2
+					}).addTo(drawingLayer);
+				}
+			};
+			
+			map.on('click', clickHandler);
+			map.on('mousemove', mouseMoveHandler);
+		}
+
+		function startLineDrawing() {
+			if (!map) return;
+			
+			initDrawingLayer();
+			let points = [];
+			document.getElementById('securityMap').style.cursor = 'crosshair';
+			
+			alert('Click on the map to add line points. Double-click to finish.');
+			
+			const clickHandler = function(e) {
+				points.push(e.latlng);
+				
+				// Add temporary marker for each point
+				L.circleMarker(e.latlng, {
+					radius: 4,
+					color: '#3498db',
+					fillColor: '#3498db',
+					fillOpacity: 0.8
+				}).addTo(drawingLayer);
+				
+				if (points.length >= 2) {
+					// Show preview line
+					const previewLine = L.polyline(points, {
+						color: '#3498db',
+						weight: 3,
+						opacity: 0.8
+					}).addTo(drawingLayer);
+				}
+			};
+			
+			const dblClickHandler = function(e) {
+				if (points.length >= 2) {
+					// Clear temporary markers and preview
+					drawingLayer.clearLayers();
+					
+					// Create final line
+					const line = L.polyline(points, {
+						color: '#e74c3c',
+						weight: 4,
+						opacity: 0.9
+					}).addTo(drawingLayer);
+					
+					// Add popup for labeling
+					const popupContent = `
+						<div>
+							<label>Security Line Label:</label><br>
+							<input type="text" id="shape-label" placeholder="Enter line name" style="width: 200px;">
+							<br><br>
+							<button onclick="saveShapeLabel(this, '${line._leaflet_id}')">Save</button>
+							<button onclick="deleteShape('${line._leaflet_id}')">Delete</button>
+						</div>
+					`;
+					line.bindPopup(popupContent).openPopup();
+				}
+				
+				// Clean up
+				map.off('click', clickHandler);
+				map.off('dblclick', dblClickHandler);
+				document.getElementById('securityMap').style.cursor = '';
+				toggleDrawingMode(null);
+			};
+			
+			map.on('click', clickHandler);
+			map.on('dblclick', dblClickHandler);
+		}
+
+		// Drawing Mode Management
+		function toggleDrawingMode(mode) {
+			// Reset all drawing mode buttons
+			document.querySelectorAll('.toolbar-btn').forEach(btn => {
+				if (btn.id.startsWith('draw-')) {
+					btn.classList.remove('active');
+				}
+			});
+			
+			if (mode) {
+				const button = document.getElementById(`draw-${mode}-btn`);
+				if (button) {
+					button.classList.add('active');
+				}
+				drawingMode = mode;
+			} else {
+				drawingMode = null;
+				hideDrawingControls();
+			}
+		}
+
+		function showDrawingControls() {
+			const controls = document.getElementById('drawing-controls');
+			if (controls) {
+				controls.classList.add('active');
+			}
+		}
+
+		function hideDrawingControls() {
+			const controls = document.getElementById('drawing-controls');
+			if (controls) {
+				controls.classList.remove('active');
+			}
+		}
+
+		// Measurement Functions
+		let measurementMode = null;
+		let measurementPoints = [];
+		let measurementLayer = null;
+
+		function initMeasurementLayer() {
+			if (!measurementLayer) {
+				measurementLayer = L.layerGroup().addTo(map);
+			}
+		}
+
+		function measureDistance() {
+			if (!map) return;
+			
+			toggleMeasurementMode('distance');
+			console.log('📏 Distance measurement mode activated');
+			
+			initMeasurementLayer();
+			measurementPoints = [];
+			
+			document.getElementById('securityMap').style.cursor = 'crosshair';
+			
+			const clickHandler = function(e) {
+				measurementPoints.push(e.latlng);
+				
+				// Add point marker
+				L.circleMarker(e.latlng, {
+					radius: 4,
+					color: '#e74c3c',
+					fillColor: '#e74c3c',
+					fillOpacity: 1
+				}).addTo(measurementLayer);
+				
+				if (measurementPoints.length >= 2) {
+					// Calculate distance
+					let totalDistance = 0;
+					for (let i = 1; i < measurementPoints.length; i++) {
+						totalDistance += measurementPoints[i-1].distanceTo(measurementPoints[i]);
+					}
+					
+					// Draw line
+					L.polyline(measurementPoints, {
+						color: '#e74c3c',
+						weight: 3,
+						dashArray: '10, 5'
+					}).addTo(measurementLayer);
+					
+					// Show distance
+					const lastPoint = measurementPoints[measurementPoints.length - 1];
+					L.popup()
+						.setLatLng(lastPoint)
+						.setContent(`<strong>Distance: ${formatDistance(totalDistance)}</strong>`)
+						.openOn(map);
+				}
+				
+				// Double click to finish
+				if (e.originalEvent.detail === 2) {
+					finishMeasurement();
+					map.off('click', clickHandler);
+				}
+			};
+			
+			map.on('click', clickHandler);
+		}
+
+		function measureArea() {
+			if (!map) return;
+			
+			toggleMeasurementMode('area');
+			console.log('📐 Area measurement mode activated');
+			
+			initMeasurementLayer();
+			measurementPoints = [];
+			
+			document.getElementById('securityMap').style.cursor = 'crosshair';
+			
+			const clickHandler = function(e) {
+				measurementPoints.push(e.latlng);
+				
+				// Add point marker
+				L.circleMarker(e.latlng, {
+					radius: 4,
+					color: '#e74c3c',
+					fillColor: '#e74c3c',
+					fillOpacity: 1
+				}).addTo(measurementLayer);
+				
+				if (measurementPoints.length >= 3) {
+					// Draw polygon
+					const polygon = L.polygon(measurementPoints, {
+						color: '#e74c3c',
+						fillColor: '#e74c3c',
+						fillOpacity: 0.2,
+						weight: 3,
+						dashArray: '10, 5'
+					}).addTo(measurementLayer);
+					
+					// Calculate area
+					const area = calculatePolygonArea(measurementPoints);
+					
+					// Show area
+					const center = polygon.getBounds().getCenter();
+					L.popup()
+						.setLatLng(center)
+						.setContent(`<strong>Area: ${formatArea(area)}</strong>`)
+						.openOn(map);
+				}
+				
+				// Double click to finish
+				if (e.originalEvent.detail === 2 && measurementPoints.length >= 3) {
+					finishMeasurement();
+					map.off('click', clickHandler);
+				}
+			};
+			
+			map.on('click', clickHandler);
+		}
+
+		function toggleMeasurementMode(mode) {
+			// Reset measurement buttons
+			document.querySelectorAll('#measure-distance-btn, #measure-area-btn').forEach(btn => {
+				btn.classList.remove('active');
+			});
+			
+			if (mode) {
+				const button = document.getElementById(`measure-${mode}-btn`);
+				if (button) {
+					button.classList.add('active');
+				}
+				measurementMode = mode;
+			} else {
+				measurementMode = null;
+			}
+		}
+
+		function finishMeasurement() {
+			document.getElementById('securityMap').style.cursor = '';
+			toggleMeasurementMode(null);
+		}
+
+		function formatDistance(meters) {
+			if (meters < 1000) {
+				return `${Math.round(meters * 100) / 100} m`;
+			} else {
+				return `${Math.round((meters / 1000) * 100) / 100} km`;
+			}
+		}
+
+		function formatArea(squareMeters) {
+			if (squareMeters < 10000) {
+				return `${Math.round(squareMeters)} m²`;
+			} else {
+				return `${Math.round((squareMeters / 10000) * 100) / 100} ha`;
+			}
+		}
+
+		function calculatePolygonArea(latlngs) {
+			// Simple area calculation using the shoelace formula
+			let area = 0;
+			const n = latlngs.length;
+			
+			for (let i = 0; i < n; i++) {
+				const j = (i + 1) % n;
+				area += latlngs[i].lat * latlngs[j].lng;
+				area -= latlngs[j].lat * latlngs[i].lng;
+			}
+			
+			area = Math.abs(area) / 2;
+			
+			// Convert to square meters (rough approximation)
+			return area * 111320 * 111320 * Math.cos(latlngs[0].lat * Math.PI / 180);
+		}
+
+		// Tool Functions
+		function saveMapAsImage() {
+			if (!map) return;
+			
+			console.log('💾 Saving map as image...');
+			alert('Map image save feature - would capture the current map view as an image');
+		}
+
+		function saveMapState() {
+			if (!map) return;
+			
+			console.log('💾 Saving map state...');
+			
+			const mapState = {
+				center: map.getCenter(),
+				zoom: map.getZoom(),
+				layers: [],
+				drawings: [],
+				timestamp: Date.now()
+			};
+			
+			// Save to localStorage
+			localStorage.setItem('securityMapState', JSON.stringify(mapState));
+			alert('Map state saved successfully!');
+		}
+
+		function loadMapState() {
+			if (!map) return;
+			
+			console.log('📂 Loading map state...');
+			
+			const savedState = localStorage.getItem('securityMapState');
+			if (savedState) {
+				try {
+					const mapState = JSON.parse(savedState);
+					
+					// Restore map view
+					map.setView(mapState.center, mapState.zoom);
+					
+					alert('Map state loaded successfully!');
+				} catch (error) {
+					console.error('Error loading map state:', error);
+					alert('Error loading map state');
+				}
+			} else {
+				alert('No saved map state found');
+			}
+		}
+
+		function takeScreenshot() {
+			console.log('📸 Taking screenshot...');
+			alert('Screenshot feature - would capture the current map view');
+		}
+
+		function toggleLayerControl() {
+			console.log('🗂️ Toggling layer control...');
+			
+			// Toggle layer control panel visibility
+			let layerPanel = document.getElementById('layer-control-panel');
+			if (!layerPanel) {
+				// Create layer control panel
+				layerPanel = document.createElement('div');
+				layerPanel.id = 'layer-control-panel';
+				layerPanel.style.cssText = `
+					position: absolute;
+					top: 10px;
+					right: 10px;
+					background: white;
+					padding: 15px;
+					border-radius: 8px;
+					box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+					z-index: 1000;
+					min-width: 200px;
+					display: none;
+				`;
+				layerPanel.innerHTML = `
+					<h4 style="margin: 0 0 10px 0;"><i class="fas fa-layer-group"></i> Layer Control</h4>
+					<label style="display: block; margin: 5px 0;">
+						<input type="checkbox" checked onchange="toggleLayer('posts')"> Agent Posts
+					</label>
+					<label style="display: block; margin: 5px 0;">
+						<input type="checkbox" checked onchange="toggleLayer('cameras')"> Cameras
+					</label>
+					<label style="display: block; margin: 5px 0;">
+						<input type="checkbox" checked onchange="toggleLayer('sensors')"> Sensors
+					</label>
+					<label style="display: block; margin: 5px 0;">
+						<input type="checkbox" checked onchange="toggleLayer('alarms')"> Alarms
+					</label>
+					<label style="display: block; margin: 5px 0;">
+						<input type="checkbox" checked onchange="toggleLayer('supervisors')"> Supervisors
+					</label>
+					<button onclick="toggleLayerControl()" style="margin-top: 10px; background: #e74c3c; color: white; border: none; padding: 5px 10px; border-radius: 3px;">Close</button>
+				`;
+				document.getElementById('securityMap').appendChild(layerPanel);
+			}
+			
+			layerPanel.style.display = layerPanel.style.display === 'none' ? 'block' : 'none';
+		}
+
+		function eraseDrawings() {
+			console.log('🧹 Erasing drawings...');
+			
+			if (drawingLayer) {
+				drawingLayer.clearLayers();
+			}
+			if (measurementLayer) {
+				measurementLayer.clearLayers();
+			}
+			
+			// Reset drawing modes
+			toggleDrawingMode(null);
+			toggleMeasurementMode(null);
+			
+			alert('All drawings and measurements cleared!');
+		}
+
+		function undoLastDrawing() {
+			console.log('↶ Undoing last drawing...');
+			
+			if (drawingLayer && drawingLayer.getLayers().length > 0) {
+				const layers = drawingLayer.getLayers();
+				const lastLayer = layers[layers.length - 1];
+				drawingLayer.removeLayer(lastLayer);
+			}
+		}
+
+		function saveDrawing() {
+			console.log('💾 Saving current drawing...');
+			
+			if (drawingLayer) {
+				const drawings = [];
+				drawingLayer.eachLayer(function(layer) {
+					// Convert layer to GeoJSON for saving
+					if (layer.toGeoJSON) {
+						drawings.push(layer.toGeoJSON());
+					}
+				});
+				
+				localStorage.setItem('securityMapDrawings', JSON.stringify(drawings));
+				alert('Drawings saved successfully!');
+			}
+		}
+
+		// Helper Functions for Drawing
+		function saveMarkerLabel(button) {
+			const input = button.parentElement.querySelector('#marker-label');
+			const label = input.value.trim();
+			
+			if (label) {
+				console.log('Marker label saved:', label);
+			}
+			
+			button.closest('.leaflet-popup').remove();
+		}
+
+		function deleteMarker(button) {
+			console.log('Marker deleted');
+			button.closest('.leaflet-popup').remove();
+		}
+
+		function saveShapeLabel(button, layerId) {
+			const input = button.parentElement.querySelector('#shape-label');
+			const label = input.value.trim();
+			
+			if (label) {
+				console.log('Shape label saved:', label);
+				// Find the layer and add the label as a tooltip
+				if (drawingLayer) {
+					drawingLayer.eachLayer(function(layer) {
+						if (layer._leaflet_id == layerId) {
+							layer.bindTooltip(label, {permanent: true, direction: 'center'});
+						}
+					});
+				}
+			}
+			
+			button.closest('.leaflet-popup').querySelector('.leaflet-popup-close-button').click();
+		}
+
+		function deleteShape(layerId) {
+			console.log('Deleting shape with ID:', layerId);
+			if (drawingLayer) {
+				drawingLayer.eachLayer(function(layer) {
+					if (layer._leaflet_id == layerId) {
+						drawingLayer.removeLayer(layer);
+						console.log('Shape deleted successfully');
+					}
+				});
+			}
+		}
+
+		function showAddItemModal() {
+			document.getElementById('modalTitle').innerHTML = '<i class="fas fa-plus"></i> Add Security Item';
+			document.getElementById('itemForm').reset();
+			document.getElementById('deleteBtn').style.display = 'none';
+			editingItem = null;
+			
+			// Prefill latitude/longitude with current map center
+			try {
+				if (window.map && map.getCenter) {
+					const center = map.getCenter();
+					document.getElementById('itemLat').value = center.lat.toFixed(6);
+					document.getElementById('itemLng').value = center.lng.toFixed(6);
+				}
+			} catch (e) { /* ignore */ }
+			
+			// Show supervisor fields if supervisor type is selected
+			document.getElementById('itemType').addEventListener('change', function() {
+				const supervisorFields = document.getElementById('supervisorFields');
+				supervisorFields.style.display = this.value === 'supervisor' ? 'block' : 'none';
+			});
+
+			document.getElementById('itemModal').classList.add('show');
+		}
+
+		function editItem(itemId) {
+			const item = securityItems.find(i => i.id === itemId);
+			if (!item) return;
+
+			editingItem = item;
+			
+			document.getElementById('modalTitle').innerHTML = '<i class="fas fa-edit"></i> Edit Security Item';
+			document.getElementById('itemType').value = item.type;
+			document.getElementById('itemName').value = item.name;
+			document.getElementById('itemStatus').value = item.status;
+			document.getElementById('itemLat').value = item.lat;
+			document.getElementById('itemLng').value = item.lng;
+			document.getElementById('itemDescription').value = item.description || '';
+			document.getElementById('supervisedPosts').value = item.supervisedPosts || '';
+			
+			// Show supervisor fields if needed
+			const supervisorFields = document.getElementById('supervisorFields');
+			supervisorFields.style.display = item.type === 'supervisor' ? 'block' : 'none';
+			
+			document.getElementById('deleteBtn').style.display = 'inline-block';
+			document.getElementById('itemModal').classList.add('show');
+		}
+
+		function focusItem(itemId) {
+			const item = securityItems.find(i => i.id === itemId);
+			if (item && window.map && map.setView) {
+				map.setView([item.lat, item.lng], 18);
+			}
+		}
+
+		// Test function to verify save functionality
+		async function testSaveFunction() {
+			console.log('🧪 Testing save functionality...');
+			
+			try {
+				// Test data
+				const testData = {
+					type: 'agent-post',
+					name: 'TEST-POST-' + Date.now(),
+					status: 'active',
+					lat: 25.276987,
+					lng: 55.296249,
+					description: 'Test security post created by test function',
+					supervisedPosts: ''
+				};
+				
+				console.log('📝 Test data:', testData);
+				
+				if (!mapManager) {
+					alert('Map manager not initialized');
+					return;
+				}
+				
+				const result = await mapManager.saveItem(testData);
+				console.log('🧪 Test save result:', result);
+				
+				if (result) {
+					alert(`Test save successful! Created item: ${testData.name}`);
+				} else {
+					alert('Test save failed - check console for details');
+				}
+			} catch (error) {
+				console.error('🧪 Test save error:', error);
+				alert(`Test save error: ${error.message}`);
+			}
+		}
+
+		function closeModal() {
+			document.getElementById('itemModal').classList.remove('show');
+			editingItem = null;
+		}
+
+		async function saveItem() {
+			try {
+				console.log('🔍 saveItem function called');
+				const form = document.getElementById('itemForm');
+				if (!form) {
+					console.error('❌ Form not found');
+					alert('Form not found. Please refresh the page.');
+					return;
+				}
+				
+				if (!form.checkValidity()) {
+					console.log('⚠️ Form validation failed');
+					form.reportValidity();
+					return;
+				}
+
+				const itemData = {
+					type: document.getElementById('itemType').value,
+					name: document.getElementById('itemName').value,
+					status: document.getElementById('itemStatus').value,
+					lat: parseFloat(document.getElementById('itemLat').value),
+					lng: parseFloat(document.getElementById('itemLng').value),
+					description: document.getElementById('itemDescription').value,
+					supervisedPosts: document.getElementById('supervisedPosts').value
+				};
+
+				console.log('📝 Item data prepared:', itemData);
+
+				// Validate coordinates
+				if (isNaN(itemData.lat) || isNaN(itemData.lng)) {
+					alert('Please enter valid latitude and longitude coordinates.');
+					return;
+				}
+
+				if (editingItem) {
+					itemData.id = editingItem.id;
+					console.log('✏️ Editing existing item:', editingItem.id);
+				} else {
+					console.log('➕ Creating new item');
+				}
+
+				if (!mapManager) {
+					console.error('❌ mapManager is not initialized');
+					alert('Map manager is not ready. Please refresh the page and try again.');
+					return;
+				}
+
+				// Disable save button to prevent double-clicks
+				const saveBtn = document.querySelector('.btn-primary');
+				if (saveBtn) {
+					saveBtn.disabled = true;
+					saveBtn.textContent = 'Saving...';
+				}
+
+				console.log('🚀 Calling mapManager.saveItem...');
+				const savedId = await mapManager.saveItem(itemData);
+				console.log('✅ Save result:', savedId);
+				
+				if (savedId) {
+					console.log('✅ Item saved successfully, closing modal');
+					closeModal();
+					// Try to focus the newly saved item
+					try { focusItem(savedId); } catch (_) {}
+				} else {
+					console.error('❌ Save failed');
+				}
+			} catch (error) {
+				console.error('❌ Error in saveItem function:', error);
+				alert(`Unexpected error: ${error.message}`);
+			} finally {
+				// Re-enable save button
+				const saveBtn = document.querySelector('.btn-primary');
+				if (saveBtn) {
+					saveBtn.disabled = false;
+					saveBtn.textContent = 'Save';
+				}
+			}
+		}
+
+		async function deleteItem() {
+			if (!editingItem || !confirm('Are you sure you want to delete this security item?')) return;
+
+			const success = await mapManager.deleteItem(editingItem.id);
+			if (success) {
+				closeModal();
+			} else {
+				alert('Error deleting item. Please try again.');
+			}
+		}
+
+		// Sidebar Toggle
+		document.getElementById('sidebarToggle').addEventListener('click', function() {
+			const sidebar = document.getElementById('sideNav');
+			const mainContent = document.querySelector('.main-content');
+			const topNav = document.querySelector('.top-nav');
+			
+			sidebar.classList.toggle('collapsed');
+			mainContent.classList.toggle('sidebar-collapsed');
+			topNav.classList.toggle('sidebar-collapsed');
+			
+			// Trigger map resize after animation
+			setTimeout(() => { if (window.map && map.invalidateSize) map.invalidateSize(); }, 300);
+		});
+
+		// Feature/role-based menu filtering - DISABLED - Show all menu items
+		function resetMenuVisibility() {
+			console.log('🔄 Menu visibility controls disabled - showing all items');
+			// Remove loading state from sidebar to show all items
+			const sidebar = document.querySelector('.sidebar');
+			if (sidebar) {
+				sidebar.classList.remove('menu-loading');
+				console.log('✅ All menu items now visible');
+			}
+		}
+
+		// DISABLED: Feature-based filtering - now just shows all items  
+		async function applyFeatureBasedMenuVisibility(companyId) {
+			console.log('📝 Feature-based filtering disabled - showing all menu items');
+			resetMenuVisibility();
+			return []; // Return empty array since we're not filtering
+			
+			// ORIGINAL CODE DISABLED BELOW:
+			/*
+			console.log('� Starting feature-based visibility for company:', companyId);
+			resetMenuVisibility();
+			
+			try {
+				console.log('🔧 Applying feature-based menu visibility for company:', companyId);
+				const database = window.db || firebase.database();
+				
+				// Load platform features
+				const featuresSnapshot = await database.ref('/platformFeatures').once('value');
+				if (!featuresSnapshot.exists()) {
+					console.log('⚠️ No platform features found');
+					resetMenuVisibility();
+					return [];
+				}
+				const featuresData = featuresSnapshot.val();
+				
+				// Load company data for selectedFeatures
+				const companySnapshot = await database.ref(`/companies/${companyId}`).once('value');
+				const companyData = companySnapshot.val();
+				if (!companyData) {
+					console.error('❌ Company data not found');
+					resetMenuVisibility();
+					return [];
+				}
+				
+				const subscribedFeatureIds = companyData.selectedFeatures || [];
+				console.log('� Company subscribed features:', subscribedFeatureIds);
+				if (subscribedFeatureIds.length === 0) {
+					console.log('⚠️ Company has no subscribed features');
+					resetMenuVisibility();
+					return [];
+				}
+
+				// Collect authorized pages from subscribed features
+				const authorizedPages = [];
+				subscribedFeatureIds.forEach(featureId => {
+					const feature = featuresData[featureId];
+					if (feature && feature.status === 'active' && feature.authorizedPages) {
+						console.log(`📦 Adding pages from feature "${feature.name}":`, feature.authorizedPages);
+						authorizedPages.push(...feature.authorizedPages);
+					} else {
+						console.log(`⚠️ Feature ${featureId} not found or inactive`);
+					}
+				});
+
+				console.log('🔐 All authorized pages from company features:', authorizedPages);
+				resetMenuVisibility();
+
+				// Build set of authorized features
+				const authorizedFeatures = new Set();
+				authorizedPages.forEach(pageInfo => { 
+					if (pageInfo.feature) authorizedFeatures.add(pageInfo.feature); 
+				});
+				console.log('🎯 Authorized features for secur.html:', Array.from(authorizedFeatures));
+
+				// Show items with authorized features
+				const allMenuItems = document.querySelectorAll('#roleBasedMenu li[data-feature]');
+				let visibleCount = 0;
+				allMenuItems.forEach(menuItem => {
+					const featureAttribute = menuItem.getAttribute('data-feature');
+					const isAuthorized = authorizedFeatures.has(featureAttribute);
+					const isDropdownContainer = menuItem.classList.contains('menu-dropdown');
+					
+					// Handle non-dropdown items
+					if (!isDropdownContainer) {
+						if (isAuthorized) {
+							menuItem.classList.add('menu-visible');
+							visibleCount++;
+							console.log(`✅ Feature authorized - showing menu item: ${featureAttribute}`);
+						} else {
+							menuItem.classList.remove('menu-visible');
+						}
+					}
+					// Handle dropdown containers - show if the dropdown feature itself is authorized
+					else if (isAuthorized) {
+						menuItem.classList.add('menu-visible');
+						visibleCount++;
+						console.log(`✅ Dropdown feature authorized - showing dropdown: ${featureAttribute}`);
+					} else {
+						// Don't remove menu-visible yet, will be handled in dropdown logic below
+					}
+				});
+
+				// Handle dropdowns - show if they have visible children or are themselves authorized
+				const dropdownMenus = document.querySelectorAll('#roleBasedMenu li.menu-dropdown');
+				dropdownMenus.forEach(dropdown => {
+					const dropdownFeature = dropdown.getAttribute('data-feature');
+					const submenuItems = dropdown.querySelectorAll('.submenu li[data-feature]');
+					let hasVisibleChildren = false;
+					
+					console.log(`🔍 Checking dropdown: ${dropdownFeature} with ${submenuItems.length} submenu items`);
+					
+					submenuItems.forEach(submenuItem => { 
+						const submenuFeature = submenuItem.getAttribute('data-feature');
+						const isVisible = submenuItem.classList.contains('menu-visible');
+						console.log(`   📋 Submenu item: ${submenuFeature} - visible: ${isVisible}`);
+						if (isVisible) hasVisibleChildren = true; 
+					});
+					
+					const dropdownAuthorized = authorizedFeatures.has(dropdownFeature);
+					console.log(`   🎯 Dropdown ${dropdownFeature} - hasVisibleChildren: ${hasVisibleChildren}, dropdownAuthorized: ${dropdownAuthorized}`);
+					
+					if (hasVisibleChildren || dropdownAuthorized) {
+						dropdown.classList.add('menu-visible');
+						console.log(`✅ Showing dropdown menu: ${dropdownFeature}`);
+					} else {
+						dropdown.classList.remove('menu-visible');
+						console.log(`❌ Hiding dropdown menu: ${dropdownFeature}`);
+					}
+				});
+
+				console.log(`🎯 Company feature authorization completed - ${visibleCount} items initially visible`);
+				return authorizedPages;
+				
+			} catch (error) {
+				console.error('❌ Error in feature-based visibility:', error);
+				console.error('Error details:', error.message, error.stack);
+				return [];
+			}
+			*/
+		}
+
+		// DISABLED: Role-based filtering - now just shows all items
+		function filterMenuByPermissions(permissions) {
+			console.log('📝 Role-based filtering disabled - showing all menu items');
+			showSidebarAfterAuth();
+		}
+
+		// DISABLED: Hide items requiring permissions - now does nothing  
+		function hideItemsRequiringPermissions() {
+			console.log('📝 Permission-based hiding disabled - showing all menu items');
+		}
+
+		function showSidebarAfterAuth() {
+			const sidebar = document.querySelector('.sidebar');
+			if (sidebar) {
+				sidebar.classList.remove('menu-loading');
+				console.log('✅ Sidebar loading state removed - menu authorization complete');
+				
+				// Debug: Check final menu state
+				console.log('🔍 Final menu state debug:');
+				const allItems = document.querySelectorAll('#roleBasedMenu [data-feature]');
+				const visibleItems = document.querySelectorAll('#roleBasedMenu .menu-visible');
+				console.log('📊 Total menu items with data-feature:', allItems.length);
+				console.log('📊 Items with menu-visible class:', visibleItems.length);
+				
+				allItems.forEach((item, index) => {
+					const feature = item.getAttribute('data-feature');
+					const hasVisible = item.classList.contains('menu-visible');
+					const isHidden = getComputedStyle(item).display === 'none';
+					console.log(`📋 Item ${index + 1}: ${feature} - visible class: ${hasVisible}, display: ${isHidden ? 'none' : 'visible'}`);
+				});
+			}
+		}
+
+		async function applyCompanyFeatureAccess(companyFeatures) {
+			try {
+				console.log('🎯 Applying company feature access for secur.html...');
+				
+				const authorizedPages = [];
+				companyFeatures.forEach(feature => {
+					const featureId = feature.id || feature.featureId;
+					if (feature.active && feature.pages) {
+						feature.pages.forEach(page => {
+							if (page.active) {
+								authorizedPages.push({
+									page: page.page,
+									feature: page.feature || featureId,
+									permissions: page.permissions || []
+								});
+							}
+						});
+					}
+				});
+
+				console.log('🔐 All authorized pages from company features:', authorizedPages);
+				resetMenuVisibility();
+
+				// Build set of authorized features
+				const authorizedFeatures = new Set();
+				authorizedPages.forEach(pageInfo => { 
+					if (pageInfo.feature) authorizedFeatures.add(pageInfo.feature); 
+				});
+				console.log('🎯 Authorized features for secur.html:', Array.from(authorizedFeatures));
+
+				// Show items with authorized features
+				const allMenuItems = document.querySelectorAll('#roleBasedMenu li[data-feature]');
+				let visibleCount = 0;
+				allMenuItems.forEach(menuItem => {
+					const featureAttribute = menuItem.getAttribute('data-feature');
+					const isAuthorized = authorizedFeatures.has(featureAttribute);
+					const isDropdownContainer = menuItem.classList.contains('menu-dropdown');
+					if (isDropdownContainer) return;
+					if (isAuthorized) {
+						menuItem.classList.add('menu-visible');
+						visibleCount++;
+						console.log(`✅ Feature authorized - showing menu item: ${featureAttribute}`);
+					} else {
+						menuItem.classList.remove('menu-visible');
+					}
+				});
+
+				// Handle dropdowns
+				const dropdownMenus = document.querySelectorAll('#roleBasedMenu li.menu-dropdown');
+				dropdownMenus.forEach(dropdown => {
+					const dropdownFeature = dropdown.getAttribute('data-feature');
+					const submenuItems = dropdown.querySelectorAll('.submenu li[data-feature]');
+					let hasVisibleChildren = false;
+					submenuItems.forEach(submenuItem => { 
+						if (submenuItem.classList.contains('menu-visible')) hasVisibleChildren = true; 
+					});
+					if (hasVisibleChildren || authorizedFeatures.has(dropdownFeature)) {
+						dropdown.classList.add('menu-visible');
+						console.log(`✅ Showing dropdown menu: ${dropdownFeature}`);
+					} else {
+						dropdown.classList.remove('menu-visible');
+					}
+				});
+
+				console.log(`🎯 Company feature authorization completed - ${visibleCount} items initially visible`);
+				return { authorizedPages, authorizedFeatures };
+			} catch (error) {
+				console.error('❌ Error applying feature-based menu visibility:', error);
+				resetMenuVisibility();
+				return { authorizedPages: [], authorizedFeatures: new Set() };
+			}
+		}
+
+		// DISABLED: Role-based filtering - now just shows all items
+		async function applyRoleBasedFiltering(companyId, userRole, authorizedPages) {
+			console.log('� Role-based filtering disabled - showing all menu items');
+			showSidebarAfterAuth();
+		}
+
+		// DISABLED: Feature-based authorization system - now just shows all menu items
+		async function updateMenuWithFeatureAuthorization() {
+			console.log('� Feature authorization disabled - showing all menu items');
+			window.isMenuUpdateInProgress = false;
+			resetMenuVisibility(); // This will now just remove the loading state
+		}
+
+		// SIMPLIFIED: Authentication state observer - now just shows all menu items
+		firebase.auth().onAuthStateChanged(async (user) => {
+			const managerUser = (window.authManager && window.authManager.currentUser) ? window.authManager.currentUser : null;
+			console.log('🔥 Firebase Auth State Changed - Authorization disabled, showing all menu items');
+			console.log('   - Firebase user:', user ? user.email : 'None');
+			console.log('   - Manager user:', managerUser ? managerUser.email : 'None');
+			
+			// Always show all menu items regardless of authentication status
+			resetMenuVisibility(); // This will remove loading state and show all items
+			
+			// Ensure currentUser is synchronized with authManager
+			if (window.authManager && window.authManager.currentUser) {
+				currentUser = window.authManager.currentUser;
+				console.log('🔄 Synchronized currentUser:', currentUser.email);
+			}
+			
+			// Initialize map manager 
+			if (!mapManager) {
+				mapManager = new SecurityMapManager();
+			}
+
+			// Update avatar/dropdown if available
+			if (window.authManager) {
+				window.authManager.updateUserAvatar();
+				window.authManager.populateProfileDropdown();
+				window.authManager.bindProfileDropdown();
+			}
+		});
+
+		// Close modal on escape key
+		document.addEventListener('keydown', function(e) {
+			if (e.key === 'Escape') {
+				closeModal();
+			}
+		});
+
+		// Initialize when DOM is loaded
+		document.addEventListener('DOMContentLoaded', function() {
+			console.log('� DOM loaded - running immediate tests...');
+			
+			// Test 1: Check initial sidebar state
+			const sidebar = document.querySelector('.sidebar');
+			console.log('📊 Initial sidebar classes:', sidebar ? sidebar.className : 'Not found');
+			
+			// Test 2: Check if items have data-feature attributes
+			const itemsWithFeature = document.querySelectorAll('#roleBasedMenu [data-feature]');
+			console.log('📋 Items with data-feature:', itemsWithFeature.length);
+			
+			// Test 3: Check CSS rule application
+			if (itemsWithFeature.length > 0) {
+				const firstItem = itemsWithFeature[0];
+				const computedStyle = getComputedStyle(firstItem);
+				console.log('👁️ First item display style:', computedStyle.display);
+				console.log('👁️ First item classes:', firstItem.className);
+				console.log('👁️ First item data-feature:', firstItem.getAttribute('data-feature'));
+			}
+			
+			// Test 4: Manually test hiding/showing an item
+			if (itemsWithFeature.length > 0) {
+				const testItem = itemsWithFeature[0];
+				console.log('🧪 Testing manual visibility control...');
+				
+				// Remove menu-visible class (should hide item)
+				testItem.classList.remove('menu-visible');
+				console.log('❌ After removing menu-visible:', getComputedStyle(testItem).display);
+				
+				// Add menu-visible class (should show item)
+				testItem.classList.add('menu-visible');
+				console.log('✅ After adding menu-visible:', getComputedStyle(testItem).display);
+				
+				// Remove again for clean state
+				testItem.classList.remove('menu-visible');
+			}
+			
+			// Test 5: Test sidebar loading state
+			console.log('🔧 Testing sidebar loading state...');
+			if (sidebar) {
+				console.log('📊 With menu-loading class:');
+				sidebar.classList.add('menu-loading');
+				if (itemsWithFeature.length > 0) {
+					console.log('   First item display:', getComputedStyle(itemsWithFeature[0]).display);
+				}
+				
+				console.log('📊 Without menu-loading class:');
+				sidebar.classList.remove('menu-loading');
+				if (itemsWithFeature.length > 0) {
+					console.log('   First item display:', getComputedStyle(itemsWithFeature[0]).display);
+				}
+				
+				// Restore loading state for normal operation
+				sidebar.classList.add('menu-loading');
+			}
+			
+			console.log('🎯 Test complete, continuing with normal initialization...');
+			
+			// Check Firebase initialization
+			if (typeof firebase === 'undefined') {
+				console.error('❌ Firebase not loaded - showing minimal menu');
+				setTimeout(() => {
+					const sidebar = document.querySelector('.sidebar');
+					if (sidebar) sidebar.classList.remove('menu-loading');
+					// Show only current page since user must have access to view it
+					const currentPageItem = document.querySelector(`#roleBasedMenu [data-feature="security_site_map_view"]`);
+					if (currentPageItem) {
+						currentPageItem.classList.add('menu-visible');
+						// Show parent security dropdown
+						const securityDropdown = document.querySelector(`#roleBasedMenu [data-feature="security_view"]`);
+						if (securityDropdown) securityDropdown.classList.add('menu-visible');
+					}
+				}, 100);
+				return;
+			}
+			
+			console.log('📍 Security Map page initialized');
+			
+			// Show menu items based on available user information
+			console.log('🚀 Showing menu items based on available authorization...');
+			
+			// Always show current page since user has access to view it
+			const currentPageItem = document.querySelector(`#roleBasedMenu [data-feature="security_site_map_view"]`);
+			if (currentPageItem) {
+				currentPageItem.classList.add('menu-visible');
+				console.log('✅ Showing current page: security_site_map_view');
+			}
+			
+			// Show Security dropdown if current page is visible
+			const securityDropdown = document.querySelector(`#roleBasedMenu [data-feature="security_view"]`);
+			if (securityDropdown && currentPageItem) {
+				securityDropdown.classList.add('menu-visible');
+				console.log('✅ Showing security dropdown');
+			}
+			
+			// If user is already authenticated, show Home only
+			if (window.authManager && window.authManager.currentUser) {
+				const homeItem = document.querySelector(`#roleBasedMenu [data-feature="home_view"]`);
+				if (homeItem) {
+					homeItem.classList.add('menu-visible');
+					console.log('✅ Showing home (user authenticated)');
+				}
+				
+				console.log('👤 User is authenticated, full authorization will load more items');
+			} else {
+				console.log('🔓 User not yet authenticated, showing minimal menu');
+			}
+			// Ensure map is initialized even before auth completes
+			if (!mapManager) {
+				try {
+					mapManager = new SecurityMapManager();
+					setTimeout(() => { if (map) map.invalidateSize(); }, 300);
+					
+					// Test Firebase connectivity and permissions
+					setTimeout(async () => {
+						console.log('🔥 Testing Firebase for save functionality...');
+						try {
+							const connected = await testFirebaseConnection();
+							const writable = await testFirebaseWrite();
+							if (connected && writable) {
+								console.log('✅ Firebase ready for saving security items');
+							} else {
+								console.warn('⚠️ Firebase tests failed - save functionality may not work');
+							}
+						} catch (error) {
+							console.error('❌ Firebase test error:', error);
+						}
+					}, 1000);
+				} catch (e) {
+					console.error('Failed to initialize map manager:', e);
+				}
+			}
+
+			// Initialize toolbar button event listeners
+			setTimeout(() => {
+				console.log('🔧 Initializing toolbar button event listeners...');
+				
+				// Navigation buttons
+				const zoomInBtn = document.getElementById('zoom-in-btn');
+				const zoomOutBtn = document.getElementById('zoom-out-btn');
+				const resetViewBtn = document.getElementById('reset-view-btn');
+				
+				if (zoomInBtn) {
+					zoomInBtn.addEventListener('click', zoomIn);
+					console.log('✅ Zoom In button connected');
+				}
+				if (zoomOutBtn) {
+					zoomOutBtn.addEventListener('click', zoomOut);
+					console.log('✅ Zoom Out button connected');
+				}
+				if (resetViewBtn) {
+					resetViewBtn.addEventListener('click', resetView);
+					console.log('✅ Reset View button connected');
+				}
+				
+				// Drawing tools
+				const addMarkerBtn = document.getElementById('draw-marker-btn');
+				const drawPolygonBtn = document.getElementById('draw-polygon-btn');
+				const drawLineBtn = document.getElementById('draw-line-btn');
+				
+				if (addMarkerBtn) {
+					addMarkerBtn.addEventListener('click', addMarker);
+					console.log('✅ Add Marker button connected');
+				}
+				if (drawPolygonBtn) {
+					drawPolygonBtn.addEventListener('click', drawPolygon);
+					console.log('✅ Draw Polygon button connected');
+				}
+				if (drawLineBtn) {
+					drawLineBtn.addEventListener('click', drawLine);
+					console.log('✅ Draw Line button connected');
+				}
+				
+				// Handle submenu options for polygon button
+				const submenuItems = document.querySelectorAll('.submenu-item');
+				submenuItems.forEach(item => {
+					item.addEventListener('click', (e) => {
+						e.preventDefault();
+						e.stopPropagation();
+						const shape = item.getAttribute('data-shape');
+						console.log(`🎯 Drawing ${shape}...`);
+						switch(shape) {
+							case 'polygon':
+								drawPolygon();
+								break;
+							case 'rectangle':
+								drawRectangle();
+								break;
+							case 'circle':
+								drawCircle();
+								break;
+						}
+					});
+				});
+				
+				// Measurement tools
+				const measureDistanceBtn = document.getElementById('measure-distance-btn');
+				const measureAreaBtn = document.getElementById('measure-area-btn');
+				
+				if (measureDistanceBtn) {
+					measureDistanceBtn.addEventListener('click', measureDistance);
+					console.log('✅ Measure Distance button connected');
+				}
+				if (measureAreaBtn) {
+					measureAreaBtn.addEventListener('click', measureArea);
+					console.log('✅ Measure Area button connected');
+				}
+				
+				// Tool buttons
+				const saveImageBtn = document.getElementById('save-map-btn');
+				const saveStateBtn = document.getElementById('save-state-btn');
+				const loadStateBtn = document.getElementById('load-state-btn');
+				const screenshotBtn = document.getElementById('screenshot-btn');
+				const layerControlBtn = document.getElementById('layers-btn');
+				const eraseBtn = document.getElementById('erase-btn');
+				
+				if (saveImageBtn) {
+					saveImageBtn.addEventListener('click', saveMapAsImage);
+					console.log('✅ Save as Image button connected');
+				}
+				if (saveStateBtn) {
+					saveStateBtn.addEventListener('click', saveMapState);
+					console.log('✅ Save Map State button connected');
+				}
+				if (loadStateBtn) {
+					loadStateBtn.addEventListener('click', loadMapState);
+					console.log('✅ Load Map State button connected');
+				}
+				if (screenshotBtn) {
+					screenshotBtn.addEventListener('click', takeScreenshot);
+					console.log('✅ Take Screenshot button connected');
+				}
+				if (layerControlBtn) {
+					layerControlBtn.addEventListener('click', toggleLayerControl);
+					console.log('✅ Layer Control button connected');
+				}
+				if (eraseBtn) {
+					eraseBtn.addEventListener('click', eraseDrawings);
+					console.log('✅ Erase All button connected');
+				}
+				
+				console.log('🎯 Toolbar initialization complete!');
+			}, 500);  // Small delay to ensure map is ready
+
+			// Profile dropdown is bound by AuthManager.bindProfileDropdown() to match riskboard.html
+
+			// Wire notifications dropdown
+			const notifBtn = document.getElementById('notificationBtn');
+			const notifDropdown = document.querySelector('.notification-dropdown');
+			if (notifBtn && notifDropdown) {
+				notifBtn.addEventListener('click', (e) => {
+					e.stopPropagation();
+					notifDropdown.classList.toggle('show');
+				});
+				document.addEventListener('click', () => notifDropdown.classList.remove('show'));
+			}
+
+			// Emergency fallback - ensure menu is always visible
+			setTimeout(() => {
+				const sidebar = document.querySelector('.sidebar');
+				const visibleItems = document.querySelectorAll('#roleBasedMenu .menu-visible');
+				console.log('🕐 Fallback check: visible items =', visibleItems.length);
+				console.log('🕐 Sidebar classes:', sidebar ? sidebar.className : 'Not found');
+				
+				if (visibleItems.length <= 2) {  // Only current page and maybe home showing
+					console.log('🚨 Emergency fallback: Too few menu items visible, forcing authorization recheck');
+					
+					// Remove menu-loading class to show items
+					if (sidebar) {
+						sidebar.classList.remove('menu-loading');
+						console.log('✅ Removed menu-loading class');
+					}
+					
+					// Force a manual check of what features should be available
+					// If user is authenticated, try to show more items
+					if (window.authManager && window.authManager.currentUser) {
+						console.log('👤 User authenticated, showing common authorized features');
+						
+						// Show commonly authorized features for authenticated users
+						const commonFeatures = [
+							'home_view',
+							'security_site_map_view', // Current page
+							'security_view', // Parent of current page
+							'hr_view', // Often authorized
+							'project_management_view', // Often authorized
+						];
+						
+						let shownCount = 0;
+						
+						// Show main features only (submenu items will be shown by proper authorization)
+						commonFeatures.forEach(feature => {
+							const item = document.querySelector(`#roleBasedMenu [data-feature="${feature}"]`);
+							if (item) {
+								item.classList.add('menu-visible');
+								shownCount++;
+								console.log(`✅ Showing common feature: ${feature}`);
+							}
+						});
+						
+						console.log(`🎯 Emergency fallback complete: ${shownCount} items shown`);
+					} else {
+						// Not authenticated - show minimal items
+						const essentialItems = ['security_site_map_view'];
+						
+						let shownCount = 0;
+						essentialItems.forEach(feature => {
+							const item = document.querySelector(`#roleBasedMenu [data-feature="${feature}"]`);
+							if (item) {
+								item.classList.add('menu-visible');
+								shownCount++;
+								console.log(`✅ Showing essential item: ${feature}`);
+							}
+						});
+						
+						console.log(`🎯 Minimal fallback complete: ${shownCount} items shown`);
+					}
+					
+					// Show parent dropdowns if they have visible children
+					document.querySelectorAll('#roleBasedMenu .menu-dropdown').forEach(dropdown => {
+						const visibleChildren = dropdown.querySelectorAll('.submenu li.menu-visible');
+						if (visibleChildren.length > 0) {
+							dropdown.classList.add('menu-visible');
+							console.log(`✅ Showing dropdown with ${visibleChildren.length} visible children`);
+						}
+					});
+					
+				} else {
+					console.log('✅ Menu authorization successful, no fallback needed');
+				}
+			}, 3000);
+		});
+
+		// Initialize AuthManager (centralized authentication)
+		window.authManager = new AuthManager();
+	</script>
+</body>
+</html>
