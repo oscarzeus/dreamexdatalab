@@ -25,6 +25,50 @@
     <link rel="stylesheet" href="css/tables.css">
     
     <script type="module" src="js/firebase-config.js"></script>
+    <script>
+    
+    
+    
+
+    
+
+    // Remove any sidebar <li> elements that are not visible and clean up empty dropdowns
+    function pruneSidebarMenu() {
+        try {
+            const menu = document.getElementById('roleBasedMenu');
+            if (!menu) return;
+
+            // Remove non-visible leaf items
+            const allItems = menu.querySelectorAll('li[data-feature]');
+            allItems.forEach(li => {
+                if (!li.classList.contains('menu-visible')) {
+                    // If it's an ancestor dropdown, don't remove yet (we'll clean dropdowns separately)
+                    const isDropdown = li.classList.contains('menu-dropdown');
+                    if (!isDropdown) li.remove();
+                }
+            });
+
+            // Clean dropdowns: remove empty dropdowns or dropdowns with no visible children
+            const dropdowns = menu.querySelectorAll('li.menu-dropdown');
+            dropdowns.forEach(dd => {
+                const submenu = dd.querySelector('.submenu');
+                if (!submenu) { dd.remove(); return; }
+                const visibleChildren = submenu.querySelectorAll('li.menu-visible');
+                if (visibleChildren.length === 0) {
+                    dd.remove();
+                } else {
+                    // Remove any non-visible children left behind
+                    submenu.querySelectorAll('li').forEach(child => { if (!child.classList.contains('menu-visible')) child.remove(); });
+                }
+            });
+
+            console.log('🧹 Sidebar pruned: only authorized menu items remain');
+        } catch (e) {
+            console.error('❌ Error pruning sidebar menu:', e);
+        }
+    }
+    document.addEventListener('DOMContentLoaded', () => { updateMenuWithFeatureAuthorization(); });
+    </script>
     <style>
         /* Base Font Size - Match Staff Management */
         :root {
@@ -44,6 +88,7 @@
             z-index: 1000;
             background: white;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border-radius: 0; /* remove rounded corners from header */
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -162,15 +207,22 @@
         .header-company-logo, .company-logo {
             width: 40px;
             height: 40px;
-            border-radius: 8px;
+            border-radius: 0; /* remove round corners */
             object-fit: cover;
-            border: 2px solid #e9ecef;
+            border: none; /* remove border */
             display: none;
         }
 
         .header-company-logo.visible, .company-logo.visible {
             display: block;
         }
+        
+            /* Header logo: match accessboard (no background, no border, no shadow) */
+            #headerCompanyLogo{
+                width:44px;height:44px;object-fit:cover;display:none;background:transparent;border:none;box-shadow:none;
+            }
+            #headerCompanyLogo.visible{display:block}
+            .header-logo-placeholder{width:40px;height:40px;background:transparent;display:flex;align-items:center;justify-content:center;margin-right:12px;border-radius:0}
 
         .company-name-header {
             font-weight: 600;
@@ -182,9 +234,9 @@
         .header-logo-placeholder {
             width: 40px;
             height: 40px;
-            border-radius: 8px;
-            background: #f8f9fa;
-            border: 2px dashed #ced4da;
+            border-radius: 0; /* square placeholder */
+            background: transparent; /* remove gray background */
+            border: none;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -212,39 +264,67 @@
         }
 
         /* Timesheet Styles */
+        /* Tab container with debug styles */
         .tab-container {
             margin-bottom: 2rem;
+            position: relative; /* Create stacking context */
+            z-index: 1; /* Ensure above other content */
         }
 
         .tab-buttons {
             display: flex;
             border-bottom: 2px solid #e0e0e0;
             margin-bottom: 2rem;
+            position: relative;
+            z-index: 2; /* Ensure buttons are above content */
         }
 
         .tab-button {
             background: none;
             border: none;
             padding: 1rem 2rem;
-            cursor: pointer;
+            cursor: pointer !important; /* Force cursor */
             font-size: 1rem;
             color: #666;
             border-bottom: 3px solid transparent;
             transition: all 0.3s ease;
+            position: relative; /* For debug outline */
+            pointer-events: auto !important; /* Force clickability */
         }
 
         .tab-button.active {
             color: #3498db;
             border-bottom-color: #3498db;
             background: #f8f9fa;
+            font-weight: bold; /* Make active state more visible */
         }
 
+        /* Debug hover effects */
+        .tab-button:hover {
+            background-color: #f0f0f0;
+            outline: 2px solid #4CAF50;
+        }
+
+        .tab-button:focus {
+            outline: 2px solid #2196F3;
+        }
+
+        /* Tab content with debug styles */
         .tab-content {
             display: none;
+            position: relative;
+            min-height: 100px;
+            border: 1px dashed #ccc;
+            padding: 1rem;
+            margin-top: 1rem;
+            opacity: 0;
+            transition: opacity 0.3s ease;
         }
 
         .tab-content.active {
-            display: block;
+            display: block !important; /* Force display */
+            opacity: 1;
+            border-color: #4CAF50;
         }
 
         .timesheet-header {
@@ -1281,13 +1361,21 @@
             display: none !important;
         }
 
-        /* Show menu items by default until permissions are loaded */
+        /* Hide ALL menu items by default during loading (prevent flicker)
+           Match behavior used in other pages like accessdaily.html */
+        .sidebar.menu-loading .menu-item,
+        .sidebar.menu-loading .menu-dropdown,
+        .sidebar.menu-loading li[data-feature],
+        .sidebar.menu-loading [data-feature] {
+            display: none !important;
+        }
+
         .menu-loading [data-feature] {
-            display: block !important;
+            display: none !important;
         }
 
         .menu-loading .menu-dropdown {
-            display: block !important;
+            display: none !important;
         }
 
         /* Essential CSS for External Dependencies Integration */
@@ -1395,6 +1483,7 @@
             z-index: 1000;
             background: white;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border-radius: 0;
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -1502,34 +1591,30 @@
             overflow: hidden;
         }
 
-        /* Page Header - Match Company Management Style */
+        /* Page Header - Match Staff Management Style */
         .content-header {
             display: flex;
-            flex-direction: column;
-            margin-bottom: 0.25rem;
-            margin: 0 0 0.25rem 0;
-            padding: 0.75rem;
-            background: white;
-            border-radius: 8px;
-            /* Increased elevated shadow with subtle top ambient lift */
-            box-shadow:
-                0 4px 14px rgba(0,0,0,0.12), /* deeper downward */
-                0 0 0 1px rgba(0,0,0,0.04),  /* crisp border */
-                0 -2px 6px rgba(0,0,0,0.06); /* slight top shadow for lift */
-            gap: 0.5rem;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1rem 1.5rem;
+            background: linear-gradient(135deg, #3498db 0%, #2c3e50 100%);
+            margin: 0 0 1rem 0;
+            box-shadow: 0 10px 28px rgba(0,0,0,0.18), 0 6px 16px rgba(0,0,0,0.14);
         }
 
         .content-header h1 {
-            color: var(--dark-color);
+            color: #fff;
             display: flex;
             align-items: center;
-            gap: 0.5rem;
-            font-size: 1rem;
+            gap: 0.6rem;
+            font-size: 1.1rem;
             margin: 0;
+            font-weight: 600;
         }
 
         .content-header h1 i {
-            font-size: 1rem;
+            font-size: 1.2rem;
+            opacity: 0.9;
         }
 
         /* Enhanced Tab System - Match Company Management */
@@ -2332,11 +2417,11 @@
             async updateMenuVisibility() {
                 console.log('🔧 Starting menu visibility update...');
                 
-                // Remove loading class
-                const sidebar = document.querySelector('.sidebar');
-                if (sidebar) {
-                    sidebar.classList.remove('menu-loading');
-                }
+                    // Ensure loading class is present while we compute permissions
+                    const sidebar = document.querySelector('.sidebar');
+                    if (sidebar) {
+                        sidebar.classList.add('menu-loading');
+                    }
                 
                 try {
                     if (!this.currentUser) {
@@ -2401,6 +2486,11 @@
                 } catch (error) {
                     console.error('❌ Error updating menu visibility:', error);
                     this.resetMenuVisibility();
+                } finally {
+                    // Ensure loading class is removed when we're done
+                    if (sidebar) {
+                        sidebar.classList.remove('menu-loading');
+                    }
                 }
             }
 
@@ -2500,120 +2590,63 @@
                 }
             }
 
-            async loadUserRole(userData) {
-                // Load user role from Firebase if not available
-                if (!userData.role && userData.uid) {
-                    try {
-                        const userRef = ref(this.db, `users/${userData.uid}`);
-                        const userSnapshot = await get(userRef);
-                        if (userSnapshot.exists()) {
-                            const userRole = userSnapshot.val().role || 'user';
-                            userData.role = userRole;
-                            this.setCurrentUser(userData);
-                        }
-                    } catch (error) {
-                        console.error('Error loading user role:', error);
+
+            updateCompanyBranding(){
+                if(!this.currentCompany){
+                    this.showFallbackBranding();
+                    return;
+                }
+                const logoEl=document.getElementById('headerCompanyLogo');
+                const nameEl=document.getElementById('headerCompanyName');
+                if(nameEl) nameEl.textContent=this.currentCompany.companyName||'';
+                const logoUrl=this.currentCompany.logo||this.currentCompany.logoUrl;
+                if(logoEl){
+                    if(logoUrl){
+                        logoEl.src=logoUrl;
+                        logoEl.classList.add('visible');
+                        logoEl.style.display='block';
+                        const placeholder=document.getElementById('headerLogoPlaceholder');
+                        if(placeholder) placeholder.style.display='none';
+                    } else {
+                        const svg=this.generateCompanyInitialsSVG(this.getCompanyInitials(this.currentCompany.companyName||''));
+                        logoEl.src=svg;
+                        logoEl.classList.add('visible');
+                        logoEl.style.display='block';
+                        const placeholder=document.getElementById('headerLogoPlaceholder');
+                        if(placeholder) placeholder.style.display='none';
                     }
+                }
+                if(this.currentCompany.branding){
+                    const root=document.documentElement;
+                    if(this.currentCompany.branding.primaryColor) root.style.setProperty('--primary-color',this.currentCompany.branding.primaryColor);
+                    if(this.currentCompany.branding.secondaryColor) root.style.setProperty('--secondary-color',this.currentCompany.branding.secondaryColor);
                 }
             }
 
-            async loadUserCompany() {
-                if (!this.currentUser) return;
-
-                try {
-                    const companiesRef = ref(this.db, 'companies');
-                    const companiesSnapshot = await get(companiesRef);
-                    
-                    if (companiesSnapshot.exists()) {
-                        const companies = companiesSnapshot.val();
-                        let foundCompany = null;
-                        
-                        // Search through all companies for user
-                        for (const [companyId, company] of Object.entries(companies)) {
-                            if (company.status !== 'active') continue;
-                            
-                            // Check in company users
-                            if (company.users) {
-                                for (const [userId, user] of Object.entries(company.users)) {
-                                    if (user.authUid === this.currentUser.uid || userId === this.currentUser.uid) {
-                                        foundCompany = company;
-                                        this.currentUser.companyId = companyId;
-                                        this.currentUser.companyName = company.companyName;
-                                        break;
-                                    }
-                                }
-                            }
-                            
-                            if (foundCompany) break;
-                        }
-                        
-                        if (foundCompany) {
-                            this.currentCompany = foundCompany;
-                            this.updateCompanyBranding();
-                        }
-                    }
-                } catch (error) {
-                    console.error('Error loading user company:', error);
+            showFallbackBranding(){
+                const logoEl=document.getElementById('headerCompanyLogo');
+                const nameEl=document.getElementById('headerCompanyName');
+                if(nameEl){nameEl.textContent='';}
+                if(logoEl){
+                    const svg=this.generateCompanyInitialsSVG('DX');
+                    logoEl.src=svg;
+                    logoEl.classList.add('visible');
+                    logoEl.style.display='block';
+                    const placeholder=document.getElementById('headerLogoPlaceholder');
+                    if(placeholder) placeholder.style.display='none';
                 }
             }
 
-            updateCompanyBranding() {
-                console.log('🏢 Updating company branding in account header...');
-                
-                // Update header logo and name
-                const headerLogo = document.getElementById('headerCompanyLogo');
-                const headerLogoPlaceholder = document.getElementById('headerLogoPlaceholder');
-                const companyNameHeader = document.getElementById('headerCompanyName');
+            getCompanyInitials(name){
+                if(!name) return 'CO';
+                const parts=name.trim().split(/\s+/);
+                if(parts.length===1) return parts[0].substring(0,2).toUpperCase();
+                return (parts[0][0]+parts[1][0]).toUpperCase();
+            }
 
-                // Get company name from various sources
-                const companyName = this.currentCompany?.companyName || 
-                                  this.currentUser?.companyName || 
-                                  'Company';
-
-                // Update company logo
-                if (this.currentCompany && this.currentCompany.logo && headerLogo) {
-                    headerLogo.src = this.currentCompany.logo;
-                    headerLogo.classList.add('visible');
-                    headerLogo.style.display = 'block';
-                    if (headerLogoPlaceholder) headerLogoPlaceholder.style.display = 'none';
-                    console.log('✅ Company logo displayed in account header');
-                } else {
-                    // Show placeholder when no logo is available
-                    if (headerLogoPlaceholder) {
-                        headerLogoPlaceholder.style.display = 'flex';
-                    }
-                    if (headerLogo) {
-                        headerLogo.classList.remove('visible');
-                        headerLogo.style.display = 'none';
-                    }
-                    console.log('✅ Company logo placeholder displayed in account header');
-                }
-
-                // Update company name
-                if (companyNameHeader) {
-                    companyNameHeader.textContent = companyName;
-                    companyNameHeader.style.display = 'inline-block';
-                    console.log('✅ Company name updated in account header:', companyName);
-                }
-
-                // Update page title if needed
-                const title = document.title;
-                if (title.includes('Dreamex Datalab HSE')) {
-                    document.title = title.replace('Dreamex Datalab HSE', `${companyName} HSE`);
-                }
-
-                // Apply company branding colors if available
-                if (this.currentCompany && this.currentCompany.branding) {
-                    const root = document.documentElement;
-                    if (this.currentCompany.branding.primaryColor) {
-                        root.style.setProperty('--primary-color', this.currentCompany.branding.primaryColor);
-                    }
-                    if (this.currentCompany.branding.secondaryColor) {
-                        root.style.setProperty('--secondary-color', this.currentCompany.branding.secondaryColor);
-                    }
-                }
-                
-                console.log('🏢 Account company branding update completed');
+            generateCompanyInitialsSVG(initials){
+                const svg=`<svg width="44" height="44" viewBox="0 0 44 44" xmlns="http://www.w3.org/2000/svg"><rect width="44" height="44" rx="6" fill="#f0f3f6"/><text x="50%" y="52%" dominant-baseline="middle" text-anchor="middle" fill="#495057" font-family="Inter,Arial,sans-serif" font-weight="600" font-size="14">${initials}</text></svg>`;
+                return 'data:image/svg+xml;base64,'+btoa(svg);
             }
 
             async updateUIForAuthenticatedUser() {
@@ -2681,12 +2714,23 @@
                         }
                         
                         // Update menu visibility based on user permissions
-                        await this.updateMenuVisibility();
+                        await this.updateMenuWithFeatureAuthorization();
                     }
                 }
             }
 
-            // Get user display name
+            // Hide unauthorized sidebar menu items based on feature and role
+            async updateMenuWithFeatureAuthorization() {
+                if (typeof window.updateMenuWithFeatureAuthorization === 'function') {
+                    try {
+                        await window.updateMenuWithFeatureAuthorization();
+                    } catch (err) {
+                        console.error('Error delegating menu authorization to global function:', err);
+                    }
+                } else {
+                    console.warn('Global updateMenuWithFeatureAuthorization not available to delegate');
+                }
+            }
             getUserDisplayName() {
                 if (!this.currentUser) return 'User';
                 
@@ -2782,10 +2826,8 @@
     
     <div class="app-container">
         <!-- Left Sidebar -->
-        <nav class="sidebar menu-loading">
-            <div class="logo">
-                <h2>Dreamex Datalab</h2>
-            </div>
+        <nav class="sidebar menu-loading" id="sideNav">
+            <div class="logo"><h2>Dreamex Datalab</h2></div>
             <ul class="menu" id="roleBasedMenu">
                 <li class="menu-item" data-feature="home_view" data-requires-permission="home_view">
                     <a href="index.html"><i class="fas fa-home"></i> Home</a>
@@ -2816,36 +2858,43 @@
                         <li data-feature="audit_view" data-requires-permission="audit_view"><a href="auditboard.html">Audit</a></li>
                     </ul>
                 </li>
-                <li class="menu-dropdown" data-feature="fuel_management">
+                <li class="menu-dropdown" data-feature="fuel_management" data-requires-permission="fuel_management">
                     <a href="#"><i class="fas fa-gas-pump"></i> Fuel Management</a>
                     <ul class="submenu">
-                        <li data-feature="vessel_offloading"><a href="vessel-offloading.html">Vessel Offloading</a></li>
-                        <li data-feature="fuel_storage"><a href="fuel-storage-status.html">Fuel Storage Status</a></li>
-                        <li data-feature="tank_transfer"><a href="tank-transfer.html">Tank-to-Tank Transfer</a></li>
-                        <li data-feature="truck_loading"><a href="fuel-truck-loading.html">Fuel Truck Loading</a></li>
-                        <li data-feature="quality_analysis"><a href="fuel-quality-analysis.html">Fuel Quality Analysis</a></li>
-                        <li data-feature="fuel_distribution"><a href="fueldistrib.html">Fuel Distribution</a></li>
-                        <li data-feature="fuel_consumption_analysis"><a href="fuelanalys.html">Consumption Analysis</a></li>
+                        <li data-feature="vessel_offloading" data-requires-permission="vessel_offloading"><a href="vessel-offloading.html">Vessel Offloading</a></li>
+                        <li data-feature="fuel_storage" data-requires-permission="fuel_storage"><a href="fuel-storage-status.html">Fuel Storage Status</a></li>
+                        <li data-feature="tank_transfer" data-requires-permission="tank_transfer"><a href="tank-transfer.html">Tank-to-Tank Transfer</a></li>
+                        <li data-feature="truck_loading" data-requires-permission="truck_loading"><a href="fuel-truck-loading.html">Fuel Truck Loading</a></li>
+                        <li data-feature="quality_analysis" data-requires-permission="quality_analysis"><a href="fuel-quality-analysis.html">Fuel Quality Analysis</a></li>
+                        <li data-feature="fuel_distribution" data-requires-permission="fuel_distribution"><a href="fueldistrib.html">Fuel Distribution</a></li>
+                        <li data-feature="fuel_consumption_analysis" data-requires-permission="fuel_consumption_analysis"><a href="fuelanalys.html">Consumption Analysis</a></li>
                     </ul>
                 </li>
-                <li class="menu-dropdown" data-feature="environment_view">
+                <li class="menu-dropdown" data-feature="environment_view" data-requires-permission="environment_view">
                     <a href="#"><i class="fas fa-leaf"></i> Environment</a>
                     <ul class="submenu">
-                        <li data-feature="water_view"><a href="waterboard.html">Water Quality</a></li>
+                        <li data-feature="water_view" data-requires-permission="water_view"><a href="waterboard.html">Water Quality</a></li>
                     </ul>
                 </li>
-                <li class="menu-dropdown" data-feature="security_view">
+                <li class="menu-dropdown" data-feature="security_view" data-requires-permission="security_view">
                     <a href="#"><i class="fas fa-lock"></i> Security</a>
                     <ul class="submenu">
-                        <li data-feature="access_view"><a href="accessboard.html">Access Request</a></li>
-                        <li data-feature="access_daily_view"><a href="accessdaily.html">Daily Access Control</a></li>
-                        <li data-feature="removal_view"><a href="removalboard.html">Property Removal</a></li>
+                        <li data-feature="access_view" data-requires-permission="access_view"><a href="accessboard.html">Access Request</a></li>
+                        <li data-feature="access_daily_view" data-requires-permission="access_daily_view"><a href="accessdaily.html">Daily Access Control</a></li>
+                        <li data-feature="removal_view" data-requires-permission="removal_view"><a href="removalboard.html">Property Removal</a></li>
                     </ul>
                 </li>
                 <li class="menu-dropdown" data-feature="logistics_view" data-requires-permission="logistics_view">
                     <a href="#"><i class="fas fa-truck"></i> Logistics</a>
                     <ul class="submenu">
-                        <li data-feature="fleet_view" data-requires-permission="fleet_view"><a href="fleetboard.html">Fleet Management</a></li>
+                        <li data-feature="fleet_view" data-requires-permission="fleet_view"><a href="fleet.html">Fleet Management</a></li>
+                    </ul>
+                </li>
+                <li class="menu-dropdown" data-feature="accommodation_view" data-requires-permission="accommodation_view">
+                    <a href="#"><i class="fas fa-bed"></i> Accommodation</a>
+                    <ul class="submenu">
+                        <li data-feature="camp_view" data-requires-permission="camp_view"><a href="camp.html">Camp Management</a></li>
+                        <li data-feature="camp_settings_view" data-requires-permission="camp_settings_view"><a href="campset.html">Camp Settings</a></li>
                     </ul>
                 </li>
                 <li class="menu-dropdown" data-feature="hr_view" data-requires-permission="hr_view">
@@ -2860,22 +2909,34 @@
                         <li data-feature="offer_view" data-requires-permission="offer_view"><a href="offer.html">Offer Management</a></li>
                         <li data-feature="contract_view" data-requires-permission="contract_view"><a href="contract.html">Contract Management</a></li>
                         <li data-feature="onboarding_view" data-requires-permission="onboarding_view"><a href="onboard.html">Onboarding</a></li>
+                        <li data-feature="chart_view" data-requires-permission="chart_view"><a href="chart.html">Chart Setup</a></li>
+                        <li data-feature="chartboard_view" data-requires-permission="chartboard_view"><a href="chartboard.html">Org Chart</a></li>
                         <li data-feature="kpi_dashboard_view" data-requires-permission="kpi_dashboard_view"><a href="kpi.html">KPI</a></li>
+                        <li data-feature="action_plan_view" data-requires-permission="action_plan_view"><a href="actionplan.html"><i class="fas fa-tasks"></i> Action Plan Board</a></li>
                     </ul>
                 </li>
-                <li data-feature="communication_view"><a href="info.html"><i class="fas fa-comments"></i> Communication</a></li>
-                <li class="menu-dropdown" data-feature="settings_view">
+                <li class="menu-dropdown" data-feature="project_management_section">
+                    <a href="#"><i class="fas fa-project-diagram"></i> Project Management</a>
+                    <ul class="submenu">
+                        <li data-feature="project_dashboard_view" data-requires-permission="project_dashboard_view"><a href="project-dashboard.html">Project Dashboard</a></li>
+                        <li data-feature="project_create_view" data-requires-permission="project_create_view"><a href="project-create.html">Create Project</a></li>
+                        <li data-feature="project_list_view" data-requires-permission="project_list_view"><a href="project-list.html">Project List</a></li>
+                        <li data-feature="project_reports_view" data-requires-permission="project_reports_view"><a href="project-reports.html">Project Reports</a></li>
+                    </ul>
+                </li>
+                <li data-feature="communication_view" data-requires-permission="communication_view"><a href="info.html"><i class="fas fa-comments"></i> Communication</a></li>
+                <li class="menu-dropdown" data-feature="settings_view" data-requires-permission="settings_view">
                     <a href="#"><i class="fas fa-cog"></i> Settings</a>
                     <ul class="submenu">
-                        <li data-feature="account_settings_view"><a href="account.html">Account Settings</a></li>
-                        <li data-feature="company_management_view"><a href="companymanagement.html">Company Management</a></li>
-                        <li data-feature="approval_settings_view"><a href="approval-settings.html">Approval Flow Settings</a></li>
-                        <li data-feature="field_setup_view"><a href="fieldsetup.html">Field Setup</a></li>
-                        <li data-feature="preferences_view"><a href="preferences.html">Preferences</a></li>
-                        <li data-feature="notification_settings_view"><a href="notification-settings.html">Notification Settings</a></li>
-                        <li data-feature="audit_log_view"><a href="auditlog.html"><i class="fas fa-history"></i> Audit Log</a></li>
-                        <li data-feature="user_management_view"><a href="users.html">User & Role Management</a></li>
-                        <li data-feature="role_permissions_view"><a href="roles.html">Role Permissions</a></li>
+                        <li data-feature="account_settings_view" data-requires-permission="account_settings_view"><a href="account.html">Account Settings</a></li>
+                        <li data-feature="company_management_view" data-requires-permission="company_management_view"><a href="companymanagement.html">Company Management</a></li>
+                        <li data-feature="approval_settings_view" data-requires-permission="approval_settings_view"><a href="approval-settings.html">Approval Flow Settings</a></li>
+                        <li data-feature="field_setup_view" data-requires-permission="field_setup_view"><a href="fieldsetup.html">Field Setup</a></li>
+                        <li data-feature="preferences_view" data-requires-permission="preferences_view"><a href="preferences.html">Preferences</a></li>
+                        <li data-feature="notification_settings_view" data-requires-permission="notification_settings_view"><a href="notification-settings.html">Notification Settings</a></li>
+                        <li data-feature="audit_log_view" data-requires-permission="audit_log_view"><a href="auditlog.html"><i class="fas fa-history"></i> Audit Log</a></li>
+                        <li data-feature="user_management_view" data-requires-permission="user_management_view"><a href="users.html">User & Role Management</a></li>
+                        <li data-feature="role_permissions_view" data-requires-permission="role_permissions_view"><a href="roles.html">Role Permissions</a></li>
                     </ul>
                 </li>
             </ul>
@@ -2890,9 +2951,7 @@
                     </button>
                     <!-- Company Logo -->
                     <img src="assets/default-company-logo.png" alt="Company Logo" class="header-company-logo" id="headerCompanyLogo" style="display: none;">
-                    <div id="headerLogoPlaceholder" style="display: flex; width: 40px; height: 40px; background: #f0f0f0; border-radius: 8px; align-items: center; justify-content: center; margin-right: 12px;">
-                        <i class="fas fa-building" style="color: #666; font-size: 18px;"></i>
-                    </div>
+                    <div id="headerLogoPlaceholder" class="header-logo-placeholder" style="display: flex; width: 40px; height: 40px; align-items: center; justify-content: center; margin-right: 12px;"></div>
                     <!-- Company Name -->
                     <span id="headerCompanyName" class="company-name-header">Dreamex Datalab</span>
                 </div>
@@ -2932,9 +2991,9 @@
 
                 <!-- Tab Container -->
                 <div class="tab-container">                    <div class="tab-buttons">
-                        <button class="tab-button active" data-tab="timesheet"><i class="fas fa-clock"></i>Timesheet</button>
-                        <button class="tab-button" data-tab="leave"><i class="fas fa-calendar-day"></i>Leave</button>
-                        <button class="tab-button" data-tab="org"><i class="fas fa-sitemap"></i>Org</button>
+                        <button type="button" class="tab-button active" data-tab="timesheet"><i class="fas fa-clock"></i>Timesheet</button>
+                        <button type="button" class="tab-button" data-tab="leave"><i class="fas fa-calendar-day"></i>Leave</button>
+                        <button type="button" class="tab-button" data-tab="org"><i class="fas fa-sitemap"></i>Org</button>
                     </div>
 
                     <!-- Timesheet Tab -->
@@ -3399,27 +3458,57 @@
             // Initialize authentication manager first
             window.authManager = new AuthManager();
             
-            // Wait a bit for auth manager to initialize, then initialize current user
-            setTimeout(() => {
-                initializeCurrentUser();
-                // Initialize menu visibility after auth
-                updateMenuVisibility();
-                
-                // Update company branding
-                if (window.authManager && window.authManager.updateCompanyBranding) {
-                    window.authManager.updateCompanyBranding();
-                }
-            }, 500);
-            
-            // Wait for auth manager to be ready and apply feature-based menu authorization
-            setTimeout(async () => {
+            // Wait for auth manager and company data service to be ready, then initialize user UI
+            (async function initAfterAuth() {
+                // Initialize current user once authManager is ready
                 try {
-                    await updateMenuWithFeatureAuthorization();
-                } catch (error) {
-                    console.error('❌ Error initializing feature-based menu:', error);
+                    // Wait for authManager to populate currentUser and company data
+                    let attempts = 0;
+                    while ((!window.authManager || !window.authManager.currentUser) && attempts < 10) {
+                        await new Promise(r => setTimeout(r, 300));
+                        attempts++;
+                    }
+
+                    initializeCurrentUser();
+
+                    // Ensure companyDataService has attempted to load the company context
+                    if (window.companyDataService) {
+                        let retries = 0;
+                        while (retries < 15 && !window.companyDataService.getCurrentCompanyId()) {
+                            await new Promise(r => setTimeout(r, 300));
+                            retries++;
+                        }
+                    }
+
+                    // Initialize menu visibility after auth
+                    updateMenuVisibility();
+
+                    // Update company branding — call via authManager if available
+                    if (window.authManager && typeof window.authManager.updateCompanyBranding === 'function') {
+                        try { window.authManager.updateCompanyBranding(); } catch (e) { console.warn('Branding call failed', e); }
+                    } else if (window.companyDataService && typeof window.companyDataService.getCurrentCompany === 'function') {
+                        // As a fallback, set header directly from companyDataService
+                        const comp = window.companyDataService.getCurrentCompany();
+                        if (comp) {
+                            const logoEl = document.getElementById('headerCompanyLogo');
+                            const nameEl = document.getElementById('headerCompanyName');
+                            if (nameEl) nameEl.textContent = comp.companyName || '';
+                            if (logoEl && (comp.logo || comp.logoUrl)) { logoEl.src = comp.logo || comp.logoUrl; logoEl.classList.add('visible'); }
+                        }
+                    }
+
+                    // Now apply feature-based menu authorization (allow for slower DB reads)
+                    try {
+                        await updateMenuWithFeatureAuthorization();
+                    } catch (error) {
+                        console.error('❌ Error initializing feature-based menu:', error);
+                        showBasicMenu();
+                    }
+                } catch (err) {
+                    console.error('Error during auth initialization flow:', err);
                     showBasicMenu();
                 }
-            }, 1500);
+            })();
             
             // Load saved logo if exists
             const savedLogo = localStorage.getItem('companyLogo') || localStorage.getItem('mainCompanyLogo');
@@ -3466,19 +3555,27 @@
             }, 1000);
         });
         
-        function toggleSidebar() {
-            const sidebar = document.querySelector('.sidebar');
-            const mainContent = document.querySelector('.main-content');
-            
-            if (sidebar && mainContent) {
-                sidebar.classList.toggle('collapsed');
-                mainContent.classList.toggle('sidebar-collapsed');
-                
-                // Store sidebar state in localStorage
-                const isCollapsed = sidebar.classList.contains('collapsed');
-                localStorage.setItem('sidebarCollapsed', isCollapsed);
-            }
+        function toggleSidebar(){
+            const sb=document.querySelector('.sidebar');
+            const mc=document.querySelector('.main-content');
+            const top=document.querySelector('.top-nav');
+            if(!sb||!mc) return;
+            const collapsed=sb.classList.toggle('collapsed');
+            mc.classList.toggle('sidebar-collapsed',collapsed);
+            if(top){ top.style.left= collapsed? '.5rem': 'calc(var(--sidebar-width) + .5rem)'; }
+            localStorage.setItem('sidebarCollapsed',collapsed);
         }
+        function restoreSidebarState(){
+            const collapsed=localStorage.getItem('sidebarCollapsed')==='true';
+            const sb=document.querySelector('.sidebar');
+            const mc=document.querySelector('.main-content');
+            const top=document.querySelector('.top-nav');
+            if(collapsed && sb && mc){ sb.classList.add('collapsed'); mc.classList.add('sidebar-collapsed'); if(top){top.style.left='.5rem';} }
+        }
+        document.addEventListener('DOMContentLoaded',()=>{
+            restoreSidebarState();
+            document.getElementById('sidebarToggle')?.addEventListener('click',toggleSidebar);
+        });
         
         function initializeCurrentUser() {
             // Get the actual logged-in user from the authentication system
@@ -3860,30 +3957,111 @@
             updateLogoInHeader(e.detail.logoUrl);
         });
 
-        // Tab functionality
-        function initializeTabs() {
+        // Initialize tabs only after DOM is ready
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🔄 Initializing tabs...');
+            
+            const container = document.querySelector('.tab-buttons');
+            console.log('Tab container found:', !!container);
+            
             const tabButtons = document.querySelectorAll('.tab-button');
+            console.log('Tab buttons found:', tabButtons.length);
+            
             const tabContents = document.querySelectorAll('.tab-content');
-
-            tabButtons.forEach(button => {
-                button.addEventListener('click', function() {
-                    const targetTab = this.getAttribute('data-tab');
+            console.log('Tab contents found:', tabContents.length);
+            
+            function activateTab(targetTab) {
+                console.log('🎯 Activating tab:', targetTab);
+                
+                if (!targetTab) {
+                    console.warn('No target tab specified');
+                    return;
+                }
+                
+                // Remove active classes
+                tabButtons.forEach(btn => {
+                    btn.classList.remove('active');
+                    console.log('Removed active from button:', btn.getAttribute('data-tab'));
+                });
+                
+                tabContents.forEach(content => {
+                    content.classList.remove('active');
+                    console.log('Removed active from content:', content.id);
+                });
+                
+                // Activate target button
+                const targetButton = Array.from(tabButtons)
+                    .find(btn => btn.getAttribute('data-tab') === targetTab);
                     
-                    // Remove active class from all buttons and contents
-                    tabButtons.forEach(btn => btn.classList.remove('active'));
-                    tabContents.forEach(content => content.classList.remove('active'));
-                    
-                    // Add active class to clicked button and corresponding content
-                    this.classList.add('active');
-                    document.getElementById(targetTab + 'Tab').classList.add('active');
-                    
-                    // Load data for specific tabs
-                    if (targetTab === 'org') {
+                if (targetButton) {
+                    targetButton.classList.add('active');
+                    console.log('Activated button:', targetTab);
+                }
+                
+                // Activate target content
+                const targetContent = document.getElementById(targetTab + 'Tab');
+                if (targetContent) {
+                    targetContent.classList.add('active');
+                    console.log('Activated content:', targetTab + 'Tab');
+                } else {
+                    console.warn('Content not found:', targetTab + 'Tab');
+                }
+                
+                // Load data if needed
+                if (targetTab === 'org') {
+                    console.log('Loading organization data...');
+                    if (typeof loadOrganizationData === 'function') {
                         loadOrganizationData();
                     }
+                }
+                if (targetTab === 'leave') {
+                    console.log('Loading leave data...');
+                    if (typeof loadLeaveRequests === 'function') {
+                        loadLeaveRequests();
+                    }
+                }
+                if (targetTab === 'timesheet') {
+                    console.log('Loading timesheet data...');
+                    if (typeof loadTimesheets === 'function') {
+                        loadTimesheets();
+                    }
+                }
+            }
+            
+            // Initialize to first active or default to timesheet
+            const initialTab = document.querySelector('.tab-button.active');
+            console.log('Initial active tab found:', !!initialTab);
+            
+            if (initialTab) {
+                activateTab(initialTab.getAttribute('data-tab'));
+            }
+            
+            // Add direct click handlers with debug logging
+            tabButtons.forEach(button => {
+                console.log('Adding click handler to button:', button.getAttribute('data-tab'));
+                
+                // Add direct click handler
+                button.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const targetTab = this.getAttribute('data-tab');
+                    console.log('🖱️ Tab button clicked:', targetTab);
+                    console.log('Button element:', this.outerHTML);
+                    activateTab(targetTab);
                 });
+                
+                // Also add mousedown for debugging
+                button.addEventListener('mousedown', function(e) {
+                    console.log('🖱️ Mouse down on tab:', this.getAttribute('data-tab'));
+                });
+                
+                // Check if button is properly interactive
+                console.log('Button disabled:', button.disabled);
+                console.log('Button hidden:', button.hidden);
+                console.log('Button display:', window.getComputedStyle(button).display);
             });
-        }
+            
+            console.log('✅ Tab initialization complete');
+        });
 
         // Timesheet functionality
         let timesheets = [];
@@ -8207,11 +8385,8 @@
                 
                 console.log(`🎯 Feature-based menu authorization completed for account.html - ${visibleCount} items visible`);
                 
-                // Remove loading class after successful authorization
-                const sidebar = document.querySelector('.sidebar');
-                if (sidebar) {
-                    sidebar.classList.remove('menu-loading');
-                }
+                // Finalize sidebar visibility (prune and remove loading class)
+                showSidebarAfterAuth();
             } catch (error) {
                 console.error('❌ Error applying feature-based menu visibility:', error);
                 showBasicMenu();
@@ -8221,7 +8396,170 @@
         // Make updateMenuWithFeatureAuthorization available globally
         window.updateMenuWithFeatureAuthorization = updateMenuWithFeatureAuthorization;
 
-        // Note: Feature authorization is now handled by AuthManager during initialization
+        // Feature-based authorization system that takes priority over role permissions
+        // (Implementation aligned with `accessdaily.html` for consistent behavior)
+        // Prevent multiple simultaneous executions
+        if (!window.isMenuUpdateInProgress) window.isMenuUpdateInProgress = false;
+
+        async function updateMenuWithFeatureAuthorization() {
+            if (window.isMenuUpdateInProgress) {
+                console.log('🔄 Menu update already in progress, skipping...');
+                return;
+            }
+            window.isMenuUpdateInProgress = true;
+            console.log('🎯 Starting feature-based menu authorization for account.html...');
+            try {
+                let currentUser = null;
+                let companyId = null;
+                let userRole = null;
+
+                if (window.authManager && window.authManager.currentUser) {
+                    currentUser = window.authManager.currentUser;
+                    companyId = currentUser.companyId;
+                    userRole = currentUser.role;
+                    console.log('👤 Using AuthManager - User:', currentUser.email, 'Company ID:', companyId, 'Role:', userRole);
+                } else if (firebase.auth().currentUser) {
+                    currentUser = firebase.auth().currentUser;
+                    console.log('👤 Using Firebase auth - will search for company and role');
+                }
+
+                // If no companyId, search companies to locate user
+                if (!companyId && currentUser) {
+                    console.log('🔍 Searching for user company and role...');
+                    const database = firebase.database();
+                    const companiesRef = database.ref('companies');
+                    const companiesSnapshot = await companiesRef.once('value');
+                    if (companiesSnapshot.exists()) {
+                        const companies = companiesSnapshot.val();
+                        for (const [cId, company] of Object.entries(companies)) {
+                            if (company.status !== 'active') continue;
+                            if (company.users && company.users[currentUser.uid]) {
+                                companyId = cId;
+                                userRole = company.users[currentUser.uid].role || company.users[currentUser.uid].userRole;
+                                console.log(`✅ Found user in company: ${companyId} (${company.name}) with role: ${userRole}`);
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if (!companyId) {
+                    console.error('❌ No company ID found, cannot determine authorized features');
+                    resetMenuVisibility();
+                    window.isMenuUpdateInProgress = false;
+                    return;
+                }
+
+                // STEP 1: Feature-based visibility
+                const authorizedPages = await applyFeatureBasedMenuVisibility(companyId);
+                // STEP 2: Role filtering
+                if (userRole) {
+                    await applyRoleBasedFiltering(companyId, userRole, authorizedPages);
+                } else {
+                    console.log('⚠️ No user role found, skipping role-based filtering');
+                    showSidebarAfterAuth();
+                }
+            } catch (error) {
+                console.error('❌ Error in feature-based menu authorization:', error);
+                resetMenuVisibility();
+            } finally {
+                window.isMenuUpdateInProgress = false;
+            }
+        }
+
+        // Apply role-based filtering within company authorized features
+        async function applyRoleBasedFiltering(companyId, userRole, authorizedPages) {
+            try {
+                console.log('👤 Applying role-based filtering for role:', userRole);
+                const database = window.db || firebase.database();
+                const permissionsRef = database.ref(`companies/${companyId}/roles/${userRole}/permissions`);
+                const permissionsSnapshot = await permissionsRef.once('value');
+                if (!permissionsSnapshot.exists()) {
+                    console.log(`⚠️ No permissions found for role ${userRole} in company ${companyId}`);
+                    if (userRole === 'administrator') {
+                        console.log('🔑 ADMINISTRATOR FALLBACK - Skipping role filtering (keeping all company features visible)');
+                        showSidebarAfterAuth();
+                        return;
+                    }
+                    console.log('❌ No valid permissions found - filtering out items requiring permissions');
+                    hideItemsRequiringPermissions();
+                    showSidebarAfterAuth();
+                    return;
+                }
+                const permissions = permissionsSnapshot.val();
+                console.log('✅ Loaded role permissions:', permissions);
+                filterMenuByPermissions(permissions);
+            } catch (error) {
+                console.error('❌ Error applying role-based filtering:', error);
+                showSidebarAfterAuth();
+            }
+        }
+
+        function filterMenuByPermissions(permissions) {
+            console.log('🔍 Filtering visible menu items by role permissions...');
+            if (!permissions) {
+                console.log('⚠️ No permissions object provided');
+                hideItemsRequiringPermissions();
+                showSidebarAfterAuth();
+                return;
+            }
+            const visibleMenuItems = document.querySelectorAll('#roleBasedMenu li.menu-visible[data-requires-permission]');
+            console.log(`🎯 Found ${visibleMenuItems.length} visible menu items requiring permissions to check`);
+            let hiddenCount = 0;
+            visibleMenuItems.forEach(item => {
+                const requiresPermission = item.getAttribute('data-requires-permission');
+                const feature = item.getAttribute('data-feature');
+                if (requiresPermission) {
+                    const hasPermission = permissions[requiresPermission];
+                    const hasViewPermission = hasPermission === true || (hasPermission && hasPermission.view === true);
+                    if (!hasViewPermission) {
+                        item.classList.remove('menu-visible');
+                        hiddenCount++;
+                        console.log(`❌ Hiding menu item (no permission): ${feature} (requires: ${requiresPermission})`);
+                    } else {
+                        console.log(`✅ Keeping menu item visible: ${feature} (has permission: ${requiresPermission})`);
+                    }
+                }
+            });
+            // Re-check dropdown menus after permission filtering
+            const dropdownMenus = document.querySelectorAll('#roleBasedMenu li.menu-dropdown');
+            dropdownMenus.forEach(dropdown => {
+                const submenuItems = dropdown.querySelectorAll('.submenu li.menu-visible');
+                const dropdownFeature = dropdown.getAttribute('data-feature');
+                if (submenuItems.length === 0) {
+                    dropdown.classList.remove('menu-visible');
+                    console.log(`❌ Hiding dropdown (no visible children): ${dropdownFeature}`);
+                } else {
+                    console.log(`✅ Keeping dropdown visible (has ${submenuItems.length} visible children): ${dropdownFeature}`);
+                }
+            });
+            console.log(`🎯 Role-based filtering completed - ${hiddenCount} items hidden due to lack of permissions`);
+            showSidebarAfterAuth();
+        }
+
+        function hideItemsRequiringPermissions() {
+            console.log('🔒 Hiding all menu items that require permissions...');
+            const itemsRequiringPermissions = document.querySelectorAll('#roleBasedMenu li.menu-visible[data-requires-permission]');
+            let hiddenCount = 0;
+            itemsRequiringPermissions.forEach(item => {
+                const feature = item.getAttribute('data-feature');
+                const requiresPermission = item.getAttribute('data-requires-permission');
+                item.classList.remove('menu-visible');
+                hiddenCount++;
+                console.log(`❌ Hiding menu item (requires permission): ${feature} (${requiresPermission})`);
+            });
+            console.log(`🔒 Hidden ${hiddenCount} items requiring permissions`);
+        }
+
+        function showSidebarAfterAuth() {
+            const sidebar = document.querySelector('.sidebar');
+            if (sidebar) {
+                // Prune any non-visible items left behind, then remove loading state
+                try { pruneSidebarMenu(); } catch (e) { console.warn('Prune failed', e); }
+                sidebar.classList.remove('menu-loading');
+                console.log('✅ Sidebar loading state removed - menu authorization complete');
+            }
+        }
 
         // 🧪 COMPREHENSIVE SUBMIT TIMESHEET TEST FUNCTION
         window.testSubmitTimesheetFlow = async function() {
