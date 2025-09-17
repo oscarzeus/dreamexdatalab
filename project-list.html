@@ -1,0 +1,2126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Project List - Dreamex Datalab</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
+<!-- Firebase v8 Scripts for Centralized Authentication -->
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
+<style>
+:root { --primary-color:#2c3e50; --secondary-color:#34495e; --accent-color:#e74c3c; --success-color:#27ae60; --warning-color:#f39c12; --info-color:#3498db; --light-color:#ecf0f1; --dark-color:#2c3e50; --sidebar-width:250px; --transition-speed:.25s; }
+* { box-sizing:border-box; margin:0; padding:0; }
+body { font-family: 'Segoe UI', Arial, sans-serif; background:#f5f7fa; color:#222; }
+.app-container { display:flex; min-height:100vh; }
+.sidebar { width:var(--sidebar-width); background:var(--primary-color); color:#fff; padding:1rem; position:fixed; top:0; left:0; bottom:0; overflow-y:auto; transition:transform .3s ease; z-index:1000; }
+.sidebar.collapsed { transform:translateX(-100%); }
+.main-content { flex:1; margin-left:var(--sidebar-width); padding:0.3rem; padding-top:3.2rem; transition:margin-left .3s ease; }
+.main-content.sidebar-collapsed { margin-left:0; }
+.main-content.sidebar-collapsed .top-nav { left:0.5rem; }
+.logo h2 { text-align:center; padding:1rem 0; border-bottom:1px solid rgba(255,255,255,0.1); font-size:1.05rem; letter-spacing:.5px; }
+.menu { list-style:none; margin-top:2rem; }
+.menu li { margin-bottom:0.45rem; }
+.menu a { display:flex; align-items:center; gap:10px; color:#fff; text-decoration:none; padding:0.6rem 0.75rem; border-radius:6px; font-size:0.82rem; font-weight:500; transition:background .25s; }
+.menu a:hover, .menu a.active { background:rgba(255,255,255,0.12); }
+.submenu { list-style:none; margin-left:0.75rem; display:none; margin-top:0.25rem; }
+.menu-dropdown:hover .submenu { display:block; }
+.submenu a { font-size:0.75rem; padding:0.45rem 0.65rem; }
+[data-feature]:not(.menu-visible) { display:none !important; }
+.menu-dropdown:not(.menu-visible) { display:none !important; }
+
+/* Hide ALL menu items by default during loading */
+.sidebar.menu-loading .menu-item,
+.sidebar.menu-loading .menu-dropdown,
+.sidebar.menu-loading li[data-feature],
+.sidebar.menu-loading [data-feature] {
+    display: none !important;
+}
+
+/* Allow menu-visible items to show even during loading */
+.sidebar.menu-loading .menu-visible,
+.sidebar.menu-loading li.menu-visible,
+.sidebar.menu-loading [data-feature].menu-visible {
+    display: block !important;
+}
+
+.menu-loading [data-feature] {
+    display: none !important;
+}
+
+.menu-loading .menu-dropdown {
+    display: none !important;
+}
+
+/* Ensure menu-visible items are always shown */
+.menu-visible {
+    display: block !important;
+}
+
+li.menu-visible,
+[data-feature].menu-visible {
+    display: block !important;
+}
+.top-nav { display:flex; justify-content:space-between; align-items:center; padding:0.5rem 0.75rem; background-color:#fff; box-shadow:0 2px 5px rgba(0,0,0,0.1); margin-bottom:0.3rem; position:fixed; top:0.25rem; right:0.5rem; left:calc(var(--sidebar-width) + 0.5rem); height:50px; min-height:50px; z-index:100; transition:left 0.3s ease; }
+.sidebar-toggle-btn { background:none; border:none; cursor:pointer; font-size:1.1rem; padding:0.4rem; color:#555; }
+.top-nav-left { display:flex; align-items:center; gap:0.75rem; }
+.company-branding { display:flex; align-items:center; gap:0.5rem; }
+#headerCompanyLogo { width:32px; height:32px; object-fit:contain; display:none; }
+#headerCompanyName { font-weight:600; font-size:0.85rem; }
+.header-company-logo { height:32px; width:auto; border-radius:6px; box-shadow:0 2px 4px rgba(0,0,0,0.1); }
+.company-name-header { font-weight:700; color:var(--dark-color); font-size:1rem; letter-spacing:0.5px; white-space:nowrap; }
+.top-nav-right { display:flex; align-items:center; gap:1rem; }
+.notifications { position:relative; display:flex; align-items:center; }
+.notification-btn { background:none; border:none; cursor:pointer; position:relative; font-size:1.2rem; padding:0.5rem; display:flex; align-items:center; justify-content:center; }
+.notification-badge { position:absolute; top:-5px; right:-5px; background-color:var(--accent-color); color:white; border-radius:50%; padding:0.2rem 0.5rem; font-size:0.7rem; display:none; }
+.notification-dropdown { display:none; position:absolute; right:0; top:100%; width:320px; background:#fff; border-radius:8px; box-shadow:0 4px 20px rgba(0,0,0,0.15); z-index:1000; border:1px solid #e9ecef; max-height:400px; overflow:hidden; }
+.notification-dropdown.show { display:block; animation: slideDown 0.2s ease-out; }
+@keyframes slideDown { from { opacity:0; transform:translateY(-10px);} to { opacity:1; transform:translateY(0);} }
+.notification-header { padding:12px 16px; border-bottom:1px solid #e9ecef; background:linear-gradient(135deg,#f8f9fa 0%, #e9ecef 100%); display:flex; justify-content:space-between; align-items:center; }
+.notification-header h3 { margin:0; color:#333; font-size:14px; font-weight:600; }
+.mark-all-read { background:none; border:none; color:#3498db; cursor:pointer; font-size:12px; padding:4px 8px; border-radius:4px; transition:all .2s ease; }
+.mark-all-read:hover { background:#e3f2fd; color:#1976d2; }
+.clear-all-notifications { background:none; border:none; color:#e74c3c; cursor:pointer; font-size:12px; padding:4px 8px; border-radius:4px; transition:all .2s ease; margin-left:8px; }
+.clear-all-notifications:hover { background:#fdf2f2; color:#c0392b; }
+.notification-list { max-height:320px; overflow-y:auto; padding:0; }
+.notification-list::-webkit-scrollbar { width:4px; }
+.notification-list::-webkit-scrollbar-track { background:#f1f1f1; }
+.notification-list::-webkit-scrollbar-thumb { background:#c1c1c1; border-radius:2px; }
+.notification-item { padding:12px 16px; border-bottom:1px solid #f1f1f1; cursor:pointer; transition:background-color .2s ease; position:relative; }
+.notification-item:hover { background:#f8f9fa; }
+.notification-item.unread { background:#e8f4fd; border-left:3px solid #3498db; }
+.notification-dot { position:absolute; top:16px; right:16px; width:8px; height:8px; background:#3498db; border-radius:50%; }
+.notification-actions { position:absolute; top:8px; right:8px; display:none; gap:4px; }
+.notification-item:hover .notification-actions { display:flex; }
+.mark-read-btn, .delete-notification-btn { background:none; border:none; cursor:pointer; padding:4px; border-radius:3px; transition:all .2s ease; font-size:12px; }
+.mark-read-btn { color:#3498db; }
+.mark-read-btn:hover { background:#e3f2fd; color:#1976d2; }
+.delete-notification-btn { color:#e74c3c; }
+.delete-notification-btn:hover { background:#fdf2f2; color:#c0392b; }
+.notification-empty { padding:40px 20px; text-align:center; color:#999; display:none; }
+.notification-empty i { font-size:32px; margin-bottom:12px; color:#ddd; }
+.notification-empty-title { font-size:14px; font-weight:500; margin-bottom:4px; color:#666; }
+.notification-empty-message { font-size:12px; color:#999; }
+.user-profile { position:relative; }
+.profile-btn { background:none; border:none; border-radius:50%; overflow:hidden; width:38px; height:38px; cursor:pointer; }
+.profile-btn img { width:100%; height:100%; object-fit:cover; }
+.profile-dropdown { display:none; position:absolute; right:0; top:110%; background:#fff; border-radius:8px; min-width:200px; box-shadow:0 6px 18px rgba(0,0,0,0.12); overflow:hidden; }
+.profile-dropdown.show { display:block; }
+.profile-dropdown ul { list-style:none; }
+.profile-dropdown li a { display:block; padding:0.65rem 0.85rem; font-size:0.72rem; text-decoration:none; color:#1e293b; font-weight:500; }
+.profile-dropdown li a:hover { background:#f1f5f9; }
+.page-header { 
+    background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)); 
+    color: #fff; 
+    padding: 0.55rem 0.75rem; 
+    margin: 0.35rem 0 0.5rem 0; 
+    display: flex; 
+    align-items: center; 
+    justify-content: space-between; 
+    box-shadow: 0 10px 28px rgba(0,0,0,0.18), 0 6px 16px rgba(0,0,0,0.14); 
+    font-size: 0.9rem; 
+}
+.page-header h1 { 
+    color: #fff; 
+    font-size: 0.9rem; 
+    display: flex; 
+    align-items: center; 
+    gap: 0.5rem; 
+    letter-spacing: 0.5px; 
+    margin: 0; 
+    font-weight: 600; 
+}
+.page-header i { 
+    font-size: 1rem; 
+}
+/* Add New Button */
+.btn-add-new {
+    background: none;
+    border: none;
+    color: #fff;
+    padding: 0.4rem;
+    font-size: 1.2rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+}
+.btn-add-new:hover {
+    color: rgba(255,255,255,0.8);
+    transform: scale(1.1);
+}
+.btn-add-new i {
+    font-size: 1.2rem;
+}
+.page-actions { display:flex; gap:0.4rem; flex-wrap:wrap; }
+.btn { border:none; border-radius:6px; padding:0.45rem 0.75rem; font-size:0.68rem; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:0.4rem; letter-spacing:.5px; background:#eef2f6; color:#1e293b; transition:.2s; }
+.btn:hover { background:#e2e8f0; }
+.btn-primary { background:var(--primary-color); color:#fff; }
+.btn-primary:hover { background:#1f2f3d; }
+.btn-accent { background:var(--accent-color); color:#fff; }
+.btn-accent:hover { background:#c0392b; }
+.btn-success { background:var(--success-color); color:#fff; }
+.btn-success:hover { background:#218c4f; }
+.btn-outline { background:#fff; border:1px solid #cbd5e1; }
+.btn-outline:hover { background:#f1f5f9; }
+.section { background:#fff; padding:0.7rem; border-radius:10px; box-shadow:0 2px 5px rgba(0,0,0,0.06); margin-bottom:0.3rem; }
+.section-title { font-size:0.8rem; font-weight:700; text-transform:uppercase; letter-spacing:.5px; margin-bottom:0.5rem; color:#334155; display:flex; align-items:center; justify-content:space-between; gap:0.4rem; position:relative; }
+.title-left { display:flex; align-items:center; gap:0.4rem; }
+.title-right { display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap; }
+
+/* Enhanced compact filter controls */
+.title-left input, .title-left select {
+    padding: 0.25rem 0.4rem;
+    font-size: 0.7rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    background: #fff;
+    min-width: 0;
+    transition: all 0.2s ease;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+.title-left input:focus, .title-left select:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+.title-left input[type="text"] {
+    width: 160px;
+}
+.title-left select {
+    width: 100px;
+    cursor: pointer;
+}
+.filters { display:flex; gap:0.5rem; flex-wrap:wrap; margin:0 0 0.4rem 0; }
+.filters select, .filters input { padding:0.35rem 0.5rem; font-size:0.65rem; border:1px solid #cbd5e1; border-radius:5px; }
+.table-wrapper { 
+    overflow: hidden;
+    border: 1px solid #e2e8f0; 
+    border-radius: 8px; 
+    background: white;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.1), 0 2px 8px rgba(0,0,0,0.08);
+    height: calc(100vh - 420px); /* Reduced height to fit screen better */
+    max-height: 500px; /* Maximum height to prevent overflow */
+    display: flex;
+    flex-direction: column;
+    transition: box-shadow 0.3s ease;
+}
+.table-wrapper:hover {
+    box-shadow: 0 12px 32px rgba(0,0,0,0.18), 0 6px 16px rgba(0,0,0,0.12);
+}
+.table-scrollable {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    min-height: 0;
+}
+table { 
+    width: 100%; 
+    border-collapse: collapse;
+    margin: 0;
+    table-layout: fixed;
+}
+table thead {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: #f8f9fa;
+}
+table thead th {
+    background: #f8f9fa;
+    color: #495057;
+    padding: 0.8rem;
+    font-weight: 600;
+    font-size: 0.75rem;
+    border-bottom: 2px solid #e9ecef;
+    text-align: left;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+table tbody td {
+    padding: 0.6rem 0.8rem;
+    border-bottom: 1px solid #e9ecef;
+    font-size: 0.75rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+th, td { padding:0.55rem 0.6rem; font-size:0.62rem; text-align:left; border-bottom:1px solid #e2e8f0; }
+th { background:#f1f5f9; font-weight:600; color:#475569; font-size:0.6rem; letter-spacing:.5px; text-transform:uppercase; }
+tr.editing-row { background-color:#fef3c7 !important; border-left:3px solid #f59e0b; }
+tr.editing-row td { background-color:#fef3c7; }
+tbody tr:hover { background:#f8fafc; }
+.badge { display:inline-block; padding:0.15rem 0.5rem; font-size:0.55rem; background:#e2e8f0; border-radius:20px; font-weight:600; letter-spacing:.5px; }
+.badge.green { background:#dcfce7; color:#166534; }
+.badge.red { background:#fee2e2; color:#991b1b; }
+.badge.amber { background:#fef3c7; color:#92400e; }
+.badge.blue { background:#dbeafe; color:#1e40af; }
+.inline-actions { display:flex; gap:0.3rem; }
+.inline-actions .btn { padding:0.3rem 0.5rem; font-size:0.55rem; }
+
+/* Project card styles */
+.projects-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.project-card {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+    overflow: hidden;
+    transition: all 0.3s ease;
+    border: 1px solid #e2e8f0;
+}
+
+.project-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+}
+
+.project-header {
+    padding: 1.5rem;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.project-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--dark-color);
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.project-description {
+    font-size: 0.85rem;
+    color: #64748b;
+    line-height: 1.4;
+}
+
+.project-meta {
+    padding: 1rem 1.5rem;
+    background: #f8fafc;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.meta-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+}
+
+.meta-row:last-child {
+    margin-bottom: 0;
+}
+
+.meta-label {
+    font-size: 0.75rem;
+    color: #64748b;
+    font-weight: 500;
+}
+
+.meta-value {
+    font-size: 0.8rem;
+    color: var(--dark-color);
+    font-weight: 600;
+}
+
+.project-progress {
+    padding: 1rem 1.5rem;
+}
+
+.progress-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+}
+
+.progress-label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--dark-color);
+}
+
+.progress-percentage {
+    font-size: 0.75rem;
+    color: #64748b;
+}
+
+.progress-bar {
+    width: 100%;
+    height: 8px;
+    background-color: #e2e8f0;
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 1rem;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--success-color), var(--info-color));
+    transition: width 0.3s ease;
+}
+
+.project-team {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.team-avatars {
+    display: flex;
+    margin-right: auto;
+}
+
+.team-avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--info-color);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    font-weight: 600;
+    margin-left: -8px;
+    border: 2px solid white;
+}
+
+.team-avatar:first-child {
+    margin-left: 0;
+}
+
+.team-count {
+    font-size: 0.75rem;
+    color: #64748b;
+    margin-left: 0.5rem;
+}
+
+.project-actions {
+    padding: 1rem 1.5rem;
+    display: flex;
+    gap: 0.75rem;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.status-badge {
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.status-badge.active {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.status-badge.planning {
+    background: #dbeafe;
+    color: #1e40af;
+}
+
+.status-badge.on-hold {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.status-badge.completed {
+    background: #f3e8ff;
+    color: #7c3aed;
+}
+
+.action-buttons {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.icon-btn {
+    width: 32px;
+    height: 32px;
+    border: none;
+    border-radius: 8px;
+    background: #f1f5f9;
+    color: #64748b;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 0.85rem;
+}
+
+.icon-btn:hover {
+    background: var(--primary-color);
+    color: white;
+}
+
+/* View toggle */
+.view-toggle {
+    display: flex;
+    background: #f1f5f9;
+    border-radius: 8px;
+    padding: 0.25rem;
+    margin-left: auto;
+}
+
+.view-btn {
+    background: none;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.view-btn.active {
+    background: var(--primary-color);
+    color: white;
+}
+
+/* Modal */
+.modal { display:none; position:fixed; inset:0; background:rgba(15,23,42,0.45); z-index:3000; align-items:flex-start; justify-content:center; overflow:auto; padding:2rem 1rem; }
+.modal.show { display:flex; }
+.modal-dialog { background:#fff; border-radius:12px; width:100%; max-width:720px; box-shadow:0 12px 40px -6px rgba(0,0,0,0.25); animation:fadeIn .25s ease; display:flex; flex-direction:column; max-height:90vh; }
+@keyframes fadeIn { from { opacity:0; transform:translateY(12px);} to { opacity:1; transform:translateY(0);} }
+.modal-header { padding:0.85rem 1rem; border-bottom:1px solid #e2e8f0; display:flex; align-items:center; justify-content:space-between; }
+.modal-header h3 { font-size:0.9rem; letter-spacing:.5px; }
+.modal-close { background:none; border:none; font-size:1.1rem; cursor:pointer; color:#475569; }
+.modal-body { padding:1rem; overflow-y:auto; }
+.modal-footer { padding:0.8rem 1rem; border-top:1px solid #e2e8f0; display:flex; justify-content:flex-end; gap:0.5rem; }
+.form-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:0.7rem; }
+.form-group { display:flex; flex-direction:column; gap:0.25rem; }
+.form-group label { font-size:0.58rem; font-weight:600; text-transform:uppercase; letter-spacing:.5px; color:#334155; }
+.form-group input, .form-group select, .form-group textarea { padding:0.4rem 0.5rem; font-size:0.62rem; border:1px solid #cbd5e1; border-radius:6px; background:#fff; }
+.form-group textarea { resize:vertical; min-height:70px; }
+.form-group small { font-size:0.5rem; color:#64748b; }
+.divider { height:1px; background:#e2e8f0; margin:0.8rem 0; }
+
+/* FAB (Floating Action Button) */
+.fab {position:static; width:32px; height:32px; border-radius:50%; background:var(--success-color); color:#fff; font-size:1rem; border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 10px rgba(0,0,0,.25); z-index:1000; transition:all 0.3s ease;}
+.fab:hover {transform:translateY(-2px); box-shadow:0 6px 15px rgba(0,0,0,.35);}
+
+/* Responsive */
+@media (max-width: 1200px) {
+    .projects-grid {
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    }
+}
+
+@media (max-width: 900px) { 
+    .main-content { 
+        margin-left: 0; 
+    } 
+    .sidebar { 
+        transform: translateX(-100%); 
+    } 
+    .sidebar.open { 
+        transform: translateX(0); 
+    } 
+    .top-nav { 
+        left: 0.5rem; 
+    }
+}
+
+@media (max-width: 768px) {
+    .projects-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .project-actions {
+        flex-direction: column;
+        gap: 1rem;
+        align-items: stretch;
+    }
+    
+    .action-buttons {
+        justify-content: center;
+    }
+}
+</style>
+</head>
+<body>
+<div class="app-container">
+	<nav class="sidebar menu-loading" id="sidebar">
+		<div class="logo"><h2>Dreamex Datalab</h2></div>
+        <ul class="menu" id="roleBasedMenu">
+            <li class="menu-item" data-feature="home_view"><a href="index.html"><i class="fas fa-home"></i> Home</a></li>
+            <li class="menu-dropdown" data-feature="health_view">
+				<a href="#"><i class="fas fa-medkit"></i> Health</a>
+				<ul class="submenu">
+					<li data-feature="health_assessment_view" data-requires-permission="health_assessment_view"><a href="health-assessment.html">Assessment</a></li>
+					<li data-feature="health_consultation_view" data-requires-permission="health_consultation_view"><a href="health-consultation.html">Consultation</a></li>
+					<li data-feature="medical_folder_view" data-requires-permission="medical_folder_view"><a href="medical-folder.html">Medical Folder</a></li>
+				</ul>
+			</li>
+            <li class="menu-dropdown" data-feature="safety_view" data-requires-permission="safety_view">
+				<a href="#"><i class="fas fa-shield-alt"></i> Safety</a>
+				<ul class="submenu">
+					<li data-feature="training_view" data-requires-permission="training_view"><a href="trainingboard.html">Training</a></li>
+					<li data-feature="risk_view" data-requires-permission="risk_view"><a href="riskboard.html">Risk Management</a></li>
+					<li data-feature="jsa_view" data-requires-permission="jsa_view"><a href="jsaboard.html">Job Safety Analysis</a></li>
+					<li data-feature="ptw_view" data-requires-permission="ptw_view"><a href="ptwboard.html">Permit to Work</a></li>
+					<li data-feature="incident_view" data-requires-permission="incident_view"><a href="incidentboard.html">Incident Reports</a></li>
+					<li data-feature="inspection_view" data-requires-permission="inspection_view"><a href="inspectionboard.html">Inspection</a></li>
+					<li data-feature="audit_view" data-requires-permission="audit_view"><a href="auditboard.html">Audit</a></li>
+				</ul>
+			</li>
+            <li class="menu-dropdown" data-feature="fuel_management" data-requires-permission="fuel_management">
+				<a href="#"><i class="fas fa-gas-pump"></i> Fuel Management</a>
+				<ul class="submenu">
+                    <li data-feature="vessel_offloading" data-requires-permission="vessel_offloading"><a href="vessel-offloading.html">Vessel Offloading</a></li>
+                    <li data-feature="fuel_storage" data-requires-permission="fuel_storage"><a href="fuel-storage-status.html">Fuel Storage Status</a></li>
+                    <li data-feature="tank_transfer" data-requires-permission="tank_transfer"><a href="tank-transfer.html">Tank-to-Tank Transfer</a></li>
+                    <li data-feature="truck_loading" data-requires-permission="truck_loading"><a href="fuel-truck-loading.html">Fuel Truck Loading</a></li>
+                    <li data-feature="quality_analysis" data-requires-permission="quality_analysis"><a href="fuel-quality-analysis.html">Fuel Quality Analysis</a></li>
+                    <li data-feature="fuel_distribution" data-requires-permission="fuel_distribution"><a href="fueldistrib.html">Fuel Distribution</a></li>
+                    <li data-feature="fuel_consumption_analysis" data-requires-permission="fuel_consumption_analysis"><a href="fuelanalys.html">Consumption Analysis</a></li>
+				</ul>
+			</li>
+            <li class="menu-dropdown" data-feature="environment_view">
+				<a href="#"><i class="fas fa-leaf"></i> Environment</a>
+				<ul class="submenu">
+                    <li data-feature="water_view" data-requires-permission="water_view"><a href="waterboard.html">Water Quality</a></li>
+				</ul>
+			</li>
+            <li class="menu-dropdown" data-feature="security_view" data-requires-permission="security_view">
+				<a href="#"><i class="fas fa-lock"></i> Security</a>
+				<ul class="submenu">
+                    <li data-feature="access_view" data-requires-permission="access_view"><a href="accessboard.html">Access Request</a></li>
+                    <li data-feature="access_daily_view" data-requires-permission="access_daily_view"><a href="accessdaily.html">Daily Access Control</a></li>
+                    <li data-feature="removal_view" data-requires-permission="removal_view"><a href="removalboard.html">Property Removal</a></li>
+                <li data-feature="security_site_map_view" data-requires-permission="security_site_map_view"><a href="secur.html">Security Site Map</a></li>
+				</ul>
+			</li>
+			<li class="menu-dropdown" data-feature="logistics_view" data-requires-permission="logistics_view">
+				<a href="#"><i class="fas fa-truck"></i> Logistics</a>
+				<ul class="submenu">
+					<li data-feature="fleet_view" data-requires-permission="fleet_view"><a href="fleet.html">Fleet Management</a></li>
+				</ul>
+			</li>
+			<li class="menu-dropdown" data-feature="accommodation_view" data-requires-permission="accommodation_view">
+				<a href="#"><i class="fas fa-bed"></i> Accommodation</a>
+				<ul class="submenu">
+					<li data-feature="camp_view" data-requires-permission="camp_view"><a href="camp.html">Camp Management</a></li>
+                    <li data-feature="camp_settings_view" data-requires-permission="camp_settings_view"><a href="campset.html">Camp Settings</a></li>
+				</ul>
+			</li>
+			<li class="menu-dropdown" data-feature="hr_view" data-requires-permission="hr_view">
+				<a href="#"><i class="fas fa-users"></i> HR</a>
+				<ul class="submenu">
+					<li data-feature="human_hr_view" data-requires-permission="human_hr_view"><a href="human-hr.html"><i class="fas fa-user-tie"></i> Human HR</a></li>
+					<li data-feature="staff_management_view" data-requires-permission="staff_management_view"><a href="staff.html">Staffing</a></li>
+					<li data-feature="authority_to_recruit_view" data-requires-permission="authority_to_recruit_view"><a href="recruit.html">Authority to Recruit</a></li>
+					<li data-feature="job_advertising_view" data-requires-permission="job_advertising_view"><a href="jobpost.html">Job Advertising</a></li>
+					<li data-feature="screening_view" data-requires-permission="screening_view"><a href="jobscreen.html">Screening</a></li>
+					<li data-feature="interview_view" data-requires-permission="interview_view"><a href="interview.html">Interview</a></li>
+					<li data-feature="offer_view" data-requires-permission="offer_view"><a href="offer.html">Offer Management</a></li>
+					<li data-feature="contract_view" data-requires-permission="contract_view"><a href="contract.html">Contract Management</a></li>
+                    <li data-feature="salary_management_view" data-requires-permission="salary_management_view"><a href="salary.html">Salary Management</a></li>
+					<li data-feature="onboarding_view" data-requires-permission="onboarding_view"><a href="onboard.html">Onboarding</a></li>
+					<li data-feature="chart_view" data-requires-permission="chart_view"><a href="chart.html">Chart Setup</a></li>
+					<li data-feature="chartboard_view" data-requires-permission="chartboard_view"><a href="chartboard.html">Org Chart</a></li>
+					<li data-feature="kpi_dashboard_view" data-requires-permission="kpi_dashboard_view"><a href="kpi.html">KPI</a></li>
+				</ul>
+			</li>
+            <!-- Project Management as section button with submenu -->
+            <li class="menu-dropdown" data-feature="project_management_section">
+                <a href="#"><i class="fas fa-project-diagram"></i> Project Management</a>
+                <ul class="submenu">
+                    <li data-feature="project_dashboard_view" data-requires-permission="project_dashboard_view"><a href="project-dashboard.html"><i class="fas fa-tachometer-alt"></i> Project Dashboard</a></li>
+                    <li data-feature="project_create_view" data-requires-permission="project_create_view"><a href="project-create.html"><i class="fas fa-plus-circle"></i> Create Project</a></li>
+                    <li data-feature="project_list_view" data-requires-permission="project_list_view"><a href="project-list.html" class="active"><i class="fas fa-list"></i> Project List</a></li>
+                    <li data-feature="project_reports_view" data-requires-permission="project_reports_view"><a href="project-reports.html"><i class="fas fa-chart-bar"></i> Project Reports</a></li>
+                </ul>
+            </li>
+            <li data-feature="communication_view"><a href="info.html"><i class="fas fa-comments"></i> Communication</a></li>
+            <li class="menu-dropdown" data-feature="settings_view">
+				<a href="#"><i class="fas fa-cog"></i> Settings</a>
+				<ul class="submenu">
+                    <li data-feature="account_settings_view" data-requires-permission="account_settings_view"><a href="account.html">Account Settings</a></li>
+                    <li data-feature="company_management_view" data-requires-permission="company_management_view"><a href="companymanagement.html">Company Management</a></li>
+                    <li data-feature="approval_settings_view" data-requires-permission="approval_settings_view"><a href="approval-settings.html">Approval Flow Settings</a></li>
+                    <li data-feature="field_setup_view" data-requires-permission="field_setup_view"><a href="fieldsetup.html">Field Setup</a></li>
+                    <li data-feature="preferences_view" data-requires-permission="preferences_view"><a href="preferences.html">Preferences</a></li>
+                    <li data-feature="notification_settings_view" data-requires-permission="notification_settings_view"><a href="notification-settings.html">Notification Settings</a></li>
+                    <li data-feature="audit_log_view" data-requires-permission="audit_log_view"><a href="auditlog.html"><i class="fas fa-history"></i> Audit Log</a></li>
+                    <li data-feature="user_management_view" data-requires-permission="user_management_view"><a href="users.html">User & Role Management</a></li>
+                    <li data-feature="role_permissions_view" data-requires-permission="role_permissions_view"><a href="roles.html">Role Permissions</a></li>
+				</ul>
+			</li>
+		</ul>
+	</nav>
+    <main class="main-content" id="mainContent">
+        <nav class="top-nav">
+            <div class="top-nav-left">
+                <button id="sidebarToggle" class="sidebar-toggle-btn" title="Toggle Menu"><i class="fas fa-bars"></i></button>
+                <div class="company-branding">
+                    <img id="headerCompanyLogo" alt="Company Logo" />
+                    <span id="headerCompanyName"></span>
+                </div>
+            </div>
+            <div class="top-nav-right">
+                <div class="notifications">
+                    <button id="notificationBtn" class="notification-btn">
+                        <i class="fas fa-bell"></i>
+                        <span class="notification-badge">0</span>
+                    </button>
+                    <div class="notification-dropdown">
+                        <div class="notification-header">
+                            <h3>Notifications</h3>
+                            <button class="mark-all-read">Mark all as read</button>
+                        </div>
+                        <div class="notification-list">
+                            <!-- Notifications will be dynamically added here -->
+                        </div>
+                        <div class="notification-empty">
+                            <i class="fas fa-inbox"></i>
+                            <div class="notification-empty-title">No notifications</div>
+                            <div class="notification-empty-message">You're all caught up</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="user-profile" style="position:relative;">
+                    <button id="userProfileBtn" class="profile-btn"><img src="" alt="User Avatar" /></button>
+                    <div class="profile-dropdown"><ul></ul></div>
+                </div>
+            </div>
+        </nav>
+		<div class="page-header">
+			<h1><i class="fas fa-folder-open"></i> Project List</h1>
+            <div class="page-actions">
+                <a href="project-create.html" class="btn-add-new" title="Create New Project">
+                    <i class="fas fa-plus"></i>
+                </a>
+            </div>
+		</div>
+
+        <!-- Filters and View Toggle -->
+        <section class="section">
+            <div class="section-title">
+                <div class="title-left">
+                    <input type="text" id="searchProjects" placeholder="Search projects..." />
+                    <select id="filterStatus">
+                        <option value="">All Status</option>
+                        <option value="active">Active</option>
+                        <option value="planning">Planning</option>
+                        <option value="on-hold">On Hold</option>
+                        <option value="completed">Completed</option>
+                    </select>
+                    <select id="filterPriority">
+                        <option value="">All Priority</option>
+                        <option value="high">High</option>
+                        <option value="medium">Medium</option>
+                        <option value="low">Low</option>
+                    </select>
+                    <button class="btn btn-outline" onclick="refreshProjects()" title="Refresh Projects">
+                        <i class="fas fa-sync-alt"></i> Refresh
+                    </button>
+                </div>
+                <div class="title-right">
+                    <div class="view-toggle">
+                        <button class="view-btn active" data-view="cards" onclick="changeView('cards')">
+                            <i class="fas fa-th-large"></i> Cards
+                        </button>
+                        <button class="view-btn" data-view="table" onclick="changeView('table')">
+                            <i class="fas fa-list"></i> List
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Projects Grid View -->
+        <div id="projectsGrid" class="projects-grid">
+            <!-- Project cards will be loaded here -->
+        </div>
+
+        <!-- Projects Table View -->
+        <div id="projectsTable" class="section" style="display: none;">
+            <div class="table-wrapper">
+                <div class="table-scrollable">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Project Name</th>
+                                <th>Status</th>
+                                <th>Priority</th>
+                                <th>Progress</th>
+                                <th>Start Date</th>
+                                <th>End Date</th>
+                                <th>Team Size</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="projectsTableBody">
+                            <!-- Table rows will be loaded here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- Project Details Modal -->
+<div id="projectModal" class="modal">
+    <div class="modal-dialog">
+        <div class="modal-header">
+            <h3>Project Details</h3>
+            <button class="modal-close" onclick="closeModal('projectModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div id="projectDetails">
+                <!-- Project details will be loaded here -->
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn" onclick="closeModal('projectModal')">Close</button>
+            <button class="btn btn-primary" onclick="editProject()">Edit Project</button>
+        </div>
+    </div>
+</div>
+
+<script>
+// Firebase configuration
+const firebaseConfig = {
+    apiKey: "AIzaSyCUTmTn0rRBb0M-UkQJxnUMrWqXYU_BgIc",
+    authDomain: "users-8be65.firebaseapp.com",
+    databaseURL: "https://users-8be65-default-rtdb.firebaseio.com",
+    projectId: "users-8be65",
+    storageBucket: "users-8be65.firebasestorage.app",
+    messagingSenderId: "909025468149",
+    appId: "1:909025468149:web:fb4e7c4a8b4bd6d1076e4d",
+    measurementId: "G-XHFMRCJQEZ"
+};
+
+// Initialize Firebase
+function initializeFirebase() {
+    if (!window.firebase || !window.firebase.apps || window.firebase.apps.length === 0) {
+        window.firebase.initializeApp(firebaseConfig);
+        console.log('✅ Firebase v8 initialized successfully for centralized auth');
+    }
+    return window.firebase;
+}
+
+const firebase = initializeFirebase();
+
+// AuthManager class for centralized authentication and profile management
+class AuthManager {
+    constructor() {
+        this.currentUser = this.getCurrentUser();
+        this.currentCompany = null;
+        this.init();
+    }
+    getCurrentUser() {
+        try { return JSON.parse(localStorage.getItem('currentUser') || 'null'); } catch { return null; }
+    }
+    setCurrentUser(u) {
+        localStorage.setItem('currentUser', JSON.stringify(u));
+        localStorage.setItem('user', JSON.stringify(u));
+        this.currentUser = u;
+    }
+    async init() {
+        if (!this.currentUser) {
+            window.location.href = 'login.html';
+            return;
+        }
+        await this.loadUserCompany();
+        this.updateCompanyBranding();
+        await this.updateUIForAuthenticatedUser();
+        this.bindProfileDropdown();
+    }
+    async loadUserCompany() {
+        if (!this.currentUser) return;
+        try {
+            const snap = await firebase.database().ref('companies').once('value');
+            if (!snap.exists()) return;
+            const companies = snap.val();
+            for (const [cid, comp] of Object.entries(companies)) {
+                if (comp.status !== 'active') continue;
+                if (comp.users) {
+                    for (const [uid, u] of Object.entries(comp.users)) {
+                        if (u.authUid === this.currentUser.uid || uid === this.currentUser.uid) {
+                            this.currentUser.companyId = cid;
+                            this.currentUser.companyName = comp.companyName;
+                            this.currentUser.role = u.role || u.userRole || 'user';
+                            this.currentCompany = comp;
+                            this.setCurrentUser(this.currentUser);
+                            return;
+                        }
+                    }
+                }
+            }
+        } catch (e) { }
+    }
+    updateCompanyBranding() {
+        const logoEl = document.getElementById('headerCompanyLogo');
+        const nameEl = document.getElementById('headerCompanyName');
+        if (!this.currentCompany) { this.showFallbackBranding(); return; }
+        if (nameEl) nameEl.textContent = this.currentCompany.companyName || '';
+        const logoUrl = this.currentCompany.logo || this.currentCompany.logoUrl;
+        if (logoEl) {
+            if (logoUrl) {
+                logoEl.src = logoUrl;
+                logoEl.classList.add('visible');
+            } else {
+                const svg = this.generateCompanyInitialsSVG(this.getCompanyInitials(this.currentCompany.companyName || ''));
+                logoEl.src = svg;
+                logoEl.classList.add('visible');
+            }
+        }
+        if (this.currentCompany.branding) {
+            const root = document.documentElement;
+            if (this.currentCompany.branding.primaryColor) root.style.setProperty('--primary-color', this.currentCompany.branding.primaryColor);
+            if (this.currentCompany.branding.secondaryColor) root.style.setProperty('--secondary-color', this.currentCompany.branding.secondaryColor);
+        }
+    }
+    showFallbackBranding() {
+        const logoEl = document.getElementById('headerCompanyLogo');
+        if (logoEl) {
+            const svg = this.generateCompanyInitialsSVG('DX');
+            logoEl.src = svg;
+            logoEl.classList.add('visible');
+        }
+    }
+    getCompanyInitials(name) {
+        if (!name) return 'CO';
+        const parts = name.trim().split(/\s+/);
+        if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+        return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+    generateCompanyInitialsSVG(initials) {
+        const svg = `<svg width="44" height="44" viewBox="0 0 44 44" xmlns="http://www.w3.org/2000/svg"><rect width="44" height="44" rx="6" fill="#f0f3f6"/><text x="50%" y="52%" dominant-baseline="middle" text-anchor="middle" fill="#495057" font-family="Inter,Arial,sans-serif" font-weight="600" font-size="14">${initials}</text></svg>`;
+        return 'data:image/svg+xml;base64,' + btoa(svg);
+    }
+    getUserDisplayName() {
+        if (!this.currentUser) return 'User';
+        const n = v => typeof v === 'string' ? v.trim().replace(/\s+/g, ' ') : '';
+        const cand = [this.currentUser.displayName, this.currentUser.name, this.currentUser.username];
+        for (const c of cand) { const cleaned = n(c); if (cleaned) return cleaned; }
+        if (this.currentUser.email) return n(this.currentUser.email.split('@')[0]) || 'User';
+        return 'User';
+    }
+    getUserInitials() {
+        const dn = this.getUserDisplayName();
+        const parts = dn.split(' ').filter(Boolean);
+        if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+        return parts.slice(0, 2).map(p => p[0]).join('').toUpperCase();
+    }
+    async getUserAvatarUrl() {
+        if (!this.currentUser) return null;
+        const companyId = this.currentUser.companyId || 'default';
+        const possiblePaths = [
+            `companies/${companyId}/avatars/${this.currentUser.uid}/profile.jpg`,
+            `companies/${companyId}/avatars/${this.currentUser.uid}/profile.png`,
+            `companies/${companyId}/avatars/${this.currentUser.uid}/profile.jpeg`,
+            `companies/${companyId}/avatars/${this.currentUser.uid}/avatar.jpg`,
+            `companies/${companyId}/avatars/${this.currentUser.uid}/avatar.png`,
+            `avatars/${this.currentUser.uid}/profile.jpg`,
+            `avatars/${this.currentUser.uid}/profile.png`,
+            `avatars/${this.currentUser.uid}/avatar.jpg`,
+            `avatars/${this.currentUser.uid}/avatar.png`,
+            `profiles/${this.currentUser.uid}/profile.jpg`,
+            `profiles/${this.currentUser.uid}/profile.png`
+        ];
+        for (const path of possiblePaths) {
+            try {
+                const ref = firebase.storage().ref(path);
+                const url = await ref.getDownloadURL();
+                return url;
+            } catch (err) { continue; }
+        }
+        return null;
+    }
+    async updateUIForAuthenticatedUser() {
+        const btn = document.getElementById('userProfileBtn');
+        const list = document.querySelector('.profile-dropdown ul');
+        if (!btn || !list || !this.currentUser) return;
+        const displayName = this.getUserDisplayName();
+        const email = this.currentUser.email || '';
+        
+        let avatarUrl = null;
+        try { avatarUrl = await this.getUserAvatarUrl(); } catch (error) { }
+        
+        // Set the profile button image
+        const btnImg = btn.querySelector('img');
+        if (avatarUrl && btnImg) {
+            btnImg.src = avatarUrl;
+            btnImg.alt = displayName + ' Avatar';
+            btnImg.style.display = 'block';
+            btnImg.onerror = () => {
+                // If avatar fails to load, show initials
+                btnImg.style.display = 'none';
+                btn.innerHTML = `<div style="width:38px;height:38px;border-radius:50%;background:#3498db;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:0.8rem;">${this.getUserInitials()}</div>`;
+            };
+        } else {
+            // No avatar, show initials
+            btn.innerHTML = `<div style="width:38px;height:38px;border-radius:50%;background:#3498db;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:0.8rem;">${this.getUserInitials()}</div>`;
+        }
+        
+        const avatarHtml = avatarUrl ? `<img src="${avatarUrl}" alt="${displayName} Avatar" style="width:32px;height:32px;border-radius:50%;object-fit:cover;">` : `<div style="width:32px;height:32px;border-radius:50%;background:#3498db;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:12px;">${this.getUserInitials()}</div>`;
+        list.innerHTML = `<li style="border-bottom:1px solid #eee;padding:12px 16px;background:#f8f9fa;"><div style="display:flex;align-items:center;gap:12px;">${avatarHtml}<div><div style="font-weight:600;color:#333;font-size:14px;margin-bottom:2px;">${displayName}</div><div style="color:#666;font-size:12px;">${email}</div></div></div></li><li><a href="profile.html"><i class="fas fa-user"></i> Profile</a></li><li><a href="account.html"><i class="fas fa-cog"></i> Account Settings</a></li><li><a href="#" id="logoutLink"><i class="fas fa-sign-out-alt"></i> Sign out</a></li>`;
+        list.querySelector('#logoutLink')?.addEventListener('click', e => { e.preventDefault(); this.logout(); });
+    }
+    bindProfileDropdown() {
+        const btn = document.getElementById('userProfileBtn');
+        const dd = document.querySelector('.profile-dropdown');
+        if (btn && dd) {
+            btn.addEventListener('click', e => { e.stopPropagation(); dd.classList.toggle('show'); });
+            document.addEventListener('click', e => { if (!btn.contains(e.target)) dd.classList.remove('show'); });
+        }
+    }
+    async logout() {
+        try {
+            await firebase.auth().signOut();
+            localStorage.removeItem('currentUser');
+            localStorage.removeItem('user');
+            window.location.href = 'login.html';
+        } catch (error) {
+            console.error('Logout error:', error);
+            localStorage.removeItem('currentUser');
+            localStorage.removeItem('user');
+            window.location.href = 'login.html';
+        }
+    }
+}
+
+// Projects populated from Firebase in realtime
+let projects = [];
+
+let currentView = 'cards';
+
+// Initialize page
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize AuthManager for header branding/profile
+    window.authManager = new AuthManager();
+    initializePage();
+    loadCompanyBranding();
+    wireNotificationUI();
+    subscribeNotifications();
+    // Run sidebar authorization to display menu items as per roles.html
+    if (typeof initializeMenuAuthorization === 'function') {
+        initializeMenuAuthorization();
+    } else if (typeof updateMenuWithFeatureAuthorization === 'function') {
+        updateMenuWithFeatureAuthorization();
+    }
+    // Subscribe to company-scoped projects for realtime display
+    subscribeToCompanyProjects();
+    loadProjects();
+    setupEventListeners();
+    
+
+function subscribeToCompanyProjects() {
+    try {
+        const user = getAuthUser();
+        if (!user || !user.companyId || !user.uid) return;
+        const db = firebase.database();
+        const ref = db.ref(`companies/${user.companyId}/projects`);
+        ref.on('value', (snap) => {
+            const all = snap.exists() ? snap.val() : {};
+            const list = Object.values(all || {});
+            // Filter: only creator, manager, or team members can see
+            const mine = list.filter(rec => isProjectVisibleToUser(rec, user.uid));
+            // Transform to UI shape
+            projects = mine.map(rec => transformProjectRecord(rec));
+            loadProjects();
+        });
+    } catch (e) {
+        console.warn('Failed subscribing to projects:', e);
+    }
+}
+
+function isProjectVisibleToUser(rec, uid) {
+    if (!rec || !uid) return false;
+    if (rec.createdBy === uid) return true;
+    if (rec.projectManager === uid) return true;
+    if (Array.isArray(rec.teamMembers) && rec.teamMembers.includes(uid)) return true;
+    return false;
+}
+
+function transformProjectRecord(rec) {
+    const start = rec.startDate ? new Date(rec.startDate) : null;
+    const end = rec.endDate ? new Date(rec.endDate) : null;
+    const teamMembers = Array.isArray(rec.teamMembers) ? rec.teamMembers : [];
+    return {
+        id: rec.id || rec.projectId || '',
+        name: rec.name || '(Untitled)',
+        description: rec.description || '',
+        status: rec.status || 'planning',
+        priority: rec.priority || 'low',
+        progress: typeof rec.progress === 'number' ? rec.progress : 0,
+        startDate: start || new Date(),
+        endDate: end || new Date(),
+        teamSize: teamMembers.length,
+        manager: rec.projectManagerName || '—',
+        budget: typeof rec.budget === 'number' ? rec.budget : 0,
+        team: [] // optionally map to initials if names are available
+    };
+}
+    // Initialize role-based menu filtering
+    initializeMenuAuthorization();
+});
+
+function initializePage() {
+    // Setup sidebar toggle
+    const sidebarToggle = document.getElementById('sidebarToggle');
+    const sidebar = document.getElementById('sidebar');
+    const mainContent = document.getElementById('mainContent');
+    
+    if (sidebarToggle) {
+        sidebarToggle.addEventListener('click', function() {
+            sidebar.classList.toggle('collapsed');
+            mainContent.classList.toggle('sidebar-collapsed');
+        });
+    }
+}
+
+// Notifications (aligned with staff.html behaviors)
+function getAuthUser() {
+    if (window.authManager && window.authManager.currentUser) return window.authManager.currentUser;
+    try { return JSON.parse(localStorage.getItem('currentUser') || 'null'); } catch { return null; }
+}
+
+async function loadNotificationsOnce() {
+    const user = getAuthUser();
+    if (!user) return [];
+    const db = firebase.database();
+    const snap = await db.ref(`notifications/${user.uid}`).once('value');
+    if (!snap.exists()) return [];
+    const list = Object.entries(snap.val()).map(([id, v]) => ({ id, ...v }));
+    list.sort((a,b)=> (b.timestamp||0) - (a.timestamp||0));
+    return list;
+}
+
+async function markAllNotificationsAsRead() {
+    const user = getAuthUser();
+    if (!user) return;
+    const db = firebase.database();
+    const ref = db.ref(`notifications/${user.uid}`);
+    const snap = await ref.once('value');
+    if (!snap.exists()) return;
+    const updates = {};
+    Object.keys(snap.val()).forEach(k => { updates[`${k}/read`] = true; });
+    await ref.update(updates);
+    updateNotificationBadgeCount([]); // will hide; refreshed on next open
+}
+
+async function markNotificationAsRead(notificationId) {
+    const user = getAuthUser();
+    if (!user || !notificationId) return;
+    await firebase.database().ref(`notifications/${user.uid}/${notificationId}/read`).set(true);
+}
+
+async function deleteNotificationWithConfirm(notificationId) {
+    if (!confirm('Delete this notification?')) return;
+    const user = getAuthUser();
+    if (!user || !notificationId) return;
+    await firebase.database().ref(`notifications/${user.uid}/${notificationId}`).remove();
+    const notifications = await loadNotificationsOnce();
+    populateNotificationDropdown(notifications);
+}
+
+async function clearAllNotifications() {
+    if (!confirm('Delete all notifications? This cannot be undone.')) return;
+    const user = getAuthUser();
+    if (!user) return;
+    await firebase.database().ref(`notifications/${user.uid}`).remove();
+}
+
+function formatTimeAgo(ts) {
+    if (!ts) return 'Just now';
+    const diff = Date.now() - ts;
+    const m = Math.floor(diff/60000); const h = Math.floor(diff/3600000); const d = Math.floor(diff/86400000);
+    if (m < 1) return 'Just now';
+    if (m < 60) return `${m}m ago`; if (h < 24) return `${h}h ago`; return `${d}d ago`;
+}
+
+function updateNotificationBadgeCount(notifications) {
+    const badge = document.querySelector('.notification-badge');
+    if (!badge) return;
+    const unread = notifications.filter(n => !n.read).length;
+    if (unread > 0) { badge.textContent = unread > 99 ? '99+' : String(unread); badge.style.display = 'block'; }
+    else { badge.style.display = 'none'; }
+}
+
+function populateNotificationDropdown(notifications) {
+    const listEl = document.querySelector('.notification-list');
+    const emptyEl = document.querySelector('.notification-empty');
+    if (!listEl) return;
+    listEl.innerHTML = '';
+    if (!notifications || notifications.length === 0) {
+        if (emptyEl) emptyEl.style.display = 'block';
+        updateNotificationBadgeCount([]);
+        return;
+    }
+    if (emptyEl) emptyEl.style.display = 'none';
+    notifications.slice(0,10).forEach(n => {
+        const div = document.createElement('div');
+        div.className = `notification-item ${n.read ? 'read' : 'unread'}`;
+        div.innerHTML = `
+            <div class="notification-content">
+                <div class="notification-title">${escapeHtml(n.title || 'New Notification')}</div>
+                <div class="notification-message">${escapeHtml(n.message || '')}</div>
+                <div class="notification-time">${formatTimeAgo(n.timestamp)}</div>
+            </div>
+            <div class="notification-actions">
+                ${!n.read ? `<button class="mark-read-btn" title="Mark as read" onclick="markNotificationAsRead('${n.id}')"><i class=\"fas fa-check\"></i></button>` : `<button class="mark-read-btn" title="Already read" disabled><i class=\"fas fa-check\"></i></button>`}
+                <button class="delete-notification-btn" title="Delete notification" onclick="deleteNotificationWithConfirm('${n.id}')"><i class=\"fas fa-trash\"></i></button>
+            </div>
+            ${!n.read ? '<div class="notification-dot"></div>' : ''}
+        `;
+        listEl.appendChild(div);
+    });
+    updateNotificationBadgeCount(notifications);
+}
+
+function wireNotificationUI() {
+    const btn = document.getElementById('notificationBtn');
+    const dropdown = document.querySelector('.notification-dropdown');
+    const profileDropdown = document.querySelector('.profile-dropdown');
+    if (!btn || !dropdown) return;
+    // Header actions (mark all + clear all)
+    const header = dropdown.querySelector('.notification-header');
+    if (header && !header.querySelector('.clear-all-notifications')) {
+        const clearBtn = document.createElement('button');
+        clearBtn.className = 'clear-all-notifications';
+        clearBtn.textContent = 'Clear all';
+        clearBtn.addEventListener('click', async () => {
+            await clearAllNotifications();
+            const list = await loadNotificationsOnce();
+            populateNotificationDropdown(list);
+        });
+        header.appendChild(clearBtn);
+        const markBtn = header.querySelector('.mark-all-read');
+        if (markBtn) markBtn.addEventListener('click', async () => {
+            await markAllNotificationsAsRead();
+            const list = await loadNotificationsOnce();
+            populateNotificationDropdown(list);
+        });
+    }
+    btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        dropdown.classList.toggle('show');
+        if (profileDropdown) profileDropdown.classList.remove('show');
+        if (dropdown.classList.contains('show')) {
+            const list = await loadNotificationsOnce();
+            populateNotificationDropdown(list);
+        }
+    });
+    document.addEventListener('click', (e) => {
+        if (!btn.contains(e.target) && !dropdown.contains(e.target)) dropdown.classList.remove('show');
+    });
+}
+
+function subscribeNotifications() {
+    try {
+        const user = getAuthUser();
+        if (!user) return;
+        const ref = firebase.database().ref(`notifications/${user.uid}`);
+        ref.on('value', (snap) => {
+            if (!snap.exists()) { updateNotificationBadgeCount([]); return; }
+            const list = Object.values(snap.val());
+            updateNotificationBadgeCount(list);
+        });
+    } catch (e) { /* noop */ }
+}
+
+function escapeHtml(str) {
+    return String(str || '').replace(/[&<>"]+/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+}
+
+// Load company name and logo into header (similar to fuelstor.html)
+async function loadCompanyBranding() {
+    try {
+        const headerLogo = document.getElementById('headerCompanyLogo');
+        const headerCompanyName = document.getElementById('headerCompanyName');
+        if (!headerLogo || !headerCompanyName) return;
+
+        // Resolve current user from centralized AuthManager or localStorage fallback
+        let currentUser = null;
+        if (window.authManager && window.authManager.currentUser) {
+            currentUser = window.authManager.currentUser;
+        } else {
+            const storedUser = localStorage.getItem('currentUser');
+            if (storedUser) currentUser = JSON.parse(storedUser);
+        }
+
+        if (!currentUser) {
+            headerCompanyName.textContent = '';
+            headerLogo.style.display = 'none';
+            return;
+        }
+
+        const db = firebase.database();
+        const companiesSnap = await db.ref('companies').once('value');
+        if (!companiesSnap.exists()) {
+            headerCompanyName.textContent = '';
+            headerLogo.style.display = 'none';
+            return;
+        }
+
+        const companies = companiesSnap.val();
+        let companyId = currentUser.companyId || null;
+
+        // If companyId not provided on user, try to locate by membership
+        if (!companyId) {
+            for (const [cId, company] of Object.entries(companies)) {
+                if (company?.status !== 'active') continue;
+                if (company?.users && (company.users[currentUser.uid] || company.users[currentUser.authUid])) {
+                    companyId = cId;
+                    break;
+                }
+            }
+        }
+
+        if (companyId && companies[companyId]) {
+            const company = companies[companyId];
+            const companyName = company.companyName || company.name || '';
+            const logoUrl = company.logoUrl || company.logo || '';
+
+            headerCompanyName.textContent = companyName;
+            if (logoUrl) {
+                headerLogo.src = logoUrl;
+                headerLogo.style.display = 'block';
+            } else {
+                headerLogo.style.display = 'none';
+            }
+
+            // Optionally brand the page title
+            if (companyName) {
+                document.title = document.title.replace('Dreamex Datalab', companyName);
+            }
+        } else {
+            headerCompanyName.textContent = '';
+            headerLogo.style.display = 'none';
+        }
+    } catch (err) {
+        console.warn('Failed to load company branding:', err);
+        const headerLogo = document.getElementById('headerCompanyLogo');
+        const headerCompanyName = document.getElementById('headerCompanyName');
+        if (headerCompanyName) headerCompanyName.textContent = '';
+        if (headerLogo) headerLogo.style.display = 'none';
+    }
+}
+
+function loadProjects() {
+    if (currentView === 'cards') {
+        renderProjectCards();
+    } else {
+        renderProjectTable();
+    }
+}
+
+function renderProjectCards() {
+    const container = document.getElementById('projectsGrid');
+    container.innerHTML = '';
+    
+    const filteredProjects = getFilteredProjects();
+    
+    filteredProjects.forEach(project => {
+        const card = createProjectCard(project);
+        container.appendChild(card);
+    });
+}
+
+function createProjectCard(project) {
+    const card = document.createElement('div');
+    card.className = 'project-card';
+    
+    card.innerHTML = `
+        <div class="project-header">
+            <div class="project-title">
+                ${project.name}
+                <span class="status-badge ${project.status}">${formatStatus(project.status)}</span>
+            </div>
+            <div class="project-description">${project.description}</div>
+        </div>
+        
+        <div class="project-meta">
+            <div class="meta-row">
+                <span class="meta-label">Project Manager</span>
+                <span class="meta-value">${project.manager}</span>
+            </div>
+            <div class="meta-row">
+                <span class="meta-label">Budget</span>
+                <span class="meta-value">$${project.budget.toLocaleString()}</span>
+            </div>
+            <div class="meta-row">
+                <span class="meta-label">Duration</span>
+                <span class="meta-value">${formatDate(project.startDate)} - ${formatDate(project.endDate)}</span>
+            </div>
+        </div>
+        
+        <div class="project-progress">
+            <div class="progress-header">
+                <span class="progress-label">Progress</span>
+                <span class="progress-percentage">${project.progress}%</span>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill" style="width: ${project.progress}%"></div>
+            </div>
+            
+            <div class="project-team">
+                <div class="team-avatars">
+                    ${project.team.slice(0, 4).map(initial => 
+                        `<div class="team-avatar">${initial}</div>`
+                    ).join('')}
+                    ${project.team.length > 4 ? `<div class="team-avatar">+${project.team.length - 4}</div>` : ''}
+                </div>
+                <span class="team-count">${project.teamSize} members</span>
+            </div>
+        </div>
+        
+        <div class="project-actions">
+            <div class="badge ${getPriorityClass(project.priority)}">${project.priority.toUpperCase()}</div>
+            <div class="action-buttons">
+                <button class="icon-btn" onclick="viewProject('${project.id}')" title="View Details">
+                    <i class="fas fa-eye"></i>
+                </button>
+                <button class="icon-btn" onclick="editProject('${project.id}')" title="Edit Project">
+                    <i class="fas fa-edit"></i>
+                </button>
+                <button class="icon-btn" onclick="deleteProject('${project.id}')" title="Delete Project">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
+        </div>
+    `;
+    
+    return card;
+}
+
+function renderProjectTable() {
+    const tbody = document.getElementById('projectsTableBody');
+    tbody.innerHTML = '';
+    
+    const filteredProjects = getFilteredProjects();
+    
+    filteredProjects.forEach(project => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${project.name}</td>
+            <td><span class="status-badge ${project.status}">${formatStatus(project.status)}</span></td>
+            <td><span class="badge ${getPriorityClass(project.priority)}">${project.priority.toUpperCase()}</span></td>
+            <td>
+                <div class="progress-bar" style="width: 80px; height: 6px; margin-bottom: 2px;">
+                    <div class="progress-fill" style="width: ${project.progress}%"></div>
+                </div>
+                <span style="font-size: 0.7rem;">${project.progress}%</span>
+            </td>
+            <td>${formatDate(project.startDate)}</td>
+            <td>${formatDate(project.endDate)}</td>
+            <td>${project.teamSize}</td>
+            <td>
+                <div class="inline-actions">
+                    <button class="btn btn-outline" onclick="viewProject('${project.id}')" title="View">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                    <button class="btn btn-outline" onclick="editProject('${project.id}')" title="Edit">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn btn-accent" onclick="deleteProject('${project.id}')" title="Delete">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
+function getFilteredProjects() {
+    const searchTerm = document.getElementById('searchProjects').value.toLowerCase();
+    const statusFilter = document.getElementById('filterStatus').value;
+    const priorityFilter = document.getElementById('filterPriority').value;
+    
+    return projects.filter(project => {
+        const matchesSearch = project.name.toLowerCase().includes(searchTerm) ||
+                            project.description.toLowerCase().includes(searchTerm);
+        const matchesStatus = !statusFilter || project.status === statusFilter;
+        const matchesPriority = !priorityFilter || project.priority === priorityFilter;
+        
+        return matchesSearch && matchesStatus && matchesPriority;
+    });
+}
+
+function changeView(view) {
+    currentView = view;
+    
+    // Update active button
+    document.querySelectorAll('.view-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.view === view);
+    });
+    
+    // Show/hide appropriate view
+    const gridView = document.getElementById('projectsGrid');
+    const tableView = document.getElementById('projectsTable');
+    
+    if (view === 'cards') {
+        gridView.style.display = 'grid';
+        tableView.style.display = 'none';
+        renderProjectCards();
+    } else {
+        gridView.style.display = 'none';
+        tableView.style.display = 'block';
+        renderProjectTable();
+    }
+}
+
+function formatStatus(status) {
+    return status.charAt(0).toUpperCase() + status.slice(1).replace('-', ' ');
+}
+
+function formatDate(value) {
+    if (!value) return '';
+    const d = value instanceof Date ? value : new Date(value);
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function getPriorityClass(priority) {
+    switch(priority) {
+        case 'high': return 'red';
+        case 'medium': return 'amber';
+        case 'low': return 'green';
+        default: return 'blue';
+    }
+}
+
+function viewProject(projectId) {
+    const project = projects.find(p => p.id === projectId);
+    if (project) {
+        // Load project details in modal
+        document.getElementById('projectDetails').innerHTML = `
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>Project Name</label>
+                    <div>${project.name}</div>
+                </div>
+                <div class="form-group">
+                    <label>Status</label>
+                    <div><span class="status-badge ${project.status}">${formatStatus(project.status)}</span></div>
+                </div>
+                <div class="form-group">
+                    <label>Priority</label>
+                    <div><span class="badge ${getPriorityClass(project.priority)}">${project.priority.toUpperCase()}</span></div>
+                </div>
+                <div class="form-group">
+                    <label>Progress</label>
+                    <div>${project.progress}%</div>
+                </div>
+                <div class="form-group">
+                    <label>Manager</label>
+                    <div>${project.manager}</div>
+                </div>
+                <div class="form-group">
+                    <label>Budget</label>
+                    <div>$${project.budget.toLocaleString()}</div>
+                </div>
+                <div class="form-group" style="grid-column: 1/-1;">
+                    <label>Description</label>
+                    <div>${project.description}</div>
+                </div>
+            </div>
+        `;
+        openModal('projectModal');
+    }
+}
+
+function editProject(projectId) {
+    // Redirect to edit page or open edit modal
+    window.location.href = `project-create.html?edit=${projectId}`;
+}
+
+function deleteProject(projectId) {
+    if (!confirm('Are you sure you want to delete this project? This action cannot be undone.')) return;
+    try {
+        const user = getAuthUser();
+        if (!user || !user.companyId) {
+            alert('Unable to identify company. Please re-login.');
+            return;
+        }
+        const db = firebase.database();
+        const ref = db.ref(`companies/${user.companyId}/projects/${projectId}`);
+        ref.remove()
+            .then(() => {
+                try { notifyProjectAction(projectId, 'deleted'); } catch (e) { /* ignore */ }
+            })
+            .catch(err => {
+                console.error('Delete failed:', err);
+                alert('Failed to delete project. Please try again.');
+            });
+    } catch (e) {
+        console.error('Delete error:', e);
+        alert('Unexpected error while deleting project.');
+    }
+}
+
+function refreshProjects() {
+    // Refresh projects from Firebase or API
+    loadProjects();
+}
+
+function setupEventListeners() {
+    // Search and filter event listeners
+    document.getElementById('searchProjects').addEventListener('input', loadProjects);
+    document.getElementById('filterStatus').addEventListener('change', loadProjects);
+    document.getElementById('filterPriority').addEventListener('change', loadProjects);
+}
+
+function openModal(modalId) {
+    document.getElementById(modalId).classList.add('show');
+}
+
+function closeModal(modalId) {
+    document.getElementById(modalId).classList.remove('show');
+}
+
+// Responsive handling
+function handleResize() {
+    const sidebar = document.getElementById('sidebar');
+    const mainContent = document.getElementById('mainContent');
+    
+    if (window.innerWidth <= 900) {
+        sidebar.classList.add('collapsed');
+        mainContent.classList.add('sidebar-collapsed');
+    } else {
+        sidebar.classList.remove('collapsed');
+        mainContent.classList.remove('sidebar-collapsed');
+    }
+}
+
+window.addEventListener('resize', handleResize);
+window.addEventListener('load', handleResize);
+
+// ===== ROLE-BASED MENU AUTHORIZATION SYSTEM =====
+// Adapted from roles.html to ensure feature filtering by user role
+
+// Flag to prevent multiple simultaneous executions
+let isMenuUpdateInProgress = false;
+
+// Reset all menu items to hidden (preserve core features only when authorized)
+function resetMenuVisibility() {
+    document.querySelectorAll('[data-feature]').forEach(item => {
+        item.classList.remove('menu-visible');
+    });
+    document.querySelectorAll('.menu-dropdown').forEach(dropdown => {
+        dropdown.classList.remove('menu-visible');
+    });
+}
+
+// Emergency fallback - show basic menu items
+function showBasicMenu() {
+    console.log('🔧 Emergency fallback: Showing basic menu items');
+    resetMenuVisibility();
+    
+    // Remove loading class
+
+    const sidebar = document.querySelector('.sidebar');
+    if (sidebar) {
+        sidebar.classList.remove('menu-loading');
+    }
+    
+    const homeItem = document.querySelector('[data-feature="home_view"]');
+    if (homeItem) {
+        homeItem.classList.add('menu-visible');
+    }
+}
+
+// Feature-based authorization system that takes priority over role permissions
+async function updateMenuWithFeatureAuthorization() {
+    // Prevent multiple simultaneous executions
+    if (isMenuUpdateInProgress) {
+        console.log('🔄 Menu update already in progress, skipping...');
+        return;
+    }
+    
+    isMenuUpdateInProgress = true;
+    console.log('🎯 Starting feature-based menu authorization for project-list.html...');
+    
+    try {
+        let currentUser = null;
+        let companyId = null;
+        let userRole = null;
+        
+        // Get user and company info using authManager first
+        if (window.authManager && window.authManager.currentUser) {
+            currentUser = window.authManager.currentUser;
+            companyId = currentUser.companyId;
+            userRole = currentUser.role;
+            console.log('👤 Using AuthManager - User:', currentUser.email, 'Company ID:', companyId, 'Role:', userRole);
+        } else if (firebase.auth().currentUser) {
+            currentUser = firebase.auth().currentUser;
+            console.log('👤 Using Firebase auth - will search for company and role');
+        } else {
+            console.log('❌ No authenticated user found');
+            resetMenuVisibility();
+            return;
+        }
+        
+        // If no company ID from authManager, search companies collection
+        if (!companyId && currentUser) {
+            console.log('🔍 Searching for user company and role...');
+            const database = firebase.database();
+            const companiesRef = database.ref('companies');
+            const companiesSnapshot = await companiesRef.once('value');
+            
+            if (companiesSnapshot.exists()) {
+                const companies = companiesSnapshot.val();
+                
+                for (const [cId, company] of Object.entries(companies)) {
+                    if (company.status !== 'active') continue;
+                    
+                    if (company.users && company.users[currentUser.uid]) {
+                        companyId = cId;
+                        userRole = company.users[currentUser.uid].role || company.users[currentUser.uid].userRole;
+                        console.log(`✅ Found user in company: ${companyId} (${company.name}) with role: ${userRole}`);
+                        break;
+                    }
+                }
+            }
+        }
+        
+        if (!companyId) {
+            console.error('❌ No company ID found, cannot determine authorized features');
+            resetMenuVisibility();
+            return;
+        }
+        
+        if (!userRole) {
+            console.warn('⚠️ No user role found, proceeding with company features only');
+        }
+        
+        // STEP 1: Apply company feature-based authorization
+        console.log('🏢 STEP 1: Applying company feature authorization...');
+        const authorizedPages = await applyFeatureBasedMenuVisibility(companyId);
+        
+        // STEP 2: Filter by user role permissions within authorized features
+        if (userRole) {
+            console.log('👤 STEP 2: Applying role-based filtering within authorized features...');
+            await applyRoleBasedFiltering(companyId, userRole, authorizedPages);
+        } else {
+            console.log('⚠️ STEP 2: Skipping role-based filtering (no role found)');
+        }
+        
+    } catch (error) {
+        console.error('❌ Error in feature-based menu authorization:', error);
+        resetMenuVisibility();
+    } finally {
+        // Reset the flag to allow future updates
+        isMenuUpdateInProgress = false;
+    }
+}
+
+// Apply feature-based menu visibility
+async function applyFeatureBasedMenuVisibility(companyId) {
+    try {
+        console.log('🔧 Applying feature-based menu visibility for company:', companyId);
+        
+        // Get platform features
+        const database = firebase.database();
+        const featuresSnapshot = await database.ref('/platformFeatures').once('value');
+        
+        if (!featuresSnapshot.exists()) {
+            console.log('⚠️ No platform features found');
+            resetMenuVisibility();
+            return;
+        }
+        
+        const featuresData = featuresSnapshot.val();
+        
+        // Get company's selected features
+        const companySnapshot = await database.ref(`/companies/${companyId}`).once('value');
+        const companyData = companySnapshot.val();
+        
+        if (!companyData) {
+            console.error('❌ Company data not found');
+            resetMenuVisibility();
+            return;
+        }
+        
+        const subscribedFeatureIds = companyData.selectedFeatures || [];
+        console.log('🏢 Company subscribed features:', subscribedFeatureIds);
+        
+        if (subscribedFeatureIds.length === 0) {
+            console.log('⚠️ Company has no subscribed features');
+            resetMenuVisibility();
+            return;
+        }
+        
+        // Collect authorized pages from subscribed features
+        const authorizedPages = [];
+        subscribedFeatureIds.forEach(featureId => {
+            const feature = featuresData[featureId];
+            if (feature && feature.status === 'active' && feature.authorizedPages) {
+                console.log(`📦 Adding pages from feature "${feature.name}":`, feature.authorizedPages);
+                authorizedPages.push(...feature.authorizedPages);
+            } else {
+                console.log(`⚠️ Feature ${featureId} not found or inactive`);
+            }
+        });
+        
+        console.log('🔐 All authorized pages:', authorizedPages);
+        
+        // Reset all menu items first
+        resetMenuVisibility();
+        
+        // Create set of authorized features
+        const authorizedFeatures = new Set();
+        authorizedPages.forEach(pageInfo => {
+            if (pageInfo.feature) {
+                authorizedFeatures.add(pageInfo.feature);
+            }
+        });
+        
+        console.log('🎯 Authorized features for project-list.html:', Array.from(authorizedFeatures));
+        
+        // Apply menu visibility
+        const allMenuItems = document.querySelectorAll('#roleBasedMenu li[data-feature]');
+        let visibleCount = 0;
+        
+        allMenuItems.forEach(menuItem => {
+            const featureAttribute = menuItem.getAttribute('data-feature');
+            const isAuthorized = authorizedFeatures.has(featureAttribute);
+            const isDropdownContainer = menuItem.classList.contains('menu-dropdown');
+            
+            if (isDropdownContainer) {
+                return; // Handle dropdowns separately after all items are processed
+            }
+            
+            if (isAuthorized) {
+                menuItem.classList.add('menu-visible');
+                visibleCount++;
+                console.log(`✅ Feature authorized - showing menu item: ${featureAttribute}`);
+            } else {
+                menuItem.classList.remove('menu-visible');
+                console.log(`❌ Feature not authorized - hiding menu item: ${featureAttribute}`);
+            }
+        });
+        
+        // Handle dropdown menus - show if they have visible children
+        const dropdownMenus = document.querySelectorAll('#roleBasedMenu li.menu-dropdown');
+        dropdownMenus.forEach(dropdown => {
+            const dropdownFeature = dropdown.getAttribute('data-feature');
+            const submenuItems = dropdown.querySelectorAll('.submenu li[data-feature]');
+            let hasVisibleChildren = false;
+            
+            submenuItems.forEach(submenuItem => {
+                if (submenuItem.classList.contains('menu-visible')) {
+                    hasVisibleChildren = true;
+                }
+            });
+            
+            if (hasVisibleChildren || authorizedFeatures.has(dropdownFeature)) {
+                dropdown.classList.add('menu-visible');
+                console.log(`✅ Showing dropdown menu: ${dropdownFeature} (has visible children or directly authorized)`);
+            } else {
+                dropdown.classList.remove('menu-visible');
+                console.log(`❌ Hiding dropdown menu: ${dropdownFeature} (no visible children and not authorized)`);
+            }
+        });
+        
+        console.log(`🎯 Company feature authorization completed - ${visibleCount} items initially visible`);
+        
+        // Return authorized pages for role-based filtering
+        return authorizedPages;
+        
+    } catch (error) {
+        console.error('❌ Error applying feature-based menu visibility:', error);
+        resetMenuVisibility();
+        return [];
+    }
+}
+
+// Apply role-based filtering within company authorized features
+async function applyRoleBasedFiltering(companyId, userRole, authorizedPages) {
+    try {
+        console.log('👤 Applying role-based filtering for role:', userRole);
+        
+        // Get user role permissions from company
+        const database = firebase.database();
+        const permissionsRef = database.ref(`companies/${companyId}/roles/${userRole}/permissions`);
+        const permissionsSnapshot = await permissionsRef.once('value');
+        
+        if (!permissionsSnapshot.exists()) {
+            console.log(`⚠️ No permissions found for role ${userRole} in company ${companyId}`);
+            
+            // Try to get all roles to see what's available
+            const allRolesRef = database.ref(`companies/${companyId}/roles`);
+            const allRolesSnapshot = await allRolesRef.once('value');
+            
+            if (allRolesSnapshot.exists()) {
+                const allRoles = allRolesSnapshot.val();
+                console.log('🔍 Available roles in company:', Object.keys(allRoles));
+                
+                // Enhanced debugging for administrator role
+                if (userRole === 'administrator') {
+                    console.log('🔑 ADMINISTRATOR - Full roles data:', allRoles);
+                    if (allRoles.administrator) {
+                        console.log('🔑 ADMINISTRATOR role found in company:', allRoles.administrator);
+                        if (allRoles.administrator.permissions) {
+                            console.log('🔑 ADMINISTRATOR permissions found:', allRoles.administrator.permissions);
+                            filterMenuByPermissions(allRoles.administrator.permissions);
+                            return;
+                        }
+                    }
+                }
+                
+                // Check if the role exists with different casing or format
+                const roleKeys = Object.keys(allRoles);
+                const matchingRole = roleKeys.find(key => 
+                    key.toLowerCase() === userRole.toLowerCase() ||
+                    key.replace(/\s+/g, '').toLowerCase() === userRole.replace(/\s+/g, '').toLowerCase()
+                );
+                
+                if (matchingRole && allRoles[matchingRole].permissions) {
+                    console.log(`✅ Found matching role: ${matchingRole}`);
+                    const permissions = allRoles[matchingRole].permissions;
+                    filterMenuByPermissions(permissions);
+                    return;
+                }
+            }
+            
+            // CRITICAL: If user is administrator but no permissions found, provide full access as fallback
+            if (userRole === 'administrator') {
+                console.log('🔑 ADMINISTRATOR FALLBACK - Skipping role filtering (keeping all company features visible)');
+                showSidebarAfterAuth();
+                return;
+            }
+            
+            // For other roles without permissions, hide all items with permission requirements
+            console.log('❌ No valid permissions found - filtering out items requiring permissions');
+            hideItemsRequiringPermissions();
+            showSidebarAfterAuth();
+            return;
+        }
+        
+        const permissions = permissionsSnapshot.val();
+        console.log('✅ Loaded role permissions:', permissions);
+        
+        // Apply permission-based filtering
+        filterMenuByPermissions(permissions);
+        
+    } catch (error) {
+        console.error('❌ Error applying role-based filtering:', error);
+        // Don't hide everything on error - keep company features visible
+        showSidebarAfterAuth();
+    }
+}
+
+// Filter currently visible menu items by role permissions
+function filterMenuByPermissions(permissions) {
+    console.log('🔍 Filtering visible menu items by role permissions...');
+    
+    if (!permissions) {
+        console.log('⚠️ No permissions object provided');
+        hideItemsRequiringPermissions();
+        showSidebarAfterAuth();
+        return;
+    }
+    
+    // Only check items that are already visible from company features
+    const visibleMenuItems = document.querySelectorAll('#roleBasedMenu li.menu-visible[data-requires-permission]');
+    console.log(`🎯 Found ${visibleMenuItems.length} visible menu items requiring permissions to check`);
+    
+    let hiddenCount = 0;
+    
+    visibleMenuItems.forEach(item => {
+        const requiresPermission = item.getAttribute('data-requires-permission');
+        const feature = item.getAttribute('data-feature');
+        
+        if (requiresPermission) {
+            const hasPermission = permissions[requiresPermission];
+            const hasViewPermission = hasPermission === true || 
+                                     (hasPermission && hasPermission.view === true);
+            
+            if (!hasViewPermission) {
+                item.classList.remove('menu-visible');
+                hiddenCount++;
+                console.log(`❌ Hiding menu item (no permission): ${feature} (requires: ${requiresPermission})`);
+            } else {
+                console.log(`✅ Keeping menu item visible: ${feature} (has permission: ${requiresPermission})`);
+            }
+        }
+    });
+    
+    // Re-check dropdown menus after permission filtering
+    const dropdownMenus = document.querySelectorAll('#roleBasedMenu li.menu-dropdown');
+    dropdownMenus.forEach(dropdown => {
+        const submenuItems = dropdown.querySelectorAll('.submenu li.menu-visible');
+        const dropdownFeature = dropdown.getAttribute('data-feature');
+        
+        if (submenuItems.length === 0) {
+            // No visible children - check if dropdown itself has permission requirements
+            const dropdownRequires = dropdown.getAttribute('data-requires-permission');
+            if (dropdownRequires) {
+                const hasDropdownPermission = permissions[dropdownRequires] === true || 
+                                             (permissions[dropdownRequires] && permissions[dropdownRequires].view === true);
+                if (!hasDropdownPermission) {
+                    dropdown.classList.remove('menu-visible');
+                    hiddenCount++;
+                    console.log(`❌ Hiding dropdown (no children and no permission): ${dropdownFeature}`);
+                }
+            } else {
+                dropdown.classList.remove('menu-visible');
+                console.log(`❌ Hiding dropdown (no visible children): ${dropdownFeature}`);
+            }
+        } else {
+            console.log(`✅ Keeping dropdown visible (has ${submenuItems.length} visible children): ${dropdownFeature}`);
+        }
+    });
+    
+    console.log(`🎯 Role-based filtering completed - ${hiddenCount} items hidden due to lack of permissions`);
+    
+    // Ensure at least home is visible
+    ensureHomeIsVisible();
+    
+    // Show sidebar after all filtering is complete
+    showSidebarAfterAuth();
+}
+
+// Hide menu items that require permissions (for users without role permissions)
+function hideItemsRequiringPermissions() {
+    console.log('🔒 Hiding all menu items that require permissions...');
+    
+    const itemsRequiringPermissions = document.querySelectorAll('#roleBasedMenu li.menu-visible[data-requires-permission]');
+    let hiddenCount = 0;
+    
+    itemsRequiringPermissions.forEach(item => {
+        const feature = item.getAttribute('data-feature');
+        const requiresPermission = item.getAttribute('data-requires-permission');
+        
+        item.classList.remove('menu-visible');
+        hiddenCount++;
+        console.log(`❌ Hiding menu item (requires permission): ${feature} (${requiresPermission})`);
+    });
+    
+    // Hide dropdowns that only contain permission-required items
+    const dropdownMenus = document.querySelectorAll('#roleBasedMenu li.menu-dropdown');
+    dropdownMenus.forEach(dropdown => {
+        const visibleSubmenuItems = dropdown.querySelectorAll('.submenu li.menu-visible');
+        if (visibleSubmenuItems.length === 0) {
+            dropdown.classList.remove('menu-visible');
+            const dropdownFeature = dropdown.getAttribute('data-feature');
+            console.log(`❌ Hiding dropdown (no visible children): ${dropdownFeature}`);
+        }
+    });
+    
+    console.log(`🔒 Hidden ${hiddenCount} items requiring permissions`);
+    
+    // Ensure at least home is visible
+    ensureHomeIsVisible();
+}
+
+// Ensure home menu item is visible as fallback
+function ensureHomeIsVisible() {
+    const homeItem = document.querySelector('#roleBasedMenu li[data-feature="home_view"]');
+    if (homeItem && !homeItem.classList.contains('menu-visible')) {
+        homeItem.classList.add('menu-visible');
+        console.log('✅ Ensured home menu item is visible as fallback');
+    }
+}
+
+// Show sidebar and remove loading state after authentication and filtering
+function showSidebarAfterAuth() {
+    const sidebar = document.querySelector('.sidebar');
+    if (sidebar) {
+        sidebar.classList.remove('menu-loading');
+        console.log('✅ Sidebar loading state removed - menu authorization complete');
+    }
+}
+
+// Initialize menu authorization system
+function initializeMenuAuthorization() {
+    console.log('🚀 Initializing menu authorization system...');
+    
+    // Set sidebar to loading state initially
+    const sidebar = document.querySelector('.sidebar');
+    if (sidebar) {
+        sidebar.classList.add('menu-loading');
+    }
+    
+    // Wait a moment for Firebase to initialize, then start authorization
+    setTimeout(() => {
+        updateMenuWithFeatureAuthorization();
+    }, 500);
+}
+
+// Make updateMenuWithFeatureAuthorization available globally
+window.updateMenuWithFeatureAuthorization = updateMenuWithFeatureAuthorization;
+
+// Debug functions for menu visibility
+window.debugMenuState = function() {
+    console.log('🔧 Debug Menu State:');
+    const menuItems = document.querySelectorAll('[data-feature]');
+    console.log(`Total menu items: ${menuItems.length}`);
+    
+    menuItems.forEach(item => {
+        const feature = item.getAttribute('data-feature');
+        const requiresPermission = item.getAttribute('data-requires-permission');
+        const isVisible = item.classList.contains('menu-visible');
+        console.log(`- ${feature}: requires=${requiresPermission}, visible=${isVisible}`);
+    });
+};
+
+// ===== END ROLE-BASED MENU AUTHORIZATION SYSTEM =====
+
+// Notify involved users for project actions (if project exists in Firebase)
+async function notifyProjectAction(projectId, action) {
+    try {
+        const user = getAuthUser();
+        if (!user || !user.companyId) return;
+        const db = firebase.database();
+        const projRef = db.ref(`companies/${user.companyId}/projects/${projectId}`);
+        const snap = await projRef.once('value');
+        if (!snap.exists()) return; // Only notify for persisted projects
+        const project = snap.val();
+        const recipients = new Set();
+        if (project.createdBy) recipients.add(project.createdBy);
+        if (project.projectManager) recipients.add(project.projectManager);
+        if (Array.isArray(project.teamMembers)) project.teamMembers.forEach(uid => uid && recipients.add(uid));
+        if (recipients.size === 0) return;
+        const titleMap = {
+            deleted: 'Project Deleted',
+            updated: 'Project Updated',
+            status_changed: 'Project Status Changed'
+        };
+        const msgMap = {
+            deleted: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.name || user.email + ` deleted project "${project.name}"`,
+            updated: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.name || user.email + ` updated project "${project.name}"`,
+            status_changed: `Status updated for project "${project.name}"`
+        };
+        const notif = {
+            title: titleMap[action] || 'Project Update',
+            message: (typeof msgMap[action] === 'string' ? msgMap[action] : 'Project updated'),
+            type: 'info',
+            relatedData: { projectId, projectCode: project.code || '', projectName: project.name, companyId: user.companyId, action }
+        };
+        await createNotificationsForUsers(Array.from(recipients), notif, user);
+    } catch (e) { /* ignore errors */ }
+}
+</script>
+</body>
+</html>

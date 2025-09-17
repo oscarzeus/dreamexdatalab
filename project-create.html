@@ -1,0 +1,2120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Create Project - Dreamex Datalab</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
+<!-- Firebase v8 Scripts for Centralized Authentication -->
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
+<style>
+:root { --primary-color:#2c3e50; --secondary-color:#34495e; --accent-color:#e74c3c; --success-color:#27ae60; --warning-color:#f39c12; --info-color:#3498db; --light-color:#ecf0f1; --dark-color:#2c3e50; --sidebar-width:250px; --transition-speed:.25s; }
+* { box-sizing:border-box; margin:0; padding:0; }
+body { font-family: 'Segoe UI', Arial, sans-serif; background:#f5f7fa; color:#222; }
+.app-container { display:flex; min-height:100vh; }
+.sidebar { width:var(--sidebar-width); background:var(--primary-color); color:#fff; padding:1rem; position:fixed; top:0; left:0; bottom:0; overflow-y:auto; transition:transform .3s ease; z-index:1000; }
+.sidebar.collapsed { transform:translateX(-100%); }
+.main-content { flex:1; margin-left:var(--sidebar-width); padding:0.3rem; padding-top:3.2rem; transition:margin-left .3s ease; }
+.main-content.sidebar-collapsed { margin-left:0; }
+.main-content.sidebar-collapsed .top-nav { left:0.5rem; }
+.logo h2 { text-align:center; padding:1rem 0; border-bottom:1px solid rgba(255,255,255,0.1); font-size:1.05rem; letter-spacing:.5px; }
+.menu { list-style:none; margin-top:2rem; }
+.menu li { margin-bottom:0.45rem; }
+.menu a { display:flex; align-items:center; gap:10px; color:#fff; text-decoration:none; padding:0.6rem 0.75rem; border-radius:6px; font-size:0.82rem; font-weight:500; transition:background .25s; }
+.menu a:hover, .menu a.active { background:rgba(255,255,255,0.12); }
+.submenu { list-style:none; margin-left:0.75rem; display:none; margin-top:0.25rem; }
+.menu-dropdown:hover .submenu { display:block; }
+.submenu a { font-size:0.75rem; padding:0.45rem 0.65rem; }
+[data-feature]:not(.menu-visible) { display:none !important; }
+.menu-dropdown:not(.menu-visible) { display:none !important; }
+
+/* Hide ALL menu items by default during loading */
+.sidebar.menu-loading .menu-item,
+.sidebar.menu-loading .menu-dropdown,
+.sidebar.menu-loading li[data-feature],
+.sidebar.menu-loading [data-feature] {
+    display: none !important;
+}
+
+/* Allow menu-visible items to show even during loading */
+.sidebar.menu-loading .menu-visible,
+.sidebar.menu-loading li.menu-visible,
+.sidebar.menu-loading [data-feature].menu-visible {
+    display: block !important;
+}
+
+.menu-loading [data-feature] {
+    display: none !important;
+}
+
+.menu-loading .menu-dropdown {
+    display: none !important;
+}
+
+/* Ensure menu-visible items are always shown */
+.menu-visible {
+    display: block !important;
+}
+
+li.menu-visible,
+[data-feature].menu-visible {
+    display: block !important;
+}
+.top-nav { display:flex; justify-content:space-between; align-items:center; padding:0.5rem 0.75rem; background-color:#fff; box-shadow:0 2px 5px rgba(0,0,0,0.1); margin-bottom:0.3rem; position:fixed; top:0.25rem; right:0.5rem; left:calc(var(--sidebar-width) + 0.5rem); height:50px; min-height:50px; z-index:100; transition:left 0.3s ease; }
+.sidebar-toggle-btn { background:none; border:none; cursor:pointer; font-size:1.1rem; padding:0.4rem; color:#555; }
+.top-nav-left { display:flex; align-items:center; gap:0.75rem; }
+.company-branding { display:flex; align-items:center; gap:0.5rem; }
+#headerCompanyLogo { width:32px; height:32px; object-fit:contain; display:none; }
+#headerCompanyLogo.visible { display: block !important; }
+#headerCompanyName { font-weight:600; font-size:0.85rem; }
+.header-company-logo { height:32px; width:auto; border-radius:6px; box-shadow:0 2px 4px rgba(0,0,0,0.1); }
+.company-name-header { font-weight:700; color:var(--dark-color); font-size:1rem; letter-spacing:0.5px; white-space:nowrap; }
+.top-nav-right { display:flex; align-items:center; gap:1rem; }
+.notifications { position:relative; display:flex; align-items:center; }
+.notification-btn { background:none; border:none; cursor:pointer; position:relative; font-size:1.2rem; padding:0.5rem; display:flex; align-items:center; justify-content:center; }
+.notification-badge { position:absolute; top:-5px; right:-5px; background-color:var(--accent-color); color:white; border-radius:50%; padding:0.2rem 0.5rem; font-size:0.7rem; }
+.notification-dropdown { display:none; position:absolute; right:0; top:100%; width:300px; background-color:white; border-radius:5px; box-shadow:0 2px 10px rgba(0,0,0,0.1); z-index:1000; }
+.notification-dropdown.show { display:block; }
+.notification-dropdown .notification-header { display:flex; justify-content:space-between; align-items:center; padding:1rem; border-bottom:1px solid #eee; }
+.notification-header h3 { margin:0; font-size:1rem; }
+.mark-all-read { background:none; border:none; color:var(--primary-color); cursor:pointer; font-size:0.8rem; }
+.notification-list { max-height:300px; overflow-y:auto; }
+.notification-item { padding:0.75rem 1rem; border-bottom:1px solid #f0f0f0; cursor:pointer; }
+.notification-item:hover { background-color:#f8f9fa; }
+.notification-item.unread { background-color:#f0f8ff; }
+.user-profile { position:relative; }
+.profile-btn { background:none; border:none; border-radius:50%; overflow:hidden; width:38px; height:38px; cursor:pointer; }
+.profile-btn img { width:100%; height:100%; object-fit:cover; }
+.profile-dropdown { display:none; position:absolute; right:0; top:110%; background:#fff; border-radius:8px; min-width:200px; box-shadow:0 6px 18px rgba(0,0,0,0.12); overflow:hidden; }
+.profile-dropdown.show { display:block; }
+.profile-dropdown ul { list-style:none; }
+.profile-dropdown li a { display:block; padding:0.65rem 0.85rem; font-size:0.72rem; text-decoration:none; color:#1e293b; font-weight:500; }
+.profile-dropdown li a:hover { background:#f1f5f9; }
+.page-header { 
+    background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)); 
+    color: #fff; 
+    padding: 0.55rem 0.75rem; 
+    margin: 0.35rem 0 0.5rem 0; 
+    display: flex; 
+    align-items: center; 
+    justify-content: space-between; 
+    box-shadow: 0 10px 28px rgba(0,0,0,0.18), 0 6px 16px rgba(0,0,0,0.14); 
+    font-size: 0.9rem; 
+}
+.page-header h1 { 
+    color: #fff; 
+    font-size: 0.9rem; 
+    display: flex; 
+    align-items: center; 
+    gap: 0.5rem; 
+    letter-spacing: 0.5px; 
+    margin: 0; 
+    font-weight: 600; 
+}
+.page-header i { 
+    font-size: 1rem; 
+}
+.page-actions { display:flex; gap:0.4rem; flex-wrap:wrap; }
+.btn { border:none; border-radius:6px; padding:0.45rem 0.75rem; font-size:0.68rem; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:0.4rem; letter-spacing:.5px; background:#eef2f6; color:#1e293b; transition:.2s; }
+.btn:hover { background:#e2e8f0; }
+.btn-primary { background:var(--primary-color); color:#fff; }
+.btn-primary:hover { background:#1f2f3d; }
+.btn-accent { background:var(--accent-color); color:#fff; }
+.btn-accent:hover { background:#c0392b; }
+.btn-success { background:var(--success-color); color:#fff; }
+.btn-success:hover { background:#218c4f; }
+.btn-outline { background:#fff; border:1px solid #cbd5e1; }
+.btn-outline:hover { background:#f1f5f9; }
+.section { background:#fff; padding:0.7rem; border-radius:10px; box-shadow:0 2px 5px rgba(0,0,0,0.06); margin-bottom:0.3rem; }
+.section-title { font-size:0.8rem; font-weight:700; text-transform:uppercase; letter-spacing:.5px; margin-bottom:0.5rem; color:#334155; display:flex; align-items:center; justify-content:space-between; gap:0.4rem; position:relative; }
+
+/* Form styles */
+.form-container {
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.form-section {
+    background: white;
+    border-radius: 12px;
+    padding: 2rem;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.form-section-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--dark-color);
+    margin-bottom: 1.5rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid #e2e8f0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.form-grid { 
+    display: grid; 
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); 
+    gap: 1.5rem; 
+}
+
+.form-group { 
+    display: flex; 
+    flex-direction: column; 
+    gap: 0.5rem; 
+}
+
+.form-group.full-width {
+    grid-column: 1 / -1;
+}
+
+.form-group label { 
+    font-size: 0.85rem; 
+    font-weight: 600; 
+    color: var(--dark-color);
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.form-group label .required {
+    color: var(--accent-color);
+}
+
+.form-group input, 
+.form-group select, 
+.form-group textarea { 
+    padding: 0.75rem; 
+    font-size: 0.85rem; 
+    border: 2px solid #e2e8f0; 
+    border-radius: 8px; 
+    background: #fff;
+    transition: all 0.3s ease;
+}
+
+.form-group input:focus, 
+.form-group select:focus, 
+.form-group textarea:focus { 
+    outline: none; 
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(44, 62, 80, 0.1);
+}
+
+.form-group textarea { 
+    resize: vertical; 
+    min-height: 120px; 
+}
+
+.form-group small { 
+    font-size: 0.75rem; 
+    color: #64748b; 
+}
+
+.date-range {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+
+.team-selection {
+    border: 2px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 1rem;
+    background: #f8fafc;
+}
+
+.team-member {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    background: white;
+    margin-bottom: 0.75rem;
+    transition: all 0.3s ease;
+}
+
+.team-member:hover {
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.team-member input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+}
+
+.member-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--info-color);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+}
+
+.member-info {
+    flex: 1;
+}
+
+.member-name {
+    font-weight: 600;
+    color: var(--dark-color);
+    margin-bottom: 0.25rem;
+}
+
+.member-role {
+    font-size: 0.8rem;
+    color: #64748b;
+}
+
+.milestone-item {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    background: #f8fafc;
+    margin-bottom: 1rem;
+}
+
+.milestone-item input {
+    flex: 1;
+}
+
+.milestone-item button {
+    padding: 0.5rem;
+    width: 40px;
+    height: 40px;
+    border: none;
+    border-radius: 8px;
+    background: var(--accent-color);
+    color: white;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.milestone-item button:hover {
+    background: #c0392b;
+}
+
+.form-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: flex-end;
+    padding: 2rem;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.form-actions .btn {
+    padding: 0.75rem 2rem;
+    font-size: 0.9rem;
+}
+
+.progress-steps {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 2rem;
+    background: white;
+    padding: 1.5rem;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    flex: 1;
+    position: relative;
+}
+
+.step:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    top: 20px;
+    right: -50%;
+    width: 100%;
+    height: 2px;
+    background: #e2e8f0;
+    z-index: 1;
+}
+
+.step.active:not(:last-child)::after {
+    background: var(--primary-color);
+}
+
+.step-number {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: #e2e8f0;
+    color: #64748b;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    position: relative;
+    z-index: 2;
+}
+
+.step.active .step-number {
+    background: var(--primary-color);
+    color: white;
+}
+
+.step.completed .step-number {
+    background: var(--success-color);
+    color: white;
+}
+
+.step-label {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: #64748b;
+    text-align: center;
+}
+
+.step.active .step-label {
+    color: var(--dark-color);
+    font-weight: 600;
+}
+
+/* Responsive */
+@media (max-width: 900px) { 
+    .main-content { 
+        margin-left: 0; 
+    } 
+    .sidebar { 
+        transform: translateX(-100%); 
+    } 
+    .sidebar.open { 
+        transform: translateX(0); 
+    } 
+    .top-nav { 
+        left: 0.5rem; 
+    }
+}
+
+@media (max-width: 768px) {
+    .form-container {
+        padding: 0 1rem;
+    }
+    
+    .form-section {
+        padding: 1.5rem;
+    }
+    
+    .form-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .date-range {
+        grid-template-columns: 1fr;
+    }
+    
+    .progress-steps {
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+    
+    .step:not(:last-child)::after {
+        display: none;
+    }
+    
+    .form-actions {
+        flex-direction: column;
+        align-items: stretch;
+    }
+}
+</style>
+</head>
+<body>
+<div class="app-container">
+	<nav class="sidebar menu-loading" id="sidebar">
+        <div class="logo"><h2>Dreamex Datalab</h2></div>
+        <ul class="menu" id="roleBasedMenu">
+            <li class="menu-item" data-feature="home_view"><a href="index.html"><i class="fas fa-home"></i> Home</a></li>
+            <li class="menu-dropdown" data-feature="health_view">
+				<a href="#"><i class="fas fa-medkit"></i> Health</a>
+				<ul class="submenu">
+					<li data-feature="health_assessment_view" data-requires-permission="health_assessment_view"><a href="health-assessment.html">Assessment</a></li>
+					<li data-feature="health_consultation_view" data-requires-permission="health_consultation_view"><a href="health-consultation.html">Consultation</a></li>
+					<li data-feature="medical_folder_view" data-requires-permission="medical_folder_view"><a href="medical-folder.html">Medical Folder</a></li>
+				</ul>
+			</li>
+            <li class="menu-dropdown" data-feature="safety_view" data-requires-permission="safety_view">
+				<a href="#"><i class="fas fa-shield-alt"></i> Safety</a>
+				<ul class="submenu">
+					<li data-feature="training_view" data-requires-permission="training_view"><a href="trainingboard.html">Training</a></li>
+					<li data-feature="risk_view" data-requires-permission="risk_view"><a href="riskboard.html">Risk Management</a></li>
+					<li data-feature="jsa_view" data-requires-permission="jsa_view"><a href="jsaboard.html">Job Safety Analysis</a></li>
+					<li data-feature="ptw_view" data-requires-permission="ptw_view"><a href="ptwboard.html">Permit to Work</a></li>
+					<li data-feature="incident_view" data-requires-permission="incident_view"><a href="incidentboard.html">Incident Reports</a></li>
+					<li data-feature="inspection_view" data-requires-permission="inspection_view"><a href="inspectionboard.html">Inspection</a></li>
+					<li data-feature="audit_view" data-requires-permission="audit_view"><a href="auditboard.html">Audit</a></li>
+				</ul>
+			</li>
+            <li class="menu-dropdown" data-feature="fuel_management" data-requires-permission="fuel_management">
+				<a href="#"><i class="fas fa-gas-pump"></i> Fuel Management</a>
+				<ul class="submenu">
+                    <li data-feature="vessel_offloading" data-requires-permission="vessel_offloading"><a href="vessel-offloading.html">Vessel Offloading</a></li>
+                    <li data-feature="fuel_storage" data-requires-permission="fuel_storage"><a href="fuel-storage-status.html">Fuel Storage Status</a></li>
+                    <li data-feature="tank_transfer" data-requires-permission="tank_transfer"><a href="tank-transfer.html">Tank-to-Tank Transfer</a></li>
+                    <li data-feature="truck_loading" data-requires-permission="truck_loading"><a href="fuel-truck-loading.html">Fuel Truck Loading</a></li>
+                    <li data-feature="quality_analysis" data-requires-permission="quality_analysis"><a href="fuel-quality-analysis.html">Fuel Quality Analysis</a></li>
+                    <li data-feature="fuel_distribution" data-requires-permission="fuel_distribution"><a href="fueldistrib.html">Fuel Distribution</a></li>
+                    <li data-feature="fuel_consumption_analysis" data-requires-permission="fuel_consumption_analysis"><a href="fuelanalys.html">Consumption Analysis</a></li>
+				</ul>
+			</li>
+            <li class="menu-dropdown" data-feature="environment_view">
+				<a href="#"><i class="fas fa-leaf"></i> Environment</a>
+				<ul class="submenu">
+                    <li data-feature="water_view" data-requires-permission="water_view"><a href="waterboard.html">Water Quality</a></li>
+				</ul>
+			</li>
+            <li class="menu-dropdown" data-feature="security_view" data-requires-permission="security_view">
+				<a href="#"><i class="fas fa-lock"></i> Security</a>
+				<ul class="submenu">
+                    <li data-feature="access_view" data-requires-permission="access_view"><a href="accessboard.html">Access Request</a></li>
+                    <li data-feature="access_daily_view" data-requires-permission="access_daily_view"><a href="accessdaily.html">Daily Access Control</a></li>
+                    <li data-feature="removal_view" data-requires-permission="removal_view"><a href="removalboard.html">Property Removal</a></li>
+                <li data-feature="security_site_map_view" data-requires-permission="security_site_map_view"><a href="secur.html">Security Site Map</a></li>
+				</ul>
+			</li>
+			<li class="menu-dropdown" data-feature="logistics_view" data-requires-permission="logistics_view">
+				<a href="#"><i class="fas fa-truck"></i> Logistics</a>
+				<ul class="submenu">
+					<li data-feature="fleet_view" data-requires-permission="fleet_view"><a href="fleet.html">Fleet Management</a></li>
+				</ul>
+			</li>
+			<li class="menu-dropdown" data-feature="accommodation_view" data-requires-permission="accommodation_view">
+				<a href="#"><i class="fas fa-bed"></i> Accommodation</a>
+				<ul class="submenu">
+					<li data-feature="camp_view" data-requires-permission="camp_view"><a href="camp.html">Camp Management</a></li>
+                    <li data-feature="camp_settings_view" data-requires-permission="camp_settings_view"><a href="campset.html">Camp Settings</a></li>
+				</ul>
+			</li>
+			<li class="menu-dropdown" data-feature="hr_view" data-requires-permission="hr_view">
+				<a href="#"><i class="fas fa-users"></i> HR</a>
+				<ul class="submenu">
+					<li data-feature="human_hr_view" data-requires-permission="human_hr_view"><a href="human-hr.html"><i class="fas fa-user-tie"></i> Human HR</a></li>
+					<li data-feature="staff_management_view" data-requires-permission="staff_management_view"><a href="staff.html">Staffing</a></li>
+					<li data-feature="authority_to_recruit_view" data-requires-permission="authority_to_recruit_view"><a href="recruit.html">Authority to Recruit</a></li>
+					<li data-feature="job_advertising_view" data-requires-permission="job_advertising_view"><a href="jobpost.html">Job Advertising</a></li>
+					<li data-feature="screening_view" data-requires-permission="screening_view"><a href="jobscreen.html">Screening</a></li>
+					<li data-feature="interview_view" data-requires-permission="interview_view"><a href="interview.html">Interview</a></li>
+					<li data-feature="offer_view" data-requires-permission="offer_view"><a href="offer.html">Offer Management</a></li>
+					<li data-feature="contract_view" data-requires-permission="contract_view"><a href="contract.html">Contract Management</a></li>
+                    <li data-feature="salary_management_view" data-requires-permission="salary_management_view"><a href="salary.html">Salary Management</a></li>
+					<li data-feature="onboarding_view" data-requires-permission="onboarding_view"><a href="onboard.html">Onboarding</a></li>
+					<li data-feature="chart_view" data-requires-permission="chart_view"><a href="chart.html">Chart Setup</a></li>
+					<li data-feature="chartboard_view" data-requires-permission="chartboard_view"><a href="chartboard.html">Org Chart</a></li>
+					<li data-feature="kpi_dashboard_view" data-requires-permission="kpi_dashboard_view"><a href="kpi.html">KPI</a></li>
+				</ul>
+			</li>
+            <!-- Project Management as section button with submenu -->
+            <li class="menu-dropdown" data-feature="project_management_section">
+                <a href="#"><i class="fas fa-project-diagram"></i> Project Management</a>
+                <ul class="submenu">
+                    <li data-feature="project_dashboard_view" data-requires-permission="project_dashboard_view"><a href="project-dashboard.html"><i class="fas fa-tachometer-alt"></i> Project Dashboard</a></li>
+                    <li data-feature="project_create_view" data-requires-permission="project_create_view"><a href="project-create.html" class="active"><i class="fas fa-plus-circle"></i> Create Project</a></li>
+                    <li data-feature="project_list_view" data-requires-permission="project_list_view"><a href="project-list.html"><i class="fas fa-list"></i> Project List</a></li>
+                    <li data-feature="project_reports_view" data-requires-permission="project_reports_view"><a href="project-reports.html"><i class="fas fa-chart-bar"></i> Project Reports</a></li>
+                </ul>
+            </li>
+            <li data-feature="communication_view"><a href="info.html"><i class="fas fa-comments"></i> Communication</a></li>
+            <li class="menu-dropdown" data-feature="settings_view">
+				<a href="#"><i class="fas fa-cog"></i> Settings</a>
+				<ul class="submenu">
+                    <li data-feature="account_settings_view" data-requires-permission="account_settings_view"><a href="account.html">Account Settings</a></li>
+                    <li data-feature="company_management_view" data-requires-permission="company_management_view"><a href="companymanagement.html">Company Management</a></li>
+                    <li data-feature="approval_settings_view" data-requires-permission="approval_settings_view"><a href="approval-settings.html">Approval Flow Settings</a></li>
+                    <li data-feature="field_setup_view" data-requires-permission="field_setup_view"><a href="fieldsetup.html">Field Setup</a></li>
+                    <li data-feature="preferences_view" data-requires-permission="preferences_view"><a href="preferences.html">Preferences</a></li>
+                    <li data-feature="notification_settings_view" data-requires-permission="notification_settings_view"><a href="notification-settings.html">Notification Settings</a></li>
+                    <li data-feature="audit_log_view" data-requires-permission="audit_log_view"><a href="auditlog.html"><i class="fas fa-history"></i> Audit Log</a></li>
+                    <li data-feature="user_management_view" data-requires-permission="user_management_view"><a href="users.html">User & Role Management</a></li>
+                    <li data-feature="role_permissions_view" data-requires-permission="role_permissions_view"><a href="roles.html">Role Permissions</a></li>
+                </ul>
+            </li>
+        </ul>
+	</nav>
+    <main class="main-content" id="mainContent">
+        <nav class="top-nav">
+            <div class="top-nav-left">
+                <button id="sidebarToggle" class="sidebar-toggle-btn" title="Toggle Menu"><i class="fas fa-bars"></i></button>
+                <div class="company-branding">
+                    <img id="headerCompanyLogo" alt="Company Logo" />
+                    <span id="headerCompanyName"></span>
+                </div>
+            </div>
+            <div class="top-nav-right">
+                <div class="notifications">
+                    <button id="notificationBtn" class="notification-btn">
+                        <i class="fas fa-bell"></i>
+                        <span class="notification-badge">0</span>
+                    </button>
+                    <div class="notification-dropdown">
+                        <div class="notification-header">
+                            <h3>Notifications</h3>
+                            <button class="mark-all-read">Mark all as read</button>
+                        </div>
+                        <div class="notification-list">
+                            <!-- Notifications will be dynamically added here -->
+                        </div>
+                    </div>
+                </div>
+                <div class="user-profile" style="position:relative;">
+                    <button id="userProfileBtn" class="profile-btn"><img src="" alt="User Avatar" /></button>
+                    <div class="profile-dropdown"><ul></ul></div>
+                </div>
+            </div>
+        </nav>
+		<div class="page-header">
+			<h1><i class="fas fa-plus-circle"></i> Create New Project</h1>
+            <div class="page-actions">
+                <a href="project-list.html" class="btn btn-outline">
+                    <i class="fas fa-arrow-left"></i> Back to Projects
+                </a>
+            </div>
+		</div>
+
+        <div class="form-container">
+            <!-- Progress Steps -->
+            <div class="progress-steps">
+                <div class="step active">
+                    <div class="step-number">1</div>
+                    <div class="step-label">Basic Info</div>
+                </div>
+                <div class="step">
+                    <div class="step-number">2</div>
+                    <div class="step-label">Schedule</div>
+                </div>
+                <div class="step">
+                    <div class="step-number">3</div>
+                    <div class="step-label">Team</div>
+                </div>
+                <div class="step">
+                    <div class="step-number">4</div>
+                    <div class="step-label">Review</div>
+                </div>
+            </div>
+
+            <form id="projectForm">
+                <!-- Basic Information -->
+                <div class="form-section" id="step1">
+                    <div class="form-section-title">
+                        <i class="fas fa-info-circle"></i>
+                        Basic Project Information
+                    </div>
+                    
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="projectName">
+                                Project Name <span class="required">*</span>
+                            </label>
+                            <input type="text" id="projectName" name="projectName" required placeholder="Enter project name">
+                            <small>Choose a clear, descriptive name for your project</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="projectCode">
+                                Project Code
+                            </label>
+                            <input type="text" id="projectCode" name="projectCode" placeholder="e.g., WEB-2025-001">
+                            <small>Optional unique identifier for the project</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="priority">
+                                Priority <span class="required">*</span>
+                            </label>
+                            <select id="priority" name="priority" required>
+                                <option value="">Select Priority</option>
+                                <option value="low">Low</option>
+                                <option value="medium">Medium</option>
+                                <option value="high">High</option>
+                                <option value="critical">Critical</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="category">
+                                Category
+                            </label>
+                            <select id="category" name="category">
+                                <option value="">Select Category</option>
+                                <option value="web-development">Web Development</option>
+                                <option value="mobile-app">Mobile App</option>
+                                <option value="infrastructure">Infrastructure</option>
+                                <option value="research">Research</option>
+                                <option value="marketing">Marketing</option>
+                                <option value="other">Other</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group full-width">
+                            <label for="description">
+                                Project Description <span class="required">*</span>
+                            </label>
+                            <textarea id="description" name="description" required placeholder="Describe the project objectives, scope, and deliverables"></textarea>
+                            <small>Provide a detailed description of the project goals and expected outcomes</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="budget">
+                                Budget (USD)
+                            </label>
+                            <input type="number" id="budget" name="budget" placeholder="0" min="0" step="1000">
+                            <small>Estimated project budget</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="client">
+                                Client/Stakeholder
+                            </label>
+                            <input type="text" id="client" name="client" placeholder="Client or department name">
+                            <small>Primary client or stakeholder for this project</small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Schedule & Timeline -->
+                <div class="form-section" id="step2" style="display: none;">
+                    <div class="form-section-title">
+                        <i class="fas fa-calendar-alt"></i>
+                        Project Schedule & Timeline
+                    </div>
+                    
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="startDate">
+                                Start Date <span class="required">*</span>
+                            </label>
+                            <input type="date" id="startDate" name="startDate" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="endDate">
+                                Target End Date <span class="required">*</span>
+                            </label>
+                            <input type="date" id="endDate" name="endDate" required>
+                        </div>
+                        
+                        <div class="form-group full-width">
+                            <label>
+                                <i class="fas fa-flag"></i>
+                                Project Milestones
+                            </label>
+                            <div id="milestonesContainer">
+                                <div class="milestone-item">
+                                    <input type="text" placeholder="Milestone name" name="milestone[]">
+                                    <input type="date" name="milestoneDate[]">
+                                    <button type="button" onclick="removeMilestone(this)">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <button type="button" class="btn btn-outline" onclick="addMilestone()">
+                                <i class="fas fa-plus"></i> Add Milestone
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Team Selection -->
+                <div class="form-section" id="step3" style="display: none;">
+                    <div class="form-section-title">
+                        <i class="fas fa-users"></i>
+                        Team Selection & Roles
+                    </div>
+                    
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="projectManager">
+                                Project Manager <span class="required">*</span>
+                            </label>
+                            <select id="projectManager" name="projectManager" required>
+                                <option value="">Select Project Manager</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="teamMemberSelect">
+                                Team Members
+                            </label>
+                            <select id="teamMemberSelect">
+                                <option value="">Select a team member</option>
+                            </select>
+                        </div>
+                        <div class="form-group full-width">
+                            <label>Selected Team</label>
+                            <div class="team-selection" id="selectedTeamContainer">
+                                <!-- Selected team members will appear here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Review & Submit -->
+                <div class="form-section" id="step4" style="display: none;">
+                    <div class="form-section-title">
+                        <i class="fas fa-check-circle"></i>
+                        Review & Submit
+                    </div>
+                    
+                    <div id="reviewContent">
+                        <!-- Review content will be populated here -->
+                    </div>
+                </div>
+            </form>
+
+            <!-- Form Actions -->
+            <div class="form-actions">
+                <button type="button" class="btn btn-outline" id="prevBtn" onclick="previousStep()" style="display: none;">
+                    <i class="fas fa-arrow-left"></i> Previous
+                </button>
+                <button type="button" class="btn btn-primary" id="nextBtn" onclick="nextStep()">
+                    Next <i class="fas fa-arrow-right"></i>
+                </button>
+                <button type="button" class="btn btn-success" id="submitBtn" onclick="submitProject()" style="display: none;">
+                    <i class="fas fa-check"></i> Create Project
+                </button>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script>
+
+// Firebase configuration
+const firebaseConfig = {
+    apiKey: "AIzaSyCUTmTn0rRBb0M-UkQJxnUMrWqXYU_BgIc",
+    authDomain: "users-8be65.firebaseapp.com",
+    databaseURL: "https://users-8be65-default-rtdb.firebaseio.com",
+    projectId: "users-8be65",
+    storageBucket: "users-8be65.firebasestorage.app",
+    messagingSenderId: "909025468149",
+    appId: "1:909025468149:web:fb4e7c4a8b4bd6d1076e4d",
+    measurementId: "G-XHFMRCJQEZ"
+};
+
+// Initialize Firebase
+function initializeFirebase() {
+    if (!window.firebase || !window.firebase.apps || window.firebase.apps.length === 0) {
+        window.firebase.initializeApp(firebaseConfig);
+        console.log('✅ Firebase v8 initialized successfully for centralized auth');
+    }
+    return window.firebase;
+}
+
+const firebase = initializeFirebase();
+
+// --- AuthManager for header branding/profile (copied from dashboard) ---
+// --- AuthManager for header branding/profile (copied from accessboard.html) ---
+class AuthManager {
+    constructor() {
+        this.currentUser = this.getCurrentUser();
+        this.currentCompany = null;
+        this.init();
+    }
+    getCurrentUser() {
+        try { return JSON.parse(localStorage.getItem('currentUser') || 'null'); } catch { return null; }
+    }
+    setCurrentUser(u) {
+        localStorage.setItem('currentUser', JSON.stringify(u));
+        localStorage.setItem('user', JSON.stringify(u));
+        this.currentUser = u;
+    }
+    async init() {
+        if (!this.currentUser) {
+            window.location.href = 'login.html';
+            return;
+        }
+        await this.loadUserCompany();
+        this.updateCompanyBranding();
+        await this.updateUIForAuthenticatedUser();
+        this.bindProfileDropdown();
+        this.updateMenuVisibility();
+    }
+    resetMenuVisibility() {
+        document.querySelectorAll('[data-feature]').forEach(i => i.classList.remove('menu-visible'));
+        document.querySelectorAll('.menu-dropdown').forEach(d => d.classList.remove('menu-visible'));
+    }
+    async updateMenuVisibility() {
+        const sidebar = document.querySelector('.sidebar');
+        if (!this.currentUser) {
+            this.resetMenuVisibility();
+            sidebar?.classList.remove('menu-loading');
+            return;
+        }
+        const companyId = this.currentUser.companyId;
+        const userRole = this.currentUser.role;
+        if (!companyId) {
+            this.resetMenuVisibility();
+            sidebar?.classList.remove('menu-loading');
+            return;
+        }
+        // STEP 1: Apply company feature-based authorization
+        const authorizedPages = await this.applyFeatureBasedMenuVisibility(companyId);
+        // STEP 2: Filter by user role permissions within authorized features
+        if (userRole && authorizedPages && authorizedPages.length > 0) {
+            await this.applyRoleBasedFiltering(companyId, userRole, authorizedPages);
+        } else {
+            sidebar?.classList.remove('menu-loading');
+        }
+    }
+    async applyFeatureBasedMenuVisibility(companyId) {
+        try {
+            const database = firebase.database();
+            const featuresSnapshot = await database.ref('/platformFeatures').once('value');
+            if (!featuresSnapshot.exists()) {
+                this.resetMenuVisibility();
+                return [];
+            }
+            const featuresData = featuresSnapshot.val();
+            const companySnapshot = await database.ref(`/companies/${companyId}`).once('value');
+            const companyData = companySnapshot.val();
+            if (!companyData) {
+                this.resetMenuVisibility();
+                return [];
+            }
+            const subscribed = companyData.selectedFeatures || [];
+            if (subscribed.length === 0) {
+                this.resetMenuVisibility();
+                return [];
+            }
+            const authorizedPages = [];
+            subscribed.forEach(fid => {
+                const f = featuresData[fid];
+                if (f && f.status === 'active' && f.authorizedPages) {
+                    authorizedPages.push(...f.authorizedPages);
+                }
+            });
+            const authorizedFeatures = new Set();
+            authorizedPages.forEach(p => {
+                if (p.feature) authorizedFeatures.add(p.feature);
+            });
+            this.resetMenuVisibility();
+            document.querySelectorAll('#roleBasedMenu li[data-feature]').forEach(item => {
+                const feature = item.getAttribute('data-feature');
+                const isDropdownContainer = item.classList.contains('menu-dropdown');
+                if (isDropdownContainer) return;
+                if (authorizedFeatures.has(feature)) {
+                    item.classList.add('menu-visible');
+                }
+            });
+            // Handle dropdown menus - show if they have visible children
+            document.querySelectorAll('#roleBasedMenu li.menu-dropdown').forEach(drop => {
+                const feature = drop.getAttribute('data-feature');
+                const hasVisible = [...drop.querySelectorAll('.submenu li[data-feature]')].some(li => li.classList.contains('menu-visible'));
+                if (hasVisible || authorizedFeatures.has(feature)) {
+                    drop.classList.add('menu-visible');
+                }
+            });
+            return authorizedPages;
+        } catch (e) {
+            this.resetMenuVisibility();
+            return [];
+        }
+    }
+    async applyRoleBasedFiltering(companyId, userRole, authorizedPages) {
+        try {
+            const database = firebase.database();
+            const permissionsRef = database.ref(`companies/${companyId}/roles/${userRole}/permissions`);
+            const permissionsSnapshot = await permissionsRef.once('value');
+            if (!permissionsSnapshot.exists()) {
+                if (userRole === 'administrator') {
+                    this.showSidebarAfterAuth();
+                    return;
+                }
+                this.hideItemsRequiringPermissions();
+                this.showSidebarAfterAuth();
+                return;
+            }
+            const permissions = permissionsSnapshot.val();
+            this.filterMenuByPermissions(permissions);
+        } catch (error) {
+            this.showSidebarAfterAuth();
+        }
+    }
+    filterMenuByPermissions(permissions) {
+        if (!permissions) {
+            this.hideItemsRequiringPermissions();
+            this.showSidebarAfterAuth();
+            return;
+        }
+        const visibleMenuItems = document.querySelectorAll('#roleBasedMenu li.menu-visible[data-requires-permission]');
+        visibleMenuItems.forEach(item => {
+            const requiresPermission = item.getAttribute('data-requires-permission');
+            const feature = item.getAttribute('data-feature');
+            if (requiresPermission) {
+                const hasPermission = permissions[requiresPermission];
+                const hasViewPermission = hasPermission === true || (hasPermission && hasPermission.view === true);
+                if (!hasViewPermission) {
+                    item.classList.remove('menu-visible');
+                }
+            }
+        });
+        // Re-check dropdown menus after permission filtering
+        const dropdownMenus = document.querySelectorAll('#roleBasedMenu li.menu-dropdown');
+        dropdownMenus.forEach(dropdown => {
+            const submenuItems = dropdown.querySelectorAll('.submenu li.menu-visible');
+            if (submenuItems.length === 0) {
+                dropdown.classList.remove('menu-visible');
+            }
+        });
+        this.showSidebarAfterAuth();
+    }
+    hideItemsRequiringPermissions() {
+        const itemsRequiringPermissions = document.querySelectorAll('#roleBasedMenu li.menu-visible[data-requires-permission]');
+        itemsRequiringPermissions.forEach(item => {
+            item.classList.remove('menu-visible');
+        });
+    }
+    showSidebarAfterAuth() {
+        const sidebar = document.querySelector('.sidebar');
+        sidebar?.classList.remove('menu-loading');
+    }
+    async loadUserCompany() {
+        if (!this.currentUser) return;
+        try {
+            const snap = await firebase.database().ref('companies').once('value');
+            if (!snap.exists()) return;
+            const companies = snap.val();
+            for (const [cid, comp] of Object.entries(companies)) {
+                if (comp.status !== 'active') continue;
+                if (comp.users) {
+                    for (const [uid, u] of Object.entries(comp.users)) {
+                        if (u.authUid === this.currentUser.uid || uid === this.currentUser.uid) {
+                            this.currentUser.companyId = cid;
+                            this.currentUser.companyName = comp.companyName;
+                            this.currentUser.role = u.role || u.userRole || 'user';
+                            this.currentCompany = comp;
+                            this.setCurrentUser(this.currentUser);
+                            return;
+                        }
+                    }
+                }
+            }
+        } catch (e) { }
+    }
+    updateCompanyBranding() {
+        const logoEl = document.getElementById('headerCompanyLogo');
+        const nameEl = document.getElementById('headerCompanyName');
+        if (!this.currentCompany) { this.showFallbackBranding(); return; }
+        if (nameEl) nameEl.textContent = this.currentCompany.companyName || '';
+        const logoUrl = this.currentCompany.logo || this.currentCompany.logoUrl;
+        if (logoEl) {
+            if (logoUrl) {
+                logoEl.src = logoUrl;
+                logoEl.classList.add('visible');
+            } else {
+                const svg = this.generateCompanyInitialsSVG(this.getCompanyInitials(this.currentCompany.companyName || ''));
+                logoEl.src = svg;
+                logoEl.classList.add('visible');
+            }
+        }
+        if (this.currentCompany.branding) {
+            const root = document.documentElement;
+            if (this.currentCompany.branding.primaryColor) root.style.setProperty('--primary-color', this.currentCompany.branding.primaryColor);
+            if (this.currentCompany.branding.secondaryColor) root.style.setProperty('--secondary-color', this.currentCompany.branding.secondaryColor);
+        }
+    }
+    showFallbackBranding() {
+        const logoEl = document.getElementById('headerCompanyLogo');
+        if (logoEl) {
+            const svg = this.generateCompanyInitialsSVG('DX');
+            logoEl.src = svg;
+            logoEl.classList.add('visible');
+        }
+    }
+    getCompanyInitials(name) {
+        if (!name) return 'CO';
+        const parts = name.trim().split(/\s+/);
+        if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+        return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+    generateCompanyInitialsSVG(initials) {
+        const svg = `<svg width="44" height="44" viewBox="0 0 44 44" xmlns="http://www.w3.org/2000/svg"><rect width="44" height="44" rx="6" fill="#f0f3f6"/><text x="50%" y="52%" dominant-baseline="middle" text-anchor="middle" fill="#495057" font-family="Inter,Arial,sans-serif" font-weight="600" font-size="14">${initials}</text></svg>`;
+        return 'data:image/svg+xml;base64,' + btoa(svg);
+    }
+    getUserDisplayName() {
+        if (!this.currentUser) return 'User';
+        const n = v => typeof v === 'string' ? v.trim().replace(/\s+/g, ' ') : '';
+        const cand = [this.currentUser.displayName, this.currentUser.name, this.currentUser.username];
+        for (const c of cand) { const cleaned = n(c); if (cleaned) return cleaned; }
+        if (this.currentUser.email) return n(this.currentUser.email.split('@')[0]) || 'User';
+        return 'User';
+    }
+    getUserInitials() {
+        const dn = this.getUserDisplayName();
+        const parts = dn.split(' ').filter(Boolean);
+        if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+        return parts.slice(0, 2).map(p => p[0]).join('').toUpperCase();
+    }
+    async getUserAvatarUrl() {
+        if (!this.currentUser) return null;
+        const companyId = this.currentUser.companyId || 'default';
+        const possiblePaths = [
+            `companies/${companyId}/avatars/${this.currentUser.uid}/profile.jpg`,
+            `companies/${companyId}/avatars/${this.currentUser.uid}/profile.png`,
+            `companies/${companyId}/avatars/${this.currentUser.uid}/profile.jpeg`,
+            `companies/${companyId}/avatars/${this.currentUser.uid}/avatar.jpg`,
+            `companies/${companyId}/avatars/${this.currentUser.uid}/avatar.png`,
+            `avatars/${this.currentUser.uid}/profile.jpg`,
+            `avatars/${this.currentUser.uid}/profile.png`,
+            `avatars/${this.currentUser.uid}/avatar.jpg`,
+            `avatars/${this.currentUser.uid}/avatar.png`,
+            `profiles/${this.currentUser.uid}/profile.jpg`,
+            `profiles/${this.currentUser.uid}/profile.png`
+        ];
+        for (const path of possiblePaths) {
+            try {
+                const ref = firebase.storage().ref(path);
+                const url = await ref.getDownloadURL();
+                return url;
+            } catch (err) { continue; }
+        }
+        return null;
+    }
+    async updateUIForAuthenticatedUser() {
+        const btn = document.getElementById('userProfileBtn');
+        const list = document.querySelector('.profile-dropdown ul');
+        if (!btn || !list || !this.currentUser) return;
+        const displayName = this.getUserDisplayName();
+        const email = this.currentUser.email || '';
+        
+        let avatarUrl = null;
+        try { avatarUrl = await this.getUserAvatarUrl(); } catch (error) { }
+        
+        // Set the profile button image
+        const btnImg = btn.querySelector('img');
+        if (avatarUrl && btnImg) {
+            btnImg.src = avatarUrl;
+            btnImg.alt = displayName + ' Avatar';
+            btnImg.style.display = 'block';
+            btnImg.onerror = () => {
+                // If avatar fails to load, show initials
+                btnImg.style.display = 'none';
+                btn.innerHTML = `<div style="width:38px;height:38px;border-radius:50%;background:#3498db;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:0.8rem;">${this.getUserInitials()}</div>`;
+            };
+        } else {
+            // No avatar, show initials
+            btn.innerHTML = `<div style="width:38px;height:38px;border-radius:50%;background:#3498db;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:0.8rem;">${this.getUserInitials()}</div>`;
+        }
+        
+        const avatarHtml = avatarUrl ? `<img src="${avatarUrl}" alt="${displayName} Avatar" style="width:32px;height:32px;border-radius:50%;object-fit:cover;">` : `<div style="width:32px;height:32px;border-radius:50%;background:#3498db;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:12px;">${this.getUserInitials()}</div>`;
+        list.innerHTML = `<li style="border-bottom:1px solid #eee;padding:12px 16px;background:#f8f9fa;"><div style="display:flex;align-items:center;gap:12px;">${avatarHtml}<div><div style="font-weight:600;color:#333;font-size:14px;margin-bottom:2px;">${displayName}</div><div style="color:#666;font-size:12px;">${email}</div></div></div></li><li><a href="account.html"><i class="fas fa-user"></i> Account Settings</a></li><li><a href="#" id="logoutLink"><i class="fas fa-sign-out-alt"></i> Logout</a></li>`;
+        list.querySelector('#logoutLink')?.addEventListener('click', e => { e.preventDefault(); this.logout(); });
+    }
+    bindProfileDropdown() {
+        const btn = document.getElementById('userProfileBtn');
+        const dd = document.querySelector('.profile-dropdown');
+        if (btn && dd) {
+            btn.addEventListener('click', e => { e.stopPropagation(); dd.classList.toggle('show'); });
+            document.addEventListener('click', e => { if (!btn.contains(e.target)) dd.classList.remove('show'); });
+        }
+    }
+    async logout() {
+        try { await firebase.auth().signOut(); } catch (e) { }
+        ['currentUser', 'user'].forEach(k => { localStorage.removeItem(k); sessionStorage.removeItem(k); });
+        location.href = 'index.html';
+    }
+}
+// --- End AuthManager ---
+
+// --- End AuthManager ---
+
+// Form step management
+let currentStep = 1;
+const totalSteps = 4;
+
+// Company-scoped users cache for team member selection
+window.companyUsersById = {};
+
+// Initialize page
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize AuthManager for header branding/profile
+    window.authManager = new AuthManager();
+    initializePage();
+    loadTeamMembersFromCompany();
+    loadProjectManagersFromCompany();
+    setupEventListeners();
+    
+    // Initialize role-based menu authorization system
+    initializeMenuAuthorization();
+});
+
+function initializePage() {
+    // Setup sidebar toggle
+    const sidebarToggle = document.getElementById('sidebarToggle');
+    const sidebar = document.getElementById('sidebar');
+    const mainContent = document.getElementById('mainContent');
+    
+    if (sidebarToggle) {
+        sidebarToggle.addEventListener('click', function() {
+            sidebar.classList.toggle('collapsed');
+            mainContent.classList.toggle('sidebar-collapsed');
+        });
+    }
+    
+    // Set default dates
+    const today = new Date();
+    const endDate = new Date();
+    endDate.setMonth(today.getMonth() + 3); // 3 months from now
+    
+    document.getElementById('startDate').value = today.toISOString().split('T')[0];
+    document.getElementById('endDate').value = endDate.toISOString().split('T')[0];
+}
+
+// Helpers to build display values
+function buildUserFullName(u) {
+    if (!u) return 'Unnamed User';
+    const first = (u.firstName || '').trim();
+    const last = (u.lastName || '').trim();
+    const display = (u.displayName || u.name || '').trim();
+    if (first || last) return `${first} ${last}`.trim();
+    if (display) return display;
+    if (u.email) return String(u.email).split('@')[0];
+    return 'Unnamed User';
+}
+
+function buildInitialsFromName(name) {
+    if (!name) return '?';
+    const parts = String(name).trim().split(/\s+/).filter(Boolean);
+    if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+    const first = parts[0] || '';
+    return first.substring(0, 2).toUpperCase() || '?';
+}
+
+// Populate Project Manager list from company-scoped users
+async function loadProjectManagersFromCompany(retryCount = 0) {
+    try {
+        const pmSelect = document.getElementById('projectManager');
+        if (!pmSelect) return;
+
+        const currentUser = (window.authManager && window.authManager.currentUser) || JSON.parse(localStorage.getItem('currentUser') || 'null');
+        const companyId = currentUser && currentUser.companyId;
+        if (!companyId) {
+            // No company yet; leave default option
+            return;
+        }
+
+        const db = firebase.database();
+        const usersSnap = await db.ref(`companies/${companyId}/users`).once('value');
+        const users = usersSnap.exists() ? usersSnap.val() : {};
+
+        // Clear existing except placeholder
+        pmSelect.innerHTML = '';
+        const placeholder = document.createElement('option');
+        placeholder.value = '';
+        placeholder.textContent = 'Select Project Manager';
+        pmSelect.appendChild(placeholder);
+
+        const makeFullName = (u) => {
+            const first = (u.firstName || '').trim();
+            const last = (u.lastName || '').trim();
+            const display = (u.displayName || u.name || '').trim();
+            if (first || last) return `${first} ${last}`.trim();
+            if (display) return display;
+            if (u.email) return String(u.email).split('@')[0];
+            return 'Unnamed User';
+        };
+
+        // Build list: id = user key; text = full name - job title (if available)
+        const options = [];
+        Object.entries(users).forEach(([uid, u]) => {
+            // Optional: filter by role(s) eligible to be Project Manager
+            // Example: allow all; change if needed: if (!['ProjectManager','Manager'].includes(u.role)) return;
+            const fullName = makeFullName(u);
+            const jobTitle = (u.jobTitle || u.title || u.position || u.role || '').toString().trim();
+            options.push({ uid, fullName, jobTitle });
+        });
+
+        // Sort by full name for usability
+        options.sort((a, b) => a.fullName.localeCompare(b.fullName, undefined, { sensitivity: 'base' }));
+
+        options.forEach(({ uid, fullName, jobTitle }) => {
+            const opt = document.createElement('option');
+            opt.value = uid;
+            opt.textContent = jobTitle ? `${fullName} - ${jobTitle}` : fullName;
+            pmSelect.appendChild(opt);
+        });
+
+        // Preselect current user if they exist in list and have a typical manager role
+        if (currentUser && currentUser.uid) {
+            const existing = Array.from(pmSelect.options).find(o => o.value === currentUser.uid);
+            if (existing) pmSelect.value = currentUser.uid;
+        }
+    } catch (err) {
+        if (retryCount < 2) {
+            setTimeout(() => loadProjectManagersFromCompany(retryCount + 1), 500 * (retryCount + 1));
+        }
+    }
+}
+
+// Populate Team Members from company-scoped users
+async function loadTeamMembersFromCompany(retryCount = 0) {
+    try {
+        const select = document.getElementById('teamMemberSelect');
+        const selectedContainer = document.getElementById('selectedTeamContainer');
+        if (!select || !selectedContainer) return;
+        // Reset
+        select.innerHTML = '<option value="">Loading team members…</option>';
+        selectedContainer.innerHTML = '';
+
+        const currentUser = (window.authManager && window.authManager.currentUser) || JSON.parse(localStorage.getItem('currentUser') || 'null');
+        const companyId = currentUser && currentUser.companyId;
+        if (!companyId) {
+            container.innerHTML = '<div style="color:#64748b;">No company selected.</div>';
+            return;
+        }
+
+        const db = firebase.database();
+    const usersSnap = await db.ref(`companies/${companyId}/users`).once('value');
+        const users = usersSnap.exists() ? usersSnap.val() : {};
+
+        // Build list and cache
+        window.companyUsersById = {};
+        const list = Object.entries(users).map(([uid, u]) => {
+            const fullName = buildUserFullName(u);
+            const initials = buildInitialsFromName(fullName);
+            const role = (u.role || u.position || u.title || '').toString();
+            const record = { uid, fullName, initials, role, ...u };
+            window.companyUsersById[uid] = record;
+            return record;
+        });
+
+        list.sort((a, b) => a.fullName.localeCompare(b.fullName, undefined, { sensitivity: 'base' }));
+
+        // Fill dropdown
+        select.innerHTML = '<option value="">Select a team member</option>';
+        list.forEach(member => {
+            const opt = document.createElement('option');
+            opt.value = member.uid;
+            const title = (member.jobTitle || member.title || member.position || member.role || '').toString().trim();
+            opt.textContent = title ? `${member.fullName} - ${title}` : member.fullName;
+            select.appendChild(opt);
+        });
+
+        // Selection state
+        window.selectedTeamMemberIds = new Set();
+
+        // On select change, add to selected list if not duplicate
+        select.addEventListener('change', (e) => {
+            const uid = e.target.value;
+            if (!uid) return;
+            if (window.selectedTeamMemberIds.has(uid)) {
+                // Reset select without adding duplicate
+                select.value = '';
+                return;
+            }
+            window.selectedTeamMemberIds.add(uid);
+            renderSelectedTeam();
+            // Reset select for next addition
+            select.value = '';
+        });
+    } catch (err) {
+        if (retryCount < 2) {
+            setTimeout(() => loadTeamMembersFromCompany(retryCount + 1), 500 * (retryCount + 1));
+        } else {
+            const select = document.getElementById('teamMemberSelect');
+            if (select) select.innerHTML = '<option value="">Failed to load team members</option>';
+        }
+    }
+}
+
+function renderSelectedTeam() {
+    const container = document.getElementById('selectedTeamContainer');
+    container.innerHTML = '';
+    if (!window.selectedTeamMemberIds || window.selectedTeamMemberIds.size === 0) {
+        container.innerHTML = '<div style="color:#64748b;">No team members selected yet.</div>';
+        return;
+    }
+    Array.from(window.selectedTeamMemberIds).forEach(uid => {
+        const member = window.companyUsersById && window.companyUsersById[uid];
+        if (!member) return;
+        const initials = member.initials || buildInitialsFromName(member.fullName);
+        const chip = document.createElement('div');
+        chip.className = 'team-member';
+        chip.style.cursor = 'default';
+        chip.innerHTML = `
+            <div class="member-avatar">${initials}</div>
+            <div class="member-info">
+                <div class="member-name">${member.fullName}</div>
+                <div class="member-role">${member.jobTitle || member.title || member.position || member.role || ''}</div>
+            </div>
+            <button type="button" aria-label="Remove" style="margin-left:auto; background:#fee2e2; color:#b91c1c; border:none; border-radius:6px; padding:4px 8px;" data-remove="${uid}">Remove</button>
+        `;
+        container.appendChild(chip);
+    });
+
+    // Wire remove buttons
+    container.querySelectorAll('button[data-remove]').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const uid = e.currentTarget.getAttribute('data-remove');
+            window.selectedTeamMemberIds.delete(uid);
+            renderSelectedTeam();
+        });
+    });
+}
+
+function nextStep() {
+    if (validateCurrentStep()) {
+        if (currentStep < totalSteps) {
+            // Hide current step
+            document.getElementById(`step${currentStep}`).style.display = 'none';
+            
+            // Update step indicators
+            document.querySelector(`.step:nth-child(${currentStep})`).classList.remove('active');
+            document.querySelector(`.step:nth-child(${currentStep})`).classList.add('completed');
+            
+            currentStep++;
+            
+            // Show next step
+            document.getElementById(`step${currentStep}`).style.display = 'block';
+            document.querySelector(`.step:nth-child(${currentStep})`).classList.add('active');
+            
+            // Update buttons
+            updateButtons();
+            
+            // If it's the review step, populate review content
+            if (currentStep === 4) {
+                populateReview();
+            }
+        }
+    }
+}
+
+function previousStep() {
+    if (currentStep > 1) {
+        // Hide current step
+        document.getElementById(`step${currentStep}`).style.display = 'none';
+        document.querySelector(`.step:nth-child(${currentStep})`).classList.remove('active');
+        
+        currentStep--;
+        
+        // Show previous step
+        document.getElementById(`step${currentStep}`).style.display = 'block';
+        document.querySelector(`.step:nth-child(${currentStep})`).classList.add('active');
+        document.querySelector(`.step:nth-child(${currentStep})`).classList.remove('completed');
+        
+        // Update buttons
+        updateButtons();
+    }
+}
+
+function updateButtons() {
+    const prevBtn = document.getElementById('prevBtn');
+    const nextBtn = document.getElementById('nextBtn');
+    const submitBtn = document.getElementById('submitBtn');
+    
+    prevBtn.style.display = currentStep > 1 ? 'block' : 'none';
+    nextBtn.style.display = currentStep < totalSteps ? 'block' : 'none';
+    submitBtn.style.display = currentStep === totalSteps ? 'block' : 'none';
+}
+
+function validateCurrentStep() {
+    const currentStepElement = document.getElementById(`step${currentStep}`);
+    const requiredFields = currentStepElement.querySelectorAll('[required]');
+    
+    for (let field of requiredFields) {
+        if (!field.value.trim()) {
+            field.focus();
+            alert(`Please fill in the required field: ${field.previousElementSibling.textContent.replace('*', '').trim()}`);
+            return false;
+        }
+    }
+    
+    // Additional validation for specific steps
+    if (currentStep === 2) {
+        const startDate = new Date(document.getElementById('startDate').value);
+        const endDate = new Date(document.getElementById('endDate').value);
+        
+        if (endDate <= startDate) {
+            alert('End date must be after start date');
+            return false;
+        }
+    }
+    
+    return true;
+}
+
+function populateReview() {
+    const formData = new FormData(document.getElementById('projectForm'));
+    const reviewContent = document.getElementById('reviewContent');
+    
+    // Get selected team members from state
+    const selectedMembers = (window.selectedTeamMemberIds ? Array.from(window.selectedTeamMemberIds) : [])
+        .map(uid => (window.companyUsersById && window.companyUsersById[uid]) || null)
+        .filter(Boolean);
+    
+    reviewContent.innerHTML = `
+        <div class="form-grid">
+            <div class="form-group">
+                <label>Project Name</label>
+                <div>${formData.get('projectName')}</div>
+            </div>
+            <div class="form-group">
+                <label>Priority</label>
+                <div class="badge ${getPriorityClass(formData.get('priority'))}">${formData.get('priority').toUpperCase()}</div>
+            </div>
+            <div class="form-group">
+                <label>Start Date</label>
+                <div>${formatDate(formData.get('startDate'))}</div>
+            </div>
+            <div class="form-group">
+                <label>End Date</label>
+                <div>${formatDate(formData.get('endDate'))}</div>
+            </div>
+            <div class="form-group">
+                <label>Project Manager</label>
+                <div>${document.getElementById('projectManager').selectedOptions[0]?.text || 'Not selected'}</div>
+            </div>
+            <div class="form-group">
+                <label>Budget</label>
+                <div>$${parseInt(formData.get('budget') || 0).toLocaleString()}</div>
+            </div>
+            <div class="form-group full-width">
+                <label>Description</label>
+                <div>${formData.get('description')}</div>
+            </div>
+            <div class="form-group full-width">
+                <label>Team Members (${selectedMembers.length})</label>
+                <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem;">
+                    ${selectedMembers.map(member => `
+                        <div style="display: flex; align-items: center; gap: 0.5rem; background: #f1f5f9; padding: 0.5rem; border-radius: 8px;">
+                            <div class="member-avatar" style="width: 24px; height: 24px; font-size: 0.7rem;">${member.initials || buildInitialsFromName(member.fullName)}</div>
+                            <span style="font-size: 0.8rem;">${member.fullName || 'Unknown User'}</span>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function getPriorityClass(priority) {
+    switch(priority) {
+        case 'critical':
+        case 'high': return 'red';
+        case 'medium': return 'amber';
+        case 'low': return 'green';
+        default: return 'blue';
+    }
+}
+
+function formatDate(dateString) {
+    if (!dateString) return 'Not set';
+    return new Date(dateString).toLocaleDateString('en-US', { 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+    });
+}
+
+function addMilestone() {
+    const container = document.getElementById('milestonesContainer');
+    const milestoneDiv = document.createElement('div');
+    milestoneDiv.className = 'milestone-item';
+    milestoneDiv.innerHTML = `
+        <input type="text" placeholder="Milestone name" name="milestone[]">
+        <input type="date" name="milestoneDate[]">
+        <button type="button" onclick="removeMilestone(this)">
+            <i class="fas fa-trash"></i>
+        </button>
+    `;
+    container.appendChild(milestoneDiv);
+}
+
+function removeMilestone(button) {
+    button.parentElement.remove();
+}
+
+function submitProject() {
+    if (validateCurrentStep()) {
+        const formData = new FormData(document.getElementById('projectForm'));
+        
+        // Get selected team members
+        const selectedMembers = window.selectedTeamMemberIds ? Array.from(window.selectedTeamMemberIds) : [];
+        
+        // Collect milestones
+        const milestones = [];
+        const milestoneNames = formData.getAll('milestone[]');
+        const milestoneDates = formData.getAll('milestoneDate[]');
+        
+        for (let i = 0; i < milestoneNames.length; i++) {
+            if (milestoneNames[i].trim()) {
+                milestones.push({
+                    name: milestoneNames[i],
+                    date: milestoneDates[i]
+                });
+            }
+        }
+        
+        const projectData = {
+            name: formData.get('projectName'),
+            code: formData.get('projectCode'),
+            description: formData.get('description'),
+            priority: formData.get('priority'),
+            category: formData.get('category'),
+            budget: parseFloat(formData.get('budget')) || 0,
+            client: formData.get('client'),
+            startDate: formData.get('startDate'),
+            endDate: formData.get('endDate'),
+            projectManager: formData.get('projectManager'),
+            teamMembers: selectedMembers,
+            milestones: milestones,
+            status: 'planning',
+            progress: 0,
+            createdAt: new Date().toISOString()
+        };
+        
+        // Persist to Firebase and send notifications
+        persistProjectAndNotify(projectData)
+            .then(() => {
+                alert('Project created successfully!');
+                window.location.href = 'project-list.html';
+            })
+            .catch(err => {
+                console.error('Failed to create project:', err);
+                alert('Failed to create project. Please try again.');
+            });
+    }
+}
+
+async function persistProjectAndNotify(projectData) {
+    const currentUser = (window.authManager && window.authManager.currentUser) || JSON.parse(localStorage.getItem('currentUser') || 'null');
+    if (!currentUser || !currentUser.companyId) throw new Error('No authenticated company context');
+    const db = firebase.database();
+    const companyId = currentUser.companyId;
+    const projectsRef = db.ref(`companies/${companyId}/projects`);
+
+    // Generate new key
+    const newRef = projectsRef.push();
+    const projectId = newRef.key;
+    const now = Date.now();
+
+    const record = {
+        id: projectId,
+        ...projectData,
+        createdBy: currentUser.uid,
+        createdByName: `${currentUser.firstName || ''} ${currentUser.lastName || ''}`.trim() || currentUser.name || currentUser.email,
+        createdAtTs: now,
+        updatedAtTs: now,
+        status: projectData.status || 'planning',
+        progress: projectData.progress || 0
+    };
+
+    await newRef.set(record);
+
+    // Build recipients: creator, manager, team
+    const recipients = new Set();
+    recipients.add(currentUser.uid);
+    if (projectData.projectManager) recipients.add(projectData.projectManager);
+    if (Array.isArray(projectData.teamMembers)) projectData.teamMembers.forEach(uid => uid && recipients.add(uid));
+
+    const notif = {
+        title: 'New Project Created',
+        message: `${record.createdByName} created project "${record.name}" (${record.code || 'no code'})`,
+        type: 'info',
+        relatedData: { projectId, projectCode: record.code || '', projectName: record.name, companyId }
+    };
+    await createNotificationsForUsers(Array.from(recipients), notif, currentUser);
+}
+
+async function createNotificationsForUsers(userIds, data, currentUser) {
+    const db = firebase.database();
+    const now = Date.now();
+    await Promise.all(userIds.map(async (uid) => {
+        const notificationId = 'notif_' + now + '_' + Math.random().toString(36).substr(2, 9);
+        const payload = {
+            id: notificationId,
+            title: data.title,
+            message: data.message,
+            type: data.type || 'info',
+            read: false,
+            timestamp: now,
+            createdAt: new Date(now).toISOString(),
+            createdBy: currentUser?.uid || null,
+            createdByName: `${currentUser?.firstName || ''} ${currentUser?.lastName || ''}`.trim() || currentUser?.name || currentUser?.email || '',
+            companyId: currentUser?.companyId || null,
+            relatedData: data.relatedData || {}
+        };
+        await db.ref(`notifications/${uid}/${notificationId}`).set(payload);
+    }));
+}
+
+function setupEventListeners() {
+    // Auto-generate project code when name changes
+    document.getElementById('projectName').addEventListener('input', function(e) {
+        const name = e.target.value;
+        const code = generateProjectCode(name);
+        document.getElementById('projectCode').value = code;
+    });
+}
+
+function generateProjectCode(name) {
+    if (!name) return '';
+    
+    const year = new Date().getFullYear();
+    const prefix = name.toUpperCase().replace(/[^A-Z]/g, '').substring(0, 3);
+    const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+    
+    return `${prefix}-${year}-${random}`;
+}
+
+// Responsive handling
+function handleResize() {
+    const sidebar = document.getElementById('sidebar');
+    const mainContent = document.getElementById('mainContent');
+    
+    if (window.innerWidth <= 900) {
+        sidebar.classList.add('collapsed');
+        mainContent.classList.add('sidebar-collapsed');
+    } else {
+        sidebar.classList.remove('collapsed');
+        mainContent.classList.remove('sidebar-collapsed');
+    }
+}
+
+window.addEventListener('resize', handleResize);
+window.addEventListener('load', handleResize);
+
+// ===== ROLE-BASED MENU AUTHORIZATION SYSTEM =====
+
+let isMenuUpdateInProgress = false;
+
+// Reset all menu items to hidden (preserve core features only when authorized)
+function resetMenuVisibility() {
+    document.querySelectorAll('[data-feature]').forEach(item => {
+        item.classList.remove('menu-visible');
+    });
+    document.querySelectorAll('.menu-dropdown').forEach(dropdown => {
+        dropdown.classList.remove('menu-visible');
+    });
+}
+
+// Emergency fallback - show basic menu items
+function showBasicMenu() {
+    console.log('🔧 Emergency fallback: Showing basic menu items');
+    resetMenuVisibility();
+    
+    // Remove loading class
+    const sidebar = document.querySelector('.sidebar');
+    if (sidebar) {
+        sidebar.classList.remove('menu-loading');
+    }
+    
+    const homeItem = document.querySelector('[data-feature="home_view"]');
+    if (homeItem) {
+        homeItem.classList.add('menu-visible');
+    }
+}
+
+// Feature-based authorization system that takes priority over role permissions
+async function updateMenuWithFeatureAuthorization() {
+    // Prevent multiple simultaneous executions
+    if (isMenuUpdateInProgress) {
+        console.log('🔄 Menu update already in progress, skipping...');
+        return;
+    }
+    
+    isMenuUpdateInProgress = true;
+    console.log('🎯 Starting feature-based menu authorization for project-create.html...');
+    
+    try {
+        let currentUser = null;
+        let companyId = null;
+        let userRole = null;
+        
+        // Get user and company info using authManager first
+        if (window.authManager && window.authManager.currentUser) {
+            currentUser = window.authManager.currentUser;
+            companyId = currentUser.companyId;
+            userRole = currentUser.role;
+            console.log('👤 Using AuthManager - User:', currentUser.email, 'Company ID:', companyId, 'Role:', userRole);
+        } else if (firebase.auth().currentUser) {
+            currentUser = firebase.auth().currentUser;
+            console.log('👤 Using Firebase auth - will search for company and role');
+        } else {
+            console.log('❌ No authenticated user found');
+            resetMenuVisibility();
+            return;
+        }
+        
+        // If no company ID from authManager, search companies collection
+        if (!companyId && currentUser) {
+            console.log('🔍 Searching for user company and role...');
+            const database = firebase.database();
+            const companiesRef = database.ref('companies');
+            const companiesSnapshot = await companiesRef.once('value');
+            
+            if (companiesSnapshot.exists()) {
+                const companies = companiesSnapshot.val();
+                
+                for (const [cId, company] of Object.entries(companies)) {
+                    if (company.status !== 'active') continue;
+                    
+                    if (company.users && company.users[currentUser.uid]) {
+                        companyId = cId;
+                        userRole = company.users[currentUser.uid].role || company.users[currentUser.uid].userRole;
+                        console.log(`✅ Found user in company: ${companyId} (${company.name}) with role: ${userRole}`);
+                        break;
+                    }
+                }
+            }
+        }
+        
+        if (!companyId) {
+            console.error('❌ No company ID found, cannot determine authorized features');
+            resetMenuVisibility();
+            return;
+        }
+        
+        if (!userRole) {
+            console.warn('⚠️ No user role found, proceeding with company features only');
+        }
+        
+        // STEP 1: Apply company feature-based authorization
+        console.log('🏢 STEP 1: Applying company feature authorization...');
+        const authorizedPages = await applyFeatureBasedMenuVisibility(companyId);
+        
+        // STEP 2: Filter by user role permissions within authorized features
+        if (userRole) {
+            console.log('👤 STEP 2: Applying role-based filtering within authorized features...');
+            await applyRoleBasedFiltering(companyId, userRole, authorizedPages);
+        } else {
+            console.log('⚠️ STEP 2: Skipping role-based filtering (no role found)');
+            showSidebarAfterAuth();
+        }
+        
+    } catch (error) {
+        console.error('❌ Error in feature-based menu authorization:', error);
+        resetMenuVisibility();
+        showSidebarAfterAuth();
+    } finally {
+        // Reset the flag to allow future updates
+        isMenuUpdateInProgress = false;
+    }
+}
+
+// Apply feature-based menu visibility
+async function applyFeatureBasedMenuVisibility(companyId) {
+    try {
+        console.log('🔧 Applying feature-based menu visibility for company:', companyId);
+        
+        // Get platform features
+        const database = firebase.database();
+        const featuresSnapshot = await database.ref('/platformFeatures').once('value');
+        
+        if (!featuresSnapshot.exists()) {
+            console.log('⚠️ No platform features found');
+            resetMenuVisibility();
+            return [];
+        }
+        
+        const featuresData = featuresSnapshot.val();
+        
+        // Get company's selected features
+        const companySnapshot = await database.ref(`/companies/${companyId}`).once('value');
+        const companyData = companySnapshot.val();
+        
+        if (!companyData) {
+            console.error('❌ Company data not found');
+            resetMenuVisibility();
+            return [];
+        }
+        
+        const subscribedFeatureIds = companyData.selectedFeatures || [];
+        console.log('🏢 Company subscribed features:', subscribedFeatureIds);
+        
+        if (subscribedFeatureIds.length === 0) {
+            console.log('⚠️ Company has no subscribed features');
+            resetMenuVisibility();
+            return [];
+        }
+        
+        // Collect authorized pages from subscribed features
+        const authorizedPages = [];
+        subscribedFeatureIds.forEach(featureId => {
+            const feature = featuresData[featureId];
+            if (feature && feature.status === 'active' && feature.authorizedPages) {
+                console.log(`📦 Adding pages from feature "${feature.name}":`, feature.authorizedPages);
+                authorizedPages.push(...feature.authorizedPages);
+            } else {
+                console.log(`⚠️ Feature ${featureId} not found or inactive`);
+            }
+        });
+        
+        console.log('🔐 All authorized pages:', authorizedPages);
+        
+        // Reset all menu items first
+        resetMenuVisibility();
+        
+        // Create set of authorized features
+        const authorizedFeatures = new Set();
+        authorizedPages.forEach(pageInfo => {
+            if (pageInfo.feature) {
+                authorizedFeatures.add(pageInfo.feature);
+            }
+        });
+        
+        console.log('🎯 Authorized features for project-create.html:', Array.from(authorizedFeatures));
+        
+        // Apply menu visibility
+        const allMenuItems = document.querySelectorAll('#roleBasedMenu li[data-feature]');
+        let visibleCount = 0;
+        
+        allMenuItems.forEach(menuItem => {
+            const featureAttribute = menuItem.getAttribute('data-feature');
+            const isAuthorized = authorizedFeatures.has(featureAttribute);
+            const isDropdownContainer = menuItem.classList.contains('menu-dropdown');
+            
+            if (isDropdownContainer) {
+                return; // Handle dropdowns separately after all items are processed
+            }
+            
+            if (isAuthorized) {
+                menuItem.classList.add('menu-visible');
+                visibleCount++;
+                console.log(`✅ Feature authorized - showing menu item: ${featureAttribute}`);
+            } else {
+                menuItem.classList.remove('menu-visible');
+                console.log(`❌ Feature not authorized - hiding menu item: ${featureAttribute}`);
+            }
+        });
+        
+        // Handle dropdown menus - show if they have visible children
+        const dropdownMenus = document.querySelectorAll('#roleBasedMenu li.menu-dropdown');
+        dropdownMenus.forEach(dropdown => {
+            const dropdownFeature = dropdown.getAttribute('data-feature');
+            const submenuItems = dropdown.querySelectorAll('.submenu li[data-feature]');
+            let hasVisibleChildren = false;
+            
+            submenuItems.forEach(submenuItem => {
+                if (submenuItem.classList.contains('menu-visible')) {
+                    hasVisibleChildren = true;
+                }
+            });
+            
+            if (hasVisibleChildren || authorizedFeatures.has(dropdownFeature)) {
+                dropdown.classList.add('menu-visible');
+                console.log(`✅ Showing dropdown menu: ${dropdownFeature} (has visible children or directly authorized)`);
+            } else {
+                dropdown.classList.remove('menu-visible');
+                console.log(`❌ Hiding dropdown menu: ${dropdownFeature} (no visible children and not authorized)`);
+            }
+        });
+        
+        console.log(`🎯 Company feature authorization completed - ${visibleCount} items initially visible`);
+        
+        // Return authorized pages for role-based filtering
+        return authorizedPages;
+        
+    } catch (error) {
+        console.error('❌ Error applying feature-based menu visibility:', error);
+        resetMenuVisibility();
+        return [];
+    }
+}
+
+// Apply role-based filtering within company authorized features
+async function applyRoleBasedFiltering(companyId, userRole, authorizedPages) {
+    try {
+        console.log('👤 Applying role-based filtering for role:', userRole);
+        
+        // Get user role permissions from company
+        const database = firebase.database();
+        const permissionsRef = database.ref(`companies/${companyId}/roles/${userRole}/permissions`);
+        const permissionsSnapshot = await permissionsRef.once('value');
+        
+        if (!permissionsSnapshot.exists()) {
+            console.log(`⚠️ No permissions found for role ${userRole} in company ${companyId}`);
+            
+            // CRITICAL: If user is administrator but no permissions found, provide full access as fallback
+            if (userRole === 'administrator') {
+                console.log('🔑 ADMINISTRATOR FALLBACK - Skipping role filtering (keeping all company features visible)');
+                showSidebarAfterAuth();
+                return;
+            }
+            
+            // For other roles without permissions, hide all items with permission requirements
+            console.log('❌ No valid permissions found - filtering out items requiring permissions');
+            hideItemsRequiringPermissions();
+            showSidebarAfterAuth();
+            return;
+        }
+        
+        const permissions = permissionsSnapshot.val();
+        console.log('✅ Loaded role permissions:', permissions);
+        
+        // Apply permission-based filtering
+        filterMenuByPermissions(permissions);
+        
+    } catch (error) {
+        console.error('❌ Error applying role-based filtering:', error);
+        // Don't hide everything on error - keep company features visible
+        showSidebarAfterAuth();
+    }
+}
+
+// Filter currently visible menu items by role permissions
+function filterMenuByPermissions(permissions) {
+    console.log('🔍 Filtering visible menu items by role permissions...');
+    
+    if (!permissions) {
+        console.log('⚠️ No permissions object provided');
+        hideItemsRequiringPermissions();
+        showSidebarAfterAuth();
+        return;
+    }
+    
+    // Only check items that are already visible from company features
+    const visibleMenuItems = document.querySelectorAll('#roleBasedMenu li.menu-visible[data-requires-permission]');
+    console.log(`🎯 Found ${visibleMenuItems.length} visible menu items requiring permissions to check`);
+    
+    let hiddenCount = 0;
+    
+    visibleMenuItems.forEach(item => {
+        const requiresPermission = item.getAttribute('data-requires-permission');
+        const feature = item.getAttribute('data-feature');
+        
+        if (requiresPermission) {
+            const hasPermission = permissions[requiresPermission];
+            const hasViewPermission = hasPermission === true || 
+                                     (hasPermission && hasPermission.view === true);
+            
+            if (!hasViewPermission) {
+                item.classList.remove('menu-visible');
+                hiddenCount++;
+                console.log(`❌ Hiding menu item (no permission): ${feature} (requires: ${requiresPermission})`);
+            } else {
+                console.log(`✅ Keeping menu item visible: ${feature} (has permission: ${requiresPermission})`);
+            }
+        }
+    });
+    
+    // Re-check dropdown menus after permission filtering
+    const dropdownMenus = document.querySelectorAll('#roleBasedMenu li.menu-dropdown');
+    dropdownMenus.forEach(dropdown => {
+        const submenuItems = dropdown.querySelectorAll('.submenu li.menu-visible');
+        const dropdownFeature = dropdown.getAttribute('data-feature');
+        
+        if (submenuItems.length === 0) {
+            // No visible children - check if dropdown itself has permission requirements
+            const dropdownRequires = dropdown.getAttribute('data-requires-permission');
+            if (dropdownRequires) {
+                const hasDropdownPermission = permissions[dropdownRequires] === true || 
+                                             (permissions[dropdownRequires] && permissions[dropdownRequires].view === true);
+                if (!hasDropdownPermission) {
+                    dropdown.classList.remove('menu-visible');
+                    hiddenCount++;
+                    console.log(`❌ Hiding dropdown (no children and no permission): ${dropdownFeature}`);
+                }
+            } else {
+                dropdown.classList.remove('menu-visible');
+                console.log(`❌ Hiding dropdown (no visible children): ${dropdownFeature}`);
+            }
+        } else {
+            console.log(`✅ Keeping dropdown visible (has ${submenuItems.length} visible children): ${dropdownFeature}`);
+        }
+    });
+    
+    console.log(`🎯 Role-based filtering completed - ${hiddenCount} items hidden due to lack of permissions`);
+    
+    // Ensure at least home is visible
+    ensureHomeIsVisible();
+    
+    // Show sidebar after all filtering is complete
+    showSidebarAfterAuth();
+}
+
+// Hide menu items that require permissions (for users without role permissions)
+function hideItemsRequiringPermissions() {
+    console.log('🔒 Hiding all menu items that require permissions...');
+    
+    const itemsRequiringPermissions = document.querySelectorAll('#roleBasedMenu li.menu-visible[data-requires-permission]');
+    let hiddenCount = 0;
+    
+    itemsRequiringPermissions.forEach(item => {
+        const feature = item.getAttribute('data-feature');
+        const requiresPermission = item.getAttribute('data-requires-permission');
+        
+        item.classList.remove('menu-visible');
+        hiddenCount++;
+        console.log(`❌ Hiding menu item (requires permission): ${feature} (${requiresPermission})`);
+    });
+    
+    // Hide dropdowns that only contain permission-required items
+    const dropdownMenus = document.querySelectorAll('#roleBasedMenu li.menu-dropdown');
+    dropdownMenus.forEach(dropdown => {
+        const visibleSubmenuItems = dropdown.querySelectorAll('.submenu li.menu-visible');
+        if (visibleSubmenuItems.length === 0) {
+            dropdown.classList.remove('menu-visible');
+            const dropdownFeature = dropdown.getAttribute('data-feature');
+            console.log(`❌ Hiding dropdown (no visible children): ${dropdownFeature}`);
+        }
+    });
+    
+    console.log(`🔒 Hidden ${hiddenCount} items requiring permissions`);
+    
+    // Ensure at least home is visible
+    ensureHomeIsVisible();
+}
+
+// Ensure home menu item is visible as fallback
+function ensureHomeIsVisible() {
+    const homeItem = document.querySelector('#roleBasedMenu li[data-feature="home_view"]');
+    if (homeItem && !homeItem.classList.contains('menu-visible')) {
+        homeItem.classList.add('menu-visible');
+        console.log('✅ Ensured home menu item is visible as fallback');
+    }
+}
+
+// Show sidebar and remove loading state after authentication and filtering
+function showSidebarAfterAuth() {
+    const sidebar = document.querySelector('.sidebar');
+    if (sidebar) {
+        sidebar.classList.remove('menu-loading');
+        console.log('✅ Sidebar loading state removed - menu authorization complete');
+    }
+}
+
+// Initialize menu authorization system
+function initializeMenuAuthorization() {
+    console.log('🚀 Initializing menu authorization system...');
+    
+    // Set sidebar to loading state initially
+    const sidebar = document.querySelector('.sidebar');
+    if (sidebar) {
+        sidebar.classList.add('menu-loading');
+    }
+    
+    // Wait a moment for Firebase to initialize, then start authorization
+    setTimeout(() => {
+        updateMenuWithFeatureAuthorization();
+    }, 500);
+}
+
+// Make updateMenuWithFeatureAuthorization available globally
+window.updateMenuWithFeatureAuthorization = updateMenuWithFeatureAuthorization;
+
+// ===== END ROLE-BASED MENU AUTHORIZATION SYSTEM =====
+</script>
+</body>
+</html>
