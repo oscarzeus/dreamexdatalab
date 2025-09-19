@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -3325,7 +3325,7 @@
 
             async loadJobTitles() {
                 try {
-                    console.log('🔄 Loading job titles from company field options...');
+                    console.log('🔄 Loading job titles from company field options and org chart...');
                     
                     // Use companyId or fallback to currentUser.companyId
                     const companyId = this.companyId || this.currentUser?.companyId;
@@ -3334,36 +3334,59 @@
                         return this.getDefaultJobTitles();
                     }
                     
-                    // Load job titles from the correct Firebase path: job-title (not jobTitles)
+                    const jobTitlesSet = new Set();
+                    
+                    // Load job titles from field options first
                     const fieldOptionsRef = db.ref(`companies/${companyId}/fieldOptions/job-title`);
                     const snapshot = await fieldOptionsRef.once('value');
                     
                     if (snapshot.exists()) {
                         const jobTitlesData = snapshot.val();
-                        console.log('✅ Job titles loaded from Firebase:', jobTitlesData);
+                        console.log('✅ Job titles loaded from field options:', jobTitlesData);
                         
                         // Handle both object format and array format
                         if (Array.isArray(jobTitlesData)) {
-                            return jobTitlesData.sort();
+                            jobTitlesData.forEach(title => jobTitlesSet.add(title));
                         } else if (typeof jobTitlesData === 'object') {
-                            return Object.values(jobTitlesData).sort();
-                        } else {
-                            console.warn('⚠️ Unexpected job titles data format:', jobTitlesData);
-                            return [];
+                            Object.values(jobTitlesData).forEach(title => jobTitlesSet.add(title));
                         }
                     }
+                    
+                    // Load job titles from organizational chart (chart.html data)
+                    const orgChartRef = db.ref(`companies/${companyId}/orgChart`);
+                    const orgSnapshot = await orgChartRef.once('value');
+                    
+                    if (orgSnapshot.exists()) {
+                        const orgChartData = orgSnapshot.val();
+                        console.log('✅ Org chart data loaded for job titles:', orgChartData);
+                        
+                        // Extract job titles from org chart positions
+                        if (typeof orgChartData === 'object') {
+                            Object.values(orgChartData).forEach(position => {
+                                if (position.jobTitle && position.jobTitle.trim()) {
+                                    jobTitlesSet.add(position.jobTitle.trim());
+                                }
+                            });
+                        }
+                    }
+                    
+                    // If we have job titles from either source, return them sorted
+                    if (jobTitlesSet.size > 0) {
+                        const allJobTitles = Array.from(jobTitlesSet).sort();
+                        console.log('✅ Combined job titles from field options and org chart:', allJobTitles);
+                        return allJobTitles;
+                    }
 
-                    console.log('⚠️ No job titles found in Firebase, checking fallback options...');
+                    console.log('⚠️ No job titles found in field options or org chart, checking fallback options...');
 
                     // Fallback: extract unique job titles from existing users
                     if (this.companyData?.users) {
-                        const jobTitles = new Set();
                         Object.values(this.companyData.users).forEach(user => {
                             if (user.jobTitle && user.jobTitle.trim()) {
-                                jobTitles.add(user.jobTitle.trim());
+                                jobTitlesSet.add(user.jobTitle.trim());
                             }
                         });
-                        const extractedTitles = Array.from(jobTitles).sort();
+                        const extractedTitles = Array.from(jobTitlesSet).sort();
                         if (extractedTitles.length > 0) {
                             console.log('✅ Job titles extracted from existing users:', extractedTitles);
                             return extractedTitles;
@@ -9028,6 +9051,7 @@
                         <li data-feature="interview_view" data-requires-permission="interview_view"><a href="interview.html">Interview</a></li>
                         <li data-feature="offer_view" data-requires-permission="offer_view"><a href="offer.html">Offer Management</a></li>
                         <li data-feature="contract_view" data-requires-permission="contract_view"><a href="contract.html">Contract Management</a></li>
+                        <li data-feature="salary_management_view" data-requires-permission="salary_management_view"><a href="salary.html">Salary Management</a></li>
                         <li data-feature="onboarding_view" data-requires-permission="onboarding_view"><a href="onboard.html">Onboarding</a></li>
                         <li data-feature="chart_view" data-requires-permission="chart_view"><a href="chart.html">Chart Setup</a></li>
                         <li data-feature="chartboard_view" data-requires-permission="chartboard_view"><a href="chartboard.html">Org Chart</a></li>
