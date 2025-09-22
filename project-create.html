@@ -477,6 +477,7 @@ li.menu-visible,
                     <li data-feature="quality_analysis" data-requires-permission="quality_analysis"><a href="fuel-quality-analysis.html">Fuel Quality Analysis</a></li>
                     <li data-feature="fuel_distribution" data-requires-permission="fuel_distribution"><a href="fueldistrib.html">Fuel Distribution</a></li>
                     <li data-feature="fuel_consumption_analysis" data-requires-permission="fuel_consumption_analysis"><a href="fuelanalys.html">Consumption Analysis</a></li>
+                <li data-feature="fuel_daily_report" data-requires-permission="fuel_daily_report"><a href="fueldaily.html">Daily Fuel Report</a></li>
 				</ul>
 			</li>
             <li class="menu-dropdown" data-feature="environment_view">
@@ -491,7 +492,8 @@ li.menu-visible,
                     <li data-feature="access_view" data-requires-permission="access_view"><a href="accessboard.html">Access Request</a></li>
                     <li data-feature="access_daily_view" data-requires-permission="access_daily_view"><a href="accessdaily.html">Daily Access Control</a></li>
                     <li data-feature="removal_view" data-requires-permission="removal_view"><a href="removalboard.html">Property Removal</a></li>
-                <li data-feature="security_site_map_view" data-requires-permission="security_site_map_view"><a href="secur.html">Security Site Map</a></li>
+                <li data-feature="security_site_map_view" data-requires-permission="security_site_map_view"><a href="sitemap.html">Security Site Map</a></li>
+						<li data-feature="security_level_evaluation_view" data-requires-permission="security_level_evaluation_view"><a href="seclevel.html">Security Level Evaluation</a></li>
 				</ul>
 			</li>
 			<li class="menu-dropdown" data-feature="logistics_view" data-requires-permission="logistics_view">
@@ -584,7 +586,7 @@ li.menu-visible,
             </div>
         </nav>
 		<div class="page-header">
-			<h1><i class="fas fa-plus-circle"></i> Create New Project</h1>
+            <h1 id="pageTitle"><i class="fas fa-plus-circle"></i> Create New Project</h1>
             <div class="page-actions">
                 <a href="project-list.html" class="btn btn-outline">
                     <i class="fas fa-arrow-left"></i> Back to Projects
@@ -609,6 +611,10 @@ li.menu-visible,
                 </div>
                 <div class="step">
                     <div class="step-number">4</div>
+                    <div class="step-label">Actions</div>
+                </div>
+                <div class="step">
+                    <div class="step-number">5</div>
                     <div class="step-label">Review</div>
                 </div>
             </div>
@@ -713,6 +719,28 @@ li.menu-visible,
                             </label>
                             <input type="date" id="endDate" name="endDate" required>
                         </div>
+
+                        <div class="form-group">
+                            <label for="status">Status</label>
+                            <select id="status" name="status">
+                                <option value="planning">Planning</option>
+                                <option value="active">Active</option>
+                                <option value="on-hold">On Hold</option>
+                                <option value="completed">Completed</option>
+                                <option value="cancelled">Cancelled</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="progress">Progress (<span id="progressLabel">0</span>%)</label>
+                            <input type="range" id="progress" name="progress" min="0" max="100" step="1" value="0">
+                            <small>Use the slider to set completion percentage</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="atRisk"><input type="checkbox" id="atRisk" name="atRisk"> Mark as At Risk</label>
+                            <small>Flag if the project is at risk of delay or issues</small>
+                        </div>
                         
                         <div class="form-group full-width">
                             <label>
@@ -731,6 +759,11 @@ li.menu-visible,
                             <button type="button" class="btn btn-outline" onclick="addMilestone()">
                                 <i class="fas fa-plus"></i> Add Milestone
                             </button>
+                        </div>
+
+                        <div class="form-group full-width">
+                            <label for="progressNotes">Progress Notes</label>
+                            <textarea id="progressNotes" name="progressNotes" placeholder="Add any current progress notes, blockers, or updates"></textarea>
                         </div>
                     </div>
                 </div>
@@ -769,8 +802,39 @@ li.menu-visible,
                     </div>
                 </div>
 
-                <!-- Review & Submit -->
+                <!-- Actions -->
                 <div class="form-section" id="step4" style="display: none;">
+                    <div class="form-section-title">
+                        <i class="fas fa-tasks"></i>
+                        Project Actions
+                    </div>
+                    <div class="form-grid">
+                        <div class="form-group full-width">
+                            <label>
+                                <i class="fas fa-list"></i>
+                                Action Items
+                            </label>
+                            <div id="actionsContainer" style="display:flex; flex-direction:column; gap:.5rem;">
+                                <div id="actionItems">
+                                    <!-- Action items will be rendered here -->
+                                </div>
+                                <div class="action-add-row" style="margin-top:0.5rem; display:flex; gap:.5rem;">
+                                    <input type="text" id="newActionText" placeholder="Describe an action item" style="flex:2;">
+                                    <select id="newActionOwner" title="Responsible">
+                                        <option value="">Owner</option>
+                                    </select>
+                                    <input type="date" id="newActionDue" title="Due date">
+                                    <button type="button" class="btn btn-outline" onclick="addActionItem()">
+                                        <i class="fas fa-plus"></i> Add Action
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Review & Submit -->
+                <div class="form-section" id="step5" style="display: none;">
                     <div class="form-section-title">
                         <i class="fas fa-check-circle"></i>
                         Review & Submit
@@ -1141,10 +1205,12 @@ class AuthManager {
 
 // Form step management
 let currentStep = 1;
-const totalSteps = 4;
+const totalSteps = 5;
 
 // Company-scoped users cache for team member selection
 window.companyUsersById = {};
+// Actions list state
+window.projectActions = [];
 
 // Initialize page
 document.addEventListener('DOMContentLoaded', function() {
@@ -1157,6 +1223,9 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Initialize role-based menu authorization system
     initializeMenuAuthorization();
+
+    // Detect edit mode and load project data if needed
+    detectAndLoadEditMode();
 });
 
 function initializePage() {
@@ -1280,12 +1349,12 @@ async function loadTeamMembersFromCompany(retryCount = 0) {
         const currentUser = (window.authManager && window.authManager.currentUser) || JSON.parse(localStorage.getItem('currentUser') || 'null');
         const companyId = currentUser && currentUser.companyId;
         if (!companyId) {
-            container.innerHTML = '<div style="color:#64748b;">No company selected.</div>';
+            selectedContainer.innerHTML = '<div style="color:#64748b;">No company selected.</div>';
             return;
         }
 
         const db = firebase.database();
-    const usersSnap = await db.ref(`companies/${companyId}/users`).once('value');
+        const usersSnap = await db.ref(`companies/${companyId}/users`).once('value');
         const users = usersSnap.exists() ? usersSnap.val() : {};
 
         // Build list and cache
@@ -1301,7 +1370,7 @@ async function loadTeamMembersFromCompany(retryCount = 0) {
 
         list.sort((a, b) => a.fullName.localeCompare(b.fullName, undefined, { sensitivity: 'base' }));
 
-        // Fill dropdown
+        // Fill team dropdown
         select.innerHTML = '<option value="">Select a team member</option>';
         list.forEach(member => {
             const opt = document.createElement('option');
@@ -1310,6 +1379,19 @@ async function loadTeamMembersFromCompany(retryCount = 0) {
             opt.textContent = title ? `${member.fullName} - ${title}` : member.fullName;
             select.appendChild(opt);
         });
+
+        // Populate the new action owner dropdown with the same users
+        const actionOwnerSel = document.getElementById('newActionOwner');
+        if (actionOwnerSel) {
+            actionOwnerSel.innerHTML = '<option value="">Owner</option>';
+            list.forEach(member => {
+                const opt = document.createElement('option');
+                opt.value = member.uid;
+                const title = (member.jobTitle || member.title || member.position || member.role || '').toString().trim();
+                opt.textContent = title ? `${member.fullName} - ${title}` : member.fullName;
+                actionOwnerSel.appendChild(opt);
+            });
+        }
 
         // Selection state
         window.selectedTeamMemberIds = new Set();
@@ -1328,6 +1410,8 @@ async function loadTeamMembersFromCompany(retryCount = 0) {
             // Reset select for next addition
             select.value = '';
         });
+        // Re-render actions to ensure owner selects show proper options
+        if (typeof renderActions === 'function') renderActions();
     } catch (err) {
         if (retryCount < 2) {
             setTimeout(() => loadTeamMembersFromCompany(retryCount + 1), 500 * (retryCount + 1));
@@ -1393,7 +1477,7 @@ function nextStep() {
             updateButtons();
             
             // If it's the review step, populate review content
-            if (currentStep === 4) {
+            if (currentStep === 5) {
                 populateReview();
             }
         }
@@ -1463,6 +1547,14 @@ function populateReview() {
         .map(uid => (window.companyUsersById && window.companyUsersById[uid]) || null)
         .filter(Boolean);
     
+    // Collect new fields for review
+    const status = formData.get('status') || 'planning';
+    const progress = parseInt(formData.get('progress') || '0', 10);
+    const atRiskChecked = (document.getElementById('atRisk') && document.getElementById('atRisk').checked) ? 'Yes' : 'No';
+    const progressNotes = formData.get('progressNotes') || '';
+    
+    // Build actions preview
+    const actions = window.projectActions || [];
     reviewContent.innerHTML = `
         <div class="form-grid">
             <div class="form-group">
@@ -1489,9 +1581,34 @@ function populateReview() {
                 <label>Budget</label>
                 <div>$${parseInt(formData.get('budget') || 0).toLocaleString()}</div>
             </div>
+            <div class="form-group">
+                <label>Status</label>
+                <div>${status}</div>
+            </div>
+            <div class="form-group">
+                <label>Progress</label>
+                <div>${progress}%</div>
+            </div>
+            <div class="form-group">
+                <label>At Risk</label>
+                <div>${atRiskChecked}</div>
+            </div>
             <div class="form-group full-width">
                 <label>Description</label>
                 <div>${formData.get('description')}</div>
+            </div>
+            <div class="form-group full-width">
+                <label>Actions (${actions.length})</label>
+                <div style="display:flex; flex-direction:column; gap:.4rem; margin-top:.4rem;">
+                    ${actions.length ? actions.map(a => `<div style="display:flex; align-items:center; gap:.5rem; background:#f8fafc; padding:.5rem .75rem; border-radius:8px;">
+                        <span style="flex:1;">${a.text}</span>
+                        <span class="badge ${a.done? 'green':'amber'}">${a.done? 'Done':'Open'}</span>
+                    </div>`).join('') : '<em>No action items</em>'}
+                </div>
+            </div>
+            <div class="form-group full-width">
+                <label>Progress Notes</label>
+                <div>${progressNotes ? progressNotes : 'None'}</div>
             </div>
             <div class="form-group full-width">
                 <label>Team Members (${selectedMembers.length})</label>
@@ -1579,21 +1696,36 @@ function submitProject() {
             projectManager: formData.get('projectManager'),
             teamMembers: selectedMembers,
             milestones: milestones,
-            status: 'planning',
-            progress: 0,
+            status: formData.get('status') || 'planning',
+            progress: parseInt(formData.get('progress') || '0', 10),
+            atRisk: (document.getElementById('atRisk') && document.getElementById('atRisk').checked) || false,
+            progressNotes: formData.get('progressNotes') || '',
+            actions: Array.isArray(window.projectActions) ? window.projectActions : [],
             createdAt: new Date().toISOString()
         };
         
-        // Persist to Firebase and send notifications
-        persistProjectAndNotify(projectData)
-            .then(() => {
-                alert('Project created successfully!');
-                window.location.href = 'project-list.html';
-            })
-            .catch(err => {
-                console.error('Failed to create project:', err);
-                alert('Failed to create project. Please try again.');
-            });
+        if (window.editProjectId) {
+            updateExistingProject(window.editProjectId, projectData)
+                .then(() => {
+                    alert('Project updated successfully!');
+                    window.location.href = 'project-list.html';
+                })
+                .catch(err => {
+                    console.error('Failed to update project:', err);
+                    alert('Failed to update project. Please try again.');
+                });
+        } else {
+            // Persist to Firebase and send notifications
+            persistProjectAndNotify(projectData)
+                .then(() => {
+                    alert('Project created successfully!');
+                    window.location.href = 'project-list.html';
+                })
+                .catch(err => {
+                    console.error('Failed to create project:', err);
+                    alert('Failed to create project. Please try again.');
+                });
+        }
     }
 }
 
@@ -1617,7 +1749,9 @@ async function persistProjectAndNotify(projectData) {
         createdAtTs: now,
         updatedAtTs: now,
         status: projectData.status || 'planning',
-        progress: projectData.progress || 0
+        progress: projectData.progress || 0,
+        atRisk: !!projectData.atRisk,
+        progressNotes: projectData.progressNotes || ''
     };
 
     await newRef.set(record);
@@ -1635,6 +1769,51 @@ async function persistProjectAndNotify(projectData) {
         relatedData: { projectId, projectCode: record.code || '', projectName: record.name, companyId }
     };
     await createNotificationsForUsers(Array.from(recipients), notif, currentUser);
+}
+
+async function updateExistingProject(projectId, projectData) {
+    const currentUser = (window.authManager && window.authManager.currentUser) || JSON.parse(localStorage.getItem('currentUser') || 'null');
+    if (!currentUser || !currentUser.companyId) throw new Error('No authenticated company context');
+    const db = firebase.database();
+    const companyId = currentUser.companyId;
+    const ref = db.ref(`companies/${companyId}/projects/${projectId}`);
+    const snap = await ref.once('value');
+    if (!snap.exists()) throw new Error('Project not found');
+
+    const existing = snap.val() || {};
+    const now = Date.now();
+
+    // Preserve immutable fields; merge updates
+    const updated = {
+        id: existing.id || projectId,
+        createdBy: existing.createdBy || currentUser.uid,
+        createdByName: existing.createdByName || (currentUser.name || currentUser.email || ''),
+        createdAtTs: existing.createdAtTs || now,
+        createdAt: existing.createdAt || existing.createdAtTs ? new Date(existing.createdAtTs).toISOString() : undefined,
+        // Updated fields from form
+        name: projectData.name,
+        code: projectData.code,
+        description: projectData.description,
+        priority: projectData.priority,
+        category: projectData.category,
+        budget: projectData.budget,
+        client: projectData.client,
+        startDate: projectData.startDate,
+        endDate: projectData.endDate,
+        projectManager: projectData.projectManager,
+        teamMembers: Array.isArray(projectData.teamMembers) ? projectData.teamMembers : [],
+        milestones: Array.isArray(projectData.milestones) ? projectData.milestones : [],
+    actions: Array.isArray(projectData.actions) ? projectData.actions : (Array.isArray(existing.actions) ? existing.actions : []),
+        // Preserve progress/status if exist
+        status: projectData.status || existing.status || 'planning',
+        progress: typeof projectData.progress === 'number' ? projectData.progress : (existing.progress || 0),
+        atRisk: typeof projectData.atRisk === 'boolean' ? projectData.atRisk : !!existing.atRisk,
+        progressNotes: typeof projectData.progressNotes === 'string' ? projectData.progressNotes : (existing.progressNotes || ''),
+        updatedAtTs: now,
+        updatedAt: new Date(now).toISOString()
+    };
+
+    await ref.update(updated);
 }
 
 async function createNotificationsForUsers(userIds, data, currentUser) {
@@ -1666,6 +1845,130 @@ function setupEventListeners() {
         const code = generateProjectCode(name);
         document.getElementById('projectCode').value = code;
     });
+
+    // Live update progress label when slider changes
+    const progressEl = document.getElementById('progress');
+    const progressLabelEl = document.getElementById('progressLabel');
+    if (progressEl && progressLabelEl) {
+        progressEl.addEventListener('input', function(e) {
+            progressLabelEl.textContent = String(e.target.value || 0);
+        });
+    }
+}
+
+// ----- Actions UI Helpers -----
+function renderActions() {
+    const container = document.getElementById('actionsContainer');
+    if (!container) return;
+    const listHost = document.getElementById('actionItems') || container;
+    const actions = Array.isArray(window.projectActions) ? window.projectActions : [];
+    const ownerOptions = buildOwnerOptions();
+    listHost.innerHTML = actions.map((a, idx) => `
+        <div class="action-item" data-index="${idx}" style="border:1px solid #e2e8f0; border-radius:8px; padding:.5rem .75rem; margin:.35rem 0;">
+            <div style="display:flex; gap:.5rem; align-items:center;">
+                <input type="checkbox" ${a.done? 'checked':''} onchange="toggleActionDone(${idx}, this.checked)">
+                <input type="text" value="${(a.text||'').replace(/\"/g,'&quot;')}" style="flex:1;" onchange="updateActionText(${idx}, this.value)">
+                <select onchange="updateActionOwner(${idx}, this.value)">${ownerOptions(a.owner)}</select>
+                <input type="date" value="${a.dueDate ? a.dueDate : ''}" onchange="updateActionDue(${idx}, this.value)">
+                <button type="button" class="btn btn-outline" onclick="removeActionItem(${idx})"><i class="fas fa-trash"></i></button>
+            </div>
+            <div style="margin-top:.5rem;">
+                <div style="display:flex; gap:.5rem; align-items:center; margin-bottom:.35rem;">
+                    <input type="text" id="newSubText_${idx}" placeholder="Add subitem" style="flex:1;">
+                    <button type="button" class="btn btn-outline" onclick="addSubItem(${idx})"><i class="fas fa-plus"></i> Subitem</button>
+                </div>
+                ${(Array.isArray(a.subitems) ? a.subitems : []).map((s, sidx) => `
+                    <div style="display:flex; gap:.5rem; align-items:center; margin:.25rem 0;">
+                        <input type="checkbox" ${s.done? 'checked':''} onchange="toggleSubDone(${idx}, ${sidx}, this.checked)">
+                        <input type="text" value="${(s.text||'').replace(/\"/g,'&quot;')}" style="flex:1;" onchange="updateSubText(${idx}, ${sidx}, this.value)">
+                        <button type="button" class="btn btn-outline" onclick="removeSubItem(${idx}, ${sidx})"><i class="fas fa-trash"></i></button>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+    `).join('');
+}
+
+function buildOwnerOptions() {
+    const users = window.companyUsersById || {};
+    const entries = Object.entries(users);
+    return function(sel) {
+        let html = '<option value="">Owner</option>';
+        for (const [uid, u] of entries) {
+            const label = u.fullName || u.displayName || u.name || u.email || uid;
+            html += `<option value="${uid}" ${sel===uid?'selected':''}>${label}</option>`;
+        }
+        return html;
+    };
+}
+
+function addActionItem() {
+    const input = document.getElementById('newActionText');
+    const ownerSel = document.getElementById('newActionOwner');
+    const dueEl = document.getElementById('newActionDue');
+    const text = (input?.value || '').trim();
+    if (!text) return;
+    if (!Array.isArray(window.projectActions)) window.projectActions = [];
+    window.projectActions.push({ text, done: false, owner: ownerSel?.value || '', dueDate: dueEl?.value || '', subitems: [], createdAt: new Date().toISOString() });
+    input.value = '';
+    if (ownerSel) ownerSel.value = '';
+    if (dueEl) dueEl.value = '';
+    renderActions();
+}
+
+function removeActionItem(index) {
+    if (!Array.isArray(window.projectActions)) return;
+    window.projectActions.splice(index, 1);
+    renderActions();
+}
+
+function toggleActionDone(index, done) {
+    if (!Array.isArray(window.projectActions)) return;
+    window.projectActions[index].done = !!done;
+}
+
+function updateActionText(index, text) {
+    if (!Array.isArray(window.projectActions)) return;
+    window.projectActions[index].text = text;
+}
+
+function updateActionOwner(index, owner) {
+    if (!Array.isArray(window.projectActions)) return;
+    window.projectActions[index].owner = owner || '';
+}
+
+function updateActionDue(index, due) {
+    if (!Array.isArray(window.projectActions)) return;
+    window.projectActions[index].dueDate = due || '';
+}
+
+function addSubItem(index) {
+    const input = document.getElementById(`newSubText_${index}`);
+    const text = (input?.value || '').trim();
+    if (!text) return;
+    if (!Array.isArray(window.projectActions[index].subitems)) window.projectActions[index].subitems = [];
+    window.projectActions[index].subitems.push({ text, done: false, createdAt: new Date().toISOString() });
+    input.value = '';
+    renderActions();
+}
+
+function removeSubItem(index, sidx) {
+    const a = window.projectActions[index];
+    if (!a || !Array.isArray(a.subitems)) return;
+    a.subitems.splice(sidx, 1);
+    renderActions();
+}
+
+function toggleSubDone(index, sidx, done) {
+    const a = window.projectActions[index];
+    if (!a || !Array.isArray(a.subitems)) return;
+    a.subitems[sidx].done = !!done;
+}
+
+function updateSubText(index, sidx, text) {
+    const a = window.projectActions[index];
+    if (!a || !Array.isArray(a.subitems)) return;
+    a.subitems[sidx].text = text;
 }
 
 function generateProjectCode(name) {
@@ -1676,6 +1979,130 @@ function generateProjectCode(name) {
     const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
     
     return `${prefix}-${year}-${random}`;
+}
+
+// --- Edit mode support ---
+window.editProjectId = null;
+
+function getQueryParam(name) {
+    try {
+        const params = new URLSearchParams(window.location.search);
+        return params.get(name);
+    } catch { return null; }
+}
+
+function detectAndLoadEditMode() {
+    const editId = getQueryParam('edit') || getQueryParam('id');
+    if (!editId) return;
+    window.editProjectId = editId;
+    const title = document.getElementById('pageTitle');
+    if (title) title.innerHTML = `<i class="fas fa-edit"></i> Edit Project`;
+    const submitBtn = document.getElementById('submitBtn');
+    if (submitBtn) submitBtn.innerHTML = `<i class="fas fa-save"></i> Update Project`;
+    loadProjectForEdit(editId);
+}
+
+async function loadProjectForEdit(projectId, retry = 0) {
+    try {
+        const currentUser = (window.authManager && window.authManager.currentUser) || JSON.parse(localStorage.getItem('currentUser') || 'null');
+        const companyId = currentUser && currentUser.companyId;
+        if (!companyId) throw new Error('No company context yet');
+
+        // Ensure PM list and team cache are loaded
+        const pmSelect = document.getElementById('projectManager');
+        const teamSelect = document.getElementById('teamMemberSelect');
+        const listsReady = pmSelect && pmSelect.options.length > 1 && teamSelect && Object.keys(window.companyUsersById || {}).length > 0;
+        if (!listsReady) {
+            if (retry < 8) {
+                return setTimeout(() => loadProjectForEdit(projectId, retry + 1), 300 * (retry + 1));
+            }
+        }
+
+        const db = firebase.database();
+        const snap = await db.ref(`companies/${companyId}/projects/${projectId}`).once('value');
+        if (!snap.exists()) {
+            alert('Project not found or inaccessible.');
+            return;
+        }
+        const rec = snap.val() || {};
+
+        // Map base fields
+        const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val != null ? String(val) : ''; };
+        setVal('projectName', rec.name || '');
+        setVal('projectCode', rec.code || '');
+        setVal('priority', rec.priority || '');
+        setVal('category', rec.category || '');
+        setVal('description', rec.description || '');
+        setVal('budget', rec.budget != null ? rec.budget : '');
+        setVal('client', rec.client || '');
+        setVal('startDate', rec.startDate || '');
+        setVal('endDate', rec.endDate || '');
+        if (rec.projectManager) {
+            const pmEl = document.getElementById('projectManager');
+            if (pmEl) pmEl.value = rec.projectManager;
+        }
+
+        // New fields: status, progress, atRisk, progressNotes
+        const statusEl = document.getElementById('status');
+        if (statusEl) statusEl.value = rec.status || 'planning';
+        const progressEl = document.getElementById('progress');
+        const progressLabelEl = document.getElementById('progressLabel');
+        if (progressEl) progressEl.value = typeof rec.progress === 'number' ? rec.progress : 0;
+        if (progressLabelEl) progressLabelEl.textContent = String(typeof rec.progress === 'number' ? rec.progress : 0);
+        const atRiskEl = document.getElementById('atRisk');
+        if (atRiskEl) atRiskEl.checked = !!rec.atRisk;
+        const notesEl = document.getElementById('progressNotes');
+        if (notesEl) notesEl.value = rec.progressNotes || '';
+
+        // Team members
+        if (Array.isArray(rec.teamMembers)) {
+            window.selectedTeamMemberIds = new Set(rec.teamMembers.filter(Boolean));
+            renderSelectedTeam();
+        } else {
+            window.selectedTeamMemberIds = new Set();
+            renderSelectedTeam();
+        }
+
+        // Milestones
+        const container = document.getElementById('milestonesContainer');
+        if (container) {
+            container.innerHTML = '';
+            const list = Array.isArray(rec.milestones) ? rec.milestones : [];
+            if (list.length === 0) {
+                // keep a single empty row for UX
+                const div = document.createElement('div');
+                div.className = 'milestone-item';
+                div.innerHTML = `
+                    <input type="text" placeholder="Milestone name" name="milestone[]">
+                    <input type="date" name="milestoneDate[]">
+                    <button type="button" onclick="removeMilestone(this)">
+                        <i class="fas fa-trash"></i>
+                    </button>`;
+                container.appendChild(div);
+            } else {
+                list.forEach(m => {
+                    const div = document.createElement('div');
+                    div.className = 'milestone-item';
+                    div.innerHTML = `
+                        <input type="text" placeholder="Milestone name" name="milestone[]" value="${(m && m.name) ? String(m.name).replace(/"/g, '&quot;') : ''}">
+                        <input type="date" name="milestoneDate[]" value="${(m && m.date) ? String(m.date) : ''}">
+                        <button type="button" onclick="removeMilestone(this)">
+                            <i class="fas fa-trash"></i>
+                        </button>`;
+                    container.appendChild(div);
+                });
+            }
+        }
+        // Actions
+        window.projectActions = Array.isArray(rec.actions) ? rec.actions.filter(a => a && typeof a.text === 'string') : [];
+        if (typeof renderActions === 'function') renderActions();
+    } catch (err) {
+        if (retry < 8) {
+            setTimeout(() => loadProjectForEdit(projectId, retry + 1), 300 * (retry + 1));
+        } else {
+            console.error('Failed to load project for edit:', err);
+        }
+    }
 }
 
 // Responsive handling
