@@ -244,6 +244,11 @@ tbody tr:hover { background:#f8fafc; }
 .badge.blue { background:#dbeafe; color:#1e40af; }
 .inline-actions { display:flex; gap:0.3rem; }
 .inline-actions .btn { padding:0.3rem 0.5rem; font-size:0.55rem; }
+/* Stats pills */
+.stats-bar { display:flex; align-items:center; gap:0.35rem; flex-wrap:wrap; }
+.stat-pill { display:inline-flex; align-items:center; gap:0.35rem; padding:0.2rem 0.5rem; border:1px solid #e2e8f0; border-radius:999px; font-size:0.6rem; color:#334155; background:#f8fafc; }
+.stat-pill i { opacity:0.7; }
+.stat-num { font-weight:700; color:#0f172a; }
 /* Modal */
 .modal { display:none; position:fixed; inset:0; background:rgba(15,23,42,0.45); z-index:3000; align-items:flex-start; justify-content:center; overflow:auto; padding:2rem 1rem; }
 .modal.show { display:flex; }
@@ -486,6 +491,7 @@ tbody tr:hover { background:#f8fafc; }
                     <li data-feature="quality_analysis" data-requires-permission="quality_analysis"><a href="fuel-quality-analysis.html">Fuel Quality Analysis</a></li>
                     <li data-feature="fuel_distribution" data-requires-permission="fuel_distribution"><a href="fueldistrib.html">Fuel Distribution</a></li>
                     <li data-feature="fuel_consumption_analysis" data-requires-permission="fuel_consumption_analysis"><a href="fuelanalys.html">Consumption Analysis</a></li>
+                    <li data-feature="fuel_daily_report" data-requires-permission="fuel_daily_report"><a href="fueldaily.html">Daily Fuel Report</a></li>
 				</ul>
 			</li>
             <li class="menu-dropdown" data-feature="environment_view" data-requires-permission="environment_view">
@@ -500,7 +506,8 @@ tbody tr:hover { background:#f8fafc; }
                     <li data-feature="access_view" data-requires-permission="access_view"><a href="accessboard.html">Access Request</a></li>
                     <li data-feature="access_daily_view" data-requires-permission="access_daily_view"><a href="accessdaily.html">Daily Access Control</a></li>
                     <li data-feature="removal_view" data-requires-permission="removal_view"><a href="removalboard.html">Property Removal</a></li>
-				</ul>
+				
+						<li data-feature="security_level_evaluation_view" data-requires-permission="security_level_evaluation_view"><a href="seclevel.html">Security Level Evaluation</a></li></ul>
 			</li>
 			<li class="menu-dropdown" data-feature="logistics_view" data-requires-permission="logistics_view">
 				<a href="#"><i class="fas fa-truck"></i> Logistics</a>
@@ -624,6 +631,7 @@ tbody tr:hover { background:#f8fafc; }
 						</button>
 					</div>
 					<div class="title-right">
+                        <div id="roomStats" class="stats-bar" aria-live="polite"></div>
 						<button class="fab" onclick="openModal('roomModal')" title="Add Room" aria-label="Add Room">
 							<i class="fas fa-plus"></i>
 						</button>
@@ -1409,27 +1417,33 @@ async function loadCompanyData() {
         roomTypes = await CompanyStorage.loadData('roomTypes', []);
         amenities = await CompanyStorage.loadData('amenities', []);
         
-        // Load rooms from specific Firebase URL
-        console.log('🏠 Loading rooms from Firebase URL...');
-        const roomsResponse = await fetch('https://users-8be65-default-rtdb.firebaseio.com/companies/-OYL6cpeH7JnNLPBhCTH/campData/rooms.json');
-        
-        if (roomsResponse.ok) {
-            const roomsData = await roomsResponse.json();
-            console.log('📊 Firebase rooms data:', roomsData);
-            
-            if (roomsData && typeof roomsData === 'object') {
-                // Convert Firebase object to array format
-                rooms = Object.keys(roomsData).map(key => ({
-                    id: key,
-                    ...roomsData[key]
-                }));
-                console.log('✅ Loaded rooms from Firebase:', rooms.length, rooms);
-            } else {
-                rooms = [];
-                console.log('⚠️ No rooms data found in Firebase response');
+        // Load rooms from company-specific Firebase path with fallbacks
+        console.log('🏠 Loading rooms from Firebase (company path)...');
+        const companyId = CompanyStorage.getCompanyId();
+        let roomsData = null;
+        try {
+            const resp = await fetch(`https://users-8be65-default-rtdb.firebaseio.com/companies/${companyId}/campData/rooms.json`);
+            if (resp.ok) roomsData = await resp.json();
+        } catch (e) {
+            console.warn('⚠️ Company rooms fetch failed:', e);
+        }
+
+        // Fallback to shared configuration if company path empty
+        if (!roomsData || typeof roomsData !== 'object') {
+            console.log('↪️ Falling back to shared rooms path');
+            try {
+                const sharedResp = await fetch('https://users-8be65-default-rtdb.firebaseio.com/companies/-OYL6cpeH7JnNLPBhCTH/campData/rooms.json');
+                if (sharedResp.ok) roomsData = await sharedResp.json();
+            } catch (e) {
+                console.warn('⚠️ Shared rooms fetch failed:', e);
             }
+        }
+
+        if (roomsData && typeof roomsData === 'object') {
+            rooms = Object.keys(roomsData).map(key => ({ id: key, ...roomsData[key] }));
+            console.log('✅ Loaded rooms from Firebase:', rooms.length, rooms);
         } else {
-            console.warn('⚠️ Failed to fetch rooms from Firebase, falling back to local storage');
+            console.warn('⚠️ No rooms data in Firebase, using local storage fallback');
             rooms = await CompanyStorage.loadData('rooms', []);
         }
         
@@ -1439,6 +1453,7 @@ async function loadCompanyData() {
         setTimeout(() => {
             console.log('🔄 Force rendering rooms after data load...');
             renderRooms();
+            updateRoomStats();
         }, 100);
         
     } catch (error) {
@@ -1447,6 +1462,7 @@ async function loadCompanyData() {
         roomTypes = [];
         rooms = [];
         amenities = [];
+        updateRoomStats([]);
     }
 }
 
@@ -1470,7 +1486,7 @@ async function saveCompanyData() {
                 roomsObject[id] = roomData;
             });
             
-            const response = await fetch('https://users-8be65-default-rtdb.firebaseio.com/companies/-OYL6cpeH7JnNLPBhCTH/campData/rooms.json', {
+            const response = await fetch(`https://users-8be65-default-rtdb.firebaseio.com/companies/${CompanyStorage.getCompanyId()}/campData/rooms.json`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json'
@@ -1786,6 +1802,8 @@ function renderRooms(){
     
     if(!filtered.length){ 
         tbody.innerHTML='<tr><td colspan="7" class="empty-state">No rooms match filters</td></tr>'; 
+        // Update stats even when empty to reflect filters
+        updateRoomStats(filtered);
         return;
     } 
     
@@ -1803,6 +1821,9 @@ function renderRooms(){
         return `<tr><td>${roomLabel}</td><td>${typeDisplay}</td><td>${locationBlock}</td><td style='white-space:nowrap;'>${amenStr||'-'}</td><td>${statusBadge}</td><td>${updatedTime}</td><td><div class='inline-actions'><button class='btn btn-outline' onclick="editRoom('${r.id}')"><i class='fa fa-pen'></i></button><button class='btn btn-outline' onclick="duplicateRoom('${r.id}')"><i class='fa fa-copy'></i></button><button class='btn btn-outline' onclick="deleteRoom('${r.id}')"><i class='fa fa-trash'></i></button></div></td></tr>`; 
     }).join(''); 
     
+    // Update stats based on the same filtered dataset
+    updateRoomStats(filtered);
+    
     console.log('✅ Rooms table rendered successfully');
 }
 function badgeForStatus(s){ const map={Available:'green', Occupied:'amber', Maintenance:'red', Inactive:'blue'}; return `<span class='badge ${map[s]||''}'>${s}</span>`; }
@@ -1810,6 +1831,41 @@ function timeAgo(ts){ const diff=Date.now()-ts; const m=Math.floor(diff/60000); 
 function capitalizeFirst(str){ 
     if (!str || typeof str !== 'string') return str || ''; 
     return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase(); 
+}
+// Stats updater
+function updateRoomStats(currentList){
+    try {
+        const statsEl = document.getElementById('roomStats');
+        if (!statsEl) return;
+        // If not provided, recompute filtered list using current UI filters
+        let list = Array.isArray(currentList) ? currentList : rooms;
+        if (!Array.isArray(currentList)) {
+            const term=document.getElementById('searchRooms')?.value?.toLowerCase() || '';
+            const fType=document.getElementById('filterType')?.value || '';
+            const fStatus=document.getElementById('filterStatus')?.value || '';
+            const fAmen=document.getElementById('filterAmenity')?.value || '';
+            list = rooms.filter(r=>{
+                const matchesTerm = !term ||
+                    (r.code && r.code.toLowerCase().includes(term)) ||
+                    (r.name && r.name.toLowerCase().includes(term)) ||
+                    (r.location && r.location.block && r.location.block.toLowerCase().includes(term));
+                const matchesType = !fType || r.type === fType;
+                const matchesStatus = !fStatus || r.status === fStatus;
+                const matchesAmenity = !fAmen || (r.amenities && r.amenities.includes(fAmen));
+                return matchesTerm && matchesType && matchesStatus && matchesAmenity;
+            });
+        }
+        const total = list.length;
+        const available = list.filter(r=>r.status==='Available').length;
+        const occupied = list.filter(r=>r.status==='Occupied').length;
+        const maintenance = list.filter(r=>r.status==='Maintenance').length;
+        statsEl.innerHTML = `
+            <span class="stat-pill" title="Rows shown (after filters)"><i class="fa fa-list"></i> Rows: <span class="stat-num">${total}</span></span>
+            <span class="stat-pill" title="Available"><i class="fa fa-check-circle" style="color:#16a34a"></i> Avail: <span class="stat-num">${available}</span></span>
+            <span class="stat-pill" title="Occupied"><i class="fa fa-user" style="color:#d97706"></i> Occup.: <span class="stat-num">${occupied}</span></span>
+            <span class="stat-pill" title="Maintenance"><i class="fa fa-tools" style="color:#dc2626"></i> Maint.: <span class="stat-num">${maintenance}</span></span>
+        `;
+    } catch (e) { console.warn('Stats update failed', e); }
 }
 function renderRoomTypes(){ 
     const tbody=document.getElementById('roomTypesTbody'); 
@@ -2067,7 +2123,7 @@ function populateRoomForm(room){
 function populateRoomTypeForm(rt){ return; }
 function resetAmenityForm(){ const form=document.getElementById('amenityForm'); form.reset(); editingAmenityCode=null; }
 async function saveRoom(){ const form=document.getElementById('roomForm'); const data=Object.fromEntries(new FormData(form).entries()); if(!data.code || !data.type){ alert('Code & Type required'); return;} const existing=rooms.find(r=> r.id===editingRoomId); if(existing){ existing.code=data.code; existing.name=data.name||''; existing.type=data.type; existing.location={block:data.block}; existing.status=data.status; existing.amenities=[...selectedRoomAmenities]; existing.notes=data.notes||''; existing.updated=Date.now(); } else { rooms.push({ id:genId(), code:data.code, name:data.name||'', type:data.type, location:{block:data.block}, status:data.status, amenities:[...selectedRoomAmenities], notes:data.notes||'', updated:Date.now() }); }
- closeModal('roomModal'); renderRooms(); await saveCompanyData(); }
+ closeModal('roomModal'); renderRooms(); updateRoomStats(); await saveCompanyData(); }
 // Room Types creation UI removed; keep function to avoid runtime errors if called elsewhere
 async function saveRoomType(){ console.warn('Room Types UI is disabled.'); }
 async function saveAmenity(){ 
@@ -2117,8 +2173,8 @@ async function saveAmenity(){
     await saveCompanyData(); 
 }
 function editRoom(id){ const r=rooms.find(x=> x.id===id); if(!r) return; editingRoomId=id; openModal('roomModal'); populateRoomForm(r); }
-async function duplicateRoom(id){ const r=rooms.find(x=> x.id===id); if(!r) return; const copy={...r, id:genId(), code:r.code+'-COPY', name: r.name? r.name+' Copy' : '', status:'Available', updated:Date.now()}; rooms.push(copy); renderRooms(); await saveCompanyData(); }
-async function deleteRoom(id){ if(!confirm('Delete this room?')) return; rooms=rooms.filter(r=> r.id!==id); renderRooms(); await saveCompanyData(); }
+async function duplicateRoom(id){ const r=rooms.find(x=> x.id===id); if(!r) return; const copy={...r, id:genId(), code:r.code+'-COPY', name: r.name? r.name+' Copy' : '', status:'Available', updated:Date.now()}; rooms.push(copy); renderRooms(); updateRoomStats(); await saveCompanyData(); }
+async function deleteRoom(id){ if(!confirm('Delete this room?')) return; rooms=rooms.filter(r=> r.id!==id); renderRooms(); updateRoomStats(); await saveCompanyData(); }
 function editRoomType(id){ console.warn('Room Types UI is disabled.'); }
 async function deleteRoomType(id){ 
     if(!confirm('Delete this room type?')) return; 
@@ -2325,31 +2381,35 @@ async function refreshRoomsFromFirebase() {
             tbody.innerHTML = '<tr><td colspan="7" class="empty-state">Loading rooms from Firebase...</td></tr>';
         }
         
-        // Load rooms from specific Firebase URL
-        const roomsResponse = await fetch('https://users-8be65-default-rtdb.firebaseio.com/companies/-OYL6cpeH7JnNLPBhCTH/campData/rooms.json');
-        
-        if (roomsResponse.ok) {
-            const roomsData = await roomsResponse.json();
-            console.log('📊 Manual refresh - Firebase rooms data:', roomsData);
-            
-            if (roomsData && typeof roomsData === 'object') {
-                // Convert Firebase object to array format
-                rooms = Object.keys(roomsData).map(key => ({
-                    id: key,
-                    ...roomsData[key]
-                }));
-                console.log('✅ Manual refresh - Loaded rooms from Firebase:', rooms.length, rooms);
-                renderRooms();
-            } else {
-                rooms = [];
-                console.log('⚠️ Manual refresh - No rooms data found in Firebase response');
-                renderRooms();
+        // Load rooms from current company path with fallback to shared path
+        const companyId = CompanyStorage.getCompanyId();
+        let roomsData = null;
+        try {
+            const resp = await fetch(`https://users-8be65-default-rtdb.firebaseio.com/companies/${companyId}/campData/rooms.json`);
+            if (resp.ok) roomsData = await resp.json();
+        } catch (e) {
+            console.warn('⚠️ Manual refresh - company rooms fetch failed:', e);
+        }
+
+        if (!roomsData || typeof roomsData !== 'object') {
+            try {
+                const sharedResp = await fetch('https://users-8be65-default-rtdb.firebaseio.com/companies/-OYL6cpeH7JnNLPBhCTH/campData/rooms.json');
+                if (sharedResp.ok) roomsData = await sharedResp.json();
+            } catch (e) {
+                console.warn('⚠️ Manual refresh - shared rooms fetch failed:', e);
             }
+        }
+
+        if (roomsData && typeof roomsData === 'object') {
+            rooms = Object.keys(roomsData).map(key => ({ id: key, ...roomsData[key] }));
+            console.log('✅ Manual refresh - Loaded rooms from Firebase:', rooms.length, rooms);
+            renderRooms();
+            updateRoomStats();
         } else {
-            console.error('❌ Manual refresh - Failed to fetch rooms from Firebase');
-            if (tbody) {
-                tbody.innerHTML = '<tr><td colspan="7" class="empty-state">Failed to load rooms from Firebase</td></tr>';
-            }
+            rooms = [];
+            console.log('⚠️ Manual refresh - No rooms data found');
+            renderRooms();
+            updateRoomStats([]);
         }
     } catch (error) {
         console.error('❌ Manual refresh error:', error);
@@ -2423,6 +2483,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('filterType')?.addEventListener('change', renderRooms);
     document.getElementById('filterStatus')?.addEventListener('change', renderRooms);
     document.getElementById('filterAmenity')?.addEventListener('change', renderRooms);
+    // Draw initial stats once UI is ready
+    updateRoomStats();
     
     // Force menu visibility after short delay if still loading
     setTimeout(() => {
