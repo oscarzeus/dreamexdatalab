@@ -801,6 +801,22 @@
             gap: 1rem;
         }
 
+        /* Inline search for select */
+        .select-with-search {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 0.35rem;
+        }
+        .select-with-search .inline-input {
+            padding: 0.45rem;
+            font-size: 0.85rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .select-with-search select {
+            width: 100%;
+        }
+
         /* Responsive */
         @media (max-width: 1200px) {
             .dashboard-cards {
@@ -1051,6 +1067,7 @@
                         <li data-feature="quality_analysis"><a href="fuel-quality-analysis.html">Fuel Quality Analysis</a></li>
                         <li data-feature="fuel_distribution"><a href="fueldistrib.html">Fuel Distribution</a></li>
                         <li data-feature="fuel_consumption_analysis"><a href="fuelanalys.html">Consumption Analysis</a></li>
+                        <li data-feature="fuel_daily_report"><a href="fueldaily.html">Daily Fuel Report</a></li>
                     </ul>
                 </li>
                 <li class="menu-dropdown" data-feature="environment_view">
@@ -1065,7 +1082,8 @@
                         <li data-feature="access_view"><a href="accessboard.html">Access Request</a></li>
                         <li data-feature="access_daily_view"><a href="accessdaily.html">Daily Access Control</a></li>
                         <li data-feature="removal_view"><a href="removalboard.html">Property Removal</a></li>
-                    </ul>
+                    
+						<li data-feature="security_level_evaluation_view" data-requires-permission="security_level_evaluation_view"><a href="seclevel.html">Security Level Evaluation</a></li></ul>
                 </li>
                 <li class="menu-dropdown" data-feature="logistics_view" data-requires-permission="logistics_view">
                     <a href="#"><i class="fas fa-truck"></i> Logistics</a>
@@ -1340,16 +1358,26 @@
                     <div class="form-row">
                         <div class="form-group">
                             <label for="employeeSelect">Employee</label>
-                            <select id="employeeSelect" name="employee" required>
-                                <option value="">Select Employee</option>
-                            </select>
+                            <div class="select-with-search">
+                                <div style="display:flex; align-items:center; gap:0.5rem;">
+                                    <input type="checkbox" id="employeeManualToggle" onclick="toggleEmployeeManualMode()" />
+                                    <label for="employeeManualToggle" style="margin:0; font-weight:500; color:#475569; font-size:0.8rem;">Enter manually</label>
+                                </div>
+                                <select id="employeeSelect" name="employee" required>
+                                    <option value="">Select Employee</option>
+                                </select>
+                                <input id="employeeManual" name="employeeManual" type="text" class="inline-input" placeholder="Type employee full name" style="display:none;" />
+                            </div>
                         </div>
                         <div class="form-group">
                             <label for="roomSelect">Room</label>
-                            <select id="roomSelect" name="room" required>
-                                <option value="">Select Room</option>
-                                <!-- Rooms will be populated dynamically -->
-                            </select>
+                            <div class="select-with-search">
+                                <input id="roomSearch" type="text" class="inline-input" placeholder="Search room..." oninput="filterRoomOptions()" autocomplete="off" />
+                                <select id="roomSelect" name="room" required>
+                                    <option value="">Select Room</option>
+                                    <!-- Rooms will be populated dynamically -->
+                                </select>
+                            </div>
                         </div>
                     </div>
                     <div class="form-row">
@@ -2170,26 +2198,46 @@
                 // Load room assignments to calculate occupancy
                 const assignmentsRef = window.authManager.db.ref(`companies/${companyId}/roomAssignments`);
                 const assignmentsSnapshot = await assignmentsRef.once('value');
-                
-                // Load total rooms from company settings (could be from campset.html data)
-                const companyRef = window.authManager.db.ref(`companies/${companyId}`);
-                const companySnapshot = await companyRef.once('value');
-                const companyData = companySnapshot.val();
-                
-                let totalRooms = 48; // Default value
-                let occupiedRooms = 0;
-                
-                // Try to get total rooms from company rooms configuration
-                if (companyData && companyData.rooms) {
-                    totalRooms = Object.keys(companyData.rooms).length;
+
+                // Determine total rooms, preferring campset.html storage path
+                let totalRooms = 0;
+                let roomsSource = null;
+                // Primary: companies/{companyId}/campData/rooms
+                const campDataRoomsSnap = await window.authManager.db.ref(`companies/${companyId}/campData/rooms`).once('value');
+                if (campDataRoomsSnap.exists()) {
+                    roomsSource = campDataRoomsSnap.val();
+                } else {
+                    // Fallback: legacy companies/{companyId}/rooms
+                    const legacyRoomsSnap = await window.authManager.db.ref(`companies/${companyId}/rooms`).once('value');
+                    if (legacyRoomsSnap.exists()) {
+                        roomsSource = legacyRoomsSnap.val();
+                    } else {
+                        // Final fallback: shared campData/rooms (same as campset.html uses)
+                        const sharedConfigCompanyId = '-OYL6cpeH7JnNLPBhCTH';
+                        const sharedRoomsSnap = await window.authManager.db.ref(`companies/${sharedConfigCompanyId}/campData/rooms`).once('value');
+                        if (sharedRoomsSnap.exists()) {
+                            roomsSource = sharedRoomsSnap.val();
+                        }
+                    }
                 }
-                
-                // Calculate occupied rooms from assignments
+
+                if (roomsSource && typeof roomsSource === 'object') {
+                    totalRooms = Object.keys(roomsSource).length;
+                }
+
+                // Calculate occupied rooms from assignments (distinct rooms with active status)
+                let occupiedRooms = 0;
                 if (assignmentsSnapshot.exists()) {
                     const assignments = assignmentsSnapshot.val();
-                    occupiedRooms = Object.values(assignments).filter(assignment => 
-                        assignment.status === 'checked_in' || assignment.status === 'assigned'
-                    ).length;
+                    const activeStatuses = new Set(['checked_in', 'assigned']);
+                    const occupiedSet = new Set();
+                    Object.values(assignments).forEach(assignment => {
+                        if (assignment && activeStatuses.has(assignment.status)) {
+                            const roomNum = assignment.roomNumber || assignment.room || assignment.roomCode;
+                            if (roomNum) occupiedSet.add(roomNum);
+                        }
+                    });
+                    occupiedRooms = occupiedSet.size;
                 }
                 
                 const availableRooms = totalRooms - occupiedRooms;
@@ -2226,6 +2274,20 @@
         // Modal Functions
         async function openAssignmentModal() {
             document.getElementById('assignmentModal').classList.add('show');
+            // Reset manual/selector UI state
+            try {
+                const toggle = document.getElementById('employeeManualToggle');
+                const select = document.getElementById('employeeSelect');
+                const manual = document.getElementById('employeeManual');
+                if (toggle && select && manual) {
+                    toggle.checked = false;
+                    manual.style.display = 'none';
+                    manual.required = false;
+                    manual.value = '';
+                    select.style.display = '';
+                    select.required = true;
+                }
+            } catch (e) { console.warn('Employee manual toggle reset failed:', e); }
             
             // Load company employees and available rooms into dropdowns
             await Promise.all([
@@ -2250,6 +2312,25 @@
 
         function closeModal(modalId) {
             document.getElementById(modalId).classList.remove('show');
+        }
+
+        function toggleEmployeeManualMode() {
+            const toggle = document.getElementById('employeeManualToggle');
+            const select = document.getElementById('employeeSelect');
+            const manual = document.getElementById('employeeManual');
+            if (!toggle || !select || !manual) return;
+            if (toggle.checked) {
+                select.style.display = 'none';
+                select.required = false;
+                manual.style.display = '';
+                manual.required = true;
+                manual.focus();
+            } else {
+                manual.style.display = 'none';
+                manual.required = false;
+                select.style.display = '';
+                select.required = true;
+            }
         }
 
         // Get list of employees who currently have active room assignments
@@ -2348,35 +2429,88 @@
                 // Show loading state
                 roomSelect.innerHTML = '<option value="">Loading rooms...</option>';
                 roomSelect.disabled = true;
-                
-                // Define available rooms (you can also load this from Firebase if needed)
-                const allRooms = [
-                    { value: 'A-101', label: 'A-101 (Single)', type: 'Single' },
-                    { value: 'A-102', label: 'A-102 (Single)', type: 'Single' },
-                    { value: 'A-103', label: 'A-103 (Single)', type: 'Single' },
-                    { value: 'B-201', label: 'B-201 (Double)', type: 'Double' },
-                    { value: 'B-202', label: 'B-202 (Double)', type: 'Double' },
-                    { value: 'B-203', label: 'B-203 (Double)', type: 'Double' },
-                    { value: 'C-301', label: 'C-301 (Suite)', type: 'Suite' },
-                    { value: 'C-302', label: 'C-302 (Suite)', type: 'Suite' }
-                ];
-                
-                // Get currently occupied rooms
+
                 const companyId = window.authManager.currentUser.companyId;
                 const occupiedRooms = await getOccupiedRooms(companyId);
-                
-                // Clear and populate dropdown
-                roomSelect.innerHTML = '<option value="">Select Room</option>';
-                
-                allRooms.forEach(room => {
-                    // Only add room if not currently occupied
-                    if (!occupiedRooms.includes(room.value)) {
-                        const option = document.createElement('option');
-                        option.value = room.value;
-                        option.textContent = room.label;
-                        option.title = `${room.value} - ${room.type} Room`;
-                        roomSelect.appendChild(option);
+
+                let allRooms = [];
+
+                // Prefer rooms saved from campset.html under campData/rooms
+                try {
+                    const roomsSnap = await window.authManager.db.ref(`companies/${companyId}/campData/rooms`).once('value');
+                    if (roomsSnap.exists()) {
+                        const roomsData = roomsSnap.val();
+                        allRooms = Object.values(roomsData).map(r => {
+                            const code = r.code || r.id || '';
+                            const name = r.name ? ` — ${r.name}` : '';
+                            const type = r.type ? ` (${r.type})` : '';
+                            return { value: code, label: `${code}${name}${type}`.trim() };
+                        }).filter(r => r.value);
                     }
+                } catch (e) {
+                    console.warn('Rooms load (campData/rooms) failed:', e);
+                }
+
+                // Fallback to legacy companies/{companyId}/rooms if present
+                if (!allRooms.length) {
+                    try {
+                        const fallbackSnap = await window.authManager.db.ref(`companies/${companyId}/rooms`).once('value');
+                        if (fallbackSnap.exists()) {
+                            const data = fallbackSnap.val();
+                            allRooms = Object.values(data).map(r => {
+                                const code = r.code || r.roomNumber || r.id || '';
+                                const name = r.name ? ` — ${r.name}` : '';
+                                const type = r.type ? ` (${r.type})` : '';
+                                return { value: code, label: `${code}${name}${type}`.trim() };
+                            }).filter(r => r.value);
+                        }
+                    } catch (e) {
+                        console.warn('Rooms load (companies/{id}/rooms) failed:', e);
+                    }
+                }
+
+                // Fallback to shared configuration path used by campset.html
+                if (!allRooms.length) {
+                    try {
+                        const sharedConfigCompanyId = '-OYL6cpeH7JnNLPBhCTH';
+                        const sharedSnap = await window.authManager.db.ref(`companies/${sharedConfigCompanyId}/campData/rooms`).once('value');
+                        if (sharedSnap.exists()) {
+                            const roomsData = sharedSnap.val();
+                            allRooms = Object.values(roomsData).map(r => {
+                                const code = r.code || r.id || '';
+                                const name = r.name ? ` — ${r.name}` : '';
+                                const type = r.type ? ` (${r.type})` : '';
+                                return { value: code, label: `${code}${name}${type}`.trim() };
+                            }).filter(r => r.value);
+                        }
+                    } catch (e) {
+                        console.warn('Rooms load (shared campData/rooms) failed:', e);
+                    }
+                }
+
+                // Final fallback to static examples if nothing found
+                if (!allRooms.length) {
+                    allRooms = [
+                        { value: 'A-101', label: 'A-101' },
+                        { value: 'A-102', label: 'A-102' },
+                        { value: 'A-103', label: 'A-103' },
+                        { value: 'B-201', label: 'B-201' },
+                        { value: 'B-202', label: 'B-202' },
+                        { value: 'B-203', label: 'B-203' },
+                        { value: 'C-301', label: 'C-301' },
+                        { value: 'C-302', label: 'C-302' }
+                    ];
+                }
+
+                // Populate dropdown excluding occupied rooms and cache for search
+                const availableRooms = allRooms.filter(r => !occupiedRooms.includes(r.value));
+                window.__camp_availableRooms = availableRooms;
+                roomSelect.innerHTML = '<option value="">Select Room</option>';
+                availableRooms.forEach(room => {
+                    const option = document.createElement('option');
+                    option.value = room.value;
+                    option.textContent = room.label || room.value;
+                    roomSelect.appendChild(option);
                 });
                 
                 roomSelect.disabled = false;
@@ -2386,6 +2520,38 @@
                 console.error('Error loading rooms into dropdown:', error);
                 roomSelect.innerHTML = '<option value="">Error loading rooms</option>';
                 roomSelect.disabled = false;
+            }
+        }
+
+        // Filter the room dropdown based on search text
+        function filterRoomOptions() {
+            const select = document.getElementById('roomSelect');
+            const search = document.getElementById('roomSearch');
+            if (!select || !search) return;
+            const term = (search.value || '').toLowerCase();
+            const base = Array.isArray(window.__camp_availableRooms) ? window.__camp_availableRooms : [];
+            const prev = select.value;
+            select.innerHTML = '<option value="">Select Room</option>';
+            base.filter(r => !term || (r.label || r.value).toLowerCase().includes(term))
+                .forEach(r => {
+                    const opt = document.createElement('option');
+                    opt.value = r.value;
+                    opt.textContent = r.label || r.value;
+                    select.appendChild(opt);
+                });
+            // Preserve selection if still visible
+            if (prev && [...select.options].some(o => o.value === prev)) {
+                select.value = prev;
+            } else if (prev) {
+                // If previous selection no longer matches filter, keep it in view as first option
+                const found = base.find(r => r.value === prev);
+                if (found && term && !(found.label || found.value).toLowerCase().includes(term)) {
+                    const keep = document.createElement('option');
+                    keep.value = found.value;
+                    keep.textContent = found.label || found.value;
+                    keep.selected = true;
+                    select.insertBefore(keep, select.firstChild.nextSibling);
+                }
             }
         }
 
@@ -2596,13 +2762,28 @@
                 if (!companyId) {
                     throw new Error('Company ID not found');
                 }
+
+                const manualMode = !!document.getElementById('employeeManualToggle')?.checked;
+                const manualName = (assignmentData.employeeManual || '').trim();
+                const selectedEmployeeId = (assignmentData.employee || '').trim();
+                if (manualMode) {
+                    if (!manualName) {
+                        throw new Error('Please type the employee full name');
+                    }
+                } else {
+                    if (!selectedEmployeeId) {
+                        throw new Error('Please select an employee');
+                    }
+                }
                 
                 // Check if employee already has an active assignment
-                const existingCheck = await checkExistingAssignment(assignmentData.employee, companyId);
-                if (existingCheck.hasActiveAssignment) {
-                    const existingAssignment = existingCheck.assignment;
-                    const statusText = existingAssignment.status === 'assigned' ? 'assigned to' : 'checked into';
-                    throw new Error(`Employee is already ${statusText} room ${existingAssignment.roomNumber}. Please unassign or check out the employee from the current room before assigning a new room.`);
+                if (!manualMode) {
+                    const existingCheck = await checkExistingAssignment(selectedEmployeeId, companyId);
+                    if (existingCheck.hasActiveAssignment) {
+                        const existingAssignment = existingCheck.assignment;
+                        const statusText = existingAssignment.status === 'assigned' ? 'assigned to' : 'checked into';
+                        throw new Error(`Employee is already ${statusText} room ${existingAssignment.roomNumber}. Please unassign or check out the employee from the current room before assigning a new room.`);
+                    }
                 }
                 
                 // Check if room is already assigned to another employee
@@ -2614,16 +2795,27 @@
                 }
                 
                 // Get employee details
-                const employeeRef = window.authManager.db.ref(`users/${assignmentData.employee}`);
-                const employeeSnapshot = await employeeRef.once('value');
-                const employeeData = employeeSnapshot.val();
+                let employeeId = selectedEmployeeId;
+                let employeeName = '';
+                let employeeEmail = '';
+                if (manualMode) {
+                    employeeId = `manual_${Date.now()}`;
+                    employeeName = manualName;
+                    employeeEmail = '';
+                } else {
+                    const employeeRef = window.authManager.db.ref(`users/${selectedEmployeeId}`);
+                    const employeeSnapshot = await employeeRef.once('value');
+                    const employeeData = employeeSnapshot.val();
+                    employeeName = employeeData ? (employeeData.displayName || `${employeeData.firstName || ''} ${employeeData.lastName || ''}`.trim() || employeeData.name || 'Unknown') : 'Unknown';
+                    employeeEmail = employeeData ? (employeeData.email || '') : '';
+                }
                 
                 // Create assignment object
                 const assignment = {
                     id: `assignment_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-                    employeeId: assignmentData.employee,
-                    employeeName: employeeData ? (employeeData.displayName || `${employeeData.firstName} ${employeeData.lastName}`.trim()) : 'Unknown',
-                    employeeEmail: employeeData ? employeeData.email : '',
+                    employeeId: employeeId,
+                    employeeName: employeeName,
+                    employeeEmail: employeeEmail,
                     roomNumber: assignmentData.room,
                     checkInDate: assignmentData.checkInDate,
                     checkOutDate: assignmentData.checkOutDate,
@@ -2673,15 +2865,6 @@
                     throw new Error('Company ID not found');
                 }
                 
-                // Get employee details
-                const employeeRef = window.authManager.db.ref(`users/${checkInData.employee}`);
-                const employeeSnapshot = await employeeRef.once('value');
-                const employeeData = employeeSnapshot.val();
-                
-                if (!employeeData) {
-                    throw new Error('Employee not found');
-                }
-                
                 // Find existing assignment or create new one
                 const assignmentsRef = window.authManager.db.ref(`companies/${companyId}/roomAssignments`);
                 const assignmentsSnapshot = await assignmentsRef.orderByChild('employeeId').equalTo(checkInData.employee).once('value');
@@ -2702,13 +2885,13 @@
                 }
                 
                 if (!assignmentId) {
-                    // Create new assignment if none exists
+                    // Create new assignment if none exists (fallback)
                     assignmentId = `assignment_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
                     assignmentData = {
                         id: assignmentId,
                         employeeId: checkInData.employee,
-                        employeeName: employeeData.displayName || `${employeeData.firstName} ${employeeData.lastName}`.trim(),
-                        employeeEmail: employeeData.email,
+                        employeeName: 'Unknown',
+                        employeeEmail: '',
                         roomNumber: 'TBD', // Room to be determined
                         status: 'checked_in',
                         assignedDate: new Date().toISOString(),
@@ -2734,7 +2917,7 @@
                 console.log('✅ Check-in processed successfully:', assignmentId);
                 
                 // Show success message
-                showNotification(`${employeeData.displayName || employeeData.firstName} checked in successfully!`, 'success');
+                showNotification(`${assignmentData.employeeName || 'Employee'} checked in successfully!`, 'success');
                 
                 closeModal('checkInModal');
                 form.reset();
@@ -2762,15 +2945,6 @@
                 const companyId = window.authManager.currentUser.companyId;
                 if (!companyId) {
                     throw new Error('Company ID not found');
-                }
-                
-                // Get employee details
-                const employeeRef = window.authManager.db.ref(`users/${checkOutData.employee}`);
-                const employeeSnapshot = await employeeRef.once('value');
-                const employeeData = employeeSnapshot.val();
-                
-                if (!employeeData) {
-                    throw new Error('Employee not found');
                 }
                 
                 // Find active assignment for the employee
@@ -2813,7 +2987,7 @@
                 console.log('✅ Check-out processed successfully:', assignmentId);
                 
                 // Show success message
-                showNotification(`${employeeData.displayName || employeeData.firstName} checked out successfully!`, 'success');
+                showNotification(`${assignmentData.employeeName || 'Employee'} checked out successfully!`, 'success');
                 
                 closeModal('checkOutModal');
                 form.reset();
