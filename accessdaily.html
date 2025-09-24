@@ -168,6 +168,7 @@
 						<li data-feature="quality_analysis" data-requires-permission="quality_analysis"><a href="fuel-quality-analysis.html">Fuel Quality Analysis</a></li>
 						<li data-feature="fuel_distribution" data-requires-permission="fuel_distribution"><a href="fueldistrib.html">Fuel Distribution</a></li>
 						<li data-feature="fuel_consumption_analysis" data-requires-permission="fuel_consumption_analysis"><a href="fuelanalys.html">Consumption Analysis</a></li>
+						<li data-feature="fuel_daily_report" data-requires-permission="fuel_daily_report"><a href="fueldaily.html">Daily Fuel Report</a></li>
 					</ul>
 				</li>
 				<li class="menu-dropdown" data-feature="environment_view" data-requires-permission="environment_view">
@@ -182,7 +183,8 @@
 						<li data-feature="access_view" data-requires-permission="access_view"><a href="accessboard.html">Access Request</a></li>
 						<li data-feature="access_daily_view" data-requires-permission="access_daily_view"><a href="accessdaily.html" class="active">Daily Access Control</a></li>
 						<li data-feature="removal_view" data-requires-permission="removal_view"><a href="removalboard.html">Property Removal</a></li>
-					</ul>
+					
+						<li data-feature="security_level_evaluation_view" data-requires-permission="security_level_evaluation_view"><a href="seclevel.html">Security Level Evaluation</a></li></ul>
 				</li>
 				<li class="menu-dropdown" data-feature="logistics_view" data-requires-permission="logistics_view">
 					<a href="#"><i class="fas fa-truck"></i> Logistics</a>
@@ -1005,42 +1007,102 @@
 				const { jsPDF } = window.jspdf || window.jspdf || {};
 				const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'A4' });
 
-				// Title and meta
-				const title = 'Daily Access Control - Visitor List';
-				const dateStr = new Date().toLocaleString();
-				doc.setFontSize(14);
-				doc.text(title, 40, 40);
-				doc.setFontSize(10);
-				doc.text(`Exported: ${dateStr}`, 40, 58);
+				// Page metrics
+				const pageWidth = doc.internal.pageSize.getWidth();
+				const pageHeight = doc.internal.pageSize.getHeight();
+				const leftMargin = 40;
+				const rightMargin = 40;
+				const usableWidth = pageWidth - leftMargin - rightMargin;
 
-				// AutoTable for content
-				doc.autoTable({
-					head: [headers],
-					body: rows,
-					startY: 75,
-					styles: { fontSize: 9, cellPadding: 4 },
-					headStyles: { fillColor: [52, 152, 219], textColor: 255 },
-					bodyStyles: { valign: 'top' },
-					columnStyles: {
-						0: { cellWidth: 120 }, // Visitor Name
-						1: { cellWidth: 90 },  // ID
-						2: { cellWidth: 120 }, // Company
-						3: { cellWidth: 90 },  // Area
-						4: { cellWidth: 110 }, // Start
-						5: { cellWidth: 110 }, // End
-						6: { cellWidth: 70 },  // Status
-						7: { cellWidth: 160 }, // Equipment
-						8: { cellWidth: 100 }  // Request Ref
-					},
-					margin: { left: 40, right: 40 }
+				// Company name extraction (header company or localStorage)
+				let companyName = '';
+				const headerNameEl = document.getElementById('headerCompanyName');
+				if (headerNameEl && headerNameEl.textContent.trim()) {
+					companyName = headerNameEl.textContent.trim();
+				} else {
+					try {
+						const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
+						companyName = currentUser.companyName || 'Company';
+					} catch {
+						companyName = 'Company';
+					}
+				}
+
+				// Header content
+				const reportTitle = 'Daily Access Control - Visitor List';
+				const dateStr = new Date().toLocaleString();
+				
+				// Centered company name
+				doc.setFontSize(16);
+				doc.setFont('helvetica', 'bold');
+				doc.text(companyName, pageWidth / 2, 40, { align: 'center' });
+				
+				// Report title
+				doc.setFontSize(12);
+				doc.setFont('helvetica', 'normal');
+				doc.text(reportTitle, pageWidth / 2, 58, { align: 'center' });
+				
+				// Export date
+				doc.setFontSize(9);
+				doc.text(`Exported: ${dateStr}`, pageWidth / 2, 72, { align: 'center' });
+
+				// Calculate column widths to fit content
+				const columnWidths = [90, 70, 90, 60, 85, 85, 60, 120, 70]; // Total: 730, usable: ~762
+				
+				// Truncate cell content to fit width
+				const processedRows = rows.map(row => {
+					return row.map((cell, colIndex) => {
+						const maxChars = Math.floor(columnWidths[colIndex] / 6); // ~6pt per char
+						if (typeof cell === 'string' && cell.length > maxChars) {
+							return cell.substring(0, maxChars - 3) + '...';
+						}
+						return cell || '';
+					});
 				});
 
-				// Footer page numbers
+				// AutoTable configuration
+				doc.autoTable({
+					head: [headers],
+					body: processedRows,
+					startY: 85,
+					styles: {
+						fontSize: 7,
+						cellPadding: 2,
+						overflow: 'linebreak'
+					},
+					headStyles: {
+						fillColor: [52, 152, 219],
+						textColor: 255,
+						fontSize: 8,
+						fontStyle: 'bold'
+					},
+					bodyStyles: {
+						valign: 'top'
+					},
+					columnStyles: {
+						0: { cellWidth: columnWidths[0] }, // Visitor Name
+						1: { cellWidth: columnWidths[1] }, // ID Number
+						2: { cellWidth: columnWidths[2] }, // Company
+						3: { cellWidth: columnWidths[3] }, // Area
+						4: { cellWidth: columnWidths[4] }, // Start Time
+						5: { cellWidth: columnWidths[5] }, // End Time
+						6: { cellWidth: columnWidths[6] }, // Status
+						7: { cellWidth: columnWidths[7] }, // Equipment
+						8: { cellWidth: columnWidths[8] }  // Request Ref
+					},
+					margin: { left: leftMargin, right: rightMargin },
+					theme: 'striped',
+					alternateRowStyles: {
+						fillColor: [245, 245, 245]
+					}
+				});
+
+				// Footer
 				const pageCount = doc.getNumberOfPages();
 				for (let i = 1; i <= pageCount; i++) {
 					doc.setPage(i);
-					doc.setFontSize(9);
-					doc.text(`Page ${i} of ${pageCount}`, doc.internal.pageSize.getWidth() - 80, doc.internal.pageSize.getHeight() - 20);
+					doc.setFontSize(8);
+					doc.text(`Page ${i} of ${pageCount}`, pageWidth - 80, pageHeight - 20);
 				}
 
 				doc.save(`daily_access_${new Date().toISOString().split('T')[0]}.pdf`);
