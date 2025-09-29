@@ -391,6 +391,30 @@
             display: none !important;
         }
 
+        /* Hide ALL menu items by default during loading (exact match to project-list) */
+        .sidebar.menu-loading .menu-item,
+        .sidebar.menu-loading .menu-dropdown,
+        .sidebar.menu-loading li[data-feature],
+        .sidebar.menu-loading [data-feature] {
+            display: none !important;
+        }
+
+        /* Allow menu-visible items to show even during loading */
+        .sidebar.menu-loading .menu-visible,
+        .sidebar.menu-loading li.menu-visible,
+        .sidebar.menu-loading [data-feature].menu-visible {
+            display: block !important;
+        }
+
+        /* Ensure menu-visible items are always shown */
+        .menu-visible { display: block !important; }
+        li.menu-visible,
+        [data-feature].menu-visible { display: block !important; }
+
+        /* Enforce: hide all sidebar menu items unless explicitly authorized */
+        .menu li { display: none !important; }
+        .menu li.menu-visible { display: block !important; }
+
         /* Responsive Design */
         @media (max-width: 768px) {
             .sidebar {
@@ -564,6 +588,10 @@
     .stats-cards.compact-ultra .stat-card h3 { font-size:1.05rem; font-weight:600; }
     .stats-cards.compact-ultra .stat-card p { font-size:0.6rem; margin-top:0.2rem; letter-spacing:0.2px; }
     .stats-cards.compact-ultra .stat-card i { font-size:1rem; margin-top:-0.15rem; }
+
+    /* Icon-only action buttons */
+    .table-actions .action-btn.icon-only { padding:0.25rem 0.35rem; font-size:0.65rem; }
+    .table-actions .action-btn.icon-only i { margin:0; }
 
         /* Priority indicators */
         .priority-normal {
@@ -1437,6 +1465,9 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
     
+    <!-- Excel handling library (SheetJS) -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    
     <!-- Centralized Authentication System (Module imports) -->
     <script type="module" src="js/firebase-config-v8.js"></script>
     <script type="module" src="js/company-data-service.js"></script>
@@ -1912,7 +1943,7 @@
         let isMenuUpdateInProgress = false;
 
         // Feature-based authorization system that takes priority over role permissions
-        async function updateMenuWithFeatureAuthorization() {
+    async function updateMenuWithFeatureAuthorization() {
             // Prevent multiple simultaneous executions
             if (isMenuUpdateInProgress) {
                 console.log('⚠️ Menu update already in progress, skipping...');
@@ -1971,7 +2002,19 @@
                 }
                 
                 // Apply feature-based authorization
-                await applyFeatureBasedMenuVisibility(companyId);
+                const authorizedPages = await applyFeatureBasedMenuVisibility(companyId);
+                // Try to apply role-based filtering if role info is available
+                try {
+                    const userRole = (window.authManager && window.authManager.currentUser && (window.authManager.currentUser.role || window.authManager.currentUser.userRole)) || null;
+                    if (userRole) {
+                        await applyRoleBasedFiltering(companyId, userRole, authorizedPages || []);
+                    } else {
+                        showSidebarAfterAuth();
+                    }
+                } catch (e) {
+                    console.warn('⚠️ Role-based filtering skipped due to error:', e);
+                    showSidebarAfterAuth();
+                }
                 
             } catch (error) {
                 console.error('❌ Error in feature-based menu authorization:', error);
@@ -1983,7 +2026,7 @@
         }
 
         // Apply feature-based menu visibility
-        async function applyFeatureBasedMenuVisibility(companyId) {
+    async function applyFeatureBasedMenuVisibility(companyId) {
             try {
                 console.log('� Applying feature-based menu visibility for company:', companyId);
                 
@@ -2106,11 +2149,88 @@
                     console.log('⚠️ No menu items visible, showing basic menu as fallback');
                     showBasicMenu();
                 }
+                // Return authorizedPages for role-based filtering
+                return authorizedPages;
                 
             } catch (error) {
                 console.error('❌ Error applying feature-based menu visibility:', error);
                 showBasicMenu();
+                return [];
             }
+        }
+
+        // Hide menu items that require permissions (for users without role permissions)
+        function hideItemsRequiringPermissions() {
+            const itemsRequiringPermissions = document.querySelectorAll('#roleBasedMenu li.menu-visible[data-requires-permission]');
+            itemsRequiringPermissions.forEach(item => item.classList.remove('menu-visible'));
+            const dropdownMenus = document.querySelectorAll('#roleBasedMenu li.menu-dropdown');
+            dropdownMenus.forEach(dropdown => {
+                const visibleSubmenuItems = dropdown.querySelectorAll('.submenu li.menu-visible');
+                if (visibleSubmenuItems.length === 0) dropdown.classList.remove('menu-visible');
+            });
+            ensureHomeIsVisible();
+        }
+
+        // Ensure home menu item is visible as fallback
+        function ensureHomeIsVisible() {
+            const homeItem = document.querySelector('#roleBasedMenu li[data-feature="home_view"]');
+            if (homeItem && !homeItem.classList.contains('menu-visible')) homeItem.classList.add('menu-visible');
+        }
+
+        // Show sidebar and remove loading state after authentication and filtering
+        function showSidebarAfterAuth() {
+            const sidebar = document.querySelector('.sidebar');
+            if (sidebar) sidebar.classList.remove('menu-loading');
+        }
+
+        // Apply role-based filtering within company authorized features
+        async function applyRoleBasedFiltering(companyId, userRole, authorizedPages) {
+            try {
+                const database = firebase.database();
+                const permissionsRef = database.ref(`companies/${companyId}/roles/${userRole}/permissions`);
+                const permissionsSnapshot = await permissionsRef.once('value');
+                if (!permissionsSnapshot.exists()) {
+                    if (userRole === 'administrator') {
+                        showSidebarAfterAuth();
+                        return;
+                    }
+                    hideItemsRequiringPermissions();
+                    showSidebarAfterAuth();
+                    return;
+                }
+                const permissions = permissionsSnapshot.val();
+                filterMenuByPermissions(permissions);
+            } catch (error) {
+                console.error('❌ Error applying role-based filtering:', error);
+                showSidebarAfterAuth();
+            }
+        }
+
+        // Filter currently visible menu items by role permissions
+        function filterMenuByPermissions(permissions) {
+            const visibleMenuItems = document.querySelectorAll('#roleBasedMenu li.menu-visible[data-requires-permission]');
+            visibleMenuItems.forEach(item => {
+                const requiresPermission = item.getAttribute('data-requires-permission');
+                const hasPermission = permissions[requiresPermission];
+                const hasView = hasPermission === true || (hasPermission && hasPermission.view === true);
+                if (!hasView) item.classList.remove('menu-visible');
+            });
+            const dropdownMenus = document.querySelectorAll('#roleBasedMenu li.menu-dropdown');
+            dropdownMenus.forEach(dropdown => {
+                const submenuItems = dropdown.querySelectorAll('.submenu li.menu-visible');
+                const dropdownRequires = dropdown.getAttribute('data-requires-permission');
+                if (submenuItems.length === 0) {
+                    if (dropdownRequires) {
+                        const perm = permissions[dropdownRequires];
+                        const ok = perm === true || (perm && perm.view === true);
+                        if (!ok) dropdown.classList.remove('menu-visible');
+                    } else {
+                        dropdown.classList.remove('menu-visible');
+                    }
+                }
+            });
+            ensureHomeIsVisible();
+            showSidebarAfterAuth();
         }
 
         // Make the function globally available
@@ -2125,6 +2245,17 @@
             // The AuthManager will handle feature-based authorization automatically
             // when the user is authenticated via the onAuthStateChanged listener
             console.log('✅ AuthManager initialization completed - waiting for authentication state');
+        });
+
+        // Initialize menu authorization like project-list.html
+        document.addEventListener('DOMContentLoaded', function() {
+            const sidebar = document.querySelector('.sidebar');
+            if (sidebar) sidebar.classList.add('menu-loading');
+            setTimeout(() => {
+                if (typeof updateMenuWithFeatureAuthorization === 'function') {
+                    updateMenuWithFeatureAuthorization();
+                }
+            }, 500);
         });
     </script>
 </head>
@@ -2165,31 +2296,31 @@
                         <li data-feature="audit_view" data-requires-permission="audit_view"><a href="auditboard.html">Audit</a></li>
                     </ul>
                 </li>
-                <li class="menu-dropdown" data-feature="fuel_management">
+                <li class="menu-dropdown" data-feature="fuel_management" data-requires-permission="fuel_management">
                     <a href="#"><i class="fas fa-gas-pump"></i> Fuel Management</a>
                     <ul class="submenu">
-                        <li data-feature="vessel_offloading"><a href="vessel-offloading.html">Vessel Offloading</a></li>
-                        <li data-feature="fuel_storage"><a href="fuel-storage-status.html">Fuel Storage Status</a></li>
-                        <li data-feature="tank_transfer"><a href="tank-transfer.html">Tank-to-Tank Transfer</a></li>
-                        <li data-feature="truck_loading"><a href="fuel-truck-loading.html">Fuel Truck Loading</a></li>
-                        <li data-feature="quality_analysis"><a href="fuel-quality-analysis.html">Fuel Quality Analysis</a></li>
-                        <li data-feature="fuel_distribution"><a href="fueldist.html" class="active">Fuel Distribution</a></li>
-                        <li data-feature="fuel_consumption_analysis"><a href="fuelanalys.html">Consumption Analysis</a></li>
-                        <li data-feature="fuel_daily_report"><a href="fueldaily.html">Daily Fuel Report</a></li>
+                        <li data-feature="vessel_offloading" data-requires-permission="vessel_offloading"><a href="vessel-offloading.html">Vessel Offloading</a></li>
+                        <li data-feature="fuel_storage" data-requires-permission="fuel_storage"><a href="fuelstor.html">Fuel Storage Status</a></li>
+                        <li data-feature="tank_transfer" data-requires-permission="tank_transfer"><a href="fueltrans.html">Tank-to-Tank Transfer</a></li>
+                        <li data-feature="truck_loading" data-requires-permission="truck_loading"><a href="fuel-truck-loading.html">Fuel Truck Loading</a></li>
+                        <li data-feature="quality_analysis" data-requires-permission="quality_analysis"><a href="fuel-quality-analysis.html">Fuel Quality Analysis</a></li>
+                        <li data-feature="fuel_distribution" data-requires-permission="fuel_distribution"><a href="fueldist.html" class="active">Fuel Distribution</a></li>
+                        <li data-feature="fuel_consumption_analysis" data-requires-permission="fuel_consumption_analysis"><a href="fuelanalys.html">Consumption Analysis</a></li>
+                        <li data-feature="fuel_daily_report" data-requires-permission="fuel_daily_report"><a href="fueldaily.html">Daily Fuel Report</a></li>
                     </ul>
                 </li>
-                <li class="menu-dropdown" data-feature="environment_view">
+                <li class="menu-dropdown" data-feature="environment_view" data-requires-permission="environment_view">
                     <a href="#"><i class="fas fa-leaf"></i> Environment</a>
                     <ul class="submenu">
-                        <li data-feature="water_view"><a href="waterboard.html">Water Quality</a></li>
+                        <li data-feature="water_view" data-requires-permission="water_view"><a href="waterboard.html">Water Quality</a></li>
                     </ul>
                 </li>
-                <li class="menu-dropdown" data-feature="security_view">
+                <li class="menu-dropdown" data-feature="security_view" data-requires-permission="security_view">
                     <a href="#"><i class="fas fa-lock"></i> Security</a>
                     <ul class="submenu">
-                        <li data-feature="access_view"><a href="accessboard.html">Access Request</a></li>
-                        <li data-feature="access_daily_view"><a href="accessdaily.html">Daily Access Control</a></li>
-                        <li data-feature="removal_view"><a href="removalboard.html">Property Removal</a></li>
+                        <li data-feature="access_view" data-requires-permission="access_view"><a href="accessboard.html">Access Request</a></li>
+                        <li data-feature="access_daily_view" data-requires-permission="access_daily_view"><a href="accessdaily.html">Daily Access Control</a></li>
+                        <li data-feature="removal_view" data-requires-permission="removal_view"><a href="removalboard.html">Property Removal</a></li>
                     
 						<li data-feature="security_level_evaluation_view" data-requires-permission="security_level_evaluation_view"><a href="seclevel.html">Security Level Evaluation</a></li></ul>
                 </li>
@@ -2197,6 +2328,14 @@
                     <a href="#"><i class="fas fa-truck"></i> Logistics</a>
                     <ul class="submenu">
                         <li data-feature="fleet_view" data-requires-permission="fleet_view"><a href="fleetboard.html">Fleet Management</a></li>
+                        <li data-feature="travel_view" data-requires-permission="travel_view"><a href="travel.html">Travel Requests</a></li>
+                    </ul>
+                </li>
+                <li class="menu-dropdown" data-feature="accommodation_view" data-requires-permission="accommodation_view">
+                    <a href="#"><i class="fas fa-bed"></i> Accommodation</a>
+                    <ul class="submenu">
+                        <li data-feature="camp_view" data-requires-permission="camp_view"><a href="camp.html">Camp Management</a></li>
+                        <li data-feature="camp_settings_view" data-requires-permission="camp_settings_view"><a href="campset.html">Camp Settings</a></li>
                     </ul>
                 </li>
                 <li class="menu-dropdown" data-feature="hr_view" data-requires-permission="hr_view">
@@ -2216,8 +2355,32 @@
                         <li data-feature="payroll_view" data-requires-permission="payroll_view"><a href="payroll.html">Payroll</a></li>
                     </ul>
                 </li>
-                <li data-feature="communication_view"><a href="info.html"><i class="fas fa-comments"></i> Communication</a></li>
-                <li class="menu-dropdown" data-feature="settings_view">
+                <!-- Project Management section (parity with project-list.html) -->
+                <li class="menu-dropdown" data-feature="project_management_section">
+                    <a href="#"><i class="fas fa-project-diagram"></i> Project Management</a>
+                    <ul class="submenu">
+                        <li data-feature="project_dashboard_view" data-requires-permission="project_dashboard_view"><a href="project-dashboard.html"><i class="fas fa-tachometer-alt"></i> Project Dashboard</a></li>
+                        <li data-feature="project_create_view" data-requires-permission="project_create_view"><a href="project-create.html"><i class="fas fa-plus-circle"></i> Create Project</a></li>
+                        <li data-feature="project_list_view" data-requires-permission="project_list_view"><a href="project-list.html"><i class="fas fa-list"></i> Project List</a></li>
+                        <li data-feature="project_reports_view" data-requires-permission="project_reports_view"><a href="project-reports.html"><i class="fas fa-chart-bar"></i> Project Reports</a></li>
+                    </ul>
+                </li>
+
+                <!-- Inventory Management section (parity with project-list.html) -->
+                <li class="menu-dropdown" data-feature="inventory_view" data-requires-permission="inventory_view">
+                    <a href="#"><i class="fas fa-boxes"></i> Inventory Management</a>
+                    <ul class="submenu">
+                        <li data-feature="inventory_dashboard_view" data-requires-permission="inventory_dashboard_view"><a href="inventory-dashboard.html"><i class="fas fa-tachometer-alt"></i> Inventory Dashboard</a></li>
+                        <li data-feature="inventory_items_view" data-requires-permission="inventory_items_view"><a href="inventory-items.html"><i class="fas fa-cubes"></i> Items Management</a></li>
+                        <li data-feature="inventory_warehouses_view" data-requires-permission="inventory_warehouses_view"><a href="inventory-warehouses.html"><i class="fas fa-warehouse"></i> Warehouses</a></li>
+                        <li data-feature="inventory_reservations_view" data-requires-permission="inventory_reservations_view"><a href="inventory-reservations.html"><i class="fas fa-bookmark"></i> Material Reservations</a></li>
+                        <li data-feature="inventory_approvals_view" data-requires-permission="inventory_approvals_view"><a href="inventory-approvals.html"><i class="fas fa-check-circle"></i> Approvals</a></li>
+                        <li data-feature="inventory_issue_view" data-requires-permission="inventory_issue_view"><a href="inventory-issue.html"><i class="fas fa-shipping-fast"></i> Material Issue</a></li>
+                    </ul>
+                </li>
+
+                <li data-feature="communication_view" data-requires-permission="communication_view"><a href="info.html"><i class="fas fa-comments"></i> Communication</a></li>
+                <li class="menu-dropdown" data-feature="settings_view" data-requires-permission="settings_view">
                     <a href="#"><i class="fas fa-cog"></i> Settings</a>
                     <ul class="submenu">
                         <li data-feature="account_settings_view"><a href="account.html">Account Settings</a></li>
@@ -2289,11 +2452,15 @@
                         <button class="btn-add-new" onclick="openDistributionModal()" title="Create New Distribution">
                             <i class="fas fa-plus"></i>
                         </button>
+                        <div class="view-tabs" style="display:flex;align-items:center;gap:0.35rem;margin-left:0.5rem;">
+                            <button id="tabList" class="tab-btn active" onclick="switchFuelTab('list')" style="background:#ffffff11;border:1px solid #ffffff33;color:#fff;font-size:0.6rem;padding:0.35rem 0.55rem;border-radius:4px;letter-spacing:0.5px;font-weight:600;">LIST</button>
+                            <button id="tabAnalytics" class="tab-btn" onclick="switchFuelTab('analytics')" style="background:#ffffff11;border:1px solid #ffffff33;color:#fff;font-size:0.6rem;padding:0.35rem 0.55rem;border-radius:4px;letter-spacing:0.5px;font-weight:600;">ANALYTICS</button>
+                        </div>
                     </div>
                 </div>
 
                 <!-- Quick Stats Cards -->
-                <div class="stats-cards compact-ultra">
+                <div class="stats-cards compact-ultra" id="listStatsSection">
                     <div class="stat-card">
                         <h3 id="totalDistributions">0</h3>
                         <p>Total Distributions</p>
@@ -2346,6 +2513,19 @@
                                 <i class="fas fa-sync-alt"></i>
                                 Refresh
                             </button>
+                            <input id="excelInput" type="file" accept=".xlsx,.xls" style="display:none" onchange="handleExcelImport(event)">
+                            <button class="refresh-btn" onclick="document.getElementById('excelInput').click()" title="Import distributions from Excel">
+                                <i class="fas fa-file-upload"></i>
+                                Import Excel
+                            </button>
+                            <button class="refresh-btn" onclick="exportDistributionsToExcel()" title="Export all distributions to Excel">
+                                <i class="fas fa-file-excel"></i>
+                                Export Excel
+                            </button>
+                            <button class="refresh-btn" onclick="downloadDistributionTemplate()" title="Download Excel template">
+                                <i class="fas fa-download"></i>
+                                Template
+                            </button>
                         </div>
                     </div>
                     
@@ -2354,7 +2534,7 @@
                             <thead>
                                 <tr>
                                     <th class="hidden-col">ID</th>
-                                    <th>Equip. Type</th>
+                                    <th class="hidden-col">Equip. Type</th>
                                     <th>Equip. ID</th>
                                     <th>Location</th>
                                     <th>Operator</th>
@@ -2362,7 +2542,7 @@
                                     <th>Index</th>
                                     <th>Consumption</th>
                                     <th>Department</th>
-                                    <th>Cost Center</th>
+                                    <th class="hidden-col">Cost Center</th>
                                     <th class="hidden-col">Security Agent</th>
                                     <th class="hidden-col">Supervisor</th>
                                     <th class="hidden-col">Status</th>
@@ -2404,6 +2584,54 @@
                         </button>
                     </div>
                 </div>
+
+                <!-- Analytics Section (hidden by default) -->
+                <div id="analyticsSection" style="display:none; margin-top:0.75rem;">
+                    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:0.85rem 0.9rem;margin-bottom:0.8rem;display:flex;flex-wrap:wrap;gap:0.65rem;align-items:flex-end;">
+                        <div style="display:flex;flex-direction:column;gap:0.25rem;">
+                            <label style="font-size:0.55rem;font-weight:600;color:#475569;letter-spacing:0.5px;">RANGE</label>
+                            <select id="analyticsRange" onchange="renderFuelAnalytics()" style="font-size:0.6rem;padding:0.25rem 0.4rem;border:1px solid #cbd5e1;border-radius:4px;">
+                                <option value="7">Last 7 days</option>
+                                <option value="30">Last 30 days</option>
+                                <option value="90">Last 90 days</option>
+                                <option value="365">Last 12 months</option>
+                            </select>
+                        </div>
+                        <div style="display:flex;flex-direction:column;gap:0.25rem;">
+                            <label style="font-size:0.55rem;font-weight:600;color:#475569;letter-spacing:0.5px;">GROUP</label>
+                            <select id="analyticsGroup" onchange="renderFuelAnalytics()" style="font-size:0.6rem;padding:0.25rem 0.4rem;border:1px solid #cbd5e1;border-radius:4px;">
+                                <option value="day">By Day</option>
+                                <option value="equipment">By Equipment ID</option>
+                                <option value="type">By Equipment Type</option>
+                                <option value="location">By Location</option>
+                                <option value="operator">By Operator</option>
+                                <option value="department">By Department</option>
+                                <option value="costcenter">By Cost Center</option>
+                            </select>
+                        </div>
+                        <button onclick="exportAnalyticsCsv()" style="margin-left:auto;font-size:0.55rem;padding:0.35rem 0.6rem;background:#f39c12;color:#fff;border:none;border-radius:4px;font-weight:600;letter-spacing:0.5px;">EXPORT CSV</button>
+                    </div>
+                    <div id="analyticsKpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:0.55rem;margin-bottom:0.75rem;"></div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
+                        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:0.6rem;">
+                            <h4 style="margin:0 0 0.4rem 0;font-size:0.6rem;font-weight:600;color:#334155;letter-spacing:0.5px;">PRIMARY TREND</h4>
+                            <canvas id="analyticsPrimaryChart" height="160"></canvas>
+                        </div>
+                        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:0.6rem;">
+                            <h4 style="margin:0 0 0.4rem 0;font-size:0.6rem;font-weight:600;color:#334155;letter-spacing:0.5px;">DISTRIBUTION</h4>
+                            <canvas id="analyticsSecondaryChart" height="160"></canvas>
+                        </div>
+                    </div>
+                    <div style="margin-top:0.8rem;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:0.6rem;">
+                        <h4 style="margin:0 0 0.4rem 0;font-size:0.6rem;font-weight:600;color:#334155;letter-spacing:0.5px;">DETAIL TABLE</h4>
+                        <div class="table-scroll" style="max-height:280px;">
+                            <table class="data-table" style="font-size:0.6rem;">
+                                <thead><tr id="analyticsHead"></tr></thead>
+                                <tbody id="analyticsBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -2442,7 +2670,14 @@
                                     <div class="error-message" id="equipmentIdError"></div>
                                 </div>
 
-                                <div class="form-group" style="display:flex; gap:12px; align-items:flex-start;">
+                                <div class="form-group">
+                                    <label for="site">Site</label>
+                                    <select id="site" class="form-control">
+                                        <option value="">Select Site</option>
+                                    </select>
+                                </div>
+
+                                <div class="form-group" id="locationGroup" style="display:none; gap:12px; align-items:flex-start;">
                                     <div style="flex:1; min-width:0;">
                                         <label for="equipmentLocation">Current Location</label>
                                         <select id="equipmentLocation" class="form-control">
@@ -2586,6 +2821,10 @@
                                 <label>Equipment ID/Registration</label>
                                 <div class="form-control" id="viewEquipmentId" style="background:#f8f9fa"></div>
                             </div>
+                            <div class="form-group">
+                                <label>Site</label>
+                                <div class="form-control" id="viewSite" style="background:#f8f9fa"></div>
+                            </div>
                             <div class="form-group" style="display:flex; gap:12px; align-items:flex-start;">
                                 <div style="flex:1; min-width:0;">
                                     <label>Current Location</label>
@@ -2595,6 +2834,10 @@
                                     <label>Operator/Driver Name</label>
                                     <div class="form-control" id="viewOperatorName" style="background:#f8f9fa"></div>
                                 </div>
+                            </div>
+                            <div class="form-group">
+                                <label>Site</label>
+                                <div class="form-control" id="viewSite" style="background:#f8f9fa"></div>
                             </div>
                         </div>
 
@@ -2791,8 +3034,14 @@
             if (dtField) dtField.value = dtLocal;
             document.getElementById('requestedBy').value = window.authManager?.getCurrentUser()?.displayName || '';
 
-            // Load Tank IDs into Current Location field
-            loadLocationTankIds();
+            // Hide location group initially until site is selected
+            const locationGroup = document.getElementById('locationGroup');
+            if (locationGroup) {
+                locationGroup.style.display = 'none';
+            }
+
+            // Load Sites first, then load Tank IDs so filtering can apply
+            loadSites().then(() => loadLocationTankIds());
             
             // Update safety progress
             updateSafetyProgress();
@@ -3000,14 +3249,38 @@
                 const fixedPath = 'companies/-OYL6cpeH7JnNLPBhCTH/fieldOptions/tank-id';
                 const snapshot = await db.ref(fixedPath).once('value');
                 const tankIds = snapshot.val();
+                let allowedValues = null;
+                // If Site is selected, filter tank IDs by storageStatus where location matches site
+                const siteSel = document.getElementById('site');
+                const selectedSite = siteSel ? (siteSel.value || '') : '';
+                if (selectedSite) {
+                    try {
+                        const user = window.authManager?.getCurrentUser();
+                        const companyId = user?.companyId;
+                        if (companyId) {
+                            const storageSnap = await db.ref(`companies/${companyId}/fuelmanagement/storageStatus`).once('value');
+                            const storageData = storageSnap.val() || {};
+                            // Collect tankId values where tank.location matches selectedSite
+                            const siteTankIds = Object.values(storageData)
+                                .filter(t => (t && (t.location === selectedSite || t.location === (siteSel.options[siteSel.selectedIndex]?.text || selectedSite))))
+                                .map(t => t.tankId)
+                                .filter(Boolean);
+                            allowedValues = new Set(siteTankIds);
+                        }
+                    } catch (e) {
+                        console.warn('Site filter read failed, showing all tank IDs:', e);
+                    }
+                }
 
                 if (Array.isArray(tankIds)) {
                     tankIds.forEach(tank => {
                         if (tank && tank.enabled) {
-                            const option = document.createElement('option');
-                            option.value = tank.value;
-                            option.textContent = tank.label;
-                            locSelect.appendChild(option);
+                            if (!allowedValues || allowedValues.has(tank.value)) {
+                                const option = document.createElement('option');
+                                option.value = tank.value;
+                                option.textContent = tank.label;
+                                locSelect.appendChild(option);
+                            }
                         }
                     });
                 } else {
@@ -3062,6 +3335,103 @@
                 selectElement.dataset.manualEntryAttached = 'true';
             }
         }
+
+        // Load Sites (Locations/Areas) for the new Site field (same as fuelstor.html)
+        async function loadSites(selectedValue) {
+            const siteSelect = document.getElementById('site');
+            if (!siteSelect) return;
+
+            siteSelect.innerHTML = '<option value="">Select Site</option>';
+
+            try {
+                if (!window.firebase) throw new Error('Firebase not available');
+                const db = window.firebase.database();
+                const fixedPath = 'companies/-OYL6cpeH7JnNLPBhCTH/fieldOptions/area';
+                const snapshot = await db.ref(fixedPath).once('value');
+                const areas = snapshot.val();
+
+                if (Array.isArray(areas)) {
+                    areas.forEach(item => {
+                        if (item && (item.enabled === undefined || item.enabled)) {
+                            const opt = document.createElement('option');
+                            opt.value = item.value ?? item.label ?? '';
+                            opt.textContent = item.label ?? item.value ?? '';
+                            if (opt.value) siteSelect.appendChild(opt);
+                        }
+                    });
+                } else {
+                    addSiteManualEntryOption(siteSelect);
+                }
+
+                if (selectedValue) {
+                    if (![...siteSelect.options].some(o => o.value === selectedValue)) {
+                        const opt = document.createElement('option');
+                        opt.value = selectedValue;
+                        opt.textContent = selectedValue;
+                        siteSelect.appendChild(opt);
+                    }
+                    siteSelect.value = selectedValue;
+                }
+            } catch (e) {
+                console.warn('Unable to load sites:', e);
+                addSiteManualEntryOption(siteSelect);
+                if (selectedValue) {
+                    const opt = document.createElement('option');
+                    opt.value = selectedValue;
+                    opt.textContent = selectedValue;
+                    siteSelect.appendChild(opt);
+                    siteSelect.value = selectedValue;
+                }
+            }
+        }
+
+        function addSiteManualEntryOption(selectElement) {
+            const opt = document.createElement('option');
+            opt.value = 'manual-entry';
+            opt.textContent = 'Enter Site Manually (Settings Not Configured)';
+            selectElement.appendChild(opt);
+            if (selectElement.dataset.siteManualAttached !== 'true') {
+                selectElement.addEventListener('change', (e) => {
+                    if (e.target.value === 'manual-entry') {
+                        const manual = prompt('Enter Site name:');
+                        if (manual) {
+                            const newOpt = document.createElement('option');
+                            newOpt.value = manual;
+                            newOpt.textContent = manual;
+                            newOpt.selected = true;
+                            selectElement.insertBefore(newOpt, selectElement.lastElementChild);
+                        }
+                    }
+                });
+                selectElement.dataset.siteManualAttached = 'true';
+            }
+        }
+
+        // Refilter Current Location when Site changes and show/hide location field
+        document.addEventListener('DOMContentLoaded', function() {
+            const siteEl = document.getElementById('site');
+            const locationGroup = document.getElementById('locationGroup');
+            
+            if (siteEl && locationGroup) {
+                siteEl.addEventListener('change', function() {
+                    const selectedSite = this.value;
+                    
+                    if (selectedSite) {
+                        // Show location field and reload options based on Site
+                        locationGroup.style.display = 'flex';
+                        loadLocationTankIds('');
+                    } else {
+                        // Hide location field when no site is selected
+                        locationGroup.style.display = 'none';
+                        // Clear current location selection
+                        const locationEl = document.getElementById('equipmentLocation');
+                        if (locationEl) {
+                            locationEl.value = '';
+                        }
+                    }
+                });
+            }
+        });
 
         // Removed fuel specification and priority helpers (no longer used)
 
@@ -3223,18 +3593,30 @@
                 // Generate distribution ID
                 const distributionId = generateDistributionId();
                 
-                // Prepare distribution record
+                // Ensure company scope
+                const currentCompanyId = window.authManager?.getCurrentUser()?.companyId;
+                if (!currentCompanyId) {
+                    throw new Error('Company context not found. Please sign in again.');
+                }
+
+                // Prepare distribution record (company-scoped)
                 const distributionRecord = {
                     id: distributionId,
                     timestamp: new Date().toISOString(),
                     status: 'COMPLETED',
                     ...formData,
                     createdBy: window.authManager?.getCurrentUser()?.uid || 'unknown',
-                    companyId: window.authManager?.getCurrentUser()?.companyId || 'unknown'
+                    companyId: currentCompanyId
                 };
                 
                 // Save to Firebase
                 await saveDistributionToFirebase(distributionRecord);
+                // Adjust storage for selected tank (deduct distributed fuel)
+                try {
+                    await applyFuelStorageAdjustment(distributionRecord, 'decrement');
+                } catch (e) {
+                    console.warn('Non-blocking: failed to adjust storage for distribution', e);
+                }
                 
                 // Show success message
                 alert('Consumption recorded successfully!\nRecord ID: ' + distributionId);
@@ -3289,8 +3671,20 @@
                     type: document.getElementById('equipmentType').value,
                     id: document.getElementById('equipmentId').value,
                     location: document.getElementById('equipmentLocation').value,
+                    locationName: (function(){
+                        const sel = document.getElementById('equipmentLocation');
+                        if (!sel) return '';
+                        const opt = sel.options[sel.selectedIndex];
+                        return opt ? opt.text.trim() : '';
+                    })(),
                     operator: document.getElementById('operatorName').value
                 },
+                site: (function(){
+                    const sel = document.getElementById('site');
+                    if (!sel) return { value:'', name:'' };
+                    const opt = sel.options[sel.selectedIndex];
+                    return { value: sel.value || '', name: (opt ? opt.text.trim() : '') };
+                })(),
                 fuel: {
                     requestedQuantity: parseFloat(document.getElementById('requestedQuantity').value),
                     indexReading: (document.getElementById('meterIndex') && document.getElementById('meterIndex').value ? parseFloat(document.getElementById('meterIndex').value) : null)
@@ -3329,11 +3723,74 @@
             }
             
             const db = window.firebase.database();
-            const companyId = distributionRecord.companyId || 'unknown';
+            const companyId = distributionRecord.companyId || window.authManager?.getCurrentUser()?.companyId;
+            if (!companyId) {
+                throw new Error('Company ID not found. Unable to save distribution.');
+            }
             const distributionRef = db.ref(`fuelDistributions/${companyId}/${distributionRecord.id}`);
             
             await distributionRef.set(distributionRecord);
             console.log('✅ Distribution saved to Firebase:', distributionRecord.id);
+        }
+
+        // Adjust storageStatus for a distribution: mode 'decrement' (on create) or 'increment' (on delete)
+        async function applyFuelStorageAdjustment(distributionRecord, mode = 'decrement') {
+            try {
+                if (!window.firebase || !window.firebase.database) return;
+                const db = window.firebase.database();
+                const companyId = distributionRecord.companyId || window.authManager?.getCurrentUser()?.companyId;
+                if (!companyId) return;
+
+                const selectedTankRefValue = distributionRecord?.equipment?.location || '';
+                const selectedTankName = distributionRecord?.equipment?.locationName || '';
+                const qty = parseFloat(distributionRecord?.fuel?.requestedQuantity) || 0;
+                if (!qty) return;
+
+                const storageRef = db.ref(`companies/${companyId}/fuelmanagement/storageStatus`);
+                const snap = await storageRef.once('value');
+                const storageData = snap.val();
+                if (!storageData || typeof storageData !== 'object') return;
+
+                // Find tank by either matching record key, tankId field, or fallback by display name
+                let matchKey = null;
+                let tank = null;
+                for (const [key, val] of Object.entries(storageData)) {
+                    if (!val) continue;
+                    if (
+                        key === selectedTankRefValue ||
+                        val.tankId === selectedTankRefValue ||
+                        (selectedTankName && (val.tankIdDisplay === selectedTankName))
+                    ) {
+                        matchKey = key;
+                        tank = val;
+                        break;
+                    }
+                }
+                if (!matchKey || !tank) {
+                    console.warn('No matching tank found for distribution to adjust storage', { selectedTankRefValue, selectedTankName });
+                    return;
+                }
+
+                const currentVolume = parseFloat(tank.currentVolume) || 0;
+                const maxVolume = parseFloat(tank.maxVolume) || 0;
+                const newVolume = mode === 'decrement' ? Math.max(0, currentVolume - qty) : currentVolume + qty;
+                const capacityPercentage = maxVolume > 0 ? (newVolume / maxVolume) * 100 : 0;
+                const ullage = maxVolume > 0 ? Math.max(0, maxVolume - newVolume) : 0;
+
+                const updatedBy = (window.authManager?.getCurrentUser()?.displayName) || (window.authManager?.getCurrentUser()?.email) || (window.authManager?.getCurrentUser()?.uid) || 'system';
+                const updatePayload = {
+                    currentVolume: newVolume,
+                    capacityPercentage,
+                    ullage,
+                    lastUpdated: new Date().toISOString(),
+                    updatedBy
+                };
+
+                await storageRef.child(matchKey).update(updatePayload);
+                console.log(`✅ Storage ${mode === 'decrement' ? 'deducted' : 'replenished'} ${qty}L for tank`, { matchKey });
+            } catch (e) {
+                console.warn('Non-blocking: storage adjustment failed', e);
+            }
         }
 
         // Load distribution stats
@@ -3499,6 +3956,11 @@
                 applyFilters();
                 renderDistributionTable();
                 updateStatsCards();
+                ensureLocationNames();
+                // If analytics tab active, refresh analytics
+                if (currentFuelTab === 'analytics') {
+                    renderFuelAnalytics();
+                }
                 
             } catch (error) {
                 console.error('Error loading distribution data:', error);
@@ -3506,6 +3968,205 @@
             } finally {
                 showTableLoading(false);
             }
+        }
+
+        // --- Analytics Tab Logic ---
+        let currentFuelTab = 'list';
+        let primaryChartInstance = null;
+        let secondaryChartInstance = null;
+
+        function switchFuelTab(tab) {
+            if (tab === currentFuelTab) return;
+            currentFuelTab = tab;
+            const listElems = ['distributionTable','distributionSearch','statusFilter','equipmentFilter','listStatsSection'];
+            const analyticsSection = document.getElementById('analyticsSection');
+            if (tab === 'analytics') {
+                listElems.forEach(id => { const el = document.getElementById(id); if (el) el.closest('.table-scroll') ? el.closest('.table-scroll').style.display='none' : el.style.display='none'; });
+                const tableWrapper = document.querySelector('.table-scroll');
+                if (tableWrapper) tableWrapper.style.display='none';
+                const noDataMsg = document.getElementById('noDataMessage'); if (noDataMsg) noDataMsg.style.display='none';
+                if (analyticsSection) analyticsSection.style.display='block';
+                document.getElementById('tabList').classList.remove('active');
+                document.getElementById('tabAnalytics').classList.add('active');
+                renderFuelAnalytics();
+            } else {
+                listElems.forEach(id => { const el = document.getElementById(id); if (el) el.closest('.table-scroll') ? el.closest('.table-scroll').style.display='' : el.style.display=''; });
+                const tableWrapper = document.querySelector('.table-scroll');
+                if (tableWrapper) tableWrapper.style.display='block';
+                if (analyticsSection) analyticsSection.style.display='none';
+                document.getElementById('tabAnalytics').classList.remove('active');
+                document.getElementById('tabList').classList.add('active');
+            }
+        }
+
+        function computeFuelAggregates(rangeDays, groupBy) {
+            const now = new Date();
+            const start = new Date(now.getTime() - (rangeDays*24*60*60*1000));
+            const inRange = distributionData.filter(r => {
+                const ts = new Date(r.timestamp || r.schedule?.date || now);
+                return ts >= start && ts <= now;
+            });
+            const groups = {};
+            inRange.forEach(r => {
+                let key;
+                switch(groupBy){
+                    case 'equipment': key = r.equipment?.id || 'Unknown Equipment'; break;
+                    case 'type': key = r.equipment?.type || 'Unknown Type'; break;
+                    case 'location': key = r.equipment?.location || 'Unknown Location'; break;
+                    case 'operator': key = r.equipment?.operator || r.authorization?.requestedBy || 'Unknown Operator'; break;
+                    case 'department': key = r.authorization?.department || 'Unknown Department'; break;
+                    case 'costcenter': key = r.authorization?.costCenter || 'Unknown Cost Center'; break;
+                    case 'day':
+                    default:
+                        const d = new Date(r.schedule?.date || r.timestamp);
+                        key = d.toLocaleDateString();
+                }
+                if (!groups[key]) groups[key] = { key, records:0, quantity:0, indexTotal:0 };
+                groups[key].records += 1;
+                const qty = Number(r.fuel?.requestedQuantity)||0;
+                groups[key].quantity += qty;
+                if (typeof r.fuel?.indexReading === 'number') groups[key].indexTotal += r.fuel.indexReading;
+            });
+            const rows = Object.values(groups).sort((a,b)=> b.quantity - a.quantity);
+            const totals = rows.reduce((acc,r)=>{acc.quantity+=r.quantity;acc.records+=r.records;return acc;},{quantity:0,records:0});
+            return { rows, totals, rangeCount: inRange.length };
+        }
+
+        function renderFuelAnalytics(){
+            const rangeDays = parseInt(document.getElementById('analyticsRange').value,10);
+            const groupBy = document.getElementById('analyticsGroup').value;
+            const { rows, totals } = computeFuelAggregates(rangeDays, groupBy);
+            // KPIs
+            const kpisEl = document.getElementById('analyticsKpis');
+            kpisEl.innerHTML = `
+                ${kpiCard('TOTAL QTY (L)', totals.quantity.toFixed(2))}
+                ${kpiCard('ENTRIES', totals.records)}
+                ${kpiCard('AVG QTY / ENTRY', totals.records? (totals.quantity/totals.records).toFixed(2):'0')}
+            `;
+            // Table
+            const headEl = document.getElementById('analyticsHead');
+            const bodyEl = document.getElementById('analyticsBody');
+            const groupLabel = {
+                'day': 'DATE',
+                'equipment': 'EQUIPMENT ID', 
+                'type': 'EQUIPMENT TYPE',
+                'location': 'LOCATION',
+                'operator': 'OPERATOR',
+                'department': 'DEPARTMENT',
+                'costcenter': 'COST CENTER'
+            }[groupBy] || groupBy.toUpperCase();
+            headEl.innerHTML = `<th style="font-size:.55rem;">${groupLabel}</th><th style="font-size:.55rem;">RECORDS</th><th style="font-size:.55rem;">QTY (L)</th><th style="font-size:.55rem;">AVG (L)</th>`;
+            bodyEl.innerHTML = rows.map(r=>`<tr><td style="font-size:.6rem;">${r.key}</td><td style="font-size:.6rem;">${r.records}</td><td style="font-size:.6rem;">${r.quantity.toFixed(2)}</td><td style="font-size:.6rem;">${(r.quantity/r.records).toFixed(2)}</td></tr>`).join('');
+            // Charts
+            renderFuelCharts(groupBy, rows);
+        }
+
+        function kpiCard(label,value){
+            return `<div style="background:#fff;border:1px solid #e2e8f0;border-radius:6px;padding:0.55rem 0.6rem;display:flex;flex-direction:column;gap:0.25rem;">
+                <span style="font-size:0.5rem;font-weight:600;color:#64748b;letter-spacing:0.5px;">${label}</span>
+                <span style="font-size:0.95rem;font-weight:600;color:#1e293b;">${value}</span>
+            </div>`;
+        }
+
+        function renderFuelCharts(groupBy, rows){
+            if (typeof Chart === 'undefined') {
+                loadChartJs(renderFuelAnalytics);
+                return;
+            }
+            const primaryCtx = document.getElementById('analyticsPrimaryChart').getContext('2d');
+            const secondaryCtx = document.getElementById('analyticsSecondaryChart').getContext('2d');
+            const labels = rows.map(r=>r.key).slice(0,20);
+            const quantities = rows.map(r=>r.quantity).slice(0,20);
+            const records = rows.map(r=>r.records).slice(0,20);
+            if (primaryChartInstance) primaryChartInstance.destroy();
+            if (secondaryChartInstance) secondaryChartInstance.destroy();
+            primaryChartInstance = new Chart(primaryCtx, {
+                type:'line',
+                data:{ labels, datasets:[{ label:'Quantity (L)', data:quantities, borderColor:'#f39c12', backgroundColor:'rgba(243,156,18,0.15)', tension:0.3, fill:true, pointRadius:2 }]},
+                options:{ plugins:{ legend:{ display:false }}, scales:{ x:{ ticks:{ font:{size:8} }}, y:{ ticks:{ font:{size:8} }}} }
+            });
+            secondaryChartInstance = new Chart(secondaryCtx, {
+                type:'bar',
+                data:{ labels, datasets:[{ label:'Records', data:records, backgroundColor:'#334155' }]},
+                options:{ plugins:{ legend:{ display:false }}, scales:{ x:{ ticks:{ font:{size:8} }}, y:{ ticks:{ font:{size:8} }}} }
+            });
+        }
+
+        function loadChartJs(cb){
+            const existing = document.getElementById('chartjs-lib');
+            if (existing) { if (cb) cb(); return; }
+            const s = document.createElement('script');
+            s.id='chartjs-lib';
+            s.src='https://cdn.jsdelivr.net/npm/chart.js';
+            s.onload=()=> cb && cb();
+            document.head.appendChild(s);
+        }
+
+        function exportAnalyticsCsv(){
+            const groupBy = document.getElementById('analyticsGroup').value;
+            const rangeDays = parseInt(document.getElementById('analyticsRange').value,10);
+            const { rows } = computeFuelAggregates(rangeDays, groupBy);
+            const header = `${groupBy.toUpperCase()},RECORDS,QUANTITY_L,AVG_L`;
+            const lines = rows.map(r=>`${r.key},${r.records},${r.quantity.toFixed(2)},${(r.quantity/r.records).toFixed(2)}`);
+            const csv = [header, ...lines].join('\n');
+            const blob = new Blob([csv], {type:'text/csv'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = `fuel_analytics_${groupBy}.csv`; a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        // Backfill locationName for legacy records (mapping value->label from current dropdown)
+        async function ensureLocationNames(){
+            if (!distributionData || !distributionData.length) return;
+            
+            // Get tank ID mapping from Firebase (same source as dropdown)
+            const tankMap = await getTankIdMapping();
+            let updated = false;
+            
+            distributionData.forEach(r => {
+                if (r.equipment && r.equipment.location && !r.equipment.locationName) {
+                    const val = r.equipment.location;
+                    // First try direct mapping from Firebase tank IDs
+                    if (tankMap[val]) {
+                        r.equipment.locationName = tankMap[val];
+                        updated = true;
+                    }
+                    // Fallback: use the raw value as display name
+                    else {
+                        r.equipment.locationName = val;
+                        updated = true;
+                    }
+                }
+            });
+            
+            if (updated) {
+                renderDistributionTable();
+                if (currentFuelTab === 'analytics') renderFuelAnalytics();
+            }
+        }
+
+        // Get tank ID mapping from Firebase
+        async function getTankIdMapping() {
+            const map = {};
+            try {
+                if (!window.firebase) return map;
+                const db = window.firebase.database();
+                const fixedPath = 'companies/-OYL6cpeH7JnNLPBhCTH/fieldOptions/tank-id';
+                const snapshot = await db.ref(fixedPath).once('value');
+                const tankIds = snapshot.val();
+
+                if (Array.isArray(tankIds)) {
+                    tankIds.forEach(tank => {
+                        if (tank && tank.enabled && tank.value && tank.label) {
+                            map[tank.value] = tank.label;
+                        }
+                    });
+                }
+            } catch (e) {
+                console.warn('Unable to load tank ID mapping:', e);
+            }
+            return map;
         }
 
         // Render distribution table
@@ -3559,31 +4220,32 @@
             const consumpTime = record.schedule?.time || '';
             const schedDateDisplay = record.schedule?.date ? new Date(`${record.schedule.date}T00:00:00`).toLocaleDateString() : '';
             const operator = record.equipment?.operator || record.authorization?.requestedBy || '';
+            const currentUserId = window.authManager?.getCurrentUser()?.uid || '';
+            const canEdit = record.createdBy && record.createdBy === currentUserId;
+            const canDelete = record.createdBy && record.createdBy === currentUserId;
             return `
                 <tr data-record-id="${record.id}">
                     <td class="hidden-col" style="font-size:.72rem;font-weight:500;color:#1e293b;">${record.id}</td>
-                    <td style="font-size:.7rem;color:#334155;">${record.equipment?.type || ''}</td>
+                    <td class="hidden-col" style="font-size:.7rem;color:#334155;">${record.equipment?.type || ''}</td>
                     <td style="font-size:.7rem;color:#334155;">${record.equipment?.id || ''}</td>
-                    <td style="font-size:.7rem;color:#334155;">${record.equipment?.location || ''}</td>
+                    <td style="font-size:.7rem;color:#334155;">${record.equipment?.locationName || record.equipment?.location || ''}</td>
                     <td style="font-size:.7rem;color:#334155;">${operator}</td>
                     <td style="font-size:.72rem;font-weight:600;color:#1e293b;">${quantity}</td>
                     <td style="font-size:.7rem;color:#334155;">${typeof record.fuel?.indexReading === 'number' ? record.fuel.indexReading : '-'}</td>
                     <td style="font-size:.7rem;color:#334155;">${schedDateDisplay}${consumpTime ? `<div style=\"font-size:.6rem;color:#64748b;\">${consumpTime}</div>` : ''}</td>
                     <td style="font-size:.7rem;color:#334155;">${record.authorization?.department || ''}</td>
-                    <td style="font-size:.7rem;color:#334155;">${record.authorization?.costCenter || ''}</td>
+                    <td class="hidden-col" style="font-size:.7rem;color:#334155;">${record.authorization?.costCenter || ''}</td>
                     <td class="hidden-col" style="font-size:.7rem;color:#334155;">${record.authorization?.securityAgent || ''}</td>
                     <td class="hidden-col" style="font-size:.7rem;color:#334155;">${record.authorization?.supervisor || ''}</td>
                     <td class="hidden-col"><span class="status-badge ${statusClass}" style="text-transform:uppercase;">${record.status}</span></td>
                     <td>
                         <div class="table-actions">
-                            <button class="action-btn btn-edit" onclick="editDistribution('${record.id}')" title="Edit">
+                            ${canEdit ? `<button class="action-btn btn-edit icon-only" onclick="editDistribution('${record.id}')" title="Edit">
                                 <i class="fas fa-edit"></i>
-                                Edit
-                            </button>
-                            <button class="action-btn btn-delete" onclick="deleteDistribution('${record.id}')" title="Delete">
+                            </button>` : ''}
+                            ${canDelete ? `<button class="action-btn btn-delete icon-only" onclick="deleteDistribution('${record.id}')" title="Delete">
                                 <i class="fas fa-trash"></i>
-                                Delete
-                            </button>
+                            </button>` : ''}
                         </div>
                     </td>
                 </tr>`;
@@ -3718,7 +4380,11 @@
             const setText = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val ?? ''; };
             setText('viewEquipmentType', record.equipment?.type || '');
             setText('viewEquipmentId', record.equipment?.id || '');
-            setText('viewEquipmentLocation', record.equipment?.location || '');
+            setText('viewEquipmentLocation', record.equipment?.locationName || record.equipment?.location || '');
+            // Also show Site if available
+            const siteText = record.site?.name || record.site?.value || '';
+            const viewSiteEl = document.getElementById('viewSite');
+            if (viewSiteEl) viewSiteEl.textContent = siteText;
             setText('viewOperatorName', record.equipment?.operator || '');
             setText('viewQuantity', (record.fuel?.requestedQuantity || 0) + 'L');
             setText('viewIndexReading', typeof record.fuel?.indexReading === 'number' ? String(record.fuel.indexReading) : '-');
@@ -3748,6 +4414,13 @@
             const record = distributionData.find(r => r.id === distributionId);
             if (!record) return;
             
+            // Check if current user is the creator
+            const currentUser = window.authManager?.getCurrentUser();
+            if (!currentUser || !record.createdBy || record.createdBy !== currentUser.uid) {
+                alert('You can only edit distributions that you have created.');
+                return;
+            }
+            
             // For now, just open the modal and populate with existing data
             openDistributionModal();
             
@@ -3762,8 +4435,16 @@
                         if (searchEl) searchEl.value = '';
                         document.getElementById('equipmentId').value = record.equipment.id || '';
                     });
-                    // Populate location with Tank IDs and preselect saved value
-                    loadLocationTankIds(record.equipment.location || '');
+                    // Populate Site options and preselect, then filter and preselect Location
+                    const selectedSite = (record.site && (record.site.value || record.site.name)) || '';
+                    loadSites(selectedSite).then(() => {
+                        // Show location group if site is selected
+                        const locationGroup = document.getElementById('locationGroup');
+                        if (locationGroup && selectedSite) {
+                            locationGroup.style.display = 'flex';
+                        }
+                        loadLocationTankIds(record.equipment.location || '');
+                    });
                     document.getElementById('operatorName').value = record.equipment.operator || '';
                 }
                 
@@ -3837,9 +4518,23 @@
             
             try {
                 const companyId = window.authManager?.getCurrentUser()?.companyId;
+                const currentUserId = window.authManager?.getCurrentUser()?.uid || '';
                 if (!companyId) throw new Error('Company ID not found');
                 
                 const distributionRef = firebase.database().ref(`fuelDistributions/${companyId}/${distributionId}`);
+                const snap = await distributionRef.once('value');
+                if (!snap.exists()) throw new Error('Record not found');
+                const record = snap.val();
+                if (!record.createdBy || record.createdBy !== currentUserId) {
+                    alert('You can only delete distributions you created.');
+                    return;
+                }
+                // Revert storage adjustment prior to deletion (add back quantity to the tank)
+                try {
+                    await applyFuelStorageAdjustment(record, 'increment');
+                } catch (e) {
+                    console.warn('Non-blocking: failed to revert storage on delete', e);
+                }
                 await distributionRef.remove();
                 
                 alert('Distribution deleted successfully!');
@@ -3851,6 +4546,138 @@
             }
         }
 
+        // ===== Excel Import/Export =====
+        function normalizeHeader(h){ return String(h||'').trim().toLowerCase(); }
+
+        function mapRecordToRow(r){
+            return {
+                id: r.id || '',
+                timestamp: r.timestamp || '',
+                status: r.status || '',
+                equipmentType: r.equipment?.type || '',
+                equipmentId: r.equipment?.id || '',
+                location: r.equipment?.location || '',
+                locationName: r.equipment?.locationName || '',
+                operator: r.equipment?.operator || '',
+                site: r.site?.value || '',
+                siteName: r.site?.name || '',
+                quantityL: r.fuel?.requestedQuantity || '',
+                indexReading: r.fuel?.indexReading ?? '',
+                scheduleDate: r.schedule?.date || '',
+                scheduleTime: r.schedule?.time || '',
+                requestedBy: r.authorization?.requestedBy || '',
+                department: r.authorization?.department || '',
+                costCenter: r.authorization?.costCenter || '',
+                securityAgent: r.authorization?.securityAgent || '',
+                supervisor: r.authorization?.supervisor || ''
+            };
+        }
+
+        function exportDistributionsToExcel(){
+            try{
+                const rows = (distributionData && distributionData.length ? distributionData : filteredData).map(mapRecordToRow);
+                const ws = XLSX.utils.json_to_sheet(rows);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, 'Distributions');
+                const fname = `fuel-distributions-${new Date().toISOString().slice(0,10)}.xlsx`;
+                XLSX.writeFile(wb, fname);
+            } catch(e){
+                console.error('Excel export failed:', e);
+                alert('Failed to export Excel. See console for details.');
+            }
+        }
+
+        function downloadDistributionTemplate(){
+            const headers = [{
+                equipmentType:'LV|HV|GEN|PUMP|COMPRESSOR', equipmentId:'', location:'tank id or key', locationName:'optional', operator:'',
+                site:'optional', siteName:'optional', quantityL:'number', indexReading:'number optional',
+                scheduleDate:'YYYY-MM-DD', scheduleTime:'HH:mm', requestedBy:'', department:'', costCenter:'', securityAgent:'', supervisor:''
+            }];
+            const ws = XLSX.utils.json_to_sheet(headers);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Template');
+            XLSX.writeFile(wb, 'fuel-distribution-template.xlsx');
+        }
+
+        async function handleExcelImport(evt){
+            const file = evt.target.files && evt.target.files[0];
+            if(!file) return;
+            try{
+                const data = await file.arrayBuffer();
+                const wb = XLSX.read(data, {type:'array'});
+                const ws = wb.Sheets[wb.SheetNames[0]];
+                const json = XLSX.utils.sheet_to_json(ws, {defval:''});
+                if(!Array.isArray(json) || json.length === 0){
+                    alert('The Excel file is empty.');
+                    return;
+                }
+                const user = window.authManager?.getCurrentUser?.();
+                const companyId = user?.companyId;
+                if(!companyId){ alert('No company context. Please sign in.'); return; }
+
+                // Build header map (case-insensitive)
+                const headerCells = Object.keys(json[0]);
+                const headerMap = {};
+                headerCells.forEach(h=>{ headerMap[normalizeHeader(h)] = h; });
+
+                const requiredCols = ['equipmenttype','equipmentid','quantityl'];
+                const missing = requiredCols.filter(c=>!(c in headerMap));
+                if(missing.length){
+                    alert('Missing required columns: ' + missing.join(', '));
+                    return;
+                }
+
+                const db = window.firebase.database();
+                const tasks = [];
+                for(const row of json){
+                    const equipmentType = row[headerMap['equipmenttype']]?.toString().trim();
+                    const equipmentId = row[headerMap['equipmentid']]?.toString().trim();
+                    const quantity = parseFloat(row[headerMap['quantityl']]);
+                    if(!equipmentType || !equipmentId || !quantity || isNaN(quantity)) continue;
+
+                    const location = headerMap['location'] ? String(row[headerMap['location']]||'').trim() : '';
+                    const locationName = headerMap['locationname'] ? String(row[headerMap['locationname']]||'').trim() : '';
+                    const operator = headerMap['operator'] ? String(row[headerMap['operator']]||'').trim() : '';
+                    const site = headerMap['site'] ? String(row[headerMap['site']]||'').trim() : '';
+                    const siteName = headerMap['sitename'] ? String(row[headerMap['sitename']]||'').trim() : '';
+                    const indexReading = headerMap['indexreading'] ? parseFloat(row[headerMap['indexreading']]) : null;
+                    const scheduleDate = headerMap['scheduledate'] ? String(row[headerMap['scheduledate']]||'').trim() : '';
+                    const scheduleTime = headerMap['scheduletime'] ? String(row[headerMap['scheduletime']]||'').trim() : '';
+                    const requestedBy = headerMap['requestedby'] ? String(row[headerMap['requestedby']]||'').trim() : '';
+                    const department = headerMap['department'] ? String(row[headerMap['department']]||'').trim() : '';
+                    const costCenter = headerMap['costcenter'] ? String(row[headerMap['costcenter']]||'').trim() : '';
+                    const securityAgent = headerMap['securityagent'] ? String(row[headerMap['securityagent']]||'').trim() : '';
+                    const supervisor = headerMap['supervisor'] ? String(row[headerMap['supervisor']]||'').trim() : '';
+
+                    const id = generateDistributionId();
+                    const record = {
+                        id,
+                        timestamp: new Date().toISOString(),
+                        status: 'COMPLETED',
+                        equipment: { type: equipmentType, id: equipmentId, location, locationName, operator },
+                        site: { value: site, name: siteName },
+                        fuel: { requestedQuantity: quantity, indexReading: (isNaN(indexReading)? null : indexReading) },
+                        schedule: { date: scheduleDate, time: scheduleTime },
+                        authorization: { requestedBy, department, costCenter, securityAgent, supervisor },
+                        createdBy: user?.uid || 'unknown',
+                        companyId
+                    };
+
+                    // Save and adjust storage
+                    const ref = db.ref(`fuelDistributions/${companyId}/${id}`);
+                    tasks.push(ref.set(record).then(()=>applyFuelStorageAdjustment(record, 'decrement')));
+                }
+
+                await Promise.all(tasks);
+                alert('Excel import completed. Imported: ' + tasks.length);
+                document.getElementById('excelInput').value = '';
+                loadDistributionData();
+            } catch(e){
+                console.error('Excel import failed:', e);
+                alert('Failed to import Excel. See console for details.');
+                document.getElementById('excelInput').value = '';
+            }
+        }
         // Update stats cards
         function updateStatsCards() {
             const today = new Date().toDateString();
@@ -3901,4 +4728,3 @@
     </script>
 </body>
 </html>
-
