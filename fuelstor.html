@@ -1391,6 +1391,9 @@
                         <button id="createTankBtn" class="btn btn-icon" aria-label="Add Tank Status" title="Add Tank Status">
                             <i class="fas fa-plus"></i>
                         </button>
+                        <button id="deleteSelectedBtn" class="btn" aria-label="Delete Selected" title="Delete Selected" disabled>
+                            <i class="fas fa-trash"></i> Delete Selected
+                        </button>
                     </div>
                 </div>
 
@@ -1414,13 +1417,15 @@
                             <table class="data-table" id="storageTable">
                                 <thead>
                                     <tr>
+                                        <th style="width:32px; text-align:center;">
+                                            <input type="checkbox" id="selectAllTanks" aria-label="Select All" />
+                                        </th>
                                         <th>Tank ID</th>
                                         <th>Fuel Type</th>
                                         <th>Max Volume (L)</th>
-                                        <th>Current Volume (L)</th>
-                                        <th>Current Stock (L)</th>
+                                        <th title="Opening stock recorded at the start of the day">Opening Stock (L)</th>
+                                        <th title="Closing stock after all distributions/transfers">Closing Stock (L)</th>
                                         <th>Capacity</th>
-                                        <th>Temperature (°C)</th>
                                         <th>Stock Date</th>
                                         <th>Ullage (L)</th>
                                         <th>Status</th>
@@ -1497,6 +1502,7 @@
                                         <option value="30">Last 30 days</option>
                                         <option value="90">Last 90 days</option>
                                         <option value="365">Last 365 days</option>
+                                        <option value="all">All</option>
                                     </select>
                                 </div>
                             </div>
@@ -1579,7 +1585,7 @@
                                                     <option value="avg">Avg Quantity</option>
                                                     <option value="min">Min Quantity</option>
                                                     <option value="max">Max Quantity</option>
-                                                    <option value="currentStock">Current Stock (by Tank)</option>
+                                                    <option value="currentStock">Closing Stock (by Tank)</option>
                                                     <option value="ullage">Ullage (by Tank)</option>
                                                     <option value="capacityPct">Capacity % (by Tank)</option>
                                                 </select>
@@ -1836,23 +1842,29 @@
                                     <input type="number" id="maxVolume" name="maxVolume" min="1" step="0.01" required>
                                 </div>
                                 <div class="form-group">
-                                    <label for="currentVolume" class="required-field">Current Volume (Liters)</label>
+                                    <label for="currentVolume" class="required-field">Opening Stock (Liters)</label>
                                     <input type="number" id="currentVolume" name="currentVolume" min="0" step="0.01" required>
                                 </div>
                                 <div class="form-group">
-                                    <label for="temperature" class="required-field">Temperature (°C)</label>
-                                    <input type="number" id="temperature" name="temperature" step="0.1" required>
-                                    <small class="form-hint">Current fuel temperature</small>
+                                    <label for="physicalClosingStock">Physical Closing Stock (Liters)</label>
+                                    <input type="number" id="physicalClosingStock" name="physicalClosingStock" min="0" step="0.01">
+                                    <small class="form-hint">Optional: manual closing stock measured at end of day</small>
                                 </div>
                                 <div class="form-group">
-                                    <label for="stockDate" class="required-field">Stock Date</label>
-                                    <input type="date" id="stockDate" name="stockDate" required>
-                                    <small class="form-hint">Date when the fuel was stocked in the tank</small>
+                                    <label for="reception">Reception (Liters)</label>
+                                    <input type="number" id="reception" name="reception" min="0" step="0.01">
+                                    <small class="form-hint">Optional: total received for the day</small>
                                 </div>
+                                <div class="form-group">
+                                    <label for="stockDate" class="required-field">Stock Date & Time</label>
+                                    <input type="datetime-local" id="stockDate" name="stockDate" required>
+                                    <small class="form-hint">Specify the exact date and time when the fuel was stocked</small>
+                                </div>
+                                
                                 <div class="form-group">
                                     <label for="ullage">Ullage (Liters)</label>
                                     <input type="number" id="ullage" name="ullage" readonly class="calculated-field">
-                                    <small class="form-hint">Auto-calculated: Max Volume - Current Volume</small>
+                                    <small class="form-hint">Auto-calculated: Max Volume - Opening Stock</small>
                                 </div>
                                 <div class="form-group full-width">
                                     <label for="statusField">Tank Status</label>
@@ -1904,13 +1916,14 @@
                 setTimeout(() => {
                     this.initializeStorageManagement();
                     // Load selectable tank IDs first so display labels are available
-                    this.loadTankIds().then(() => {
-                        this.loadTanksFromFirebase().then(() => {
-                            this.ensureTankIdDisplay();
-                            this.renderTanks();
-                            // Precompute current stock after last transaction
-                            computeLastStockAfterTransactions();
-                        });
+                    this.loadTankIds().then(async () => {
+                        await this.loadTanksFromFirebase();
+                        // Preload distributions/storage caches so row-level daily closing calc has data
+                        try { if (typeof ensureAnalyticsDataLoaded === 'function') await ensureAnalyticsDataLoaded(); } catch (_) {}
+                        this.ensureTankIdDisplay();
+                        this.renderTanks();
+                        // Precompute current stock after last transaction
+                        computeLastStockAfterTransactions();
                     });
                     // Also load location options early so analytics can use friendly labels
                     this.loadLocations();
@@ -2220,6 +2233,121 @@
                         }
                     });
                 }
+
+                // Bulk selection: select all rows
+                const selectAll = document.getElementById('selectAllTanks');
+                const deleteSelectedBtn = document.getElementById('deleteSelectedBtn');
+                if (selectAll) {
+                    selectAll.addEventListener('change', () => {
+                        document.querySelectorAll('#storageTableBody .row-select').forEach(cb => {
+                            cb.checked = selectAll.checked;
+                        });
+                        this.updateBulkDeleteState();
+                    });
+                }
+
+                // Delegate row checkbox changes to update button state
+                const tableBody = document.getElementById('storageTableBody');
+                if (tableBody) {
+                    tableBody.addEventListener('change', (e) => {
+                        if (e.target && e.target.classList.contains('row-select')) {
+                            this.syncSelectAllCheckbox();
+                            this.updateBulkDeleteState();
+                        }
+                    });
+                }
+
+                // Bulk delete action
+                if (deleteSelectedBtn) {
+                    deleteSelectedBtn.addEventListener('click', async () => {
+                        const selectedIds = Array.from(document.querySelectorAll('#storageTableBody .row-select:checked')).map(cb => cb.getAttribute('data-id'));
+                        if (!selectedIds.length) return;
+                        const confirmed = confirm(`Delete ${selectedIds.length} selected record${selectedIds.length > 1 ? 's' : ''}? This cannot be undone.`);
+                        if (!confirmed) return;
+                        deleteSelectedBtn.disabled = true;
+                        deleteSelectedBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Deleting...';
+                        try {
+                            await this.bulkDeleteTanks(selectedIds);
+                            this.showNotification('success', `Deleted ${selectedIds.length} record${selectedIds.length > 1 ? 's' : ''}`);
+                        } catch (err) {
+                            console.error('Bulk delete failed:', err);
+                            this.showNotification('error', 'Failed to delete selected records');
+                        } finally {
+                            deleteSelectedBtn.disabled = true;
+                            deleteSelectedBtn.innerHTML = '<i class="fas fa-trash"></i> Delete Selected';
+                            this.renderTanks();
+                            this.syncSelectAllCheckbox();
+                        }
+                    });
+                }
+            }
+
+            updateBulkDeleteState() {
+                const deleteSelectedBtn = document.getElementById('deleteSelectedBtn');
+                if (!deleteSelectedBtn) return;
+                const anyChecked = document.querySelector('#storageTableBody .row-select:checked') !== null;
+                deleteSelectedBtn.disabled = !anyChecked;
+            }
+
+            syncSelectAllCheckbox() {
+                const selectAll = document.getElementById('selectAllTanks');
+                const checkboxes = document.querySelectorAll('#storageTableBody .row-select');
+                if (!selectAll || !checkboxes.length) return;
+                const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+                const anyChecked = Array.from(checkboxes).some(cb => cb.checked);
+                selectAll.indeterminate = !allChecked && anyChecked;
+                selectAll.checked = allChecked && anyChecked;
+            }
+
+            async bulkDeleteTanks(ids) {
+                // Remove locally first
+                const idSet = new Set(ids);
+                this.tanks = this.tanks.filter(t => !idSet.has(t.id));
+                this.saveTanks();
+                
+                // Attempt Firebase removal for each id, plus associated daily entries
+                const currentUser = window.authManager?.currentUser;
+                if (!currentUser || !currentUser.companyId) return;
+                const companyId = currentUser.companyId;
+                let db = null;
+                try {
+                    if (window.getDatabase) {
+                        db = window.getDatabase();
+                        for (const tid of ids) {
+                            const tankRef = window.ref(db, `companies/${companyId}/fuelmanagement/storageStatus/${tid}`);
+                            if (window.remove) await window.remove(tankRef);
+                        }
+                    } else if (window.firebase && window.firebase.database) {
+                        db = window.firebase.database();
+                        for (const tid of ids) {
+                            await db.ref(`companies/${companyId}/fuelmanagement/storageStatus/${tid}`).remove();
+                        }
+                    }
+                } catch (err) {
+                    console.warn('Non-blocking: failed to remove some tanks from Firebase', err);
+                }
+
+                // Best-effort cleanup: remove daily snapshots for the deleted tankIds
+                try {
+                    if (!db) {
+                        if (window.getDatabase) db = window.getDatabase();
+                        else if (window.firebase && window.firebase.database) db = window.firebase.database();
+                    }
+                    if (db) {
+                        if (window.ref && window.remove) {
+                            for (const tid of ids) {
+                                const dailyRef = window.ref(db, `companies/${companyId}/fuelmanagement/storageStatusDaily/${tid}`);
+                                await window.remove(dailyRef);
+                            }
+                        } else if (window.firebase && window.firebase.database) {
+                            for (const tid of ids) {
+                                await db.ref(`companies/${companyId}/fuelmanagement/storageStatusDaily/${tid}`).remove();
+                            }
+                        }
+                    }
+                } catch (err) {
+                    console.warn('Non-blocking: failed to remove some daily entries', err);
+                }
             }
 
             setupFormCalculations() {
@@ -2279,9 +2407,36 @@
                 saveBtn.textContent = 'Save Tank Status';
                 this.editingTankId = null;
                 form.reset();
+                // Prefill stock date-time to current local time (rounded to minutes)
+                try {
+                    const stockInput = document.getElementById('stockDate');
+                    if (stockInput) {
+                        const now = new Date();
+                        now.setSeconds(0, 0);
+                        stockInput.value = this.formatForDateTimeLocal(now);
+                        // Ensure tank IDs are filtered for this date and keep them updated on change
+                        const getYmd = (val) => {
+                            if (!val) return null;
+                            if (typeof val === 'string') return (val.includes('T') ? val.split('T')[0] : val);
+                            try { return val.toISOString().slice(0,10); } catch { return null; }
+                        };
+                        const ymd = getYmd(stockInput.value);
+                        // Load tank IDs from company settings excluding those already used for this date
+                        this.loadTankIds({ excludeDateYMD: ymd });
+                        // Re-filter when user changes the date
+                        if (this._stockDateChangeHandler) {
+                            stockInput.removeEventListener('change', this._stockDateChangeHandler);
+                        }
+                        this._stockDateChangeHandler = () => {
+                            const y = getYmd(stockInput.value);
+                            this.loadTankIds({ excludeDateYMD: y });
+                        };
+                        stockInput.addEventListener('change', this._stockDateChangeHandler);
+                        // Also react to input if browser fires it for datetime-local
+                        stockInput.addEventListener('input', this._stockDateChangeHandler);
+                    }
+                } catch {}
                 
-                // Load tank IDs from company settings
-                this.loadTankIds();
                 // Load locations (areas) from company settings
                 this.loadLocations();
                 
@@ -2315,18 +2470,30 @@
                 if (!modal || !form || !modalTitle || !saveBtn) return;
 
                 // Ensure selects are populated before setting values
-                await this.loadTankIds();
+                await this.loadTankIds({ allowValue: tank.tankId });
                 await this.loadLocations();
 
                 // Set values, ensuring options exist
                 const tankIdSelect = document.getElementById('tankId');
-                if (tankIdSelect && ![...tankIdSelect.options].some(o => o.value === tank.tankId)) {
-                    const opt = document.createElement('option');
-                    opt.value = tank.tankId;
-                    opt.textContent = tank.tankId;
-                    tankIdSelect.appendChild(opt);
+                if (tankIdSelect) {
+                    const displayLabel = this.tankIdMap?.[tank.tankId]
+                        || (window._tankIdDisplayMap ? window._tankIdDisplayMap[tank.tankId] : null)
+                        || tank.tankIdDisplay
+                        || tank.tankId;
+                    const existingOpt = [...tankIdSelect.options].find(o => o.value === tank.tankId);
+                    if (existingOpt) {
+                        // Ensure the option shows the friendly label
+                        if (displayLabel && existingOpt.textContent !== displayLabel) {
+                            existingOpt.textContent = displayLabel;
+                        }
+                    } else {
+                        const opt = document.createElement('option');
+                        opt.value = tank.tankId;
+                        opt.textContent = displayLabel;
+                        tankIdSelect.appendChild(opt);
+                    }
+                    tankIdSelect.value = tank.tankId;
                 }
-                tankIdSelect.value = tank.tankId;
 
                 const locationSelect = document.getElementById('location');
                 if (locationSelect && tank.location && ![...locationSelect.options].some(o => o.value === tank.location)) {
@@ -2340,8 +2507,15 @@
                 document.getElementById('fuelType').value = tank.fuelType || '';
                 document.getElementById('maxVolume').value = tank.maxVolume ?? '';
                 document.getElementById('currentVolume').value = tank.currentVolume ?? '';
-                document.getElementById('temperature').value = tank.temperature ?? '';
-                document.getElementById('stockDate').value = tank.stockDate || '';
+                const physCloseEl = document.getElementById('physicalClosingStock');
+                if (physCloseEl) {
+                    const v = (typeof tank.physicalClosingStock === 'number') ? tank.physicalClosingStock : (tank.physicalClosingStock || '');
+                    physCloseEl.value = (v === null || v === undefined) ? '' : v;
+                }
+                const stockInput = document.getElementById('stockDate');
+                if (stockInput) {
+                    stockInput.value = this.formatForDateTimeLocal(tank.stockDate) || '';
+                }
                 document.getElementById('ullage').value = tank.ullage ?? '';
                 document.getElementById('statusField').value = `${tank.status} (${(tank.capacityPercentage ?? 0).toFixed(1)}%)`;
 
@@ -2351,12 +2525,45 @@
                 modal.classList.add('show');
             }
 
+            // Helper to format for <input type="datetime-local">
+            formatForDateTimeLocal(value) {
+                try {
+                    if (!value) return '';
+                    if (typeof value === 'string') {
+                        if (value.includes('T')) {
+                            // Already in a datetime-like format; ensure it's HH:MM
+                            const parts = value.split('T');
+                            const time = (parts[1] || '').slice(0,5);
+                            return `${parts[0]}T${time || '00:00'}`;
+                        }
+                        if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+                            return `${value}T00:00`;
+                        }
+                        const d = new Date(value);
+                        if (!isNaN(d)) return this.formatForDateTimeLocal(d);
+                        return '';
+                    }
+                    if (value instanceof Date) {
+                        const pad = (n) => n.toString().padStart(2, '0');
+                        const year = value.getFullYear();
+                        const month = pad(value.getMonth() + 1);
+                        const day = pad(value.getDate());
+                        const hours = pad(value.getHours());
+                        const minutes = pad(value.getMinutes());
+                        return `${year}-${month}-${day}T${hours}:${minutes}`;
+                    }
+                    return '';
+                } catch { return ''; }
+            }
+
             async updateTankRecord() {
                 const form = document.getElementById('tankForm');
                 const formData = new FormData(form);
 
                 const maxVolume = parseFloat(formData.get('maxVolume'));
                 const currentVolume = parseFloat(formData.get('currentVolume'));
+                const physicalClosingStock = formData.get('physicalClosingStock') ? parseFloat(formData.get('physicalClosingStock')) : null;
+                const reception = formData.get('reception') ? parseFloat(formData.get('reception')) : 0;
                 const ullage = maxVolume - currentVolume;
                 const capacityPercentage = (currentVolume / maxVolume) * 100;
 
@@ -2399,6 +2606,8 @@
                     fuelType: formData.get('fuelType'),
                     maxVolume,
                     currentVolume,
+                    reception: (typeof reception === 'number' && !isNaN(reception)) ? reception : 0,
+                    physicalClosingStock: (typeof physicalClosingStock === 'number' && !isNaN(physicalClosingStock)) ? physicalClosingStock : null,
                     // If stockDate changed, reset the baseline to the new currentVolume
                     baselineVolumeAtStockDate: (function(){
                         const newStockDate = formData.get('stockDate');
@@ -2409,7 +2618,6 @@
                         // keep prior baseline if set; else initialize to current
                         return typeof existing.baselineVolumeAtStockDate === 'number' ? existing.baselineVolumeAtStockDate : currentVolume;
                     })(),
-                    temperature: parseFloat(formData.get('temperature')),
                     stockDate: formData.get('stockDate'),
                     ullage,
                     capacityPercentage,
@@ -2422,6 +2630,8 @@
                     this.tanks[idx] = updated;
                     this.saveTanks();
                     await this.updateTankInFirebase(updated);
+                    // Also persist a daily stock entry for this tank on the selected date
+                    await this.saveDailyStockEntry(updated);
                     this.renderTanks();
                     this.hideModal();
                     this.showNotification('success', 'Tank status updated successfully!');
@@ -2458,7 +2668,8 @@
                 }
             }
 
-            async loadTankIds() {
+            // options: { excludeDateYMD?: 'YYYY-MM-DD' | null, allowValue?: string }
+            async loadTankIds(options = {}) {
                 const tankSelect = document.getElementById('tankId');
                 if (!tankSelect) return;
 
@@ -2491,20 +2702,24 @@
                         const snapshot = await window.get(tankIdsRef);
                         if (snapshot.exists()) {
                             const tankIds = snapshot.val();
-                            this.populateTankOptions(tankIds, tankSelect);
+                            this.populateTankOptions(tankIds, tankSelect, options);
                         } else {
                             console.warn('No tank IDs configured in company settings');
                             this.addFallbackOption(tankSelect);
                         }
                     } else if (tankIdsRef && tankIdsRef.once) {
-                        tankIdsRef.once('value', (snapshot) => {
-                            if (snapshot.exists()) {
-                                const tankIds = snapshot.val();
-                                this.populateTankOptions(tankIds, tankSelect);
-                            } else {
-                                console.warn('No tank IDs configured in company settings');
-                                this.addFallbackOption(tankSelect);
-                            }
+                        await new Promise((resolve) => {
+                            tankIdsRef.once('value', (snapshot) => {
+                                try {
+                                    if (snapshot.exists()) {
+                                        const tankIds = snapshot.val();
+                                        this.populateTankOptions(tankIds, tankSelect, options);
+                                    } else {
+                                        console.warn('No tank IDs configured in company settings');
+                                        this.addFallbackOption(tankSelect);
+                                    }
+                                } finally { resolve(); }
+                            }, () => resolve());
                         });
                     } else {
                         console.error('Firebase reference not available to load tank IDs');
@@ -2650,14 +2865,47 @@
                 });
             }
 
-            populateTankOptions(tankIds, selectElement) {
+            // Populate Tank ID dropdown with optional exclusion based on existing rows for a given date
+            populateTankOptions(tankIds, selectElement, options = {}) {
+                const excludeDateYMD = options.excludeDateYMD || null;
+                const allowValue = options.allowValue || null;
+                const hasOption = (val) => Array.from(selectElement.options).some(o => o.value === String(val));
                 if (Array.isArray(tankIds)) {
+                    // Build exclusion set of tankIds already used for excludeDateYMD
+                    let usedSet = new Set();
+                    if (excludeDateYMD) {
+                        try {
+                            const toYMD = (d) => {
+                                if (!d) return '';
+                                const dt = (typeof d === 'string') ? new Date(d) : d;
+                                if (isNaN(dt)) return '';
+                                const y = dt.getFullYear();
+                                const m = String(dt.getMonth()+1).padStart(2,'0');
+                                const da = String(dt.getDate()).padStart(2,'0');
+                                return `${y}-${m}-${da}`;
+                            };
+                            (this.tanks || []).forEach(t => {
+                                // A row is considered created for that day if tankId matches and stockDate falls on that day
+                                const ymd = toYMD(t.stockDate || t.lastUpdated || t.createdAt);
+                                if (ymd === excludeDateYMD && t.tankId) usedSet.add(String(t.tankId));
+                            });
+                        } catch (_) {}
+                    }
                     tankIds.forEach(tank => {
                         if (tank.enabled) {
-                            const option = document.createElement('option');
-                            option.value = tank.value;
-                            option.textContent = tank.label;
-                            selectElement.appendChild(option);
+                            // Skip if already used for the day, unless explicit allowValue overrides (for edit)
+                            if (excludeDateYMD && usedSet.has(String(tank.value)) && String(allowValue) !== String(tank.value)) {
+                                // do not add this option
+                                // but keep mapping for display lookups
+                                this.tankIdMap[tank.value] = tank.label;
+                                return;
+                            }
+                            if (!hasOption(tank.value)) {
+                                const option = document.createElement('option');
+                                option.value = tank.value;
+                                option.textContent = tank.label;
+                                selectElement.appendChild(option);
+                            }
                             // store mapping for friendly display
                             this.tankIdMap[tank.value] = tank.label;
                         }
@@ -2680,11 +2928,17 @@
                     if (e.target.value === 'manual-entry') {
                         const manualId = prompt('Enter Tank ID:');
                         if (manualId) {
-                            const newOption = document.createElement('option');
-                            newOption.value = manualId;
-                            newOption.textContent = manualId;
-                            newOption.selected = true;
-                            selectElement.insertBefore(newOption, selectElement.lastElementChild);
+                            // Avoid duplicates if this ID already exists
+                            const exists = Array.from(selectElement.options).some(o => o.value === manualId);
+                            if (exists) {
+                                selectElement.value = manualId;
+                            } else {
+                                const newOption = document.createElement('option');
+                                newOption.value = manualId;
+                                newOption.textContent = manualId;
+                                newOption.selected = true;
+                                selectElement.insertBefore(newOption, selectElement.lastElementChild);
+                            }
                         }
                     }
                 });
@@ -2704,14 +2958,22 @@
                     }
                 });
 
-                // Additional validation: current volume should not exceed max volume
+                // Additional validation: opening stock and physical closing should not exceed max volume
                 const maxVolume = parseFloat(form.maxVolume.value);
                 const currentVolume = parseFloat(form.currentVolume.value);
-                
-                if (currentVolume > maxVolume) {
+                const physicalClosingStock = parseFloat(form.physicalClosingStock.value);
+
+                if (!isNaN(currentVolume) && !isNaN(maxVolume) && currentVolume > maxVolume) {
                     form.currentVolume.style.borderColor = '#ef4444';
-                    alert('Current volume cannot exceed maximum volume.');
+                    alert('Opening stock cannot exceed maximum volume.');
                     isValid = false;
+                }
+                if (!isNaN(physicalClosingStock) && !isNaN(maxVolume) && physicalClosingStock > maxVolume) {
+                    form.physicalClosingStock.style.borderColor = '#ef4444';
+                    alert('Physical closing stock cannot exceed maximum volume.');
+                    isValid = false;
+                } else if (form.physicalClosingStock) {
+                    form.physicalClosingStock.style.borderColor = '#e2e8f0';
                 }
 
                 if (!isValid) {
@@ -2727,6 +2989,8 @@
                 
                 const maxVolume = parseFloat(formData.get('maxVolume'));
                 const currentVolume = parseFloat(formData.get('currentVolume'));
+                const physicalClosingStock = formData.get('physicalClosingStock') ? parseFloat(formData.get('physicalClosingStock')) : null;
+                const reception = formData.get('reception') ? parseFloat(formData.get('reception')) : 0;
                 const ullage = maxVolume - currentVolume;
                 const capacityPercentage = (currentVolume / maxVolume) * 100;
                 
@@ -2761,8 +3025,9 @@
                     fuelType: formData.get('fuelType'),
                     maxVolume: maxVolume,
                     currentVolume: currentVolume,
+                    reception: (typeof reception === 'number' && !isNaN(reception)) ? reception : 0,
+                    physicalClosingStock: (typeof physicalClosingStock === 'number' && !isNaN(physicalClosingStock)) ? physicalClosingStock : null,
                     baselineVolumeAtStockDate: currentVolume,
-                    temperature: parseFloat(formData.get('temperature')),
                     stockDate: formData.get('stockDate'),
                     ullage: ullage,
                     capacityPercentage: capacityPercentage,
@@ -2778,6 +3043,8 @@
                     
                     // Save to Firebase Realtime Database under company scope
                     await this.saveToFirebase(tank);
+                    // Persist daily stock entry for the specified stock date
+                    await this.saveDailyStockEntry(tank);
                     
                     this.renderTanks();
                     this.hideModal();
@@ -2827,6 +3094,72 @@
                 } catch (error) {
                     console.error('❌ Error saving to Firebase:', error);
                     throw error; // Re-throw to trigger error notification
+                }
+            }
+
+            // Save or update a per-day stock snapshot for a tank
+            async saveDailyStockEntry(tank) {
+                try {
+                    const currentUser = window.authManager?.currentUser;
+                    if (!currentUser || !currentUser.companyId) {
+                        console.warn('No company ID found for current user');
+                        return;
+                    }
+                    if (!tank?.tankId) {
+                        console.warn('Cannot save daily entry: missing tankId');
+                        return;
+                    }
+
+                    // Derive yyyy-mm-dd date key from stockDate (input type=date already yyyy-mm-dd)
+                    let dateKey = '';
+                    if (tank.stockDate) {
+                        if (typeof tank.stockDate === 'string') {
+                            // Expecting YYYY-MM-DD or YYYY-MM-DDTHH:MM from datetime-local
+                            dateKey = tank.stockDate.slice(0, 10);
+                        } else {
+                            dateKey = new Date(tank.stockDate).toISOString().slice(0, 10);
+                        }
+                    } else {
+                        dateKey = new Date().toISOString().slice(0, 10);
+                    }
+
+                    const dailyEntry = {
+                        date: dateKey,
+                        tankId: tank.tankId,
+                        tankIdDisplay: tank.tankIdDisplay || tank.tankId,
+                        location: tank.location || null,
+                        fuelType: tank.fuelType || null,
+                        maxVolume: Number(tank.maxVolume) || 0,
+                        currentVolume: Number(tank.currentVolume) || 0,
+                        reception: (typeof tank.reception === 'number' && !isNaN(tank.reception)) ? Number(tank.reception) : 0,
+                        physicalClosingStock: (typeof tank.physicalClosingStock === 'number' && !isNaN(tank.physicalClosingStock)) ? Number(tank.physicalClosingStock) : null,
+                        ullage: Math.max(0, Number(tank.ullage) || 0),
+                        capacityPercentage: Number(tank.capacityPercentage) || 0,
+                        status: tank.status || null,
+                        recordedAt: new Date().toISOString(),
+                        recordedBy: window.authManager?.currentUser?.email || 'Unknown'
+                    };
+
+                    const companyId = currentUser.companyId;
+
+                    let db, entryRef;
+                    if (window.getDatabase && window.ref && window.set) {
+                        db = window.getDatabase();
+                        entryRef = window.ref(db, `companies/${companyId}/fuelmanagement/storageStatusDaily/${tank.tankId}/${dateKey}`);
+                        await window.set(entryRef, dailyEntry);
+                    } else if (window.firebase) {
+                        db = window.firebase.database();
+                        entryRef = db.ref(`companies/${companyId}/fuelmanagement/storageStatusDaily/${tank.tankId}/${dateKey}`);
+                        await entryRef.set(dailyEntry);
+                    } else {
+                        throw new Error('Firebase not available');
+                    }
+
+                    // Optional toast message, keep quiet to avoid duplicate notices with main save
+                    console.log(`✅ Daily stock entry saved for tank ${tank.tankId} on ${dateKey}`);
+                } catch (e) {
+                    console.error('❌ Error saving daily stock entry:', e);
+                    // Don't block the main flow on daily entry failure
                 }
             }
 
@@ -2903,8 +3236,14 @@
                 emptyState.style.display = 'none';
                 
                 tableBody.innerHTML = '';
-                
-                this.tanks.forEach(tank => {
+                // Sort by Stock Date (newest first). Fallback to lastUpdated/createdAt when missing.
+                const sortedTanks = [...this.tanks].sort((a, b) => {
+                    const da = new Date(a.stockDate || a.lastUpdated || a.createdAt || 0).getTime();
+                    const db = new Date(b.stockDate || b.lastUpdated || b.createdAt || 0).getTime();
+                    return db - da; // descending
+                });
+
+                sortedTanks.forEach(tank => {
                     const row = this.createTankRow(tank);
                     tableBody.appendChild(row);
                 });
@@ -2917,11 +3256,85 @@
                 
                 const capacityPercentage = tank.capacityPercentage;
 
-                // Determine current stock based on computed map (fallback to currentVolume)
+                // Compute closing stock as Opening + Reception − Distributions up to end of tank's stock date
                 const stockKey = tank.tankId || tank.tankIdDisplay;
-                const currentStockValue = (window._lastStockAfterByTank && ((window._lastStockAfterByTank[stockKey] ?? null) !== null))
-                    ? window._lastStockAfterByTank[stockKey]
-                    : (tank.currentVolume ?? 0);
+                const opening = (typeof tank.baselineVolumeAtStockDate === 'number')
+                    ? Number(tank.baselineVolumeAtStockDate)
+                    : Number(tank.currentVolume || 0);
+                const reception = Number(tank.reception || 0);
+                
+                // Calculate closing stock based on distributions up to the end of this tank's stock date
+                let closingStock = opening + reception;
+                let distributionsOnDate = 0;
+                
+                try {
+                    const companyId = window.authManager?.getCurrentUser?.()?.companyId || window.authManager?.currentUser?.companyId;
+                    if (companyId && window.firebase) {
+                        // Accept cache from either window or local scope
+                        const cacheObj = (window._anAllDistributionsCache && window._anAllDistributionsCache.data)
+                            ? window._anAllDistributionsCache
+                            : (typeof _anAllDistributionsCache !== 'undefined' && _anAllDistributionsCache?.data ? _anAllDistributionsCache : null);
+                        const distributions = cacheObj ? cacheObj.data : null;
+                        if (distributions) {
+                            // Normalize target day as YYYY-MM-DD string (prefer stockDate; fallback to today)
+                            const toYMD = d => {
+                                const y = d.getFullYear();
+                                const m = String(d.getMonth() + 1).padStart(2, '0');
+                                const da = String(d.getDate()).padStart(2, '0');
+                                return `${y}-${m}-${da}`;
+                            };
+                            const targetDate = tank.stockDate ? new Date(tank.stockDate) : new Date();
+                            const targetYMD = toYMD(targetDate);
+                            
+                            const norm = v => (v === undefined || v === null) ? '' : String(v).trim().toLowerCase();
+                            const stockKeyNorm = norm(stockKey);
+                            Object.values(distributions).forEach(dist => {
+                                try {
+                                    if (!dist || !dist.fuel) return;
+                                    // Build candidate tank identifiers from various possible fields
+                                    const candidates = [
+                                        dist.equipment?.location,
+                                        dist.equipment?.locationName,
+                                        dist.tankId,
+                                        dist.tankName,
+                                        dist.sourceTankName,
+                                        dist.tank,
+                                        dist.storage?.tankName,
+                                        dist.storage?.tank,
+                                        dist.fromTankName,
+                                        dist.fromTank,
+                                    ].map(norm).filter(Boolean);
+                                    if (!candidates.length) return;
+                                    if (!candidates.includes(stockKeyNorm)) return;
+
+                                    // Resolve distribution day string robustly
+                                    let distYMD = null;
+                                    const sDate = dist.schedule?.date;
+                                    if (typeof sDate === 'string' && sDate.trim()) {
+                                        const sd = sDate.trim();
+                                        if (/^\d{4}-\d{2}-\d{2}$/.test(sd)) {
+                                            distYMD = sd; // already YYYY-MM-DD
+                                        } else {
+                                            const parsed = new Date(sd);
+                                            if (!isNaN(parsed)) distYMD = toYMD(parsed);
+                                        }
+                                    }
+                                    if (!distYMD && dist.timestamp) {
+                                        const dt = new Date(dist.timestamp);
+                                        if (!isNaN(dt)) distYMD = toYMD(dt);
+                                    }
+                                    if (!distYMD) return;
+                                    if (distYMD === targetYMD) {
+                                        const qty = Number(dist.fuel?.quantity ?? dist.fuel?.requestedQuantity) || 0;
+                                        distributionsOnDate += qty;
+                                    }
+                                } catch (_) { /* ignore bad record */ }
+                            });
+                        }
+                    }
+                } catch {}
+                
+                const currentStockValue = Math.max(0, closingStock - distributionsOnDate);
                 const ullageFromCurrentStock = Math.max(0, (tank.maxVolume || 0) - (currentStockValue || 0));
                 
                 // Determine progress bar class and status badge
@@ -2969,17 +3382,20 @@
                 }
 
                 row.innerHTML = `
+                    <td style="text-align:center;">
+                        <input type="checkbox" class="row-select" data-id="${tank.id}" aria-label="Select row" onclick="event.stopPropagation();" />
+                    </td>
                     <td>
-                        <strong style="color: #3b82f6; cursor: pointer;" 
-                                onclick="event.stopPropagation(); viewTankDistributions('${tank.tankId || tank.tankIdDisplay}'); switchTab('details');" 
+            <strong style="color: #3b82f6; cursor: pointer;" 
+                onclick="event.stopPropagation(); viewTankDistributions('${tank.tankId || tank.tankIdDisplay}', true, '${tank.stockDate || ''}', ${Number(tank.currentVolume || 0)}); switchTab('details');" 
                                 title="Click to view distributions for this tank">
                             ${(tank.tankIdDisplay || tank.tankId || '')}
                         </strong>
                     </td>
                     <td><span class="bg-purple-100 text-purple-800 px-2 py-1 rounded-full text-xs font-medium">${tank.fuelType}</span></td>
                     <td>${tank.maxVolume.toLocaleString()}</td>
-                    <td>${tank.currentVolume.toLocaleString()}</td>
-                    <td>${currentStockValue.toLocaleString()}</td>
+                    <td title="Opening stock at start of day">${tank.currentVolume.toLocaleString()}</td>
+                    <td title="Opening + Reception − Distributions on ${(tank.stockDate ? new Date(tank.stockDate).toLocaleDateString() : new Date().toLocaleDateString())} = Closing Stock">${currentStockValue.toLocaleString()}</td>
                     <td>
                         <div class="progress-bar">
                             <div class="progress-fill ${progressClass}" style="width: ${capacityPercentage}%">
@@ -2987,8 +3403,7 @@
                             </div>
                         </div>
                     </td>
-                    <td>${tank.temperature}°C</td>
-                    <td>${tank.stockDate ? new Date(tank.stockDate).toLocaleDateString() : 'N/A'}</td>
+                    <td title="${tank.stockDate ? new Date(tank.stockDate).toLocaleString() : ''}">${tank.stockDate ? new Date(tank.stockDate).toLocaleDateString() : 'N/A'}</td>
                     <td>${ullageFromCurrentStock.toLocaleString()}</td>
                     <td><span class="status-badge ${statusClass}">${tank.status}</span></td>
                     <td>
@@ -3022,10 +3437,12 @@
                     { label: 'Location', value: (window._locationDisplayMap && tank.location && window._locationDisplayMap[tank.location]) ? window._locationDisplayMap[tank.location] : (tank.location || '-') },
                     { label: 'Fuel Type', value: tank.fuelType },
                     { label: 'Max Volume (L)', value: (tank.maxVolume ?? 0).toLocaleString() },
-                    { label: 'Current Volume (L)', value: (tank.currentVolume ?? 0).toLocaleString() },
+                    { label: 'Opening Stock (L)', value: (tank.currentVolume ?? 0).toLocaleString() },
+                    { label: 'Reception (L)', value: (Number(tank.reception||0)).toLocaleString() },
+                    { label: 'Closing Stock (L)', value: (currentStockValue ?? 0).toLocaleString() },
+                    { label: 'Physical Closing Stock (L)', value: (typeof tank.physicalClosingStock === 'number' ? Number(tank.physicalClosingStock).toLocaleString() : (tank.physicalClosingStock || '-')) },
                     { label: 'Capacity %', value: (tank.capacityPercentage ?? 0).toFixed(1) + '%' },
-                    { label: 'Temperature (°C)', value: tank.temperature },
-                    { label: 'Stock Date', value: tank.stockDate ? new Date(tank.stockDate).toLocaleDateString() : 'N/A' },
+                    { label: 'Stock Date', value: tank.stockDate ? new Date(tank.stockDate).toLocaleString() : 'N/A' },
                     { label: 'Ullage (L)', value: ullageFromCurrentStock.toLocaleString() },
                     { label: 'Status', value: tank.status },
                     { label: 'Last Updated', value: new Date(tank.lastUpdated).toLocaleString() },
@@ -3706,11 +4123,20 @@
                 const distributions = snapshot.val();
                 const tankStats = {};
 
-                // Group distributions by tank location
+                // Group distributions by tank location (use consumption date/time from schedule when available)
                 Object.values(distributions).forEach(dist => {
                     if (!dist || !dist.equipment || !dist.fuel) return;
 
-                    const distDate = new Date(dist.timestamp);
+                    let consISO = null;
+                    try {
+                        if (dist.schedule && dist.schedule.date && dist.schedule.time) {
+                            consISO = new Date(`${dist.schedule.date}T${dist.schedule.time}`).toISOString();
+                        }
+                    } catch (e) { /* ignore */ }
+                    const effectiveISO = consISO || dist.timestamp;
+                    if (!effectiveISO) return;
+
+                    const distDate = new Date(effectiveISO);
                     if (distDate < cutoffDate) return;
 
                     const tankId = dist.equipment.location || dist.equipment.locationName || 'Unknown';
@@ -3728,8 +4154,8 @@
                     tankStats[tankId].totalDistributions++;
                     tankStats[tankId].totalVolume += quantity;
                     
-                    if (!tankStats[tankId].lastDistribution || new Date(dist.timestamp) > new Date(tankStats[tankId].lastDistribution)) {
-                        tankStats[tankId].lastDistribution = dist.timestamp;
+                    if (!tankStats[tankId].lastDistribution || new Date(effectiveISO) > new Date(tankStats[tankId].lastDistribution)) {
+                        tankStats[tankId].lastDistribution = effectiveISO;
                     }
                 });
 
@@ -3761,7 +4187,7 @@
                         ${tank.lastDistribution ? new Date(tank.lastDistribution).toLocaleDateString() : 'N/A'}
                     </td>
                     <td>
-                        <button class="btn btn-sm" onclick="viewTankDistributions('${tank.tankId}')" 
+                        <button class="btn btn-sm" onclick="viewTankDistributions('${tank.tankId}', true)" 
                                 style="background: #3b82f6; color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 0.75rem;">
                             View Details
                         </button>
@@ -4207,7 +4633,7 @@
             if (chartType==='pie' || chartType==='doughnut') {
                 const labels = filtered.map(t => t.tankIdDisplay || t.tankId || 'Tank');
                 const data = filtered.map(t => Math.round(valueOf(t) * 100) / 100);
-                const datasets = [{ label: metric==='capacityPct' ? 'Capacity %' : (metric==='ullage' ? 'Ullage (L)' : 'Current Stock (L)'), data, backgroundColor: labels.map((_,i)=>palette[i % palette.length]) }];
+                const datasets = [{ label: metric==='capacityPct' ? 'Capacity %' : (metric==='ullage' ? 'Ullage (L)' : 'Current Stock (L) — Closing'), data, backgroundColor: labels.map((_,i)=>palette[i % palette.length]) }];
                 const totals = data; // not used for pie export
                 _anLastChartData = { labels, datasets, totals, chartType, metric };
                 return drawAnalyticsChart(labels, datasets, totals, null);
@@ -4217,7 +4643,7 @@
             const labels = filtered.map(t => t.tankIdDisplay || t.tankId || 'Tank');
             const values = filtered.map(t => Math.round(valueOf(t) * 100) / 100);
             const color = '#3b82f6';
-            const datasets = [{ label: metric==='capacityPct' ? 'Capacity %' : (metric==='ullage' ? 'Ullage (L)' : 'Current Stock (L)'), data: values, borderColor: color, backgroundColor: color + '66', tension: 0.25, fill: chartType==='area' || chartType==='stackedArea', pointRadius: 2 }];
+            const datasets = [{ label: metric==='capacityPct' ? 'Capacity %' : (metric==='ullage' ? 'Ullage (L)' : 'Current Stock (L) — Closing'), data: values, borderColor: color, backgroundColor: color + '66', tension: 0.25, fill: chartType==='area' || chartType==='stackedArea', pointRadius: 2 }];
             const totals = values;
             const kpiEl = document.getElementById('anKpiTotal');
             if (kpiEl) {
@@ -4419,6 +4845,10 @@
                         source: 'storage',
                         fuelType: '',
                         quantity: undefined,
+                        // Opening vs closing semantics
+                        openingStock: Number(t.currentVolume || 0),
+                        currentStock: computedStock!=null ? computedStock : Number(t.currentVolume || 0),
+                        // Keep legacy field for pivot compatibility (maps to Closing Stock below)
                         currentVolume: computedStock!=null ? computedStock : Number(t.currentVolume || 0),
                         ullage: (()=>{ const maxV=Number(t.maxVolume||0); const base = computedStock!=null?computedStock:Number(t.currentVolume||0); return Math.max(0, maxV - base); })(),
                         capacityPct: (()=>{ const maxV=Number(t.maxVolume||0); const base = computedStock!=null?computedStock:Number(t.currentVolume||0); return maxV>0 ? (base/maxV)*100 : 0; })(),
@@ -4474,7 +4904,10 @@
         const PIVOT_MEASURES = [
             { key:'quantity', label:'Quantity (L)', aggs:['sum','avg','min','max'] },
             { key:'count', label:'Count', aggs:['count'] },
-            { key:'currentVolume', label:'Current Stock (L)', aggs:['sum','avg','min','max'] },
+            // currentVolume holds the computed closing stock in analytics records for compatibility
+            { key:'currentVolume', label:'Closing Stock (L)', aggs:['sum','avg','min','max'] },
+            // expose opening stock explicitly for analysis
+            { key:'openingStock', label:'Opening Stock (L)', aggs:['sum','avg','min','max'] },
             { key:'ullage', label:'Ullage (L)', aggs:['sum','avg','min','max'] },
             { key:'capacityPct', label:'Capacity %', aggs:['avg','sum','min','max'] },
             { key:'maxVolume', label:'Max Volume (L)', aggs:['sum','avg','min','max'] },
@@ -4969,7 +5402,7 @@
             const records = getAnalyticsRawRecords();
             const header = [
                 'Date','Source','Equipment','Equipment Type','Department','Location','Tank','Fuel Type',
-                'Quantity (L)','Current Volume (L)','Ullage (L)','Capacity %','Tank Status','Max Volume (L)',
+                'Quantity (L)','Opening Stock (L)','Closing Stock (L)','Ullage (L)','Capacity %','Tank Status','Max Volume (L)',
                 // Distribution Details extras
                 'Distribution ID','Operator','Index Reading','Requested By','Distribution Status',
                 // Storage Status extras
@@ -4985,7 +5418,8 @@
                 r.tank || '',
                 r.fuelType || '',
                 r.quantity!=null ? Number(r.quantity||0) : '',
-                r.currentVolume!=null ? Number(r.currentVolume||0) : '',
+                r.openingStock!=null ? Number(r.openingStock||0) : (r.currentVolume!=null ? Number(r.currentVolume||0) : ''),
+                r.currentStock!=null ? Number(r.currentStock||0) : '',
                 r.ullage!=null ? Number(r.ullage||0) : '',
                 r.capacityPct!=null ? Number(r.capacityPct||0) : '',
                 r.tankStatus || '',
@@ -5033,21 +5467,26 @@
         }
 
         // View individual tank distributions
-        async function viewTankDistributions(tankId) {
+        async function viewTankDistributions(tankId, dailyOnly=false, explicitStockDate=null, openingStockForDay=null) {
             // Store the selected tank ID for filtering
             // Store on both window and local variable to ensure refresh works reliably
             window.selectedTankId = tankId;
+            window._tankDailyOnly = !!dailyOnly;
+            if (explicitStockDate) window._explicitStockDate = explicitStockDate;
+            if (openingStockForDay!=null) window._openingStockForDay = Number(openingStockForDay) || 0;
             try { selectedTankId = tankId; } catch (_) {}
             
             // Switch to details tab
             switchTab('details');
+            // Default the tank-specific range to All to honor the user's request
+            try { const sel = document.getElementById('tankDetailsDateFilter'); if (sel) sel.value = 'all'; } catch(_){ }
             
             // Load distributions for this specific tank
-            await loadTankSpecificDistributions(tankId);
+            await loadTankSpecificDistributions(tankId, dailyOnly, explicitStockDate);
         }
 
         // Load distributions for a specific tank
-        async function loadTankSpecificDistributions(tankId) {
+    async function loadTankSpecificDistributions(tankId, dailyOnly=false, explicitStockDate=null) {
             try {
                 // Clear any stale cached calc context for this tank before reload
                 if (window._tankDistCalcContext && window._tankDistCalcContext[tankId]) {
@@ -5092,27 +5531,62 @@
                 } catch (e) { /* ignore */ }
                 const maxVolume = tankMeta?.maxVolume ? Number(tankMeta.maxVolume) : 0;
                 const startStock = tankMeta?.currentVolume ? Number(tankMeta.currentVolume) : 0;
-                const stockDate = tankMeta?.stockDate ? new Date(tankMeta.stockDate) : null;
+                let stockDate = tankMeta?.stockDate ? new Date(tankMeta.stockDate) : null;
+                if (dailyOnly && explicitStockDate) {
+                    try { stockDate = new Date(explicitStockDate); } catch { /* keep existing */ }
+                }
+                if (dailyOnly && window._explicitStockDate) {
+                    try { stockDate = new Date(window._explicitStockDate); } catch { }
+                }
+                // If dailyOnly is requested, compute the day window from the tank's stockDate
+                const stockDayStart = stockDate ? new Date(stockDate.getFullYear(), stockDate.getMonth(), stockDate.getDate(), 0, 0, 0, 0) : null;
+                const stockDayEnd = stockDate ? new Date(stockDate.getFullYear(), stockDate.getMonth(), stockDate.getDate(), 23, 59, 59, 999) : null;
 
                 // Precompute consumption before the visible window but after stockDate (if present)
                 let preWindowConsumption = 0;
-                Object.values(distributions).forEach(dist => {
-                    if (!dist || !dist.equipment || !dist.fuel || !dist.timestamp) return;
-                    const distTankIdAll = dist.equipment.location || dist.equipment.locationName || '';
-                    if (!(distTankIdAll === tankId || distTankIdAll.toLowerCase() === tankId.toLowerCase())) return;
-                    const dt = new Date(dist.timestamp);
-                    if (stockDate && dt < stockDate) return; // only after stock date
-                    if (dt >= cutoffDate) return; // only before current window
-                    const qtyAll = Number(dist.fuel?.quantity ?? dist.fuel?.requestedQuantity) || 0;
-                    preWindowConsumption += qtyAll;
-                });
+                if (!dailyOnly) {
+                    Object.values(distributions).forEach(dist => {
+                        if (!dist || !dist.equipment || !dist.fuel) return;
+                        const distTankIdAll = dist.equipment.location || dist.equipment.locationName || '';
+                        if (!(distTankIdAll === tankId || distTankIdAll.toLowerCase() === tankId.toLowerCase())) return;
+                        // Use consumption date/time from schedule when available
+                        let consISO = null;
+                        try {
+                            if (dist.schedule && dist.schedule.date && dist.schedule.time) {
+                                consISO = new Date(`${dist.schedule.date}T${dist.schedule.time}`).toISOString();
+                            }
+                        } catch (e) { /* ignore */ }
+                        const effective = consISO || dist.timestamp;
+                        if (!effective) return;
+                        const dt = new Date(effective);
+                        if (stockDate && dt < stockDate) return; // only after stock date
+                        if (dt >= cutoffDate) return; // only before current window
+                        const qtyAll = Number(dist.fuel?.quantity ?? dist.fuel?.requestedQuantity) || 0;
+                        preWindowConsumption += qtyAll;
+                    });
+                }
 
                 // Filter distributions for this specific tank
                 Object.values(distributions).forEach(dist => {
                     if (!dist || !dist.equipment || !dist.fuel) return;
 
-                    const distDate = new Date(dist.timestamp);
-                    if (distDate < cutoffDate) return;
+                    // Use consumption date/time from schedule when available
+                    let consISO = null;
+                    try {
+                        if (dist.schedule && dist.schedule.date && dist.schedule.time) {
+                            consISO = new Date(`${dist.schedule.date}T${dist.schedule.time}`).toISOString();
+                        }
+                    } catch (e) { /* ignore */ }
+                    const effectiveISO = consISO || dist.timestamp;
+                    if (!effectiveISO) return;
+                    const distDate = new Date(effectiveISO);
+                    if (dailyOnly && stockDayStart && stockDayEnd) {
+                        if (!(distDate >= stockDayStart && distDate <= stockDayEnd)) return;
+                    } else {
+                        const tankDfSel = document.getElementById('tankDetailsDateFilter');
+                        const tankDf = tankDfSel?.value || '30';
+                        if (tankDf !== 'all' && distDate < cutoffDate) return;
+                    }
 
                     const distTankId = dist.equipment.location || dist.equipment.locationName || '';
                     
@@ -5129,7 +5603,8 @@
                         
                         tankDistributions.push({
                             id: dist.id || distKey || `dist-${Date.now()}-${Math.random().toString(36).slice(2,8)}`,
-                            timestamp: dist.timestamp,
+                            // For distributions, timestamp should reflect consumption date/time
+                            timestamp: effectiveISO,
                             equipmentId: dist.equipment.id || 'N/A',
                             equipmentType: dist.equipment.type || 'N/A',
                             operator: dist.equipment.operator || 'N/A',
@@ -5148,7 +5623,13 @@
                 Object.entries(transfers || {}).forEach(([key, tr]) => {
                     if (!tr || !tr.transferDate || !tr.transferQuantity) return;
                     const dt = new Date(tr.transferDate);
-                    if (dt < cutoffDate) return;
+                    if (dailyOnly && stockDayStart && stockDayEnd) {
+                        if (!(dt >= stockDayStart && dt <= stockDayEnd)) return;
+                    } else {
+                        const tankDfSel = document.getElementById('tankDetailsDateFilter');
+                        const tankDf = tankDfSel?.value || '30';
+                        if (tankDf !== 'all' && dt < cutoffDate) return;
+                    }
                     const qty = Number(tr.transferQuantity) || 0;
                     const src = (tr.sourceTank || '').trim();
                     const dst = (tr.destinationTank || '').trim();
@@ -5203,7 +5684,7 @@
                 // Stash calc context for render
                 window._tankDistCalcContext = window._tankDistCalcContext || {};
                 window._tankDistCalcContext[tankId] = {
-                    startStock,
+                    startStock: (dailyOnly && (window._openingStockForDay!=null)) ? Number(window._openingStockForDay) : startStock,
                     stockDate: stockDate ? stockDate.toISOString() : null,
                     preWindowConsumption,
                     cutoffDate: cutoffDate.toISOString(),
@@ -5226,6 +5707,7 @@
             document.getElementById('distributionSummaryView').style.display = 'block';
             document.getElementById('tankDistributionsView').style.display = 'none';
             selectedTankId = null;
+            window._tankDailyOnly = false;
             
             // Sync the date filter
             const summaryFilter = document.getElementById('detailsDateFilter');
@@ -5240,7 +5722,9 @@
         function refreshTankDistributions() {
             const tId = (typeof selectedTankId !== 'undefined' && selectedTankId) ? selectedTankId : window.selectedTankId;
             if (tId) {
-                loadTankSpecificDistributions(tId);
+                const dailyOnly = !!window._tankDailyOnly;
+                const explicitStockDate = window._explicitStockDate || null;
+                loadTankSpecificDistributions(tId, dailyOnly, explicitStockDate);
             }
         }
 
@@ -5271,13 +5755,16 @@
             const startStock = ctx?.startStock ?? 0;
             const stockDate = ctx?.stockDate ? new Date(ctx.stockDate) : null;
             const preWindowConsumption = ctx?.preWindowConsumption || 0;
+            const dailyOnly = !!window._tankDailyOnly;
 
             // Sort a copy ascending by time for proper running calculation from earliest to latest
             const asc = [...distributions].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
 
             let runningStock = null;
-            // Baseline: starting stock (currentVolume from modal) minus any consumption before the current filter window (but after stockDate if present)
-            runningStock = Math.max(0, (Number(startStock) || 0) - (preWindowConsumption || 0));
+            // Baseline: for daily view (stock date day), start from opening stock; else subtract pre-window consumption
+            runningStock = dailyOnly
+                ? Math.max(0, Number(startStock) || 0)
+                : Math.max(0, (Number(startStock) || 0) - (preWindowConsumption || 0));
 
             // Map id->stockAfter in ascending order, respecting stockDate cutoff if present
             const stockAfterById = {};
