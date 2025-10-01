@@ -2535,13 +2535,56 @@
                                 <tr>
                                     <th class="hidden-col">ID</th>
                                     <th class="hidden-col">Equip. Type</th>
-                                    <th>Equip. ID</th>
-                                    <th>Location</th>
-                                    <th>Operator</th>
-                                    <th>Quantity (L)</th>
-                                    <th>Index</th>
-                                    <th>Consumption</th>
-                                    <th>Department</th>
+                                    <th>
+                                        Equip. ID
+                                        <div class="filter-container">
+                                            <select class="column-filter" data-column="2">
+                                                <option value="">All Equip IDs</option>
+                                            </select>
+                                        </div>
+                                    </th>
+                                    <th>
+                                        Location
+                                        <div class="filter-container">
+                                            <select class="column-filter" data-column="3">
+                                                <option value="">All Locations</option>
+                                            </select>
+                                        </div>
+                                    </th>
+                                    <th>
+                                        Operator
+                                        <div class="filter-container">
+                                            <select class="column-filter" data-column="4">
+                                                <option value="">All Operators</option>
+                                            </select>
+                                        </div>
+                                    </th>
+                                    <th>
+                                        Quantity (L)
+                                        <div class="filter-container">
+                                            <input type="number" class="column-filter" data-column="5" placeholder="Min qty..." />
+                                        </div>
+                                    </th>
+                                    <th>
+                                        Index
+                                        <div class="filter-container">
+                                            <input type="number" class="column-filter" data-column="6" placeholder="Min index..." />
+                                        </div>
+                                    </th>
+                                    <th>
+                                        Consumption
+                                        <div class="filter-container">
+                                            <input type="date" class="column-filter" data-column="7" />
+                                        </div>
+                                    </th>
+                                    <th>
+                                        Department
+                                        <div class="filter-container">
+                                            <select class="column-filter" data-column="8">
+                                                <option value="">All Departments</option>
+                                            </select>
+                                        </div>
+                                    </th>
                                     <th class="hidden-col">Cost Center</th>
                                     <th class="hidden-col">Security Agent</th>
                                     <th class="hidden-col">Supervisor</th>
@@ -3904,6 +3947,8 @@
         document.addEventListener('DOMContentLoaded', function() {
             // Initialize table management
             initializeDistributionTable();
+            // Initialize column header filters for distribution table
+            initializeDistributionTableFilters();
             // Attempt delayed sync of company branding to page header clone
             const syncBrand = () => {
                 const nameEl = document.getElementById('headerCompanyName');
@@ -3928,6 +3973,82 @@
         let filteredData = [];
         let currentPage = 1;
         const recordsPerPage = 10;
+
+        // Initialize column header filters (inputs in the table head)
+        function initializeDistributionTableFilters() {
+            const table = document.getElementById('distributionTable');
+            if (!table) return;
+            const inputs = table.querySelectorAll('.column-filter');
+            inputs.forEach(input => {
+                const isSelect = input.tagName === 'SELECT';
+                const eventName = isSelect || input.type === 'number' || input.type === 'date' ? 'change' : 'input';
+                input.addEventListener(eventName, () => {
+                    applyFilters();
+                });
+            });
+        }
+
+        // Read header filter values into a simple object
+        function getDistributionHeaderFilters() {
+            const table = document.getElementById('distributionTable');
+            const values = { equipId:'', location:'', operator:'', minQty:null, minIndex:null, date:'', department:'' };
+            if (!table) return values;
+            const inputs = table.querySelectorAll('.column-filter');
+            inputs.forEach(input => {
+                const col = String(input.getAttribute('data-column'));
+                const val = (input.tagName === 'INPUT' && input.type === 'number') ? (input.value !== '' ? Number(input.value) : null) : (input.value || '');
+                switch(col){
+                    case '2': values.equipId = (val || '').toString(); break;
+                    case '3': values.location = (val || '').toString(); break;
+                    case '4': values.operator = (val || '').toString(); break;
+                    case '5': values.minQty = (val !== null ? Number(val) : null); break;
+                    case '6': values.minIndex = (val !== null ? Number(val) : null); break;
+                    case '7': values.date = (val || '').toString(); break; // YYYY-MM-DD
+                    case '8': values.department = (val || '').toString(); break;
+                }
+            });
+            return values;
+        }
+
+        // Populate dropdown header filters with unique values gathered from data
+        function populateHeaderDropdownFilters() {
+            const table = document.getElementById('distributionTable');
+            if (!table) return;
+            const optionSets = {
+                '2': new Set(), // Equip ID
+                '3': new Set(), // Location (display name if available)
+                '4': new Set(), // Operator/RequestedBy
+                '8': new Set(), // Department
+            };
+            (distributionData || []).forEach(r => {
+                if (r?.equipment?.id) optionSets['2'].add(String(r.equipment.id));
+                const loc = r?.equipment?.locationName || r?.equipment?.location;
+                if (loc) optionSets['3'].add(String(loc));
+                const op = r?.equipment?.operator || r?.authorization?.requestedBy;
+                if (op) optionSets['4'].add(String(op));
+                if (r?.authorization?.department) optionSets['8'].add(String(r.authorization.department));
+            });
+            Object.entries(optionSets).forEach(([col, set]) => {
+                const select = table.querySelector(`.column-filter[data-column="${col}"]`);
+                if (!select || select.tagName !== 'SELECT') return;
+                const current = select.value;
+                const allLabel = (select.querySelector('option[value=""]')?.textContent) || 'All';
+                select.innerHTML = '';
+                const optAll = document.createElement('option');
+                optAll.value = '';
+                optAll.textContent = allLabel;
+                select.appendChild(optAll);
+                Array.from(set).sort((a,b)=>String(a).localeCompare(String(b))).forEach(v => {
+                    const opt = document.createElement('option');
+                    opt.value = v;
+                    opt.textContent = v;
+                    select.appendChild(opt);
+                });
+                if (current && Array.from(set).includes(current)) {
+                    select.value = current;
+                }
+            });
+        }
 
         // Initialize distribution table
         function initializeDistributionTable() {
@@ -3999,6 +4120,7 @@
                 }
                 
                 // Apply current filters and render table
+                populateHeaderDropdownFilters();
                 applyFilters();
                 renderDistributionTable();
                 updateStatsCards();
@@ -4187,6 +4309,7 @@
             });
             
             if (updated) {
+                populateHeaderDropdownFilters();
                 renderDistributionTable();
                 if (currentFuelTab === 'analytics') renderFuelAnalytics();
             }
@@ -4278,7 +4401,7 @@
                     <td style="font-size:.7rem;color:#334155;">${operator}</td>
                     <td style="font-size:.72rem;font-weight:600;color:#1e293b;">${quantity}</td>
                     <td style="font-size:.7rem;color:#334155;">${typeof record.fuel?.indexReading === 'number' ? record.fuel.indexReading : '-'}</td>
-                    <td style="font-size:.7rem;color:#334155;">${schedDateDisplay}${consumpTime ? `<div style=\"font-size:.6rem;color:#64748b;\">${consumpTime}</div>` : ''}</td>
+                    <td style="font-size:.7rem;color:#334155;" data-ymd="${record.schedule?.date || ''}">${schedDateDisplay}${consumpTime ? `<div style=\"font-size:.6rem;color:#64748b;\">${consumpTime}</div>` : ''}</td>
                     <td style="font-size:.7rem;color:#334155;">${record.authorization?.department || ''}</td>
                     <td class="hidden-col" style="font-size:.7rem;color:#334155;">${record.authorization?.costCenter || ''}</td>
                     <td class="hidden-col" style="font-size:.7rem;color:#334155;">${record.authorization?.securityAgent || ''}</td>
@@ -4353,6 +4476,7 @@
             const statusFilter = document.getElementById('statusFilter').value;
             const equipmentFilter = document.getElementById('equipmentFilter').value;
             const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const headerFilters = getDistributionHeaderFilters();
             
             filteredData = distributionData.filter(record => {
                 // Status filter
@@ -4379,6 +4503,43 @@
                     if (!searchFields.includes(searchTerm)) {
                         return false;
                     }
+                }
+
+                // Header filters (per-column)
+                // Equip. ID exact (dropdown)
+                if (headerFilters.equipId) {
+                    const v = (record.equipment?.id || '').toString();
+                    if (v.toLowerCase() !== headerFilters.equipId.toLowerCase()) return false;
+                }
+                // Location exact (dropdown)
+                if (headerFilters.location) {
+                    const v = (record.equipment?.locationName || record.equipment?.location || '').toString();
+                    if (v.toLowerCase() !== headerFilters.location.toLowerCase()) return false;
+                }
+                // Operator exact (dropdown) - fallback to requestedBy
+                if (headerFilters.operator) {
+                    const v = (record.equipment?.operator || record.authorization?.requestedBy || '').toString();
+                    if (v.toLowerCase() !== headerFilters.operator.toLowerCase()) return false;
+                }
+                // Min Quantity
+                if (headerFilters.minQty !== null && headerFilters.minQty !== undefined && headerFilters.minQty !== '') {
+                    const qty = Number(record.fuel?.requestedQuantity) || 0;
+                    if (qty < Number(headerFilters.minQty)) return false;
+                }
+                // Min Index
+                if (headerFilters.minIndex !== null && headerFilters.minIndex !== undefined && headerFilters.minIndex !== '') {
+                    const idx = (typeof record.fuel?.indexReading === 'number') ? record.fuel.indexReading : NaN;
+                    if (isNaN(idx) || idx < Number(headerFilters.minIndex)) return false;
+                }
+                // Consumption exact date match via normalized YYYY-MM-DD
+                if (headerFilters.date) {
+                    const ymd = (record.schedule?.date || '').toString();
+                    if (ymd !== headerFilters.date) return false;
+                }
+                // Department exact (dropdown)
+                if (headerFilters.department) {
+                    const v = (record.authorization?.department || '').toString();
+                    if (v.toLowerCase() !== headerFilters.department.toLowerCase()) return false;
                 }
                 
                 return true;
