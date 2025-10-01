@@ -3410,7 +3410,7 @@
                     : Number(tank.currentVolume || 0);
                 const reception = Number(tank.reception || 0);
                 
-                // Calculate closing stock based on distributions up to the end of this tank's stock date
+                // Calculate closing stock based on distributions for the previous day of this tank's stock date
                 let closingStock = opening + reception;
                 let distributionsOnDate = 0;
                 
@@ -3430,8 +3430,10 @@
                                 const da = String(d.getDate()).padStart(2, '0');
                                 return `${y}-${m}-${da}`;
                             };
-                            const targetDate = tank.stockDate ? new Date(tank.stockDate) : new Date();
-                            const targetYMD = toYMD(targetDate);
+                            // Determine the previous calendar day relative to the stock date (or yesterday if none)
+                            const baseDate = tank.stockDate ? new Date(tank.stockDate) : new Date();
+                            const prevDate = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate() - 1, 0, 0, 0, 0);
+                            const targetYMD = toYMD(prevDate);
                             
                             const norm = v => (v === undefined || v === null) ? '' : String(v).trim().toLowerCase();
                             const stockKeyNorm = norm(stockKey);
@@ -3553,7 +3555,7 @@
                     <td class="hidden-col"><span class="bg-purple-100 text-purple-800 px-2 py-1 rounded-full text-xs font-medium">${tank.fuelType}</span></td>
                     <td>${tank.maxVolume.toLocaleString()}</td>
                     <td title="Opening stock at start of day">${tank.currentVolume.toLocaleString()}</td>
-                    <td title="Opening + Reception − Distributions on ${(tank.stockDate ? new Date(tank.stockDate).toLocaleDateString() : new Date().toLocaleDateString())} = Closing Stock">${currentStockValue.toLocaleString()}</td>
+                    <td title="Opening + Reception − Distributions on ${(function(){ const b=tank.stockDate? new Date(tank.stockDate): new Date(); const p=new Date(b.getFullYear(), b.getMonth(), b.getDate()-1); return p.toLocaleDateString(); })()} = Closing Stock">${currentStockValue.toLocaleString()}</td>
                     <td title="Manual measured stock at end of day">${(typeof tank.physicalClosingStock === 'number' && !isNaN(tank.physicalClosingStock)) ? Number(tank.physicalClosingStock).toLocaleString() : (tank.physicalClosingStock || '-')}</td>
                     <td title="Variance = Closing - Physical" ${varianceNum < 0 ? 'style="color:#b91c1c;font-weight:600;"' : ''}>${varianceNum.toLocaleString()}</td>
                     <td>
@@ -5632,17 +5634,78 @@
             // Store on both window and local variable to ensure refresh works reliably
             window.selectedTankId = tankId;
             window._tankDailyOnly = !!dailyOnly;
-            if (explicitStockDate) window._explicitStockDate = explicitStockDate;
-            if (openingStockForDay!=null) window._openingStockForDay = Number(openingStockForDay) || 0;
             try { selectedTankId = tankId; } catch (_) {}
-            
+
+            // If user is requesting a daily view with a stock date, shift to the previous calendar day
+            // and (best-effort) fetch the opening stock for that previous day to keep running stock accurate
+            let effectiveStockISO = explicitStockDate || null;
+            if (dailyOnly && explicitStockDate) {
+                try {
+                    const base = new Date(explicitStockDate);
+                    if (!isNaN(base.getTime())) {
+                        // Compute previous day at the same local time as provided
+                        const prev = new Date(base.getFullYear(), base.getMonth(), base.getDate() - 1, base.getHours(), base.getMinutes(), base.getSeconds(), base.getMilliseconds());
+                        effectiveStockISO = prev.toISOString();
+
+                        // Attempt to read daily snapshot for opening stock on previous day (YYYY-MM-DD)
+                        const y = prev.getFullYear();
+                        const m = String(prev.getMonth() + 1).padStart(2, '0');
+                        const d = String(prev.getDate()).padStart(2, '0');
+                        const dateKey = `${y}-${m}-${d}`;
+                        try {
+                            const companyId = window.authManager?.getCurrentUser()?.companyId;
+                            if (companyId && (window.getDatabase || (window.firebase && window.firebase.database))) {
+                                let snap;
+                                if (window.getDatabase && window.ref && window.get) {
+                                    const db = window.getDatabase();
+                                    const refPath = window.ref(db, `companies/${companyId}/fuelmanagement/storageStatusDaily/${tankId}/${dateKey}`);
+                                    snap = await window.get(refPath);
+                                    if (snap && snap.exists && snap.exists()) {
+                                        const v = snap.val();
+                                        if (v && typeof v.currentVolume === 'number') {
+                                            window._openingStockForDay = Number(v.currentVolume) || 0;
+                                        } else {
+                                            // Clear so downstream falls back to tank meta
+                                            try { delete window._openingStockForDay; } catch(_) { window._openingStockForDay = null; }
+                                        }
+                                    }
+                                } else {
+                                    const db = window.firebase.database();
+                                    const refPath = db.ref(`companies/${companyId}/fuelmanagement/storageStatusDaily/${tankId}/${dateKey}`);
+                                    const v8snap = await refPath.once('value');
+                                    if (v8snap && v8snap.exists()) {
+                                        const v = v8snap.val();
+                                        if (v && typeof v.currentVolume === 'number') {
+                                            window._openingStockForDay = Number(v.currentVolume) || 0;
+                                        } else {
+                                            try { delete window._openingStockForDay; } catch(_) { window._openingStockForDay = null; }
+                                        }
+                                    }
+                                }
+                            }
+                        } catch (e) {
+                            // Non-blocking: if snapshot lookup fails, clear so default baseline is used
+                            try { delete window._openingStockForDay; } catch(_) { window._openingStockForDay = null; }
+                            console.warn('Prev-day opening stock lookup failed:', e);
+                        }
+                    }
+                } catch (e) {
+                    console.warn('Failed to compute previous day for tank distributions:', e);
+                }
+            } else if (openingStockForDay!=null) {
+                // Preserve provided baseline only when we are not shifting the date
+                window._openingStockForDay = Number(openingStockForDay) || 0;
+            }
+
+            if (effectiveStockISO) window._explicitStockDate = effectiveStockISO;
+
             // Switch to details tab
             switchTab('details');
             // Default the tank-specific range to All to honor the user's request
             try { const sel = document.getElementById('tankDetailsDateFilter'); if (sel) sel.value = 'all'; } catch(_){ }
             
-            // Load distributions for this specific tank
-            await loadTankSpecificDistributions(tankId, dailyOnly, explicitStockDate);
+            // Load distributions for this specific tank using the effective (previous-day) stock date when applicable
+            await loadTankSpecificDistributions(tankId, dailyOnly, effectiveStockISO || explicitStockDate || null);
         }
 
         // Load distributions for a specific tank
