@@ -2486,46 +2486,9 @@
                 <!-- Distribution Management Table -->
                 <div class="table-container">
                     <div class="table-header">
-                        <h2 class="table-title">Distribution Records</h2>
+                        <h2 class="table-title" style="display:none;"></h2>
                         <div class="table-controls">
-                            <div class="search-box">
-                                <input type="text" class="search-input" id="searchInput" 
-                                       placeholder="Search distributions..." onkeyup="searchDistributions()">
-                                <i class="fas fa-search search-icon"></i>
-                            </div>
-                            <select class="filter-select" id="statusFilter" onchange="filterDistributions()">
-                                <option value="">All Statuses</option>
-                                <option value="PENDING">Pending</option>
-                                <option value="APPROVED">Approved</option>
-                                <option value="IN_PROGRESS">In Progress</option>
-                                <option value="COMPLETED">Completed</option>
-                                <option value="CANCELLED">Cancelled</option>
-                            </select>
-                            <select class="filter-select" id="equipmentFilter" onchange="filterDistributions()">
-                                <option value="">All Equipment</option>
-                                <option value="LV">Light Vehicles</option>
-                                <option value="HV">Heavy Vehicles</option>
-                                <option value="GEN">Generators</option>
-                                <option value="PUMP">Pumps</option>
-                                <option value="COMPRESSOR">Compressors</option>
-                            </select>
-                            <button class="refresh-btn" onclick="refreshDistributionTable()">
-                                <i class="fas fa-sync-alt"></i>
-                                Refresh
-                            </button>
-                            <input id="excelInput" type="file" accept=".xlsx,.xls" style="display:none" onchange="handleExcelImport(event)">
-                            <button class="refresh-btn" onclick="document.getElementById('excelInput').click()" title="Import distributions from Excel">
-                                <i class="fas fa-file-upload"></i>
-                                Import Excel
-                            </button>
-                            <button class="refresh-btn" onclick="exportDistributionsToExcel()" title="Export all distributions to Excel">
-                                <i class="fas fa-file-excel"></i>
-                                Export Excel
-                            </button>
-                            <button class="refresh-btn" onclick="downloadDistributionTemplate()" title="Download Excel template">
-                                <i class="fas fa-download"></i>
-                                Template
-                            </button>
+                            <!-- search removed per request -->
                         </div>
                     </div>
                     
@@ -2698,6 +2661,7 @@
                                         <option value="">Select Equipment Type</option>
                                         <option value="Vehicles">Vehicles</option>
                                         <option value="Generators">Generators</option>
+                                        <option value="Tank">Tank</option>
                                     </select>
                                     <div class="error-message" id="equipmentTypeError"></div>
                                 </div>
@@ -3210,7 +3174,8 @@
 
         // Cache for equipment options
         let cachedVehicles = null; // Array of {id, name, plate}
-        let cachedGenerators = null; // Array of {id, name}
+    let cachedGenerators = null; // Array of {id, name}
+    let cachedTanks = null; // Array of {id, name} where id=value, name=label from settings
 
         async function loadVehiclesOnce() {
             if (cachedVehicles) return cachedVehicles;
@@ -3263,9 +3228,12 @@
             select.appendChild(ph);
             options.forEach(opt => {
                 const o = document.createElement('option');
-                o.value = opt.name; // store display name as requested
-                o.textContent = opt.plate ? `${opt.name} (${opt.plate})` : `${opt.name}`;
-                o.dataset.id = opt.id;
+                // Normalize for different item shapes: vehicles {id,name,plate}, generators {id,name}, tanks {id,name}
+                const value = (opt.name ?? opt.label ?? opt.value ?? '');
+                const display = opt.plate ? `${value} (${opt.plate})` : `${value}`;
+                o.value = value; // store display name per existing behavior
+                o.textContent = display;
+                if (opt.id) o.dataset.id = opt.id;
                 select.appendChild(o);
             });
         }
@@ -3280,6 +3248,8 @@
                 );
             } else if (type === 'Generators') {
                 items = (cachedGenerators || []).filter(g => (g.name || '').toLowerCase().includes(q));
+            } else if (type === 'Tank') {
+                items = (cachedTanks || []).filter(t => (t.name || '').toLowerCase().includes(q));
             }
             fillEquipmentSelect(items);
         }
@@ -3298,10 +3268,41 @@
             } else if (equipmentType === 'Generators') {
                 const items = await loadGeneratorsOnce();
                 fillEquipmentSelect(items);
+            } else if (equipmentType === 'Tank') {
+                const items = await loadTanksOnce();
+                fillEquipmentSelect(items);
             } else {
                 fillEquipmentSelect([]);
             }
             select.disabled = false;
+        }
+
+        // Load tanks from settings (same source as loadLocationTankIds uses): fieldOptions/tank-id
+        async function loadTanksOnce() {
+            if (cachedTanks) return cachedTanks;
+            try {
+                if (!window.firebase) throw new Error('Firebase not available');
+                const db = window.firebase.database();
+                const fixedPath = 'companies/-OYL6cpeH7JnNLPBhCTH/fieldOptions/tank-id';
+                const snapshot = await db.ref(fixedPath).once('value');
+                const tankIds = snapshot.val();
+                const result = [];
+                if (Array.isArray(tankIds)) {
+                    tankIds.forEach(t => {
+                        if (t && (t.enabled === undefined || t.enabled)) {
+                            // Normalize to show ID primarily and label as secondary
+                            const tankId = t.value ?? t.label ?? '';
+                            const label = t.label ?? t.value ?? '';
+                            if (tankId && label) result.push({ id: tankId, name: tankId, plate: label });
+                        }
+                    });
+                }
+                cachedTanks = result;
+                return result;
+            } catch (e) {
+                console.error('Failed to load tanks:', e);
+                return [];
+            }
         }
 
         // Load Tank IDs into Current Location select (same source as fuelstor.html)
@@ -4146,12 +4147,14 @@
         function switchFuelTab(tab) {
             if (tab === currentFuelTab) return;
             currentFuelTab = tab;
-            const listElems = ['distributionTable','distributionSearch','statusFilter','equipmentFilter','listStatsSection'];
+            const listElems = ['distributionTable','listStatsSection'];
             const analyticsSection = document.getElementById('analyticsSection');
             if (tab === 'analytics') {
                 listElems.forEach(id => { const el = document.getElementById(id); if (el) el.closest('.table-scroll') ? el.closest('.table-scroll').style.display='none' : el.style.display='none'; });
                 const tableWrapper = document.querySelector('.table-scroll');
                 if (tableWrapper) tableWrapper.style.display='none';
+                const tableControls = document.querySelector('.table-controls');
+                if (tableControls) tableControls.style.display='none';
                 const noDataMsg = document.getElementById('noDataMessage'); if (noDataMsg) noDataMsg.style.display='none';
                 if (analyticsSection) analyticsSection.style.display='block';
                 document.getElementById('tabList').classList.remove('active');
@@ -4161,6 +4164,8 @@
                 listElems.forEach(id => { const el = document.getElementById(id); if (el) el.closest('.table-scroll') ? el.closest('.table-scroll').style.display='' : el.style.display=''; });
                 const tableWrapper = document.querySelector('.table-scroll');
                 if (tableWrapper) tableWrapper.style.display='block';
+                const tableControls = document.querySelector('.table-controls');
+                if (tableControls) tableControls.style.display='flex';
                 if (analyticsSection) analyticsSection.style.display='none';
                 document.getElementById('tabAnalytics').classList.remove('active');
                 document.getElementById('tabList').classList.add('active');
@@ -4444,8 +4449,9 @@
 
         // Search distributions
         function searchDistributions() {
-            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
-            
+            const el = document.getElementById('searchInput');
+            const searchTerm = el ? el.value.toLowerCase() : '';
+
             if (!searchTerm) {
                 applyFilters();
                 return;
@@ -4473,9 +4479,12 @@
 
         // Apply all filters
         function applyFilters() {
-            const statusFilter = document.getElementById('statusFilter').value;
-            const equipmentFilter = document.getElementById('equipmentFilter').value;
-            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const statusFilterEl = document.getElementById('statusFilter');
+            const equipmentFilterEl = document.getElementById('equipmentFilter');
+            const searchInputEl = document.getElementById('searchInput');
+            const statusFilter = statusFilterEl ? statusFilterEl.value : '';
+            const equipmentFilter = equipmentFilterEl ? equipmentFilterEl.value : '';
+            const searchTerm = searchInputEl ? searchInputEl.value.toLowerCase() : '';
             const headerFilters = getDistributionHeaderFilters();
             
             filteredData = distributionData.filter(record => {
@@ -4551,13 +4560,8 @@
 
         // Refresh distribution table
         function refreshDistributionTable() {
-            const refreshBtn = document.querySelector('.refresh-btn i');
-            refreshBtn.classList.add('fa-spin');
-            
-            setTimeout(() => {
-                loadDistributionData();
-                refreshBtn.classList.remove('fa-spin');
-            }, 500);
+            // Fallback simple refresh if called from elsewhere
+            loadDistributionData();
         }
 
         // Change page
