@@ -142,7 +142,7 @@
             flex: 1;
             margin-left: var(--sidebar-width);
             padding: 0.5rem;
-            padding-top: 5rem;
+            padding-top: 3.2rem; /* Reduced to align with project-list header height */
             width: calc(100% - var(--sidebar-width));
             box-sizing: border-box;
         }
@@ -151,15 +151,18 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 0.5rem 1rem;
+            padding: 0.5rem 0.75rem; /* Compact like project-list */
             background-color: white;
             box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-            margin-bottom: 1rem;
+            margin-bottom: 0.3rem; /* Compact spacing */
             position: fixed;
-            top: 0.5rem;
+            top: 0.25rem; /* Match project-list */
             right: 0.5rem;
             left: calc(var(--sidebar-width) + 0.5rem);
+            height: 50px; /* Explicit height for consistency */
+            min-height: 50px;
             z-index: 100;
+            transition: left 0.3s ease;
         }
 
         .top-nav-left {
@@ -183,12 +186,15 @@
             background-color: rgba(0, 0, 0, 0.1);
         }
 
+        /* Header company logo - ensure no background box is visible */
         .header-company-logo {
-            width: 40px;
-            height: 40px;
-            border-radius: 8px;
-            object-fit: cover;
-            border: 2px solid #e9ecef;
+            height: 32px;
+            width: auto;
+            object-fit: contain;
+            background: transparent !important;
+            border: none !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
             display: none;
         }
 
@@ -237,7 +243,8 @@
                 font-size: 1rem;
             }
             
-            .header-company-logo, .header-logo-placeholder {
+            /* Keep compact placeholder size on mobile, don't force image into a square */
+            .header-logo-placeholder {
                 width: 32px;
                 height: 32px;
             }
@@ -1709,7 +1716,7 @@
                 }
 
                 // Handle logout
-                const logoutBtn = document.querySelector('.profile-dropdown a[href="#"]');
+                const logoutBtn = document.querySelector('.profile-dropdown a[data-action="logout"]') || document.querySelector('.profile-dropdown a[href="#"]');
                 if (logoutBtn) {
                     logoutBtn.addEventListener('click', (e) => {
                         e.preventDefault();
@@ -1983,33 +1990,61 @@
 
             updateCompanyBranding() {
                 console.log('🏢 Updating company branding in dashboard header...');
-                
-                // Update header logo and name
+
+                // Elements
                 const headerLogo = document.getElementById('headerCompanyLogo');
                 const headerLogoPlaceholder = document.getElementById('headerLogoPlaceholder');
                 const companyNameHeader = document.getElementById('headerCompanyName');
 
-                // Get company name from various sources
-                const companyName = this.currentCompany?.companyName || 
-                                  this.currentUser?.companyName || 
-                                  'Company';
+                // Company name
+                const companyName = this.currentCompany?.companyName || this.currentUser?.companyName || 'Company';
 
-                // Update company logo
-                if (this.currentCompany && this.currentCompany.logo && headerLogo) {
-                    headerLogo.src = this.currentCompany.logo;
-                    headerLogo.classList.add('visible');
-                    headerLogo.style.display = 'block';
-                    if (headerLogoPlaceholder) headerLogoPlaceholder.style.display = 'none';
-                    console.log('✅ Company logo displayed in dashboard header');
-                } else {
-                    // Show placeholder when no logo is available
-                    if (headerLogoPlaceholder) {
-                        headerLogoPlaceholder.style.display = 'flex';
+                // Prefer either 'logo' or 'logoUrl' if available
+                const logoUrl = (this.currentCompany?.logo || this.currentCompany?.logoUrl || '').trim();
+
+                if (headerLogo) {
+                    // Always ensure the logo element has no unintended styling background
+                    headerLogo.style.background = 'transparent';
+                    headerLogo.style.border = 'none';
+                }
+
+                if (logoUrl) {
+                    if (headerLogo) {
+                        // Prepare load/error handlers to toggle placeholder correctly
+                        headerLogo.onload = () => {
+                            headerLogo.classList.add('visible');
+                            headerLogo.style.display = 'block';
+                            if (headerLogoPlaceholder) headerLogoPlaceholder.style.display = 'none';
+                            console.log('✅ Company logo displayed in dashboard header');
+                        };
+                        headerLogo.onerror = () => {
+                            headerLogo.classList.remove('visible');
+                            headerLogo.style.display = 'none';
+                            if (headerLogoPlaceholder) headerLogoPlaceholder.style.display = 'flex';
+                            console.warn('⚠️ Failed to load company logo, showing placeholder');
+                        };
+
+                        // Assign src only if changed to avoid reloading unnecessarily
+                        if (headerLogo.src !== logoUrl) {
+                            headerLogo.src = logoUrl;
+                        }
+
+                        // If the image may already be cached/loaded
+                        if (headerLogo.complete && headerLogo.naturalWidth > 0) {
+                            headerLogo.onload?.();
+                        } else {
+                            // While loading, hide placeholder to avoid appearing "behind" the logo
+                            if (headerLogoPlaceholder) headerLogoPlaceholder.style.display = 'none';
+                        }
                     }
+                } else {
+                    // No logo URL - show placeholder
                     if (headerLogo) {
                         headerLogo.classList.remove('visible');
                         headerLogo.style.display = 'none';
+                        headerLogo.removeAttribute('src');
                     }
+                    if (headerLogoPlaceholder) headerLogoPlaceholder.style.display = 'flex';
                     console.log('✅ Company logo placeholder displayed in dashboard header');
                 }
 
@@ -2089,14 +2124,14 @@
                                     </div>
                                 </div>
                             </li>
-                            <li><a href="#"><i class="fas fa-user"></i> Account Settings</a></li>
-                            <li><a href="#"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+                            <li><a href="profile.html"><i class="fas fa-id-badge"></i> Profile</a></li>
+                            <li><a href="#" data-action="logout"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
                         `;
                         
                         profileDropdown.innerHTML = userInfoHtml;
                         
                         // Re-attach logout event listener
-                        const logoutBtn = profileDropdown.querySelector('a[href="#"]');
+                        const logoutBtn = profileDropdown.querySelector('a[data-action="logout"]') || profileDropdown.querySelector('a[href="#"]');
                         if (logoutBtn) {
                             logoutBtn.addEventListener('click', (e) => {
                                 e.preventDefault();
@@ -2240,17 +2275,17 @@
                         <li data-feature="audit_view" data-requires-permission="audit_view"><a href="auditboard.html">Audit</a></li>
                     </ul>
                 </li>
-                <li class="menu-dropdown" data-feature="fuel_management">
+                <li class="menu-dropdown" data-feature="fuel_management" data-requires-permission="fuel_management">
                     <a href="#"><i class="fas fa-gas-pump"></i> Fuel Management</a>
                     <ul class="submenu">
-                        <li data-feature="vessel_offloading"><a href="vessel-offloading.html">Vessel Offloading</a></li>
-                        <li data-feature="fuel_storage"><a href="fuel-storage-status.html">Fuel Storage Status</a></li>
-                        <li data-feature="tank_transfer"><a href="tank-transfer.html">Tank-to-Tank Transfer</a></li>
-                        <li data-feature="truck_loading"><a href="fuel-truck-loading.html">Fuel Truck Loading</a></li>
-                        <li data-feature="quality_analysis"><a href="fuel-quality-analysis.html">Fuel Quality Analysis</a></li>
-                        <li data-feature="fuel_distribution"><a href="fueldist.html">Fuel Distribution</a></li>
-                        <li data-feature="fuel_consumption_analysis"><a href="fuelanalys.html">Consumption Analysis</a></li>
-                        <li data-feature="fuel_daily_report"><a href="fueldaily.html">Daily Fuel Report</a></li>
+                        <li data-feature="vessel_offloading" data-requires-permission="vessel_offloading"><a href="vessel-offloading.html">Vessel Offloading</a></li>
+                        <li data-feature="fuel_storage" data-requires-permission="fuel_storage"><a href="fuel-storage-status.html">Fuel Storage Status</a></li>
+                        <li data-feature="tank_transfer" data-requires-permission="tank_transfer"><a href="fueltrans.html">Tank-to-Tank Transfer</a></li>
+                        <li data-feature="truck_loading" data-requires-permission="truck_loading"><a href="fuel-truck-loading.html">Fuel Truck Loading</a></li>
+                        <li data-feature="quality_analysis" data-requires-permission="quality_analysis"><a href="fuel-quality-analysis.html">Fuel Quality Analysis</a></li>
+                        <li data-feature="fuel_distribution" data-requires-permission="fuel_distribution"><a href="fueldist.html">Fuel Distribution</a></li>
+                        <li data-feature="fuel_consumption_analysis" data-requires-permission="fuel_consumption_analysis"><a href="fuelanalys.html">Consumption Analysis</a></li>
+                        <li data-feature="fuel_daily_report" data-requires-permission="fuel_daily_report"><a href="fueldaily.html">Daily Fuel Report</a></li>
                     </ul>
                 </li>
                 <li class="menu-dropdown" data-feature="environment_view" data-requires-permission="environment_view">
@@ -2272,6 +2307,7 @@
                     <a href="#"><i class="fas fa-truck"></i> Logistics</a>
                     <ul class="submenu">
                         <li data-feature="fleet_view" data-requires-permission="fleet_view"><a href="fleet.html">Fleet Management</a></li>
+                        <li data-feature="travel_view" data-requires-permission="travel_view"><a href="travel.html">Travel Requests</a></li>
                     </ul>
                 </li>
                 <li class="menu-dropdown" data-feature="accommodation_view" data-requires-permission="accommodation_view">
@@ -2368,8 +2404,8 @@
                         </button>
                         <div class="profile-dropdown">
                             <ul>
-                                <li><a href="#"><i class="fas fa-user"></i> Account Settings</a></li>
-                                <li><a href="#" onclick="logout()"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+                                <li><a href="profile.html"><i class="fas fa-id-badge"></i> Profile</a></li>
+                                <li><a href="#" data-action="logout"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
                             </ul>
                         </div>
                     </div>
