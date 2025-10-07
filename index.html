@@ -531,35 +531,77 @@
     }
   </style>
   <script>
-    // EARLY application view detection (runs before body renders to minimize flicker)
+    // EARLY application view detection - inject critical CSS immediately
     (function(){
       try {
         var qs = window.location.search.toLowerCase();
         var h = window.location.hash.toLowerCase();
-        if (/(view=app|appview=1|mode=app|application-view|application=1)/.test(qs + h)) {
+        var isAppView = /(view=app|appview=1|mode=app|application-view|application=1)/.test(qs + h);
+        
+        if (isAppView) {
+          // Inject critical inline styles IMMEDIATELY (before Tailwind loads)
+          var style = document.createElement('style');
+          style.id = 'app-view-override';
+          style.textContent = `
+            /* Critical app-view overrides - highest priority */
+            .app-view-active #mainNav,
+            .app-view-active nav { 
+              display: flex !important; 
+              visibility: visible !important;
+              opacity: 1 !important;
+            }
+            .app-view-active #loginButton { 
+              display: inline-block !important; 
+              visibility: visible !important;
+              opacity: 1 !important;
+            }
+            .app-view-active .app-band { 
+              display: none !important; 
+            }
+            .app-view-active #logoutButton,
+            .app-view-active #userStatus { 
+              display: none !important; 
+            }
+          `;
+          document.head.appendChild(style);
+          
+          // Add class to html immediately
           document.documentElement.classList.add('app-view');
-          // Defer body class until it exists
-          document.addEventListener('DOMContentLoaded', function(){
-            document.body.classList.add('application-view');
-            // Force login button visible regardless of other scripts
-            var lb = document.getElementById('loginButton'); 
-            if(lb) { 
-              lb.classList.remove('hidden'); 
-              lb.style.display = 'inline-block';
-              lb.style.visibility = 'visible';
+          document.documentElement.classList.add('app-view-active');
+          
+          // Reinforce after DOM ready
+          if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', applyAppView);
+          } else {
+            applyAppView();
+          }
+        }
+        
+        function applyAppView() {
+          document.body.classList.add('application-view');
+          document.body.classList.add('app-view-active');
+          
+          // Force element visibility with direct manipulation
+          setTimeout(function(){
+            var nav = document.getElementById('mainNav');
+            var lb = document.getElementById('loginButton');
+            
+            if (nav) {
+              nav.className = nav.className.replace(/\bhidden\b/g, '');
+              nav.style.cssText = 'display: flex !important; visibility: visible !important;';
             }
-            var mlb = document.getElementById('mobileLoginButton'); 
-            if(mlb) {
-              mlb.classList.remove('hidden');
-              mlb.style.display = 'inline-block';
+            
+            if (lb) {
+              lb.className = lb.className.replace(/\bhidden\b/g, '');
+              lb.style.cssText = 'display: inline-block !important; visibility: visible !important;';
             }
-            var nav = document.getElementById('mainNav'); 
-            if(nav) { 
-              nav.classList.remove('hidden');
-              nav.style.display = 'flex';
-              nav.style.visibility = 'visible';
+            
+            // Hide marketing sections
+            var bands = document.querySelectorAll('.app-band');
+            for (var i = 0; i < bands.length; i++) {
+              bands[i].style.display = 'none';
             }
-          });
+          }, 0);
         }
       } catch(e){ console.warn('Early app-view detection failed', e); }
     })();
