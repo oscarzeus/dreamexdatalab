@@ -1057,28 +1057,13 @@
     })();
   </script>
 
-  <!-- Mobile Sidebar (replaces previous full-screen menu) -->
-  <div id="mobileMenu" class="fixed inset-0 z-50 hidden pointer-events-none">
-    <!-- Backdrop -->
-    <div id="mobileMenuBackdrop" class="absolute inset-0 bg-black/40 opacity-0 transition-opacity duration-300"></div>
-    <!-- Sidebar -->
-    <aside id="mobileSidebar" class="absolute top-0 left-0 h-full w-64 bg-white shadow-2xl -translate-x-full transition-transform duration-300 flex flex-col">
-      <div class="flex items-center justify-between px-4 h-16 border-b">
-        <span class="font-semibold text-lg">Account</span>
-        <button id="closeMenuBtn" class="text-gray-500 hover:text-gray-800 text-2xl leading-none" aria-label="Close menu">&times;</button>
-      </div>
-      <div class="p-4 flex-1">
-        <p class="text-xs uppercase tracking-wide text-gray-400 mb-4">Authentication</p>
-        <div class="space-y-3">
-          <button id="mobileLoginButton" class="w-full px-4 py-2 bg-primary-600 text-white font-medium rounded-md hover:bg-primary-700 active:scale-[.98] transition">Login</button>
-          <button id="mobileLogoutButton" class="hidden w-full px-4 py-2 bg-gray-600 text-white font-medium rounded-md hover:bg-gray-700 active:scale-[.98] transition">Logout</button>
-        </div>
-      </div>
-      <div class="border-t px-4 py-3 text-[11px] text-gray-400 flex items-center justify-between">
-        <span>© <span id="mobileYear"></span> Dreamex</span>
-        <span class="text-gray-300">v1</span>
-      </div>
-    </aside>
+  <!-- Mobile Auth Avatar (replaces previous sidebar) -->
+  <div id="mobileAuthBar" class="fixed top-3 right-3 z-40 flex items-center gap-2 md:hidden">
+    <button id="mobileLoginButton" class="px-3 py-1.5 bg-primary-600 text-white text-sm font-medium rounded-full shadow hover:bg-primary-700 active:scale-[.97] transition">Login</button>
+    <button id="mobileAvatarBtn" class="hidden w-10 h-10 rounded-full bg-primary-600 text-white flex items-center justify-center font-semibold text-sm shadow relative overflow-hidden" aria-label="User menu">
+      <span id="mobileAvatarInitials">U</span>
+      <img id="mobileAvatarImage" alt="User" class="absolute inset-0 w-full h-full object-cover hidden" />
+    </button>
   </div>
 
   <!-- Login Modal -->
@@ -1381,52 +1366,55 @@
   </script>
 
   <script>
-    // Mobile Menu Management
-    const mobileMenuBtn = document.getElementById('mobileMenuBtn');
-    const mobileMenu = document.getElementById('mobileMenu');
-    const mobileSidebar = document.getElementById('mobileSidebar');
-    const mobileMenuBackdrop = document.getElementById('mobileMenuBackdrop');
-    const closeMenuBtn = document.getElementById('closeMenuBtn');
+    // Mobile Auth Avatar Handling (no sidebar)
+    const mobileLoginButton = document.getElementById('mobileLoginButton');
+    const mobileAvatarBtn = document.getElementById('mobileAvatarBtn');
+    const mobileAvatarInitials = document.getElementById('mobileAvatarInitials');
+    const mobileAvatarImage = document.getElementById('mobileAvatarImage');
 
-    function openMobileMenu() {
-      if (!mobileMenu || !mobileSidebar || !mobileMenuBackdrop) return;
-      mobileMenu.classList.remove('hidden');
-      mobileMenu.classList.remove('pointer-events-none');
-      requestAnimationFrame(() => {
-        mobileSidebar.classList.remove('-translate-x-full');
-        mobileMenuBackdrop.classList.remove('opacity-0');
-        mobileMenuBackdrop.classList.add('opacity-100');
-      });
-      document.body.style.overflow = 'hidden';
-    }
-
-    function closeMobileMenu() {
-      if (!mobileMenu || !mobileSidebar || !mobileMenuBackdrop) return;
-      mobileSidebar.classList.add('-translate-x-full');
-      mobileMenuBackdrop.classList.remove('opacity-100');
-      mobileMenuBackdrop.classList.add('opacity-0');
-      document.body.style.overflow = 'auto';
-      setTimeout(() => {
-        mobileMenu.classList.add('hidden');
-        mobileMenu.classList.add('pointer-events-none');
-      }, 300);
-    }
-
-    if (mobileMenuBtn) mobileMenuBtn.addEventListener('click', openMobileMenu);
-    if (closeMenuBtn) closeMenuBtn.addEventListener('click', closeMobileMenu);
-    if (mobileMenuBackdrop) mobileMenuBackdrop.addEventListener('click', closeMobileMenu);
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && mobileMenu && !mobileMenu.classList.contains('hidden')) {
-        closeMobileMenu();
+    function setMobileUser(user) {
+      if (!mobileLoginButton || !mobileAvatarBtn) return;
+      if (user) {
+        mobileLoginButton.classList.add('hidden');
+        mobileAvatarBtn.classList.remove('hidden');
+        const name = user.displayName || user.email || '';
+        const initials = name.trim().split(/\s+/).slice(0,2).map(p=>p[0]).join('').toUpperCase().substring(0,2) || 'U';
+        mobileAvatarInitials.textContent = initials;
+        if (user.photoURL) {
+          mobileAvatarImage.src = user.photoURL;
+          mobileAvatarImage.classList.remove('hidden');
+          mobileAvatarInitials.classList.add('opacity-0');
+        } else {
+          mobileAvatarImage.classList.add('hidden');
+          mobileAvatarInitials.classList.remove('opacity-0');
+        }
+      } else {
+        mobileAvatarBtn.classList.add('hidden');
+        mobileLoginButton.classList.remove('hidden');
       }
-    });
-    const mobileYearEl = document.getElementById('mobileYear');
-    if (mobileYearEl) mobileYearEl.textContent = new Date().getFullYear();
+    }
+
+    // Placeholder: integrate with Firebase auth if available
+    if (window.firebase && window.firebase.auth) {
+      try {
+        firebase.auth().onAuthStateChanged(u => setMobileUser(u));
+      } catch (e) { console.warn('Auth state mobile avatar bind failed', e); }
+    }
+
+    // Avatar click -> open login modal (could be profile menu in future)
+    if (mobileAvatarBtn) {
+      mobileAvatarBtn.addEventListener('click', () => {
+        // future: open profile; current: logout prompt or nothing
+        // For now open login modal if user not logged; else do nothing
+        const user = (firebase && firebase.auth && firebase.auth().currentUser) || null;
+        if (!user) openLoginModal();
+      });
+    }
     
     // Login Modal Management
     const loginModal = document.getElementById('loginModal');
     const loginButton = document.getElementById('loginButton');
-    const mobileLoginButton = document.getElementById('mobileLoginButton');
+  // (mobileLoginButton already declared above)
     const closeLoginModal = document.getElementById('closeLoginModal');
     const loginForm = document.getElementById('login-form');
     const togglePassword = document.getElementById('togglePassword');
@@ -1449,7 +1437,7 @@
     
     // Event listeners for login buttons
     loginButton.addEventListener('click', openLoginModal);
-    mobileLoginButton.addEventListener('click', openLoginModal);
+  if (mobileLoginButton) mobileLoginButton.addEventListener('click', openLoginModal);
     closeLoginModal.addEventListener('click', closeLoginModalFunc);
     
     // Close modal when clicking outside
@@ -1549,7 +1537,7 @@
         document.getElementById('logoutButton').classList.remove('hidden');
         
         document.getElementById('mobileUserStatus').classList.remove('hidden');
-        document.getElementById('mobileLoginButton').classList.add('hidden');
+  const mlb = document.getElementById('mobileLoginButton'); if (mlb) mlb.classList.add('hidden');
         document.getElementById('mobileLogoutButton').classList.remove('hidden');
       } else {
         // User is not logged in, show login button
@@ -1559,7 +1547,7 @@
         document.getElementById('logoutButton').classList.add('hidden');
         
         document.getElementById('mobileUserStatus').classList.add('hidden');
-        document.getElementById('mobileLoginButton').classList.remove('hidden');
+  const mlb2 = document.getElementById('mobileLoginButton'); if (mlb2) mlb2.classList.remove('hidden');
         document.getElementById('mobileLogoutButton').classList.add('hidden');
       }
     }
