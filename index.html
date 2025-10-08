@@ -687,6 +687,58 @@
       display: flex;
     }
     
+    /* Mobile Profile Dropdown */
+    .mobile-profile-dropdown {
+      display: none;
+      position: absolute;
+      top: calc(100% + 8px);
+      right: 0;
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      min-width: 180px;
+      z-index: 10000;
+      overflow: hidden;
+    }
+    
+    .mobile-profile-dropdown.show {
+      display: block;
+    }
+    
+    .mobile-profile-dropdown ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    
+    .mobile-profile-dropdown ul li {
+      border-bottom: 1px solid #f0f0f0;
+    }
+    
+    .mobile-profile-dropdown ul li:last-child {
+      border-bottom: none;
+    }
+    
+    .mobile-profile-dropdown ul li a {
+      display: flex;
+      align-items: center;
+      padding: 12px 16px;
+      color: #333;
+      text-decoration: none;
+      transition: background-color 0.2s;
+      font-size: 0.875rem;
+    }
+    
+    .mobile-profile-dropdown ul li a:hover {
+      background-color: #f8f9fa;
+    }
+    
+    .mobile-profile-dropdown ul li a i {
+      margin-right: 10px;
+      width: 16px;
+      color: #666;
+    }
+    
     @keyframes shake {
       0%, 100% { transform: translateX(0); }
       25% { transform: translateX(-5px); }
@@ -824,13 +876,19 @@
         <a href="dashboard.html" class="w-9 h-9 bg-primary-600 text-white rounded-full flex items-center justify-center hover:bg-primary-700 transition duration-300" title="Go to Dashboard">
           <i class="fas fa-home text-sm"></i>
         </a>
-        <div id="mobileUserAvatar" class="hidden">
+        <div id="mobileUserAvatar" class="hidden relative">
           <div class="avatar-initials w-9 h-9 bg-primary-600 text-white rounded-full flex items-center justify-center text-sm font-semibold cursor-pointer" id="mobileAvatarCircle">
             <i class="fas fa-user"></i>
           </div>
+          <div class="mobile-profile-dropdown">
+            <ul>
+              <li><a href="profile.html"><i class="fas fa-id-badge"></i> Profile</a></li>
+              <li><a href="settings.html"><i class="fas fa-cog"></i> Settings</a></li>
+              <li><a href="#" id="mobileDropdownLogout"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+            </ul>
+          </div>
         </div>
         <button id="mobileLoginBtn" class="px-4 py-1.5 bg-primary-600 text-white font-medium rounded-full hover:bg-primary-700 transition duration-300 text-sm">Login</button>
-        <button id="mobileLogoutBtn" class="hidden px-4 py-1.5 bg-gray-600 text-white font-medium rounded-full hover:bg-gray-700 transition duration-300 text-sm">Logout</button>
       </div>
     </div>
   </header>
@@ -1649,7 +1707,6 @@
       const mobileUserAvatar = document.getElementById('mobileUserAvatar');
       const mobileAvatarCircle = document.getElementById('mobileAvatarCircle');
       const mobileLoginBtn = document.getElementById('mobileLoginBtn');
-      const mobileLogoutBtn = document.getElementById('mobileLogoutBtn');
       
       if (user) {
         // User is logged in, show username and logout button
@@ -1660,14 +1717,13 @@
         document.getElementById('loginButton').classList.add('hidden');
         document.getElementById('logoutButton').classList.remove('hidden');
         
-        // Mobile: Show avatar with initials and logout button
+        // Mobile: Show avatar with initials
         if (mobileUserAvatar && mobileAvatarCircle) {
           const initials = user.name ? user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'U';
           mobileAvatarCircle.textContent = initials;
           mobileUserAvatar.classList.remove('hidden');
         }
         if (mobileLoginBtn) mobileLoginBtn.classList.add('hidden');
-        if (mobileLogoutBtn) mobileLogoutBtn.classList.remove('hidden');
       } else {
         // User is not logged in, show login button
         document.getElementById('userStatus').classList.add('hidden');
@@ -1678,7 +1734,6 @@
         // Mobile: Hide avatar and show login button
         if (mobileUserAvatar) mobileUserAvatar.classList.add('hidden');
         if (mobileLoginBtn) mobileLoginBtn.classList.remove('hidden');
-        if (mobileLogoutBtn) mobileLogoutBtn.classList.add('hidden');
       }
     }
     
@@ -1699,8 +1754,47 @@
     
     // Set up logout button listeners
     document.getElementById('logoutButton').addEventListener('click', handleLogout);
-    const mobileLogoutBtn = document.getElementById('mobileLogoutBtn');
-    if (mobileLogoutBtn) mobileLogoutBtn.addEventListener('click', handleLogout);
+    
+    // Mobile Avatar Dropdown Toggle
+    document.addEventListener('DOMContentLoaded', function() {
+      const mobileAvatarCircle = document.getElementById('mobileAvatarCircle');
+      const mobileProfileDropdown = document.querySelector('.mobile-profile-dropdown');
+      const mobileDropdownLogout = document.getElementById('mobileDropdownLogout');
+      
+      if (mobileAvatarCircle && mobileProfileDropdown) {
+        // Toggle dropdown on avatar click
+        mobileAvatarCircle.addEventListener('click', function(e) {
+          e.stopPropagation();
+          mobileProfileDropdown.classList.toggle('show');
+        });
+        
+        // Close dropdown when clicking outside
+        document.addEventListener('click', function(e) {
+          if (!mobileAvatarCircle.contains(e.target) && !mobileProfileDropdown.contains(e.target)) {
+            mobileProfileDropdown.classList.remove('show');
+          }
+        });
+        
+        // Handle logout from dropdown
+        if (mobileDropdownLogout) {
+          mobileDropdownLogout.addEventListener('click', function(e) {
+            e.preventDefault();
+            mobileProfileDropdown.classList.remove('show');
+            handleLogout();
+          });
+        }
+        
+        // Close dropdown when clicking any link
+        const dropdownLinks = mobileProfileDropdown.querySelectorAll('a');
+        dropdownLinks.forEach(link => {
+          link.addEventListener('click', function() {
+            if (link.id !== 'mobileDropdownLogout') {
+              mobileProfileDropdown.classList.remove('show');
+            }
+          });
+        });
+      }
+    });
     
     // Check login status when page loads
     document.addEventListener('DOMContentLoaded', checkLoginStatus);
