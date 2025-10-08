@@ -668,9 +668,16 @@
           <button id="logoutButton" class="hidden px-6 py-1.5 bg-gray-600 text-white font-medium rounded-full hover:bg-gray-700 transition duration-300 ml-2">Logout</button>
         </div>
       </nav>
-      <button id="mobileMenuBtn" class="md:hidden text-gray-700" aria-label="Open menu">
-        <i class="fas fa-bars text-xl"></i>
-      </button>
+      <!-- Mobile Login Avatar/Button -->
+      <div class="md:hidden flex items-center">
+        <div id="mobileUserAvatar" class="hidden mr-2">
+          <div class="avatar-initials w-9 h-9 bg-primary-600 text-white rounded-full flex items-center justify-center text-sm font-semibold cursor-pointer" id="mobileAvatarCircle">
+            <i class="fas fa-user"></i>
+          </div>
+        </div>
+        <button id="mobileLoginBtn" class="px-4 py-1.5 bg-primary-600 text-white font-medium rounded-full hover:bg-primary-700 transition duration-300 text-sm">Login</button>
+        <button id="mobileLogoutBtn" class="hidden px-4 py-1.5 bg-gray-600 text-white font-medium rounded-full hover:bg-gray-700 transition duration-300 text-sm">Logout</button>
+      </div>
     </div>
   </header>
 
@@ -1057,15 +1064,6 @@
     })();
   </script>
 
-  <!-- Mobile Auth Avatar (replaces previous sidebar) -->
-  <div id="mobileAuthBar" class="fixed top-3 right-3 z-40 flex items-center gap-2 md:hidden">
-    <button id="mobileLoginButton" class="px-3 py-1.5 bg-primary-600 text-white text-sm font-medium rounded-full shadow hover:bg-primary-700 active:scale-[.97] transition">Login</button>
-    <button id="mobileAvatarBtn" class="hidden w-10 h-10 rounded-full bg-primary-600 text-white flex items-center justify-center font-semibold text-sm shadow relative overflow-hidden" aria-label="User menu">
-      <span id="mobileAvatarInitials">U</span>
-      <img id="mobileAvatarImage" alt="User" class="absolute inset-0 w-full h-full object-cover hidden" />
-    </button>
-  </div>
-
   <!-- Login Modal -->
   <div class="login-modal-overlay" id="loginModal">
     <div class="login-modal">
@@ -1366,65 +1364,16 @@
   </script>
 
   <script>
-    // Mobile Auth Avatar Handling (no sidebar)
-    const mobileLoginButton = document.getElementById('mobileLoginButton');
-    const mobileAvatarBtn = document.getElementById('mobileAvatarBtn');
-    const mobileAvatarInitials = document.getElementById('mobileAvatarInitials');
-    const mobileAvatarImage = document.getElementById('mobileAvatarImage');
-
-    function setMobileUser(user) {
-      if (!mobileLoginButton || !mobileAvatarBtn) return;
-      if (user) {
-        mobileLoginButton.classList.add('hidden');
-        mobileAvatarBtn.classList.remove('hidden');
-        const name = user.displayName || user.email || '';
-        const initials = name.trim().split(/\s+/).slice(0,2).map(p=>p[0]).join('').toUpperCase().substring(0,2) || 'U';
-        mobileAvatarInitials.textContent = initials;
-        if (user.photoURL) {
-          mobileAvatarImage.src = user.photoURL;
-          mobileAvatarImage.classList.remove('hidden');
-          mobileAvatarInitials.classList.add('opacity-0');
-        } else {
-          mobileAvatarImage.classList.add('hidden');
-          mobileAvatarInitials.classList.remove('opacity-0');
-        }
-      } else {
-        mobileAvatarBtn.classList.add('hidden');
-        mobileLoginButton.classList.remove('hidden');
-      }
-    }
-
-    // Placeholder: integrate with Firebase auth if available
-    if (window.firebase && window.firebase.auth) {
-      try {
-        firebase.auth().onAuthStateChanged(u => setMobileUser(u));
-      } catch (e) { console.warn('Auth state mobile avatar bind failed', e); }
-    }
-
-    // Avatar click -> open login modal (could be profile menu in future)
-    if (mobileAvatarBtn) {
-      mobileAvatarBtn.addEventListener('click', () => {
-        // future: open profile; current: logout prompt or nothing
-        // For now open login modal if user not logged; else do nothing
-        const user = (firebase && firebase.auth && firebase.auth().currentUser) || null;
-        if (!user) openLoginModal();
-      });
-    }
-    
     // Login Modal Management
     const loginModal = document.getElementById('loginModal');
     const loginButton = document.getElementById('loginButton');
-  // (mobileLoginButton already declared above)
+    const mobileLoginBtn = document.getElementById('mobileLoginBtn');
     const closeLoginModal = document.getElementById('closeLoginModal');
     const loginForm = document.getElementById('login-form');
     const togglePassword = document.getElementById('togglePassword');
     
     // Open login modal
     function openLoginModal() {
-      // If mobile sidebar is open, close it first
-      if (typeof closeMobileMenu === 'function') {
-        try { closeMobileMenu(); } catch(e) { console.warn('Sidebar close failed', e); }
-      }
       loginModal.classList.add('active');
       document.body.style.overflow = 'hidden';
     }
@@ -1437,7 +1386,7 @@
     
     // Event listeners for login buttons
     loginButton.addEventListener('click', openLoginModal);
-  if (mobileLoginButton) mobileLoginButton.addEventListener('click', openLoginModal);
+    if (mobileLoginBtn) mobileLoginBtn.addEventListener('click', openLoginModal);
     closeLoginModal.addEventListener('click', closeLoginModalFunc);
     
     // Close modal when clicking outside
@@ -1526,19 +1475,28 @@
       // Check both localStorage and sessionStorage
       const user = JSON.parse(localStorage.getItem('user')) || JSON.parse(sessionStorage.getItem('user'));
       
+      const mobileUserAvatar = document.getElementById('mobileUserAvatar');
+      const mobileAvatarCircle = document.getElementById('mobileAvatarCircle');
+      const mobileLoginBtn = document.getElementById('mobileLoginBtn');
+      const mobileLogoutBtn = document.getElementById('mobileLogoutBtn');
+      
       if (user) {
         // User is logged in, show username and logout button
         document.getElementById('username').textContent = user.name;
-        document.getElementById('mobileUsername').textContent = user.name;
         
         document.getElementById('userStatus').classList.remove('hidden');
         document.getElementById('userStatus').classList.add('flex');
         document.getElementById('loginButton').classList.add('hidden');
         document.getElementById('logoutButton').classList.remove('hidden');
         
-        document.getElementById('mobileUserStatus').classList.remove('hidden');
-  const mlb = document.getElementById('mobileLoginButton'); if (mlb) mlb.classList.add('hidden');
-        document.getElementById('mobileLogoutButton').classList.remove('hidden');
+        // Mobile: Show avatar with initials and logout button
+        if (mobileUserAvatar && mobileAvatarCircle) {
+          const initials = user.name ? user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'U';
+          mobileAvatarCircle.textContent = initials;
+          mobileUserAvatar.classList.remove('hidden');
+        }
+        if (mobileLoginBtn) mobileLoginBtn.classList.add('hidden');
+        if (mobileLogoutBtn) mobileLogoutBtn.classList.remove('hidden');
       } else {
         // User is not logged in, show login button
         document.getElementById('userStatus').classList.add('hidden');
@@ -1546,9 +1504,10 @@
         document.getElementById('loginButton').classList.remove('hidden');
         document.getElementById('logoutButton').classList.add('hidden');
         
-        document.getElementById('mobileUserStatus').classList.add('hidden');
-  const mlb2 = document.getElementById('mobileLoginButton'); if (mlb2) mlb2.classList.remove('hidden');
-        document.getElementById('mobileLogoutButton').classList.add('hidden');
+        // Mobile: Hide avatar and show login button
+        if (mobileUserAvatar) mobileUserAvatar.classList.add('hidden');
+        if (mobileLoginBtn) mobileLoginBtn.classList.remove('hidden');
+        if (mobileLogoutBtn) mobileLogoutBtn.classList.add('hidden');
       }
     }
     
@@ -1569,7 +1528,8 @@
     
     // Set up logout button listeners
     document.getElementById('logoutButton').addEventListener('click', handleLogout);
-    document.getElementById('mobileLogoutButton').addEventListener('click', handleLogout);
+    const mobileLogoutBtn = document.getElementById('mobileLogoutBtn');
+    if (mobileLogoutBtn) mobileLogoutBtn.addEventListener('click', handleLogout);
     
     // Check login status when page loads
     document.addEventListener('DOMContentLoaded', checkLoginStatus);
