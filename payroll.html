@@ -1,0 +1,2248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Payroll Management - Dreamex Datalab</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
+<!-- Firebase v8 Scripts for Centralized Authentication -->
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
+<style>
+:root { --primary-color:#2c3e50; --secondary-color:#34495e; --accent-color:#e74c3c; --success-color:#27ae60; --warning-color:#f39c12; --info-color:#3498db; --light-color:#ecf0f1; --dark-color:#2c3e50; --sidebar-width:250px; --transition-speed:.25s; --primary:#2c3e50; --secondary:#3498db; --accent:#667eea; --danger:#e74c3c; --bg:#f5f6fa; --border:#e2e8f0; --radius:10px; --green:#16a34a; }
+* { box-sizing:border-box; margin:0; padding:0; }
+body { font-family: 'Segoe UI', Arial, sans-serif; background:#f5f7fa; color:#222; }
+.app-container { display:flex; min-height:100vh; }
+.sidebar { width:var(--sidebar-width); background:var(--primary-color); color:#fff; padding:1rem; position:fixed; top:0; left:0; bottom:0; overflow-y:auto; transition:transform .3s ease; z-index:1000; }
+.sidebar.collapsed { transform:translateX(-100%); }
+.main-content { flex:1; margin-left:var(--sidebar-width); padding:0.3rem; padding-top:3.2rem; transition:margin-left .3s ease; }
+.main-content.sidebar-collapsed { margin-left:0; }
+.main-content.sidebar-collapsed .top-nav { left:0.5rem; }
+.logo h2 { text-align:center; padding:1rem 0; border-bottom:1px solid rgba(255,255,255,0.1); font-size:1.05rem; letter-spacing:.5px; }
+.menu { list-style:none; margin-top:2rem; }
+.menu li { margin-bottom:0.45rem; }
+.menu a { display:flex; align-items:center; gap:10px; color:#fff; text-decoration:none; padding:0.6rem 0.75rem; border-radius:6px; font-size:0.82rem; font-weight:500; transition:background .25s; }
+.menu a:hover, .menu a.active { background:rgba(255,255,255,0.12); }
+.submenu { list-style:none; margin-left:0.75rem; display:none; margin-top:0.25rem; }
+.menu-dropdown:hover .submenu { display:block; }
+.submenu a { font-size:0.75rem; padding:0.45rem 0.65rem; }
+[data-feature]:not(.menu-visible) { display:none !important; }
+.menu-dropdown:not(.menu-visible) { display:none !important; }
+
+/* Hide ALL menu items by default during loading */
+.sidebar.menu-loading .menu-item,
+.sidebar.menu-loading .menu-dropdown,
+.sidebar.menu-loading li[data-feature],
+.sidebar.menu-loading [data-feature] {
+    display: none !important;
+}
+
+/* Allow menu-visible items to show even during loading */
+.sidebar.menu-loading .menu-visible,
+.sidebar.menu-loading li.menu-visible,
+.sidebar.menu-loading [data-feature].menu-visible {
+    display: block !important;
+}
+
+.menu-loading [data-feature] {
+    display: none !important;
+}
+
+.menu-loading .menu-dropdown {
+    display: none !important;
+}
+
+/* Ensure menu-visible items are always shown */
+.menu-visible {
+    display: block !important;
+}
+
+li.menu-visible,
+[data-feature].menu-visible {
+    display: block !important;
+}
+.top-nav { display:flex; justify-content:space-between; align-items:center; padding:0.5rem 0.75rem; background-color:#fff; box-shadow:0 2px 5px rgba(0,0,0,0.1); margin-bottom:0.3rem; position:fixed; top:0.25rem; right:0.5rem; left:calc(var(--sidebar-width) + 0.5rem); height:50px; min-height:50px; z-index:100; transition:left 0.3s ease; }
+.sidebar-toggle-btn { background:none; border:none; cursor:pointer; font-size:1.1rem; padding:0.4rem; color:#555; }
+.top-nav-left { display:flex; align-items:center; gap:0.75rem; }
+.company-branding { display:flex; align-items:center; gap:0.5rem; }
+#headerCompanyLogo { width:32px; height:32px; object-fit:contain; display:none; }
+#headerCompanyName { font-weight:600; font-size:0.85rem; }
+.header-company-logo { height:32px; width:auto; border-radius:6px; box-shadow:0 2px 4px rgba(0,0,0,0.1); }
+.company-name-header { font-weight:700; color:var(--dark-color); font-size:1rem; letter-spacing:0.5px; white-space:nowrap; }
+.top-nav-right { display:flex; align-items:center; gap:1rem; }
+.notifications { position:relative; display:flex; align-items:center; }
+.notification-btn { background:none; border:none; cursor:pointer; position:relative; font-size:1.2rem; padding:0.5rem; display:flex; align-items:center; justify-content:center; }
+.notification-badge { position:absolute; top:-5px; right:-5px; background-color:var(--accent-color); color:white; border-radius:50%; padding:0.2rem 0.5rem; font-size:0.7rem; display:none; }
+.notification-dropdown { display:none; position:absolute; right:0; top:100%; width:320px; background:#fff; border-radius:8px; box-shadow:0 4px 20px rgba(0,0,0,0.15); z-index:1000; border:1px solid #e9ecef; max-height:400px; overflow:hidden; }
+.notification-dropdown.show { display:block; animation: slideDown 0.2s ease-out; }
+@keyframes slideDown { from { opacity:0; transform:translateY(-10px);} to { opacity:1; transform:translateY(0);} }
+.notification-header { padding:12px 16px; border-bottom:1px solid #e9ecef; background:linear-gradient(135deg,#f8f9fa 0%, #e9ecef 100%); display:flex; justify-content:space-between; align-items:center; }
+.notification-header h3 { margin:0; color:#333; font-size:14px; font-weight:600; }
+.mark-all-read { background:none; border:none; color:#3498db; cursor:pointer; font-size:12px; padding:4px 8px; border-radius:4px; transition:all .2s ease; }
+.mark-all-read:hover { background:#e3f2fd; color:#1976d2; }
+.clear-all-notifications { background:none; border:none; color:#e74c3c; cursor:pointer; font-size:12px; padding:4px 8px; border-radius:4px; transition:all .2s ease; margin-left:8px; }
+.clear-all-notifications:hover { background:#fdf2f2; color:#c0392b; }
+.notification-list { max-height:320px; overflow-y:auto; padding:0; }
+.notification-list::-webkit-scrollbar { width:4px; }
+.notification-list::-webkit-scrollbar-track { background:#f1f1f1; }
+.notification-list::-webkit-scrollbar-thumb { background:#c1c1c1; border-radius:2px; }
+.notification-item { padding:12px 16px; border-bottom:1px solid #f1f1f1; cursor:pointer; transition:background-color .2s ease; position:relative; }
+.notification-item:hover { background:#f8f9fa; }
+.notification-item.unread { background:#e8f4fd; border-left:3px solid #3498db; }
+.notification-dot { position:absolute; top:16px; right:16px; width:8px; height:8px; background:#3498db; border-radius:50%; }
+.notification-actions { position:absolute; top:8px; right:8px; display:none; gap:4px; }
+.notification-item:hover .notification-actions { display:flex; }
+.mark-read-btn, .delete-notification-btn { background:none; border:none; cursor:pointer; padding:4px; border-radius:3px; transition:all .2s ease; font-size:12px; }
+.mark-read-btn { color:#3498db; }
+.mark-read-btn:hover { background:#e3f2fd; color:#1976d2; }
+.delete-notification-btn { color:#e74c3c; }
+.delete-notification-btn:hover { background:#fdf2f2; color:#c0392b; }
+.notification-empty { padding:40px 20px; text-align:center; color:#999; display:none; }
+.notification-empty i { font-size:32px; margin-bottom:12px; color:#ddd; }
+.notification-empty-title { font-size:14px; font-weight:500; margin-bottom:4px; color:#666; }
+.notification-empty-message { font-size:12px; color:#999; }
+.user-profile { position:relative; }
+.profile-btn { background:none; border:none; border-radius:50%; overflow:hidden; width:38px; height:38px; cursor:pointer; }
+.profile-btn img { width:100%; height:100%; object-fit:cover; }
+.profile-dropdown { display:none; position:absolute; right:0; top:110%; background:#fff; border-radius:8px; min-width:200px; box-shadow:0 6px 18px rgba(0,0,0,0.12); overflow:hidden; z-index:2500; }
+.profile-dropdown.show { display:block; }
+.profile-dropdown ul { list-style:none; }
+.profile-dropdown li a { display:block; padding:0.65rem 0.85rem; font-size:0.72rem; text-decoration:none; color:#1e293b; font-weight:500; }
+.profile-dropdown li a:hover { background:#f1f5f9; }
+.page-header { 
+    background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)); 
+    color: #fff; 
+    padding: 0.55rem 0.75rem; 
+    margin: 0.35rem 0 0.5rem 0; 
+    display: flex; 
+    align-items: center; 
+    justify-content: space-between; 
+    box-shadow: 0 10px 28px rgba(0,0,0,0.18), 0 6px 16px rgba(0,0,0,0.14); 
+    font-size: 0.9rem; 
+}
+.page-header h1 { 
+    color: #fff; 
+    font-size: 0.9rem; 
+    display: flex; 
+    align-items: center; 
+    gap: 0.5rem; 
+    letter-spacing: 0.5px; 
+    margin: 0; 
+    font-weight: 600; 
+}
+.page-header i { 
+    font-size: 1rem; 
+}
+/* Contractsub-style tab system */
+.content-tabs { margin:0 0 0 0; width:100%; }
+.tab-navigation { display:flex; background:#fff; border-radius:0; box-shadow:0 2px 10px rgba(0,0,0,0.1); margin-bottom:0; border-bottom:1px solid #e9ecef; }
+.tab-nav-btn { flex:1; padding:0.9rem 1.2rem; border:none; background:none; color:#6c757d; font-size:.85rem; font-weight:600; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:.55rem; position:relative; transition:all .2s; border-radius:0; }
+.tab-nav-btn:hover { color:#007bff; background:#f8f9fa; }
+.tab-nav-btn.active { color:#fff; background:#007bff; }
+.tab-content { background:#fff; box-shadow:0 2px 10px rgba(0,0,0,0.1); padding:1.1rem 1.25rem; display:none; }
+.tab-content.active { display:block; }
+.container{padding:14px;max-width:1600px;margin:0 auto;}
+.panel{display:none;animation:fade .25s ease;}
+.panel.active{display:block;}
+.btn-add-new {
+    background: none;
+    border: none;
+    color: #fff;
+    padding: 0.4rem;
+    font-size: 1.2rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+}
+.btn-add-new:hover {
+    color: rgba(255,255,255,0.8);
+    transform: scale(1.1);
+}
+.btn-add-new i {
+    font-size: 1.2rem;
+}
+.page-actions { display:flex; gap:0.4rem; flex-wrap:wrap; }
+.card{background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;margin-bottom:18px;box-shadow:0 2px 6px rgba(0,0,0,.06);} 
+.card h2{margin:0 0 14px 0;font-size:1rem;letter-spacing:.5px;text-transform:uppercase;color:#334155;display:flex;align-items:center;gap:8px;}
+.grid{display:grid;gap:14px;}
+.grid.cols-4{grid-template-columns:repeat(auto-fill,minmax(240px,1fr));}
+.grid.cols-3{grid-template-columns:repeat(auto-fill,minmax(280px,1fr));}
+fieldset{border:1px solid var(--border);padding:14px 16px;border-radius:8px;min-width:0;}
+fieldset legend{font-size:.7rem;letter-spacing:.6px;font-weight:600;text-transform:uppercase;color:#475569;padding:0 6px;}
+label{display:flex;flex-direction:column;font-size:.65rem;font-weight:600;letter-spacing:.5px;color:#475569;gap:4px;}
+input[type=text],input[type=number],input[type=date],input[type=email],select,textarea{padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:.75rem;background:#fff;resize:vertical;min-height:34px;}
+textarea{min-height:70px;}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--secondary);box-shadow:0 0 0 2px rgba(52,152,219,.25);} 
+.inline{display:flex;align-items:center;gap:8px;}
+.badge{display:inline-block;background:#e2e8f0;color:#334155;font-size:.55rem;font-weight:600;padding:4px 8px;border-radius:14px;letter-spacing:.5px;}
+.table-wrapper{overflow:auto;border:1px solid var(--border);border-radius:8px;background:#fff;}
+table{width:100%;border-collapse:collapse;font-size:.7rem;}
+th,td{padding:8px 10px;border-bottom:1px solid #f1f5f9;text-align:left;vertical-align:top;}
+th{background:#f8fafc;font-weight:600;font-size:.6rem;letter-spacing:.5px;text-transform:uppercase;color:#475569;}
+tr:last-child td{border-bottom:none;}
+.actions{display:flex;gap:6px;flex-wrap:wrap;}
+button{cursor:pointer;}
+.btn{background:#fff;border:1px solid var(--border);padding:8px 14px;font-size:.65rem;font-weight:600;letter-spacing:.5px;border-radius:6px;display:inline-flex;align-items:center;gap:6px;color:#334155;transition:.2s;}
+.btn:hover{background:#f1f5f9;}
+.btn-primary{background:linear-gradient(135deg,var(--primary),var(--secondary));color:#fff;border:none;}
+.btn-primary:hover{filter:brightness(.95);} 
+.btn-danger{background:var(--danger);color:#fff;border:none;}
+.btn-danger:hover{filter:brightness(.9);} 
+.btn-green{background:var(--green);color:#fff;border:none;}
+.btn-green:hover{filter:brightness(.92);} 
+.tag-earning{background:#dcfce7;color:#166534;}
+.tag-deduction{background:#fee2e2;color:#991b1b;}
+.flex{display:flex;gap:10px;align-items:center;}
+.justify-between{justify-content:space-between;}
+.wrap{flex-wrap:wrap;}
+.small{font-size:.6rem;}
+hr{border:none;border-top:1px solid var(--border);margin:18px 0;}
+.notice{background:#fef9c3;border:1px solid #fde68a;color:#92400e;padding:10px 12px;border-radius:6px;font-size:.65rem;margin-bottom:14px;display:flex;gap:8px;align-items:flex-start;}
+.empty{padding:18px;text-align:center;color:#64748b;font-size:.65rem;}
+.table-container { background:#fff; border:1px solid var(--line, #e2e8f0); border-radius:10px; box-shadow:0 2px 8px rgba(0,0,0,0.06); overflow:hidden; margin-top:14px; }
+.data-table { width:100%; border-collapse:collapse; font-size:.72rem; min-width:900px; }
+.data-table th { background:#f1f5f9; padding:6px 8px; font-size:.65rem; font-weight:600; color:#475569; border-bottom:1px solid var(--line, #e2e8f0); text-align:left; white-space:nowrap; }
+.data-table td { padding:6px 8px; font-size:.7rem; color:#334155; border-bottom:1px solid var(--line, #e2e8f0); vertical-align:middle; }
+.data-table tbody tr { transition:background .15s; }
+.data-table tbody tr:hover { background:#f8fafc; cursor:pointer; box-shadow:none; transform:none; }
+.filter-bar{display:flex;gap:10px;flex-wrap:wrap;margin:0 0 12px 0;}
+.status-badge{padding:4px 8px;border-radius:16px;font-size:.55rem;font-weight:600;letter-spacing:.5px;background:#e2e8f0;color:#334155;}
+.status-posted{background:#dcfce7;color:#166534;}
+.status-draft{background:#fee2e2;color:#991b1b;}
+.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:3000;display:none;align-items:center;justify-content:center;padding:24px;}
+.modal{background:#fff;border-radius:10px;padding:20px 22px;width:100%;max-width:980px;max-height:92vh;overflow:auto;box-shadow:0 10px 36px -4px rgba(0,0,0,.24);}
+.modal h3{margin:0 0 14px;font-size:.9rem;letter-spacing:.5px;text-transform:uppercase;}
+.close-btn{background:#e2e8f0;border:none;color:#334155;}
+.inline-chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px;}
+.inline-chips span{background:#f1f5f9;padding:4px 8px;border-radius:14px;font-size:.55rem;}
+.link{color:var(--secondary);cursor:pointer;text-decoration:underline;font-size:.65rem;}
+footer{padding:30px 0 40px;font-size:.55rem;text-align:center;color:#94a3b8;}
+@keyframes fade{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:translateY(0);}}
+/* Position Details style adaptations for Add Employee Modal */
+.employee-modal-wrapper{display:flex;flex-direction:column;gap:1rem;}
+.employee-modal-header{background:#ffffff;color:#1e293b;padding:1rem 1.25rem;border-radius:10px;display:flex;flex-direction:column;gap:.35rem;box-shadow:0 2px 6px rgba(0,0,0,0.06);border:1px solid #e2e8f0;} 
+.employee-modal-header h3 i{color:var(--secondary-color);} 
+.employee-modal-header h3{margin:0;font-size:1rem;text-transform:none;display:flex;align-items:center;gap:.6rem;letter-spacing:.5px;}
+.employee-form-sections{display:flex;flex-direction:column;gap:1.25rem;}
+.emp-section{background:#f8f9fa;border-radius:10px;padding:1rem 1.1rem;border:1px solid #e2e8f0;position:relative;}
+.emp-section{border-left:1px solid #e2e8f0;} /* remove colored vertical bar */
+.emp-section h4{margin:0 0 .75rem;font-size:.7rem;letter-spacing:.7px;text-transform:uppercase;color:#334155;display:flex;align-items:center;gap:.5rem;font-weight:700;}
+.emp-grid{display:grid;gap:.85rem;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));}
+.emp-grid label{font-size:.6rem;text-transform:uppercase;letter-spacing:.6px;font-weight:600;}
+.employee-modal-footer{display:flex;gap:.6rem;flex-wrap:wrap;justify-content:flex-end;padding-top:.5rem;}
+.employee-modal-footer .btn-primary{display:inline-flex;align-items:center;gap:.45rem;font-size:.65rem;}
+.chip{background:#e2e8f0;color:#334155;font-size:.55rem;font-weight:600;padding:4px 8px;border-radius:14px;letter-spacing:.5px;}
+.emp-notice{background:#eef6ff;border:1px solid #cfe2ff;color:#1e3a8a;padding:.65rem .75rem;border-radius:8px;font-size:.6rem;line-height:1.3;display:flex;gap:.55rem;align-items:flex-start;}
+.emp-divider{height:1px;background:linear-gradient(90deg,rgba(0,0,0,0),#cbd5e1,rgba(0,0,0,0));margin:.5rem 0 0.75rem;}
+.employee-modal-wrapper::-webkit-scrollbar{width:8px;}
+.employee-modal-wrapper::-webkit-scrollbar-track{background:#f1f5f9;border-radius:10px;}
+.employee-modal-wrapper::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:10px;}
+.employee-modal-wrapper::-webkit-scrollbar-thumb:hover{background:#94a3b8;}
+.emp-two-col{grid-column:1/-1;display:grid;gap:.85rem;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));}
+.emp-section textarea{min-height:60px;}
+.employee-modal-close{position:absolute;top:8px;right:8px;background:rgba(255,255,255,.2);color:#fff;border:none;border-radius:50%;width:30px;height:30px;display:flex;align-items:center;justify-content:center;cursor:pointer;backdrop-filter:blur(4px);transition:.2s;}
+.employee-modal-close:hover{background:rgba(255,255,255,.35);} 
+/* Internal section tabs inside modal */
+.emp-tab-nav{display:flex;flex-wrap:wrap;gap:4px;margin:0 0 .6rem 0;border-bottom:1px solid #e2e8f0;padding:0 2px;}
+.emp-tab-nav button{background:#f1f5f9;border:1px solid #e2e8f0;border-bottom:none;padding:6px 10px;font-size:.6rem;font-weight:600;letter-spacing:.5px;color:#475569;border-radius:6px 6px 0 0;cursor:pointer;transition:.15s;position:relative;top:1px;}
+.emp-tab-nav button:hover{background:#e2e8f0;}
+.emp-tab-nav button.active{background:#ffffff;color:#1e293b;box-shadow:0 -1px 3px rgba(0,0,0,0.06);}
+.emp-section{display:none;animation:fade .25s ease;}
+.emp-section.active{display:block;}
+
+/* Icon-only plain button (used in Pay Element modal) */
+.btn-plain-icon{background:transparent;border:1px solid transparent;padding:6px 8px;display:inline-flex;align-items:center;justify-content:center;font-size:.75rem;cursor:pointer;line-height:1;color:var(--primary-color,#1e293b);border-radius:6px;transition:.15s;}
+.btn-plain-icon:hover{background:#f1f5f9;border-color:#e2e8f0;}
+.btn-plain-icon:active{background:#e2e8f0;}
+.btn-plain-icon i{pointer-events:none;}
+
+</style>
+</head>
+<body>
+<div class="app-container">
+	<nav class="sidebar menu-loading" id="sidebar">
+		<div class="logo"><h2>Dreamex Datalab</h2></div>
+        <ul class="menu" id="roleBasedMenu">
+            <li class="menu-item" data-feature="home_view"><a href="index.html"><i class="fas fa-home"></i> Home</a></li>
+            <li class="menu-dropdown" data-feature="health_view">
+				<a href="#"><i class="fas fa-medkit"></i> Health</a>
+				<ul class="submenu">
+					<li data-feature="health_assessment_view" data-requires-permission="health_assessment_view"><a href="health-assessment.html">Assessment</a></li>
+					<li data-feature="health_consultation_view" data-requires-permission="health_consultation_view"><a href="health-consultation.html">Consultation</a></li>
+					<li data-feature="medical_folder_view" data-requires-permission="medical_folder_view"><a href="medical-folder.html">Medical Folder</a></li>
+				</ul>
+			</li>
+            <li class="menu-dropdown" data-feature="safety_view" data-requires-permission="safety_view">
+				<a href="#"><i class="fas fa-shield-alt"></i> Safety</a>
+				<ul class="submenu">
+					<li data-feature="training_view" data-requires-permission="training_view"><a href="trainingboard.html">Training</a></li>
+					<li data-feature="risk_view" data-requires-permission="risk_view"><a href="riskboard.html">Risk Management</a></li>
+					<li data-feature="jsa_view" data-requires-permission="jsa_view"><a href="jsaboard.html">Job Safety Analysis</a></li>
+					<li data-feature="ptw_view" data-requires-permission="ptw_view"><a href="ptwboard.html">Permit to Work</a></li>
+					<li data-feature="incident_view" data-requires-permission="incident_view"><a href="incidentboard.html">Incident Reports</a></li>
+					<li data-feature="inspection_view" data-requires-permission="inspection_view"><a href="inspectionboard.html">Inspection</a></li>
+					<li data-feature="audit_view" data-requires-permission="audit_view"><a href="auditboard.html">Audit</a></li>
+				</ul>
+			</li>
+            <li class="menu-dropdown" data-feature="investigation_view" data-requires-permission="investigation_view">
+				<a href="#"><i class="fas fa-search-plus"></i> Investigation</a>
+				<ul class="submenu">
+					<li data-feature="investigation_dashboard_view" data-requires-permission="investigation_dashboard_view"><a href="investigation-dashboard.html">Investigation Dashboard</a></li>
+					<li data-feature="investigation_list_view" data-requires-permission="investigation_list_view"><a href="investigation-list.html">Investigation List</a></li>
+					<li data-feature="create_investigation_view" data-requires-permission="create_investigation_view"><a href="investigation-create.html">Create Investigation</a></li>
+				</ul>
+			</li>
+            <li class="menu-dropdown" data-feature="fuel_management" data-requires-permission="fuel_management">
+				<a href="#"><i class="fas fa-gas-pump"></i> Fuel Management</a>
+				<ul class="submenu">
+                    <li data-feature="vessel_offloading" data-requires-permission="vessel_offloading"><a href="vessel-offloading.html">Vessel Offloading</a></li>
+                    <li data-feature="fuel_storage" data-requires-permission="fuel_storage"><a href="fuelstor.html">Fuel Storage Status</a></li>
+                    <li data-feature="tank_transfer" data-requires-permission="tank_transfer"><a href="fueltrans.html">Tank-to-Tank Transfer</a></li>
+                    <li data-feature="truck_loading" data-requires-permission="truck_loading"><a href="fuel-truck-loading.html">Fuel Truck Loading</a></li>
+                    <li data-feature="quality_analysis" data-requires-permission="quality_analysis"><a href="fuel-quality-analysis.html">Fuel Quality Analysis</a></li>
+                    <li data-feature="fuel_distribution" data-requires-permission="fuel_distribution"><a href="fueldist.html">Fuel Distribution</a></li>
+                    <li data-feature="fuel_consumption_analysis" data-requires-permission="fuel_consumption_analysis"><a href="fuelanalys.html">Consumption Analysis</a></li>
+                    <li data-feature="fuel_daily_report" data-requires-permission="fuel_daily_report"><a href="fueldaily.html">Daily Fuel Report</a></li>
+				</ul>
+			</li>
+            <li class="menu-dropdown" data-feature="environment_view">
+				<a href="#"><i class="fas fa-leaf"></i> Environment</a>
+				<ul class="submenu">
+                    <li data-feature="water_view" data-requires-permission="water_view"><a href="waterboard.html">Water Quality</a></li>
+				</ul>
+			</li>
+            <li class="menu-dropdown" data-feature="security_view" data-requires-permission="security_view">
+				<a href="#"><i class="fas fa-lock"></i> Security</a>
+				<ul class="submenu">
+                    <li data-feature="access_view" data-requires-permission="access_view"><a href="accessboard.html">Access Request</a></li>
+                    <li data-feature="access_daily_view" data-requires-permission="access_daily_view"><a href="accessdaily.html">Daily Access Control</a></li>
+                    <li data-feature="removal_view" data-requires-permission="removal_view"><a href="removalboard.html">Property Removal</a></li>
+                    <li data-feature="security_site_map_view" data-requires-permission="security_site_map_view"><a href="sitemap.html">Security Site Map</a></li>
+					<li data-feature="security_level_evaluation_view" data-requires-permission="security_level_evaluation_view"><a href="seclevel.html">Security Level Evaluation</a></li>
+				</ul>
+			</li>
+			<li class="menu-dropdown" data-feature="logistics_view" data-requires-permission="logistics_view">
+				<a href="#"><i class="fas fa-truck"></i> Logistics</a>
+				<ul class="submenu">
+                    <li data-feature="fleet_view" data-requires-permission="fleet_view"><a href="fleet.html">Fleet Management</a></li>
+                    <li data-feature="travel_view" data-requires-permission="travel_view"><a href="travel.html">Travel Requests</a></li>
+				</ul>
+			</li>
+			<li class="menu-dropdown" data-feature="accommodation_view" data-requires-permission="accommodation_view">
+				<a href="#"><i class="fas fa-bed"></i> Accommodation</a>
+				<ul class="submenu">
+					<li data-feature="camp_view" data-requires-permission="camp_view"><a href="camp.html">Camp Management</a></li>
+                    <li data-feature="camp_settings_view" data-requires-permission="camp_settings_view"><a href="campset.html">Camp Settings</a></li>
+				</ul>
+			</li>
+			<li class="menu-dropdown" data-feature="hr_view" data-requires-permission="hr_view">
+				<a href="#"><i class="fas fa-users"></i> HR</a>
+				<ul class="submenu">
+					<li data-feature="human_hr_view" data-requires-permission="human_hr_view"><a href="human-hr.html"><i class="fas fa-user-tie"></i> Human HR</a></li>
+					<li data-feature="staff_management_view" data-requires-permission="staff_management_view"><a href="staff.html">Staffing</a></li>
+					<li data-feature="authority_to_recruit_view" data-requires-permission="authority_to_recruit_view"><a href="recruit.html">Authority to Recruit</a></li>
+					<li data-feature="job_advertising_view" data-requires-permission="job_advertising_view"><a href="jobpost.html">Job Advertising</a></li>
+					<li data-feature="screening_view" data-requires-permission="screening_view"><a href="jobscreen.html">Screening</a></li>
+					<li data-feature="interview_view" data-requires-permission="interview_view"><a href="interview.html">Interview</a></li>
+					<li data-feature="offer_view" data-requires-permission="offer_view"><a href="offer.html">Offer Management</a></li>
+					<li data-feature="contract_view" data-requires-permission="contract_view"><a href="contract.html">Contract Management</a></li>
+                    <li data-feature="salary_management_view" data-requires-permission="salary_management_view"><a href="salary.html">Salary Management</a></li>
+					<li data-feature="onboarding_view" data-requires-permission="onboarding_view"><a href="onboard.html">Onboarding</a></li>
+					<li data-feature="chart_view" data-requires-permission="chart_view"><a href="chart.html">Chart Setup</a></li>
+					<li data-feature="chartboard_view" data-requires-permission="chartboard_view"><a href="chartboard.html">Org Chart</a></li>
+                    <li data-feature="kpi_dashboard_view" data-requires-permission="kpi_dashboard_view"><a href="kpi.html">KPI</a></li>
+                    <li data-feature="payroll_view" data-requires-permission="payroll_view"><a href="payroll.html" class="active">Payroll</a></li>
+				</ul>
+			</li>
+            <li class="menu-dropdown" data-feature="project_management_section">
+                <a href="#"><i class="fas fa-project-diagram"></i> Project Management</a>
+                <ul class="submenu">
+                    <li data-feature="project_dashboard_view" data-requires-permission="project_dashboard_view"><a href="project-dashboard.html"><i class="fas fa-tachometer-alt"></i> Project Dashboard</a></li>
+                    <li data-feature="project_create_view" data-requires-permission="project_create_view"><a href="project-create.html"><i class="fas fa-plus-circle"></i> Create Project</a></li>
+                    <li data-feature="project_list_view" data-requires-permission="project_list_view"><a href="project-list.html"><i class="fas fa-list"></i> Project List</a></li>
+                    <li data-feature="project_reports_view" data-requires-permission="project_reports_view"><a href="project-reports.html"><i class="fas fa-chart-bar"></i> Project Reports</a></li>
+                </ul>
+            </li>
+            <li class="menu-dropdown" data-feature="inventory_view" data-requires-permission="inventory_view">
+                <a href="#"><i class="fas fa-boxes"></i> Inventory Management</a>
+                <ul class="submenu">
+                    <li data-feature="inventory_dashboard_view" data-requires-permission="inventory_dashboard_view"><a href="inventory-dashboard.html"><i class="fas fa-tachometer-alt"></i> Inventory Dashboard</a></li>
+                    <li data-feature="inventory_items_view" data-requires-permission="inventory_items_view"><a href="inventory-items.html"><i class="fas fa-cubes"></i> Items Management</a></li>
+                    <li data-feature="inventory_warehouses_view" data-requires-permission="inventory_warehouses_view"><a href="inventory-warehouses.html"><i class="fas fa-warehouse"></i> Warehouses</a></li>
+                    <li data-feature="inventory_reservations_view" data-requires-permission="inventory_reservations_view"><a href="inventory-reservations.html"><i class="fas fa-bookmark"></i> Material Reservations</a></li>
+                    <li data-feature="inventory_approvals_view" data-requires-permission="inventory_approvals_view"><a href="inventory-approvals.html"><i class="fas fa-check-circle"></i> Approvals</a></li>
+                    <li data-feature="inventory_issue_view" data-requires-permission="inventory_issue_view"><a href="inventory-issue.html"><i class="fas fa-shipping-fast"></i> Material Issue</a></li>
+                </ul>
+            </li>
+            <li data-feature="communication_view"><a href="info.html"><i class="fas fa-comments"></i> Communication</a></li>
+            <li class="menu-dropdown" data-feature="settings_view">
+				<a href="#"><i class="fas fa-cog"></i> Settings</a>
+				<ul class="submenu">
+                    <li data-feature="account_settings_view" data-requires-permission="account_settings_view"><a href="account.html">Account Settings</a></li>
+                    <li data-feature="company_management_view" data-requires-permission="company_management_view"><a href="companymanagement.html">Company Management</a></li>
+                    <li data-feature="approval_settings_view" data-requires-permission="approval_settings_view"><a href="approval-settings.html">Approval Flow Settings</a></li>
+                    <li data-feature="field_setup_view" data-requires-permission="field_setup_view"><a href="fieldsetup.html">Field Setup</a></li>
+                    <li data-feature="preferences_view" data-requires-permission="preferences_view"><a href="preferences.html">Preferences</a></li>
+                    <li data-feature="notification_settings_view" data-requires-permission="notification_settings_view"><a href="notification-settings.html">Notification Settings</a></li>
+                    <li data-feature="audit_log_view" data-requires-permission="audit_log_view"><a href="auditlog.html"><i class="fas fa-history"></i> Audit Log</a></li>
+                    <li data-feature="user_management_view" data-requires-permission="user_management_view"><a href="users.html">User & Role Management</a></li>
+                    <li data-feature="role_permissions_view" data-requires-permission="role_permissions_view"><a href="roles.html">Role Permissions</a></li>
+				</ul>
+			</li>
+		</ul>
+	</nav>
+    <main class="main-content" id="mainContent">
+        <nav class="top-nav">
+            <div class="top-nav-left">
+                <button id="sidebarToggle" class="sidebar-toggle-btn" title="Toggle Menu"><i class="fas fa-bars"></i></button>
+                <div class="company-branding">
+                    <img id="headerCompanyLogo" alt="Company Logo" />
+                    <span id="headerCompanyName"></span>
+                </div>
+            </div>
+            <div class="top-nav-right">
+                <div class="notifications">
+                    <button id="notificationBtn" class="notification-btn">
+                        <i class="fas fa-bell"></i>
+                        <span class="notification-badge">0</span>
+                    </button>
+                    <div class="notification-dropdown">
+                        <div class="notification-header">
+                            <h3>Notifications</h3>
+                            <button class="mark-all-read">Mark all as read</button>
+                        </div>
+                        <div class="notification-list">
+                            <!-- Notifications will be dynamically added here -->
+                        </div>
+                        <div class="notification-empty">
+                            <i class="fas fa-inbox"></i>
+                            <div class="notification-empty-title">No notifications</div>
+                            <div class="notification-empty-message">You're all caught up</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="user-profile" style="position:relative;">
+                    <button id="userProfileBtn" class="profile-btn"><img src="" alt="User Avatar" /></button>
+                    <div class="profile-dropdown"><ul></ul></div>
+                </div>
+            </div>
+        </nav>
+		<div class="page-header">
+			<h1><i class="fas fa-money-check-dollar"></i> Payroll Management</h1>
+            <div class="page-actions">
+        <button class="btn-add-new" id="tabAddBtn" title="Add"><i class="fas fa-plus"></i></button>
+  <!-- Import button removed per requirement -->
+            </div>
+		</div>
+        <div class="content-tabs">
+          <div class="tab-navigation" id="tabNav">
+            <button class="tab-nav-btn active" data-tab="employees"><i class="fas fa-id-card"></i><span>Employees</span></button>
+            <button class="tab-nav-btn" data-tab="pay-elements"><i class="fas fa-layer-group"></i><span>Pay Elements</span></button>
+            <button class="tab-nav-btn" data-tab="pay-run"><i class="fas fa-calculator"></i><span>Pay Runs</span></button>
+            <button class="tab-nav-btn" data-tab="payslip-templates"><i class="fas fa-file-invoice-dollar"></i><span>Payslip Templates</span></button>
+          </div>
+      <!-- Global Add button moved to page header -->
+          <!-- Tab Contents -->
+          <div class="tab-content active" id="panel-employees">
+    <div class="card" id="employeeFormCard" style="display:none;">
+      <h2><i class="fas fa-user-plus"></i> New Employee</h2>
+      <div class="notice"><i class="fas fa-circle-info"></i> Capture comprehensive employee master data. Fields marked optional can be filled later. Assign a payslip template to enable correct pay element filtering during payroll.
+      </div>
+      <form id="employeeForm" class="grid cols-4">
+        <fieldset style="grid-column:1/-1;" class="grid cols-4">
+          <legend>Personal Information</legend>
+          <label>Employee ID
+            <input list="employeeIdOptions" type="text" id="empId" placeholder="Select or type" autocomplete="off">
+            <datalist id="employeeIdOptions"></datalist>
+          </label>
+          <label>First Name<input type="text" id="empFirstName" required></label>
+          <label>Last Name<input type="text" id="empLastName" required></label>
+          <label>Gender<select id="empGender"><option value="">--</option><option>Male</option><option>Female</option><option>Other</option></select></label>
+          <label>Date of Birth<input type="date" id="empDob"></label>
+          <label>Nationality<input type="text" id="empNationality"></label>
+          <label>Marital Status<select id="empMarital"><option value="">--</option><option>Single</option><option>Married</option><option>Divorced</option><option>Widowed</option></select></label>
+          <label>Dependents<input type="number" id="empDependents" min="0" value="0"></label>
+          <label style="grid-column:1/-1;">Address<textarea id="empAddress" placeholder="Street, City, State, Country"></textarea></label>
+        </fieldset>
+        <fieldset class="grid cols-4" style="grid-column:1/-1;">
+          <legend>Contact</legend>
+          <label>Email<input type="email" id="empEmail"></label>
+            <label>Phone<input type="text" id="empPhone"></label>
+            <label>City<input type="text" id="empCity"></label>
+            <label>Country<input type="text" id="empCountry"></label>
+        </fieldset>
+        <fieldset class="grid cols-4" style="grid-column:1/-1;">
+          <legend>Employment</legend>
+          <label>Department<input type="text" id="empDepartment"></label>
+          <label>Job Title<input type="text" id="empJobTitle"></label>
+          <label>Employment Type<select id="empEmploymentType"><option value="">--</option><option>Full-Time</option><option>Part-Time</option><option>Contract</option><option>Intern</option><option>Consultant</option></select></label>
+          <label>Work Location<input type="text" id="empWorkLocation"></label>
+          <label>Hire Date<input type="date" id="empHireDate"></label>
+          <label>Termination Date<input type="date" id="empTerminationDate"></label>
+          <label>Status<select id="empStatus"><option value="Active">Active</option><option>On Leave</option><option>Terminated</option><option>Inactive</option></select></label>
+          <label>Manager ID<input type="text" id="empManagerId" placeholder="UID / EmpID"></label>
+          <label>Grade<input type="text" id="empGrade"></label>
+          <label>Level<input type="text" id="empLevel"></label>
+          <label>Pay Frequency<select id="empPayFrequency"><option value="Monthly">Monthly</option><option>Bi-Weekly</option><option>Weekly</option></select></label>
+          <label>Basic Salary<input type="number" id="empBasicSalary" step="0.01" value="0"></label>
+          <label>Currency<input type="text" id="empCurrency" value="USD"></label>
+          <label>Payslip Template<select id="empPayslipTemplate"><option value="">-- Select Template --</option></select></label>
+        </fieldset>
+        <fieldset class="grid cols-4" style="grid-column:1/-1;">
+          <legend>Banking & Statutory</legend>
+          <label>Bank Name<input type="text" id="empBankName" placeholder="Full bank name"></label>
+          <label>Account Holder Name<input type="text" id="empAccountName" placeholder="Name on account"></label>
+          <label>Account Number<input type="text" id="empAccountNumber" placeholder="Local account number"></label>
+          <label>Account Type<select id="empAccountType"><option value="">--</option><option>Checking</option><option>Savings</option><option>Current</option><option>Salary</option></select></label>
+          <label>IBAN<input type="text" id="empIBAN" placeholder="International Bank Account Number"></label>
+          <label>SWIFT/BIC Code<input type="text" id="empSwiftCode" placeholder="Bank Identifier Code"></label>
+          <label>Bank Code<input type="text" id="empBankCode" placeholder="National bank code"></label>
+          <label>Branch Code<input type="text" id="empBranchCode" placeholder="Branch/Sort code"></label>
+          <label>Branch Name<input type="text" id="empBranchName" placeholder="Branch location"></label>
+          <label>Routing Number<input type="text" id="empRoutingNumber" placeholder="ABA/ACH routing (US)"></label>
+          <label>BSB Code<input type="text" id="empBSBCode" placeholder="Bank-State-Branch (AU)"></label>
+          <label>IFSC Code<input type="text" id="empIFSCCode" placeholder="Indian Financial System Code"></label>
+          <label>RIB Key<input type="text" id="empRibKey" placeholder="Relevé d'Identité Bancaire"></label>
+          <label>Transit Number<input type="text" id="empTransitNumber" placeholder="Transit number (CA)"></label>
+          <label>Institution Number<input type="text" id="empInstitutionNumber" placeholder="Institution number (CA)"></label>
+          <label>Currency<input type="text" id="empBankCurrency" placeholder="e.g., USD, EUR, GBP" value="USD"></label>
+          <label style="grid-column:1/-1;">Bank Address<textarea id="empBankAddress" rows="2" placeholder="Full bank branch address"></textarea></label>
+          <label>Tax ID / TIN<input type="text" id="empTaxId" placeholder="Tax Identification Number"></label>
+          <label>Social Security #<input type="text" id="empSSN" placeholder="Social Security Number"></label>
+          <label>Pension #<input type="text" id="empPension" placeholder="Pension fund number"></label>
+          <label>National ID<input type="text" id="empNationalId" placeholder="National identification"></label>
+        </fieldset>
+        <fieldset class="grid cols-4" style="grid-column:1/-1;">
+          <legend>Emergency Contact</legend>
+          <label>Contact Name<input type="text" id="empEmergName"></label>
+          <label>Relationship<input type="text" id="empEmergRelation"></label>
+          <label>Phone<input type="text" id="empEmergPhone"></label>
+          <label>Email<input type="email" id="empEmergEmail"></label>
+          <label style="grid-column:1/-1;">Notes<textarea id="empNotes" placeholder="Additional remarks / eligibility info"></textarea></label>
+        </fieldset>
+        <div style="grid-column:1/-1;display:flex;gap:10px;flex-wrap:wrap;">
+          <button type="submit" class="btn-primary"><i class="fas fa-save"></i> Save Employee</button>
+          <button type="reset" class="btn" id="resetEmpForm"><i class="fas fa-rotate"></i> Reset</button>
+        </div>
+      </form>
+    </div>
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+        <h2><i class="fas fa-users"></i> Employees</h2>
+        <button class="btn-add-new" id="btnAddEmployee" title="Add New Employee"><i class="fas fa-plus"></i></button>
+      </div>
+      <div class="table-wrapper">
+        <table id="employeesTable">
+          <thead><tr><th>ID</th><th>Name</th><th>Dept</th><th>Job Title</th><th>Status</th><th></th></tr></thead>
+          <tbody id="employeesTbody"><tr><td colspan="6" class="empty">No employees yet</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    </div>
+    <div class="tab-content" id="panel-pay-elements">
+    <div class="card" id="payElementFormCard" style="display:none;">
+      <h2><i class="fas fa-plus-circle"></i> Pay Element</h2>
+      <form id="payElementForm" class="grid cols-4">
+        <label>Code<input type="text" id="peCode" required placeholder="BASIC, HRA, TAX, etc"></label>
+        <label>Name<input type="text" id="peName" required></label>
+        <label>Type<select id="peType"><option value="earning">Earning</option><option value="deduction">Deduction</option></select></label>
+        <label>Default Mode<select id="peValueMode"><option value="amount">Fixed Amount</option><option value="percent">Percentage</option></select></label>
+        <label id="peAmountWrapper">Default Amount<input type="number" id="peAmount" step="0.01" value="0"></label>
+        <label id="pePercentWrapper" style="display:none;">Default Percent (%)<input type="number" id="pePercent" step="0.01" value="0" placeholder="e.g. 10 for 10%"></label>
+        <label id="pePercentBaseWrapper" style="display:none;">Percent Base
+          <select id="pePercentBase">
+            <option value="basic">Basic</option>
+            <option value="gross">Gross</option>
+            <option value="net">Net (pre this item)</option>
+            <option value="custom">Custom Element...</option>
+          </select>
+        </label>
+        <label id="pePercentCustomWrapper" style="display:none;">Custom Element Code
+          <select id="pePercentCustom">
+            <option value="">-- select element --</option>
+          </select>
+        </label>
+        <label>Taxable<select id="peTaxable"><option value="true">Yes</option><option value="false">No</option></select></label>
+        <label>Active<select id="peActive"><option value="true">Yes</option><option value="false">No</option></select></label>
+        <div style="grid-column:1/-1;display:flex;gap:10px;flex-wrap:wrap;">
+          <button class="btn-plain-icon" type="submit" title="Save" aria-label="Save"><i class="fas fa-save"></i></button>
+          <button class="btn-plain-icon" type="reset" title="Reset" aria-label="Reset"><i class="fas fa-rotate"></i></button>
+        </div>
+        <input type="hidden" id="peEditingId" />
+      </form>
+    </div>
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+        <h2><i class="fas fa-layer-group"></i> Pay Elements</h2>
+        <button class="btn-add-new" id="btnAddPayElement" title="Add New Pay Element"><i class="fas fa-plus"></i></button>
+      </div>
+      <div class="table-wrapper">
+        <table id="payElementsTable"><thead><tr><th>Code</th><th>Name</th><th>Type</th><th>Default</th><th>Taxable</th><th>Active</th><th></th></tr></thead><tbody id="payElementsTbody"><tr><td colspan="7" class="empty">No pay elements</td></tr></tbody></table>
+      </div>
+    </div>
+    </div>
+    <div class="tab-content" id="panel-pay-run">
+    <div class="card" id="payRunSetupCard" style="display:none;">
+      <h2><i class="fas fa-calculator"></i> Create Payroll Run</h2>
+      <form id="payRunSetup" class="flex wrap" style="gap:16px;align-items:flex-end;">
+        <label>Month<select id="runMonth"></select></label>
+        <label>Year<select id="runYear"></select></label>
+        <label>Include Employees<select id="runEmployeeFilter"><option value="active">Active Only</option><option value="all">All</option></select></label>
+        <button class="btn-primary" id="btnLoadRunEmployees" type="button"><i class="fas fa-users"></i> Load Employees</button>
+      </form>
+      <hr />
+      <div id="runEmployeesContainer" class="grid cols-3"></div>
+      <div style="margin-top:18px;display:flex;gap:10px;flex-wrap:wrap;">
+        <button class="btn-green" id="btnGenerateRun" disabled><i class="fas fa-gears"></i> Generate Draft Run</button>
+      </div>
+    </div>
+    <div class="card" id="draftRunCard" style="display:none;">
+      <h2><i class="fas fa-file-invoice"></i> Draft Run</h2>
+      <div class="table-wrapper">
+        <table id="draftRunTable"><thead><tr><th>Employee</th><th>Basic</th><th>Earnings</th><th>Deductions</th><th>Tax</th><th>Net</th><th></th></tr></thead><tbody id="draftRunTbody"></tbody></table>
+      </div>
+      <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;">
+        <button class="btn-primary" id="btnPostRun"><i class="fas fa-paper-plane"></i> Post Run</button>
+        <button class="btn" id="btnDiscardRun"><i class="fas fa-trash"></i> Discard</button>
+      </div>
+    </div>
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+        <h2><i class="fas fa-clock-rotate-left"></i> Payroll Runs</h2>
+        <button class="btn-add-new" id="btnAddPayRun" title="Create New Payroll Run"><i class="fas fa-plus"></i></button>
+      </div>
+      <div class="table-wrapper">
+        <table id="runsTable"><thead><tr><th>Period</th><th>Employees</th><th>Status</th><th>Created</th><th></th></tr></thead><tbody id="runsTbody"><tr><td colspan="5" class="empty">No runs yet</td></tr></tbody></table>
+      </div>
+    </div>
+    </div>
+    <div class="tab-content" id="panel-payslip-templates">
+    <div class="card" id="templateFormCard" style="display:none;">
+      <h2><i class="fas fa-file-invoice-dollar"></i> Payslip Template</h2>
+      <form id="templateForm" class="grid cols-4">
+        <label>Template Code (Category)<input type="text" id="tplCode" placeholder="GEN, ENG, SALES" required></label>
+        <label>Template Name<input type="text" id="tplName" required></label>
+        <label>Description<textarea id="tplDesc" placeholder="Describe purpose, applicability"></textarea></label>
+        <fieldset style="grid-column:1/-1;" class="grid cols-4">
+          <legend>Earnings Elements</legend>
+          <div id="tplEarnings" class="inline-chips" style="grid-column:1/-1;"></div>
+        </fieldset>
+        <fieldset style="grid-column:1/-1;" class="grid cols-4">
+          <legend>Deductions Elements</legend>
+          <div id="tplDeductions" class="inline-chips" style="grid-column:1/-1;"></div>
+        </fieldset>
+        <div style="grid-column:1/-1;display:flex;gap:10px;flex-wrap:wrap;">
+          <button class="btn-primary" type="submit"><i class="fas fa-save"></i> Save Template</button>
+          <button class="btn" type="reset"><i class="fas fa-rotate"></i> Reset</button>
+        </div>
+        <input type="hidden" id="tplEditingId" />
+      </form>
+    </div>
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+        <h2><i class="fas fa-file-lines"></i> Templates</h2>
+        <button class="btn-add-new" id="btnAddTemplate" title="Add New Template"><i class="fas fa-plus"></i></button>
+      </div>
+      <div class="table-wrapper">
+  <table id="templatesTable"><thead><tr><th>Code</th><th>Name</th><th>Earnings</th><th>Deductions</th><th>Number</th><th></th></tr></thead><tbody id="templatesTbody"><tr><td colspan="6" class="empty">No templates</td></tr></tbody></table>
+      </div>
+    </div>
+          </div>
+        </div>
+
+
+<!-- Draft Line Modal (edit earnings/deductions) -->
+<div class="modal-backdrop" id="lineModalBackdrop">
+  <div class="modal">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+      <h3><i class="fas fa-pen-to-square"></i> Adjust Pay Lines</h3>
+      <button class="btn close-btn" id="closeLineModal"><i class="fas fa-xmark"></i></button>
+    </div>
+    <div id="lineModalBody" style="display:grid;gap:18px;"></div>
+    <div style="margin-top:18px;display:flex;gap:10px;flex-wrap:wrap;">
+      <button class="btn-primary" id="saveLineModal"><i class="fas fa-save"></i> Save Changes</button>
+    </div>
+  </div>
+</div>
+
+  <!-- Generic Entity Modal (Add/Edit Employee, Pay Element, Template, Pay Run Setup) -->
+  <div class="modal-backdrop" id="entityModalBackdrop" style="display:none;">
+    <div class="modal">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+        <h3 id="entityModalTitle" style="margin:0;font-size:.85rem;letter-spacing:.5px;text-transform:uppercase;"></h3>
+        <button class="btn close-btn" id="closeEntityModal" type="button"><i class="fas fa-xmark"></i></button>
+      </div>
+      <div id="entityModalBody"></div>
+    </div>
+  </div>
+
+<script>
+/**************** Centralized Auth & Branding (Imported from project-list.html, trimmed) *****************/
+// Ensure Firebase initialized (reuse existing config below if already present)
+try { if (!window.firebase || !window.firebase.apps || !window.firebase.apps.length) { firebase.initializeApp(firebaseConfig); } } catch(e) {}
+
+class AuthManager {
+    constructor(){ this.currentUser=this.getCurrentUser(); this.currentCompany=null; this.init(); }
+    getCurrentUser(){ try{return JSON.parse(localStorage.getItem('currentUser')||'null');}catch{return null;} }
+    setCurrentUser(u){ localStorage.setItem('currentUser',JSON.stringify(u)); localStorage.setItem('user',JSON.stringify(u)); this.currentUser=u; }
+    async init(){ if(!this.currentUser){ window.location.href='login.html'; return; } await this.loadUserCompany(); this.updateCompanyBranding(); await this.updateUIForAuthenticatedUser(); this.bindProfileDropdown(); initializeMenuAuthorization?.(); }
+    async loadUserCompany(){ if(!this.currentUser) return; try { const snap=await firebase.database().ref('companies').once('value'); if(!snap.exists()) return; const companies=snap.val(); for(const [cid,comp] of Object.entries(companies)){ if(comp.status!=='active') continue; if(comp.users){ for(const [uid,u] of Object.entries(comp.users)){ if(u.authUid===this.currentUser.uid || uid===this.currentUser.uid){ this.currentUser.companyId=cid; this.currentUser.companyName=comp.companyName; this.currentUser.role=u.role||u.userRole||'user'; this.currentCompany=comp; this.setCurrentUser(this.currentUser); return; } } } } } catch(e){} }
+    getCompanyInitials(name){ if(!name) return 'CO'; const parts=name.trim().split(/\s+/); if(parts.length===1) return parts[0].substring(0,2).toUpperCase(); return (parts[0][0]+parts[1][0]).toUpperCase(); }
+    generateCompanyInitialsSVG(initials){ const svg=`<svg width="44" height="44" viewBox="0 0 44 44" xmlns="http://www.w3.org/2000/svg"><rect width="44" height="44" rx="6" fill="#f0f3f6"/><text x="50%" y="52%" dominant-baseline="middle" text-anchor="middle" fill="#495057" font-family="Inter,Arial,sans-serif" font-weight="600" font-size="14">${initials}</text></svg>`; return 'data:image/svg+xml;base64,'+btoa(svg); }
+    updateCompanyBranding(){ const logoEl=document.getElementById('headerCompanyLogo'); const nameEl=document.getElementById('headerCompanyName'); if(!this.currentCompany){ if(logoEl){ logoEl.src=this.generateCompanyInitialsSVG('DX'); logoEl.classList.add('visible'); } return; } if(nameEl) nameEl.textContent=this.currentCompany.companyName||''; const logo=this.currentCompany.logo||this.currentCompany.logoUrl; if(logoEl){ if(logo){ logoEl.src=logo; logoEl.classList.add('visible'); } else { logoEl.src=this.generateCompanyInitialsSVG(this.getCompanyInitials(this.currentCompany.companyName||'')); logoEl.classList.add('visible'); } } if(this.currentCompany.branding){ const root=document.documentElement; if(this.currentCompany.branding.primaryColor) root.style.setProperty('--primary-color', this.currentCompany.branding.primaryColor); if(this.currentCompany.branding.secondaryColor) root.style.setProperty('--secondary-color', this.currentCompany.branding.secondaryColor); }
+    }
+    getUserDisplayName(){ if(!this.currentUser) return 'User'; const opts=[this.currentUser.displayName,this.currentUser.name,this.currentUser.username]; for(const o of opts){ if(o && o.trim()) return o.trim(); } if(this.currentUser.email) return this.currentUser.email.split('@')[0]; return 'User'; }
+    getUserInitials(){ const dn=this.getUserDisplayName(); const parts=dn.split(' ').filter(Boolean); if(parts.length===1) return parts[0].substring(0,2).toUpperCase(); return (parts[0][0]+parts[1][0]).toUpperCase(); }
+    async getUserAvatarUrl(){ if(!this.currentUser) return null; const cid=this.currentUser.companyId||'default'; const paths=[`companies/${cid}/avatars/${this.currentUser.uid}/profile.jpg`,`companies/${cid}/avatars/${this.currentUser.uid}/profile.png`,`avatars/${this.currentUser.uid}/profile.jpg`,`avatars/${this.currentUser.uid}/profile.png`]; for(const p of paths){ try{ const ref=firebase.storage().ref(p); return await ref.getDownloadURL(); }catch(e){} } return null; }
+  async updateUIForAuthenticatedUser(){
+    const btn = document.getElementById('userProfileBtn');
+    const list = document.querySelector('.profile-dropdown ul');
+    if(!btn || !list || !this.currentUser) return;
+    const displayName = this.getUserDisplayName();
+    const email = this.currentUser.email || '';
+    let avatarUrl = null;
+    try { avatarUrl = await this.getUserAvatarUrl(); } catch(e){}
+    const btnImg = btn.querySelector('img');
+    if(avatarUrl && btnImg){
+      btnImg.src = avatarUrl; btnImg.alt = displayName + ' Avatar'; btnImg.style.display='block';
+      btnImg.onerror = () => { btnImg.style.display='none'; btn.innerHTML = `<div style="width:38px;height:38px;border-radius:50%;background:#3498db;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:0.8rem;">${this.getUserInitials()}</div>`; };
+    } else {
+      btn.innerHTML = `<div style="width:38px;height:38px;border-radius:50%;background:#3498db;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:0.8rem;">${this.getUserInitials()}</div>`;
+    }
+    const avatarHtml = avatarUrl ? `<img src="${avatarUrl}" alt="${displayName} Avatar" style="width:32px;height:32px;border-radius:50%;object-fit:cover;">` : `<div style="width:32px;height:32px;border-radius:50%;background:#3498db;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:12px;">${this.getUserInitials()}</div>`;
+    list.innerHTML = `<li style="border-bottom:1px solid #eee;padding:12px 16px;background:#f8f9fa;"><div style="display:flex;align-items:center;gap:12px;">${avatarHtml}<div><div style="font-weight:600;color:#333;font-size:14px;margin-bottom:2px;">${displayName}</div><div style="color:#666;font-size:12px;">${email}</div></div></div></li><li><a href="profile.html"><i class="fas fa-user"></i> Profile</a></li><li><a href="account.html"><i class="fas fa-cog"></i> Account Settings</a></li><li><a href="#" id="logoutLink"><i class="fas fa-sign-out-alt"></i> Sign out</a></li>`;
+    list.querySelector('#logoutLink')?.addEventListener('click', e=>{ e.preventDefault(); this.logout(); });
+  }
+  bindProfileDropdown(){
+    const btn = document.getElementById('userProfileBtn');
+    const dd = document.querySelector('.profile-dropdown');
+    if(!btn || !dd) return;
+    // Remove any previous global handler (idempotent)
+    if(window.__payrollProfileDropdownHandler){
+      document.removeEventListener('click', window.__payrollProfileDropdownHandler);
+    }
+    btn.addEventListener('click', e=>{
+      e.preventDefault();
+      e.stopPropagation();
+      dd.classList.toggle('show');
+    });
+    window.__payrollProfileDropdownHandler = (e)=>{
+      if(e.target.closest('#userProfileBtn') || e.target.closest('.profile-dropdown')) return;
+      dd.classList.remove('show');
+    };
+    document.addEventListener('click', window.__payrollProfileDropdownHandler);
+  }
+    async logout(){ try{ await firebase.auth().signOut(); }catch(e){} localStorage.removeItem('currentUser'); localStorage.removeItem('user'); window.location.href='login.html'; }
+}
+
+// Role-based menu visibility (trimmed)
+// ===== Robust Feature + Role Based Authorization (adapted from project-list) =====
+let isMenuUpdateInProgress = false;
+function resetMenuVisibility(){ document.querySelectorAll('[data-feature]').forEach(i=>i.classList.remove('menu-visible')); document.querySelectorAll('.menu-dropdown').forEach(d=>d.classList.remove('menu-visible')); }
+function showSidebarAfterAuth(){ const sb=document.querySelector('.sidebar'); sb?.classList.remove('menu-loading'); }
+function ensureHomeIsVisible(){ const home=document.querySelector('#roleBasedMenu li[data-feature="home_view"]'); if(home && !home.classList.contains('menu-visible')) home.classList.add('menu-visible'); }
+function hideItemsRequiringPermissions(){ const items=document.querySelectorAll('#roleBasedMenu li.menu-visible[data-requires-permission]'); items.forEach(i=>i.classList.remove('menu-visible')); document.querySelectorAll('#roleBasedMenu li.menu-dropdown').forEach(dd=>{ if(!dd.querySelector('.submenu li.menu-visible')) dd.classList.remove('menu-visible'); }); ensureHomeIsVisible(); }
+async function applyFeatureBasedMenuVisibility(companyId){ try{ const dbref=firebase.database(); const featuresSnap=await dbref.ref('/platformFeatures').once('value'); if(!featuresSnap.exists()){ resetMenuVisibility(); return []; } const featuresData=featuresSnap.val(); const companySnap=await dbref.ref(`/companies/${companyId}`).once('value'); const companyData=companySnap.val(); if(!companyData){ resetMenuVisibility(); return []; } const subscribedFeatureIds=companyData.selectedFeatures||[]; if(!subscribedFeatureIds.length){ resetMenuVisibility(); return []; } const authorizedPages=[]; subscribedFeatureIds.forEach(fid=>{ const f=featuresData[fid]; if(f && f.status==='active' && f.authorizedPages) authorizedPages.push(...f.authorizedPages); }); resetMenuVisibility(); const authorizedFeatures=new Set(); authorizedPages.forEach(p=>{ if(p.feature) authorizedFeatures.add(p.feature); }); const allItems=document.querySelectorAll('#roleBasedMenu li[data-feature]'); allItems.forEach(item=>{ const f=item.getAttribute('data-feature'); const isDropdown=item.classList.contains('menu-dropdown'); if(isDropdown) return; if(authorizedFeatures.has(f)) item.classList.add('menu-visible'); }); document.querySelectorAll('#roleBasedMenu li.menu-dropdown').forEach(dd=>{ const f=dd.getAttribute('data-feature'); const hasChild=dd.querySelector('.submenu li.menu-visible'); if(hasChild || authorizedFeatures.has(f)) dd.classList.add('menu-visible'); }); return authorizedPages; }catch(e){ console.error('Feature visibility error',e); resetMenuVisibility(); return []; } }
+function filterMenuByPermissions(permissions){ const visible=document.querySelectorAll('#roleBasedMenu li.menu-visible[data-requires-permission]'); visible.forEach(item=>{ const requires=item.getAttribute('data-requires-permission'); const perm=permissions?.[requires]; const allowed=perm===true || (perm && perm.view===true); if(!allowed) item.classList.remove('menu-visible'); }); document.querySelectorAll('#roleBasedMenu li.menu-dropdown').forEach(dd=>{ if(!dd.querySelector('.submenu li.menu-visible')) dd.classList.remove('menu-visible'); }); ensureHomeIsVisible(); showSidebarAfterAuth(); }
+async function applyRoleBasedFiltering(companyId, role, authorizedPages){ try{ const dbref=firebase.database(); const snap=await dbref.ref(`companies/${companyId}/roles/${role}/permissions`).once('value'); if(!snap.exists()){ if(role==='administrator'){ ensureHomeIsVisible(); showSidebarAfterAuth(); return; } hideItemsRequiringPermissions(); showSidebarAfterAuth(); return; } const permissions=snap.val(); filterMenuByPermissions(permissions); }catch(e){ console.error('Role filtering error',e); showSidebarAfterAuth(); } }
+async function updateMenuWithFeatureAuthorization(){ if(isMenuUpdateInProgress) return; isMenuUpdateInProgress=true; try{ let currentUser = window.authManager?.currentUser || null; let companyId=currentUser?.companyId||null; let role=currentUser?.role||null; if(!companyId && firebase.auth().currentUser){ const user=firebase.auth().currentUser; const companiesSnap=await firebase.database().ref('companies').once('value'); if(companiesSnap.exists()){ const companies=companiesSnap.val(); for(const [cid,comp] of Object.entries(companies)){ if(comp.status!=='active') continue; if(comp.users && comp.users[user.uid]){ companyId=cid; role=comp.users[user.uid].role||comp.users[user.uid].userRole; break; } } } }
+  if(!companyId){ resetMenuVisibility(); showSidebarAfterAuth(); return; }
+  const authorizedPages=await applyFeatureBasedMenuVisibility(companyId); if(role) await applyRoleBasedFiltering(companyId, role, authorizedPages); else { ensureHomeIsVisible(); showSidebarAfterAuth(); }
+} catch(e){ console.error('Menu auth error',e); resetMenuVisibility(); showSidebarAfterAuth(); } finally { isMenuUpdateInProgress=false; } }
+function initializeMenuAuthorization(){ const sb=document.querySelector('.sidebar'); sb?.classList.add('menu-loading'); setTimeout(()=>updateMenuWithFeatureAuthorization(),500); }
+window.updateMenuWithFeatureAuthorization = updateMenuWithFeatureAuthorization;
+
+// Instantiate Auth Manager after DOM ready
+document.addEventListener('DOMContentLoaded', ()=>{ window.authManager = new AuthManager(); });
+
+// Populate Employee ID datalist with company user employeeIds (from companymanagement.html data schema)
+async function populateEmployeeIdDatalist(){
+  try {
+    const user = window.authManager?.currentUser; if(!user || !user.companyId) return; if(!window.firebase) return;
+    const ref = firebase.database().ref(`companies/${user.companyId}/users`);
+    const snap = await ref.once('value');
+    if(!snap.exists()) return;
+    const users = snap.val();
+    const ids = new Set();
+    Object.values(users).forEach(u=>{ if(u && u.employeeId){ ids.add(String(u.employeeId).trim()); } });
+    const datalist = document.getElementById('employeeIdOptions');
+    if(!datalist) return;
+    datalist.innerHTML='';
+    Array.from(ids).sort().forEach(id=>{ const opt=document.createElement('option'); opt.value=id; datalist.appendChild(opt); });
+  } catch(e){ console.warn('Populate Employee IDs failed', e); }
+}
+// Delay population slightly to allow AuthManager to load company
+setTimeout(()=>populateEmployeeIdDatalist(),1200);
+
+// Cache of company users keyed by employeeId (lowercased) for auto-fill
+let __companyUsersByEmpId = {};
+
+// Enhance population to also cache user objects
+async function cacheCompanyUsers(){
+  try {
+    const user = window.authManager?.currentUser; if(!user || !user.companyId) return; if(!window.firebase) return;
+    const ref = firebase.database().ref(`companies/${user.companyId}/users`);
+    const snap = await ref.once('value');
+    if(!snap.exists()) return;
+    const users = snap.val();
+    __companyUsersByEmpId = {};
+    Object.values(users).forEach(u=>{ if(u && u.employeeId){ __companyUsersByEmpId[String(u.employeeId).toLowerCase()] = u; } });
+  } catch(e){ console.warn('Cache company users failed', e); }
+}
+setTimeout(()=>cacheCompanyUsers(),1000);
+
+async function autoFillEmployeeFromCompanyUser(formContext){
+  console.log('🔍 Auto-fill triggered');
+  
+  // Use form context if provided, otherwise fall back to document query
+  const idInput = formContext ? formContext.querySelector('#empId') : document.getElementById('empId');
+  if(!idInput) {
+    console.log('❌ No empId input found');
+    return;
+  }
+  
+  const enteredRaw = (idInput.value||'').trim();
+  if(!enteredRaw) {
+    console.log('❌ No employee ID entered');
+    return;
+  }
+  
+  console.log('🔍 Looking for employee ID:', enteredRaw, 'in form context:', !!formContext);
+  
+  try {
+    // Get current user and company using the same pattern as other functions
+    const currentUser = window.authManager?.currentUser;
+    if(!currentUser) {
+      console.log('❌ No currentUser from authManager');
+      return;
+    }
+    
+    console.log('👤 Current user:', currentUser);
+    
+    let companyId = currentUser.companyId;
+    
+    // Fallback: if no companyId in currentUser, try to find it like updateMenuWithFeatureAuthorization does
+    if(!companyId && firebase.auth().currentUser) {
+      console.log('🔍 No companyId in currentUser, searching companies...');
+      const user = firebase.auth().currentUser;
+      const companiesSnap = await firebase.database().ref('companies').once('value');
+      if(companiesSnap.exists()) {
+        const companies = companiesSnap.val();
+        for(const [cid, comp] of Object.entries(companies)) {
+          if(comp.status !== 'active') continue;
+          if(comp.users && comp.users[user.uid]) {
+            companyId = cid;
+            console.log('✅ Found company ID:', companyId);
+            break;
+          }
+        }
+      }
+    }
+    
+    if(!companyId) {
+      console.log('❌ No company ID found');
+      return;
+    }
+    
+    console.log('🏢 Using company ID:', companyId);
+    
+    // Fetch all users from this company
+    const ref = firebase.database().ref(`companies/${companyId}/users`);
+    console.log('🔍 Fetching from:', ref.toString());
+    const snap = await ref.once('value');
+    
+    if(!snap.exists()) {
+      console.log('❌ No users found in company');
+      return;
+    }
+    
+    const users = snap.val();
+    console.log('👥 Found users data:', users);
+    console.log('👥 User keys:', Object.keys(users));
+    
+    // Find user by employeeId - try exact match first, then case insensitive
+    let foundUser = null;
+    let foundUserKey = null;
+    
+    // First try exact match
+    for(const [userKey, userData] of Object.entries(users)) {
+      if(userData && userData.employeeId) {
+        console.log(`🔍 Checking user ${userKey}: employeeId = "${userData.employeeId}"`);
+        if(userData.employeeId.toString().trim() === enteredRaw) {
+          foundUser = userData;
+          foundUserKey = userKey;
+          console.log('✅ Found exact match!');
+          break;
+        }
+      }
+    }
+    
+    // If no exact match, try case insensitive
+    if(!foundUser) {
+      console.log('🔍 No exact match, trying case insensitive...');
+      for(const [userKey, userData] of Object.entries(users)) {
+        if(userData && userData.employeeId) {
+          if(userData.employeeId.toString().trim().toLowerCase() === enteredRaw.toLowerCase()) {
+            foundUser = userData;
+            foundUserKey = userKey;
+            console.log('✅ Found case insensitive match!');
+            break;
+          }
+        }
+      }
+    }
+    
+    if(!foundUser) {
+      console.log('❌ No user found with employee ID:', enteredRaw);
+      console.log('Available employee IDs:', Object.values(users).map(u => u?.employeeId).filter(Boolean));
+      return;
+    }
+    
+    console.log('✅ Found user data:', foundUser);
+    
+    // Helper to set field value - use form context if available
+    const setVal = (id, val, overwrite=true) => {
+      if(val == null || val === '') return;
+      const el = formContext ? formContext.querySelector('#' + id) : document.getElementById(id);
+      if(!el) {
+        console.log('⚠️ Field not found:', id);
+        return;
+      }
+      if(overwrite || !el.value) {
+        el.value = val;
+        console.log(`✅ Set ${id} = "${val}"`);
+      }
+    };
+
+    // Resolve potential first/last name keys (support legacy schemas)
+    const resolveFirstName = (u) => {
+      return u.firstName || u.firstname || u.first_name || u.userFirstName || u.fname || (u.fullName ? (u.fullName.split(' ')[0]||'') : '') || '';
+    };
+    const resolveLastName = (u) => {
+      if(u.lastName) return u.lastName;
+      if(u.lastname) return u.lastname;
+      if(u.last_name) return u.last_name;
+      if(u.userLastName) return u.userLastName;
+      if(u.lname) return u.lname;
+      if(u.fullName){
+        const parts = u.fullName.trim().split(/\s+/);
+        if(parts.length>1) return parts.slice(-1).join(' ');
+      }
+      return '';
+    };
+
+    // Pre-capture resolved names for logging & assignment
+    const resolvedFirst = resolveFirstName(foundUser);
+    const resolvedLast = resolveLastName(foundUser);
+    console.log('🧩 Resolved names -> first:', resolvedFirst, ' last:', resolvedLast);
+
+    // Fill basic personal info
+    setVal('empFirstName', resolvedFirst || foundUser.firstName || '');
+    setVal('empLastName', resolvedLast || foundUser.lastName || '');
+    setVal('empEmail', foundUser.email || '');
+    setVal('empPhone', foundUser.phone || '');
+    setVal('empAddress', foundUser.address || '');
+    setVal('empCity', foundUser.city || '');
+    setVal('empCountry', foundUser.country || '');
+    
+    // Employment details
+    setVal('empDepartment', foundUser.department || '');
+    setVal('empJobTitle', foundUser.jobTitle || '');
+    setVal('empWorkLocation', foundUser.workLocation || '');
+    
+    // Banking details
+    if(foundUser.bankName) setVal('empBankName', foundUser.bankName);
+    if(foundUser.accountName) setVal('empAccountName', foundUser.accountName);
+    if(foundUser.accountNumber) setVal('empAccountNumber', foundUser.accountNumber);
+    if(foundUser.accountType) setVal('empAccountType', foundUser.accountType);
+    if(foundUser.iban) setVal('empIBAN', foundUser.iban);
+    if(foundUser.swiftCode) setVal('empSwiftCode', foundUser.swiftCode);
+    if(foundUser.bankCode) setVal('empBankCode', foundUser.bankCode);
+    if(foundUser.branchCode) setVal('empBranchCode', foundUser.branchCode);
+    if(foundUser.branchName) setVal('empBranchName', foundUser.branchName);
+    if(foundUser.routingNumber) setVal('empRoutingNumber', foundUser.routingNumber);
+    if(foundUser.bsbCode) setVal('empBSBCode', foundUser.bsbCode);
+    if(foundUser.ifscCode) setVal('empIFSCCode', foundUser.ifscCode);
+    if(foundUser.ribKey) setVal('empRibKey', foundUser.ribKey);
+    if(foundUser.transitNumber) setVal('empTransitNumber', foundUser.transitNumber);
+    if(foundUser.institutionNumber) setVal('empInstitutionNumber', foundUser.institutionNumber);
+    if(foundUser.bankCurrency) setVal('empBankCurrency', foundUser.bankCurrency);
+    if(foundUser.bankAddress) setVal('empBankAddress', foundUser.bankAddress);
+    if(foundUser.nationalId) setVal('empNationalId', foundUser.nationalId);
+    
+    // Optional fields
+    if(foundUser.gender) setVal('empGender', foundUser.gender);
+    if(foundUser.nationality) setVal('empNationality', foundUser.nationality);
+    if(foundUser.maritalStatus) setVal('empMarital', foundUser.maritalStatus);
+    if(foundUser.dependents != null) setVal('empDependents', foundUser.dependents);
+    
+    // Set status to Active if not specified
+    const statusEl = formContext ? formContext.querySelector('#empStatus') : document.getElementById('empStatus');
+    if(statusEl && !statusEl.value) {
+      statusEl.value = foundUser.status || 'Active';
+      console.log(`✅ Set status = "${foundUser.status || 'Active'}"`);
+    }
+    
+    console.log('✅ Auto-fill completed successfully');
+    
+  } catch(error) {
+    console.error('❌ Auto-fill error:', error);
+  }
+}
+
+// Removed global input listener - now handled in modal context
+
+/**************** Firebase Init *****************/
+const firebaseConfig = { apiKey:"AIzaSyCUTmTn0rRBb0M-UkQJxnUMrWqXYU_BgIc", authDomain:"users-8be65.firebaseapp.com", databaseURL:"https://users-8be65-default-rtdb.firebaseio.com", projectId:"users-8be65", storageBucket:"users-8be65.firebasestorage.app", messagingSenderId:"829083030831", appId:"1:829083030831:web:36a370e62691e560bc3dda" };
+try{ if(!firebase.apps.length) firebase.initializeApp(firebaseConfig); }catch(e){ console.warn('Firebase init issue', e); }
+const db = (window.firebase && firebase.database()) || null;
+
+/**************** Utility Helpers *****************/
+const $ = sel => document.querySelector(sel);
+const $$ = sel => Array.from(document.querySelectorAll(sel));
+const uid = () => 'id_'+Date.now().toString(36)+Math.random().toString(36).slice(2,8);
+const readLS = (k, def) => { try { return JSON.parse(localStorage.getItem(k) || JSON.stringify(def)); } catch { return def; } };
+const writeLS = (k, v) => { localStorage.setItem(k, JSON.stringify(v)); };
+const dispatchSync = (name) => { window.dispatchEvent(new CustomEvent(name)); };
+const currentUser = (()=>{ try { return JSON.parse(localStorage.getItem('currentUser')||'null'); } catch { return null; } })();
+const companyId = currentUser && (currentUser.companyId || currentUser.companyID || currentUser.company || currentUser.company_id) || null;
+
+function fmtCurrency(v){ try{ const settings=readLS('payroll.settings',{}); const c=settings.currency||'USD'; return new Intl.NumberFormat(undefined,{style:'currency',currency:c}).format(Number(v||0)); }catch{return v;} }
+
+/**************** Data Access Layers *****************/
+// Employees - load from Firebase first, fallback to localStorage
+function getEmployees(){ return readLS('payroll.employees', { items:[] }).items || []; }
+
+async function loadEmployeesFromFirebase(){
+  if(!db || !companyId) return;
+  try {
+    const snap = await db.ref(`companies/${companyId}/payroll/employees`).once('value');
+    if(snap.exists()){
+      const items = Object.values(snap.val());
+      writeLS('payroll.employees', {items});
+      renderEmployees();
+    }
+  } catch(e){ console.warn('Load employees failed', e); }
+}
+
+// Save entire employees array locally and optionally mirror to Firebase (bulk sync)
+function saveEmployees(items){
+  writeLS('payroll.employees',{items});
+  if(db && companyId){
+    // Bulk sync (only when needed). For creation/update we also call per-item writer.
+    try{
+      items.forEach(emp=> persistEmployeeToFirebase(emp));
+    }catch(e){ console.error('Bulk save employees failed', e); }
+  }
+}
+
+// Write a single employee record to Firebase exactly as structured (PRIMARY STORAGE)
+function persistEmployeeToFirebase(emp){
+  if(!db || !companyId || !emp) {
+    console.warn('⚠️ Cannot persist to Firebase: missing db, companyId, or employee data');
+    return; 
+  }
+  const key = emp.employeeId || emp.id; 
+  if(!key) {
+    console.warn('⚠️ Cannot persist employee: missing employeeId/id');
+    return;
+  }
+  // Ensure we don't mutate original object; deep clone for Firebase
+  const payload = JSON.parse(JSON.stringify(emp));
+  console.log('🔄 Persisting employee to Firebase:', key);
+  try {
+    return db.ref(`companies/${companyId}/payroll/employees/${key}`).set(payload)
+      .then(() => console.log('✅ Employee persisted to Firebase:', key))
+      .catch(err => console.error('❌ Firebase persistence failed:', err));
+  } catch(err){ 
+    console.error('❌ Persist single employee failed:', err); 
+  }
+}
+
+// Pay Elements (Firebase-first, real-time)
+let PAY_ELEMENTS_CACHE = [];
+function getPayElements(){ return PAY_ELEMENTS_CACHE; }
+
+function attachPayElementsListener(){
+  if(!db || !companyId){ return; }
+  const ref = db.ref(`companies/${companyId}/payroll/payElements`);
+  ref.off(); // ensure no duplicate listeners
+  ref.on('value', snap => {
+    const raw = snap.val() || {};
+    PAY_ELEMENTS_CACHE = Object.values(raw);
+    // Ensure BASIC element exists
+    if(!PAY_ELEMENTS_CACHE.some(pe=>pe.code==='BASIC')){
+      const basicEl={
+        id: 'BASIC',
+        code: 'BASIC',
+        name: 'Basic Salary',
+        type: 'earning',
+        valueMode: 'amount',
+        defaultAmount: 0,
+        defaultPercent: 0,
+        percentBase: null,
+        percentBaseElement: null,
+        taxable: true,
+        active: true,
+        formula: null,
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      };
+      PAY_ELEMENTS_CACHE.push(basicEl);
+      // Persist BASIC to Firebase
+      savePayElement(basicEl);
+    }
+    console.log('🔄 Pay elements updated from Firebase:', PAY_ELEMENTS_CACHE.length);
+    renderPayElements();
+    renderTemplateElementSelectors();
+    dispatchSync('payroll:payElements:changed');
+  }, err => console.error('❌ Pay elements listener error', err));
+}
+
+function savePayElement(pe){
+  if(!db || !companyId || !pe || !pe.id){ console.warn('Cannot save pay element – missing data'); return; }
+  db.ref(`companies/${companyId}/payroll/payElements/${pe.id}`).set(pe)
+    .then(()=> console.log('✅ Pay element saved:', pe.id))
+    .catch(e=> console.error('❌ Save pay element failed', e));
+}
+
+function deletePayElementFromFirebase(id){
+  if(!db || !companyId || !id) return;
+  console.log('🔄 Deleting pay element from Firebase:', id);
+  db.ref(`companies/${companyId}/payroll/payElements/${id}`).remove()
+    .then(()=> console.log('✅ Pay element deleted in Firebase:', id))
+    .catch(err=> console.error('❌ Failed to delete pay element in Firebase:', err));
+}
+
+// Backward compatibility shim (some legacy calls expect savePayElements with array)
+function savePayElements(arr){
+  if(!Array.isArray(arr)) return;
+  arr.forEach(pe=> savePayElement(pe));
+}
+
+// Templates (Firebase real-time)
+let TEMPLATE_CACHE = [];
+function getTemplates(){ return TEMPLATE_CACHE; }
+
+function attachTemplatesListener(){
+  if(!db || !companyId) return;
+  const ref = db.ref(`companies/${companyId}/payroll/payslipTemplates`);
+  ref.off();
+  ref.on('value', snap => {
+    const raw = snap.val() || {};
+    TEMPLATE_CACHE = Object.values(raw);
+    console.log('🔄 Templates updated from Firebase:', TEMPLATE_CACHE.length);
+    renderTemplates();
+    reloadTemplateSelect();
+    dispatchSync('payroll:templates:changed');
+  }, err => console.error('❌ Templates listener error', err));
+}
+
+function saveTemplate(tpl){
+  if(!db || !companyId || !tpl || !tpl.id) { console.warn('Cannot save template - missing data'); return; }
+  db.ref(`companies/${companyId}/payroll/payslipTemplates/${tpl.id}`).set(tpl)
+    .then(()=> console.log('✅ Template saved:', tpl.id))
+    .catch(e=> console.error('❌ Save template failed', e));
+}
+
+function deleteTemplateFromFirebase(id){
+  if(!db || !companyId || !id) return;
+  console.log('🔄 Deleting template from Firebase:', id);
+  db.ref(`companies/${companyId}/payroll/payslipTemplates/${id}`).remove()
+    .then(()=> console.log('✅ Template deleted:', id))
+    .catch(e=> console.error('❌ Delete template failed', e));
+}
+
+// Backward compatibility if legacy code calls saveTemplates(items)
+function saveTemplates(items){
+  if(Array.isArray(items)) items.forEach(saveTemplate);
+}
+
+// Pay Runs
+function getRuns(){ return readLS('payroll.runs', { items:[] }).items || []; }
+
+async function loadRunsFromFirebase(){
+  if(!db || !companyId) return;
+  try {
+    const snap = await db.ref(`companies/${companyId}/payroll/runs`).once('value');
+    if(snap.exists()){
+      const items = Object.values(snap.val());
+      writeLS('payroll.runs', {items});
+      renderRuns();
+    }
+  } catch(e){ console.warn('Load runs failed', e); }
+}
+
+function saveRuns(items){ 
+  writeLS('payroll.runs',{items}); 
+  if(db && companyId){ 
+    items.forEach(r=>{ 
+      try{ 
+        db.ref(`companies/${companyId}/payroll/runs/${r.id}`).set(r); 
+      }catch(e){ console.error('Save run failed', e); } 
+    }); 
+  } 
+  dispatchSync('payroll:runs:changed'); 
+}
+
+/**************** Tab Navigation *****************/
+$('#tabNav').addEventListener('click', e=>{ const btn=e.target.closest('button[data-tab]'); if(!btn) return; $$('#tabNav button').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); $$('.tab-content').forEach(p=>p.classList.remove('active')); const id='panel-'+btn.dataset.tab; $('#'+id)?.classList.add('active'); });
+
+// Global tab add button mapping
+const tabAddMap = {
+  'employees': ()=> $('#btnAddEmployee')?.click(),
+  'pay-elements': ()=> $('#btnAddPayElement')?.click(),
+  'pay-run': ()=> $('#btnAddPayRun')?.click(),
+  'payslip-templates': ()=> $('#btnAddTemplate')?.click()
+};
+$('#tabAddBtn').addEventListener('click', ()=>{
+   const activeTab = document.querySelector('#tabNav button.active')?.getAttribute('data-tab');
+   if(activeTab && tabAddMap[activeTab]) tabAddMap[activeTab]();
+});
+
+/**************** Employees *****************/
+function reloadTemplateSelect(){ const sel=$('#empPayslipTemplate'); if(!sel) return; const val=sel.value; sel.innerHTML='<option value="">-- Select Template --</option>'; getTemplates().forEach(t=>{ const opt=document.createElement('option'); opt.value=t.category||t.code||t.id; opt.textContent=`${t.name} (${t.category||t.code||t.id})`; sel.appendChild(opt); }); sel.value=val; }
+reloadTemplateSelect();
+
+$('#employeeForm').addEventListener('submit', e=>{ e.preventDefault(); const employees=getEmployees(); const id = $('#empId').value.trim() || uid(); const template = $('#empPayslipTemplate').value || ''; const now=Date.now(); const emp = {
+  employeeId:id,
+  id, // alias
+  personal:{ firstName:$('#empFirstName').value.trim(), lastName:$('#empLastName').value.trim(), gender:$('#empGender').value, dob:$('#empDob').value, nationality:$('#empNationality').value, marital:$('#empMarital').value, dependents:Number($('#empDependents').value||0), address:$('#empAddress').value },
+  contact:{ email:$('#empEmail').value.trim(), phone:$('#empPhone').value.trim(), city:$('#empCity').value.trim(), country:$('#empCountry').value.trim() },
+  employment:{ department:$('#empDepartment').value.trim(), jobTitle:$('#empJobTitle').value.trim(), employmentType:$('#empEmploymentType').value, workLocation:$('#empWorkLocation').value.trim(), hireDate:$('#empHireDate').value.trim(), terminationDate:$('#empTerminationDate').value, status:$('#empStatus').value, managerId:$('#empManagerId').value.trim(), grade:$('#empGrade').value.trim(), level:$('#empLevel').value.trim(), payFrequency:$('#empPayFrequency').value, basicSalary:Number($('#empBasicSalary').value||0), currency:$('#empCurrency').value.trim(), payslipCategory:template },
+  payslipTemplateId: template,
+  banking:{ bankName:$('#empBankName').value.trim(), accountName:$('#empAccountName').value.trim(), accountNumber:$('#empAccountNumber').value.trim(), accountType:$('#empAccountType').value, iban:$('#empIBAN').value.trim(), swiftCode:$('#empSwiftCode').value.trim(), bankCode:$('#empBankCode').value.trim(), branchCode:$('#empBranchCode').value.trim(), branchName:$('#empBranchName').value.trim(), routingNumber:$('#empRoutingNumber').value.trim(), bsbCode:$('#empBSBCode').value.trim(), ifscCode:$('#empIFSCCode').value.trim(), ribKey:$('#empRibKey').value.trim(), transitNumber:$('#empTransitNumber').value.trim(), institutionNumber:$('#empInstitutionNumber').value.trim(), currency:$('#empBankCurrency').value.trim(), bankAddress:$('#empBankAddress').value.trim() },
+  statutory:{ taxId:$('#empTaxId').value.trim(), ssn:$('#empSSN').value.trim(), pension:$('#empPension').value.trim(), nationalId:$('#empNationalId').value.trim() },
+  emergency:{ name:$('#empEmergName').value.trim(), relation:$('#empEmergRelation').value.trim(), phone:$('#empEmergPhone').value.trim(), email:$('#empEmergEmail').value.trim() },
+  notes:$('#empNotes').value.trim(),
+  createdAt: now,
+  updatedAt: now,
+  companyId: companyId || null
+};
+const existingIdx = employees.findIndex(x=>x.employeeId===id);
+if(existingIdx>=0) employees[existingIdx]=emp; else employees.push(emp);
+// Store directly to Firebase real-time database (primary storage)
+persistEmployeeToFirebase(emp);
+// Update local cache for UI responsiveness  
+saveEmployees(employees);
+if(db && companyId){ try{ db.ref(`companies/${companyId}/payroll/employees/${id}/payslipTemplateId`).set(template || ''); db.ref(`companies/${companyId}/payroll/employees/${id}/employment/payslipCategory`).set(template || ''); }catch(e){ console.warn('Template category sync failed', e);} }
+$('#employeeForm').reset(); $('#empId').value=''; renderEmployees(); alert('Employee saved.'); });
+
+function renderEmployees(){
+  const tbody=$('#employeesTbody');
+  const employees=getEmployees();
+  if(!employees || !employees.length){
+    tbody.innerHTML='<tr><td colspan="8" class="empty">No employees yet</td></tr>';
+    return;
+  }
+  const rows = employees.map(raw=>{
+    // Defensive normalization in case structure changed / older records
+    const emp = raw || {};
+    const personal = emp.personal || {};
+    const contact = emp.contact || {};
+    const employment = emp.employment || {};
+    const id = emp.employeeId || emp.id || '';
+    const first = personal.firstName || emp.firstName || '';
+    const last = personal.lastName || emp.lastName || '';
+    const full = `${first} ${last}`.trim();
+    const dept = employment.department || emp.department || '';
+    const jobTitle = employment.jobTitle || emp.jobTitle || '';
+    const status = employment.status || emp.status || 'Active';
+    const tmpl = employment.payslipCategory || employment.payslipTemplate || emp.payslipCategory || '';
+    const basic = Number(employment.basicSalary || emp.basicSalary || 0);
+    return `<tr data-id="${id}">
+      <td>${id||'-'}</td>
+      <td>${full || contact.email || '-'}</td>
+      <td>${dept||''}</td>
+      <td>${jobTitle||''}</td>
+      <td><span class="status-badge ${status==='Active'?'status-posted':'status-draft'}">${status}</span></td>
+      <td><div class="actions"><button class="btn" data-edit-emp="${id}"><i class="fas fa-pen"></i></button><button class="btn-danger" data-del-emp="${id}"><i class="fas fa-trash"></i></button></div></td>
+    </tr>`;
+  }).join('');
+  tbody.innerHTML = rows || '<tr><td colspan="6" class="empty">No employees yet</td></tr>';
+
+  // Re-bind edit & delete events (same logic as before)
+  $$('[data-edit-emp]').forEach(btn=>btn.addEventListener('click',()=>{ 
+    const id=btn.dataset.editEmp; 
+    const emp=getEmployees().find(e=> (e.employeeId||e.id)===id); 
+    if(!emp) return; 
+    const form = buildEmployeeForm();
+    openEntityModal('Edit Employee', form);
+    // Use form-scoped selectors to avoid colliding with any legacy hidden form
+    const q = sel => form.querySelector(sel);
+    const personal = emp.personal || {}; const contact = emp.contact || {}; const employment = emp.employment || {}; const banking = emp.banking || {}; const statutory=emp.statutory||{}; const emergency=emp.emergency||{};
+    // Populate immediately (form already appended)
+    const setVal = (idSel, val) => { const el = q(idSel); if(el) el.value = val ?? ''; };
+    setVal('#empId', emp.employeeId || emp.id || '');
+    setVal('#empFirstName', personal.firstName||emp.firstName||'');
+    setVal('#empLastName', personal.lastName||emp.lastName||'');
+    setVal('#empGender', personal.gender||'');
+    setVal('#empDob', personal.dob||'');
+    setVal('#empNationality', personal.nationality||'');
+    setVal('#empMarital', personal.marital||'');
+    setVal('#empDependents', personal.dependents||0);
+    setVal('#empAddress', personal.address||'');
+    setVal('#empEmail', contact.email||'');
+    setVal('#empPhone', contact.phone||'');
+    setVal('#empCity', personal.city||contact.city||'');
+    setVal('#empCountry', personal.country||contact.country||'');
+    setVal('#empDepartment', employment.department||'');
+    setVal('#empJobTitle', employment.jobTitle||'');
+    setVal('#empEmploymentType', employment.employmentType||'');
+    setVal('#empWorkLocation', employment.workLocation||'');
+    setVal('#empHireDate', employment.hireDate||'');
+    setVal('#empTerminationDate', employment.terminationDate||'');
+    setVal('#empStatus', employment.status||'Active');
+    setVal('#empManagerId', employment.managerId||'');
+    setVal('#empGrade', employment.grade||'');
+    setVal('#empLevel', employment.level||'');
+    setVal('#empPayFrequency', employment.payFrequency||'Monthly');
+    setVal('#empBasicSalary', employment.basicSalary||0);
+    setVal('#empCurrency', employment.currency||'USD');
+    setVal('#empPayslipTemplate', employment.payslipCategory||employment.payslipTemplate||'');
+    setVal('#empBankName', banking.bankName||'');
+    setVal('#empAccountName', banking.accountName||'');
+    setVal('#empAccountNumber', banking.accountNumber||'');
+    setVal('#empAccountType', banking.accountType||'');
+    setVal('#empIBAN', banking.iban||'');
+    setVal('#empSwiftCode', banking.swiftCode||'');
+    setVal('#empBankCode', banking.bankCode||'');
+    setVal('#empBranchCode', banking.branchCode||'');
+    setVal('#empBranchName', banking.branchName||'');
+    setVal('#empRoutingNumber', banking.routingNumber||'');
+    setVal('#empBSBCode', banking.bsbCode||'');
+    setVal('#empIFSCCode', banking.ifscCode||'');
+    setVal('#empRibKey', banking.ribKey||'');
+    setVal('#empTransitNumber', banking.transitNumber||'');
+    setVal('#empInstitutionNumber', banking.institutionNumber||'');
+    setVal('#empBankCurrency', banking.currency||'USD');
+    setVal('#empBankAddress', banking.bankAddress||'');
+    setVal('#empTaxId', statutory.taxId||'');
+    setVal('#empSSN', statutory.ssn||'');
+    setVal('#empPension', statutory.pension||'');
+    setVal('#empNationalId', statutory.nationalId||'');
+    setVal('#empEmergName', emergency.name||'');
+    setVal('#empEmergRelation', emergency.relation||'');
+    setVal('#empEmergPhone', emergency.phone||'');
+    setVal('#empEmergEmail', emergency.email||'');
+    setVal('#empNotes', emp.notes||'');
+  }));
+  $$('[data-del-emp]').forEach(btn=>btn.addEventListener('click',()=>{
+    if(!confirm('Are you sure you want to delete this employee? This action cannot be undone.')) return;
+    const id=btn.dataset.delEmp;
+    // Delete from Firebase real-time database (primary storage)
+    if(db && companyId && id){
+      try{
+        db.ref(`companies/${companyId}/payroll/employees/${id}`).remove()
+          .then(() => console.log('✅ Employee deleted from Firebase:', id))
+          .catch(err => console.error('❌ Firebase delete failed:', err));
+      }catch(e){ console.error('Delete operation failed:', e); }
+    }
+    // Update local cache
+    let employees=getEmployees().filter(e=> (e.employeeId||e.id)!==id);
+    saveEmployees(employees);
+    renderEmployees();
+    alert('Employee deleted successfully.');
+  }));
+}
+renderEmployees();
+
+$('#resetEmpForm').addEventListener('click', ()=>{ $('#empId').value=''; $('#employeeFormCard').style.display='none'; });
+
+// Toggle Employee Form
+$('#btnAddEmployee').addEventListener('click', ()=>{ 
+  openEntityModal('', buildEmployeeForm());
+});
+
+/**************** Pay Elements *****************/
+function renderPayElements(){ const tbody=$('#payElementsTbody'); const arr=getPayElements(); if(!arr.length){ tbody.innerHTML='<tr><td colspan="7" class="empty">No pay elements</td></tr>'; return; } tbody.innerHTML=arr.map(pe=>{ const displayDefault = pe.valueMode==='percent' ? ( (pe.defaultPercent||0).toFixed(2)+'%' + (pe.percentBase?` of ${pe.percentBase==='custom'? (pe.percentBaseElement||'element'):pe.percentBase}`:'') ) : Number(pe.defaultAmount||0).toFixed(2); const delBtn = pe.code==='BASIC' ? '' : `<button class=\"btn-danger\" data-del-pe=\"${pe.id}\"><i class=\"fas fa-trash\"></i></button>`; return `<tr data-id=\"${pe.id}\"><td>${pe.code}</td><td>${pe.name}</td><td><span class=\"badge ${pe.type==='earning'?'tag-earning':'tag-deduction'}\">${pe.type}</span></td><td>${displayDefault}</td><td>${pe.taxable?'Yes':'No'}</td><td>${pe.active?'Yes':'No'}</td><td><div class=\"actions\"><button class=\"btn\" data-edit-pe=\"${pe.id}\"><i class=\"fas fa-pen\"></i></button>${delBtn}</div></td></tr>`; }).join('');
+$$('[data-edit-pe]').forEach(btn=>btn.addEventListener('click',()=>{ 
+  const id=btn.dataset.editPe; 
+  const pe=getPayElements().find(p=>p.id===id); 
+  if(!pe) return; 
+  
+  // Open modal with form
+  const form = buildPayElementForm();
+  openEntityModal('Edit Pay Element', form);
+  
+  // Populate all fields after modal is open
+  setTimeout(() => {
+    form.querySelector('#peEditingId').value=pe.id; 
+    form.querySelector('#peCode').value=pe.code; 
+    form.querySelector('#peName').value=pe.name; 
+    form.querySelector('#peType').value=pe.type; 
+    form.querySelector('#peValueMode').value=pe.valueMode|| (pe.defaultPercent? 'percent':'amount');
+    const modeSel=form.querySelector('#peValueMode');
+    const evt=new Event('change'); modeSel.dispatchEvent(evt);
+    if(pe.valueMode==='percent'){
+      form.querySelector('#pePercent').value=pe.defaultPercent||0;
+      form.querySelector('#pePercentBase').value=pe.percentBase||'basic';
+      if(pe.percentBase==='custom'){
+        form.querySelector('#pePercentCustom').value=pe.percentBaseElement||'';
+      }
+    } else {
+      form.querySelector('#peAmount').value=pe.defaultAmount||0; 
+    }
+  form.querySelector('#peTaxable').value=pe.taxable? 'true':'false'; 
+  form.querySelector('#peActive').value=pe.active? 'true':'false'; 
+
+    // BASIC element customization: hide value mode selector & enforce amount mode
+    const peCodeInput = form.querySelector('#peCode');
+    const modeLabel = modeSel.closest('label');
+    function applyBasicModeCheck(){
+      const isBasic = peCodeInput.value.trim().toUpperCase()==='BASIC';
+      if(isBasic){
+        if(modeLabel) modeLabel.style.display='none';
+        modeSel.value='amount';
+        modeSel.dispatchEvent(new Event('change'));
+        // Hide any percent-related wrappers explicitly
+        ['#pePercentWrapper','#pePercentBaseWrapper','#pePercentCustomWrapper'].forEach(sel=>{ const el=form.querySelector(sel); if(el) el.style.display='none'; });
+        // Hide type and amount fields for BASIC (read-only enforced)
+        const typeLabel = form.querySelector('#peType')?.closest('label');
+        const amountLabel = form.querySelector('#peAmountWrapper');
+        if(typeLabel) typeLabel.style.display='none';
+        if(amountLabel) amountLabel.style.display='none';
+      } else {
+        if(modeLabel) modeLabel.style.display='';
+        const typeLabel = form.querySelector('#peType')?.closest('label');
+        const amountLabel = form.querySelector('#peAmountWrapper');
+        if(typeLabel) typeLabel.style.display='';
+        if(amountLabel) amountLabel.style.display='';
+      }
+    }
+    applyBasicModeCheck();
+    peCodeInput.addEventListener('input', applyBasicModeCheck);
+  }, 50);
+}));
+$$('[data-del-pe]').forEach(btn=>btn.addEventListener('click',()=>{ 
+  const id=btn.dataset.delPe; 
+  const pe=getPayElements().find(p=>p.id===id);
+  if(pe && pe.code==='BASIC'){ alert('BASIC pay element cannot be deleted.'); return; }
+  if(!confirm('Delete pay element?')) return; 
+  deletePayElementFromFirebase(id); // listener will refresh table
+})); }
+renderPayElements();
+
+$('#payElementForm').addEventListener('submit', e=>{ 
+  e.preventDefault(); 
+  const editing=$('#peEditingId').value; 
+  const now = Date.now();
+  const payload={ 
+    id: editing || uid(), 
+    code:$('#peCode').value.trim().toUpperCase(), 
+    name:$('#peName').value.trim(), 
+    type:$('#peType').value, 
+    defaultAmount:Number($('#peAmount').value||0), 
+    taxable:$('#peTaxable').value==='true', 
+  active:$('#peActive').value==='true', 
+    createdAt: editing ? (getPayElements().find(p=>p.id===editing)?.createdAt || now) : now, 
+    updatedAt: now 
+  }; 
+  savePayElement(payload); // Firebase listener will refresh UI
+  e.target.reset(); 
+  $('#peEditingId').value=''; 
+  $('#payElementFormCard').style.display='none'; 
+  alert('Pay element saved.'); 
+});
+
+// Toggle Pay Element Form
+$('#btnAddPayElement').addEventListener('click', ()=>{ 
+  openEntityModal('Add Pay Element', buildPayElementForm());
+});
+
+/**************** Payslip Templates *****************/
+function renderTemplateElementSelectors(){ const earnDiv=$('#tplEarnings'); const dedDiv=$('#tplDeductions'); if(!earnDiv||!dedDiv) return; const elements=getPayElements().filter(p=>p.active); earnDiv.innerHTML=''; dedDiv.innerHTML=''; elements.filter(p=>p.type==='earning').forEach(e=>{ const id='earn_'+e.id; const wrap=document.createElement('label'); wrap.style.fontSize='.55rem'; wrap.style.display='flex'; wrap.style.alignItems='center'; wrap.style.gap='4px'; wrap.innerHTML=`<input type="checkbox" id="${id}" data-pe="${e.id}" data-kind="earning" /> <span>${e.code}</span>`; earnDiv.appendChild(wrap); }); elements.filter(p=>p.type==='deduction').forEach(e=>{ const id='ded_'+e.id; const wrap=document.createElement('label'); wrap.style.fontSize='.55rem'; wrap.style.display='flex'; wrap.style.alignItems='center'; wrap.style.gap='4px'; wrap.innerHTML=`<input type="checkbox" id="${id}" data-pe="${e.id}" data-kind="deduction" /> <span>${e.code}</span>`; dedDiv.appendChild(wrap); }); }
+renderTemplateElementSelectors();
+
+// Scoped population for modal template form (add/edit)
+function populateTemplateElementSelectors(targetForm, selectedEarn = [], selectedDed = []){
+  if(!targetForm) return; 
+  const earnDiv = targetForm.querySelector('#tplEarnings');
+  const dedDiv = targetForm.querySelector('#tplDeductions');
+  if(!earnDiv || !dedDiv) return;
+  const elements = getPayElements().filter(p=>p.active);
+  earnDiv.innerHTML='';
+  dedDiv.innerHTML='';
+  elements.filter(p=>p.type==='earning').forEach(e=>{
+    const id='earn_'+e.id;
+    const wrap=document.createElement('label');
+    wrap.style.fontSize='.55rem';
+    wrap.style.display='flex';
+    wrap.style.alignItems='center';
+    wrap.style.gap='4px';
+    const checked = selectedEarn.includes(e.id) ? 'checked' : '';
+    wrap.innerHTML=`<input type="checkbox" id="${id}" data-pe="${e.id}" data-kind="earning" ${checked}/> <span>${e.code}</span>`;
+    earnDiv.appendChild(wrap);
+  });
+  elements.filter(p=>p.type==='deduction').forEach(e=>{
+    const id='ded_'+e.id;
+    const wrap=document.createElement('label');
+    wrap.style.fontSize='.55rem';
+    wrap.style.display='flex';
+    wrap.style.alignItems='center';
+    wrap.style.gap='4px';
+    const checked = selectedDed.includes(e.id) ? 'checked' : '';
+    wrap.innerHTML=`<input type="checkbox" id="${id}" data-pe="${e.id}" data-kind="deduction" ${checked}/> <span>${e.code}</span>`;
+    dedDiv.appendChild(wrap);
+  });
+}
+
+function renderTemplates(){ const tbody=$('#templatesTbody'); const templates=getTemplates(); if(!templates.length){ tbody.innerHTML='<tr><td colspan="6" class="empty">No templates</td></tr>'; return; } const employees=getEmployees(); const usageIndex = employees.reduce((acc,e)=>{ const tid = e.payslipTemplateId || e.employment?.payslipCategory || e.employment?.payslipTemplate || ''; if(tid){ acc[tid]=(acc[tid]||0)+1; } return acc; },{}); tbody.innerHTML=templates.map(t=>{ const usage=usageIndex[t.category||t.code||t.id] || usageIndex[t.id] || 0; return `<tr data-id="${t.id}"><td>${t.category||t.code||t.id}</td><td>${t.name}</td><td>${(t.earnings||[]).length}</td><td>${(t.deductions||[]).length}</td><td>${usage}</td><td><div class="actions"><button class="btn" data-edit-tpl="${t.id}"><i class="fas fa-pen"></i></button><button class="btn-danger" data-del-tpl="${t.id}"><i class="fas fa-trash"></i></button></div></td></tr>`; }).join('');
+  // Attach row click (excluding action buttons)
+  tbody.querySelectorAll('tr[data-id]').forEach(tr=>{
+    tr.addEventListener('click', (e)=>{
+      if(e.target.closest('.actions')) return; // ignore clicks on action buttons
+      const id = tr.getAttribute('data-id');
+      const tpl = getTemplates().find(t=>t.id===id);
+      if(!tpl) return;
+      openTemplatePreviewModal(tpl);
+    });
+  });
+$$('[data-edit-tpl]').forEach(btn=>btn.addEventListener('click',()=>{ 
+  const id=btn.dataset.editTpl; 
+  const tpl=getTemplates().find(t=>t.id===id); 
+  if(!tpl) return; 
+  
+  // Open modal with form
+  const form = buildTemplateForm();
+  openEntityModal('Edit Payslip Template', form);
+  
+  // Populate all fields after modal is open
+  setTimeout(() => {
+    form.querySelector('#tplEditingId').value=tpl.id; 
+    form.querySelector('#tplCode').value=tpl.category||tpl.code||''; 
+    form.querySelector('#tplName').value=tpl.name||''; 
+    form.querySelector('#tplDesc').value=tpl.description||''; 
+    // Populate element selectors with pre-selected values
+    populateTemplateElementSelectors(form, tpl.earnings||[], tpl.deductions||[]);
+  }, 50);
+}));
+$$('[data-del-tpl]').forEach(btn=>btn.addEventListener('click',()=>{ 
+  if(!confirm('Delete payslip template?')) return; 
+  const id=btn.dataset.delTpl; 
+  deleteTemplateFromFirebase(id); // listener handles UI update
+})); }
+renderTemplates();
+
+$('#templateForm').addEventListener('submit', e=>{ 
+  e.preventDefault(); 
+  const earnings=[...$('#tplEarnings').querySelectorAll('input:checked')].map(cb=>cb.dataset.pe); 
+  const deductions=[...$('#tplDeductions').querySelectorAll('input:checked')].map(cb=>cb.dataset.pe); 
+  const editing=$('#tplEditingId').value; 
+  const now=Date.now();
+  const existing = editing ? getTemplates().find(t=>t.id===editing) : null;
+  const payload={ 
+    id: editing || uid(), 
+    category:$('#tplCode').value.trim().toUpperCase(), 
+    code:$('#tplCode').value.trim().toUpperCase(), 
+    name:$('#tplName').value.trim(), 
+    description:$('#tplDesc').value.trim()||'', 
+    earnings, 
+    deductions, 
+    createdAt: existing ? existing.createdAt : now, 
+    updatedAt: now 
+  }; 
+  saveTemplate(payload); // listener will refresh table & select
+  $('#templateForm').reset(); 
+  $('#tplEditingId').value=''; 
+  $('#templateFormCard').style.display='none'; 
+  alert('Template saved.'); 
+});
+
+// Toggle Template Form
+$('#btnAddTemplate').addEventListener('click', ()=>{ 
+  const form = buildTemplateForm();
+  openEntityModal('Add Payslip Template', form);
+  // Delay population slightly to ensure modal DOM is attached
+  setTimeout(()=> populateTemplateElementSelectors(form), 30);
+});
+
+/**************** Payroll Run Generation *****************/
+function populateRunSelectors(){ const monthSel=$('#runMonth'); const yearSel=$('#runYear'); const now=new Date(); if(monthSel.options.length===0){ for(let m=1;m<=12;m++){ const opt=document.createElement('option'); opt.value=m; opt.textContent=m.toString().padStart(2,'0'); if(m===now.getMonth()+1) opt.selected=true; monthSel.appendChild(opt);} } if(yearSel.options.length===0){ for(let y=now.getFullYear()-2;y<=now.getFullYear()+2;y++){ const opt=document.createElement('option'); opt.value=y; opt.textContent=y; if(y===now.getFullYear()) opt.selected=true; yearSel.appendChild(opt);} } }
+populateRunSelectors();
+
+// Toggle Pay Run Setup Form
+$('#btnAddPayRun').addEventListener('click', ()=>{ 
+    const formCard = $('#payRunSetupCard'); 
+    if(formCard.style.display==='none' || !formCard.style.display) { 
+        formCard.style.display='block'; 
+        formCard.scrollIntoView({behavior:'smooth', block:'start'}); 
+    } else { 
+        formCard.style.display='none'; 
+    } 
+});
+
+let draftRun = null; // {period, employees:[]}
+
+$('#btnLoadRunEmployees').addEventListener('click',()=>{ const employees=getEmployees(); const filter=$('#runEmployeeFilter').value; const wrap=$('#runEmployeesContainer'); wrap.innerHTML=''; const applicable=employees.filter(e=> filter==='all' || e.employment.status==='Active'); if(!applicable.length){ wrap.innerHTML='<div class="empty" style="grid-column:1/-1;">No employees matched selection.</div>'; $('#btnGenerateRun').disabled=true; return; } applicable.forEach(emp=>{ const full=`${emp.personal.firstName||''} ${emp.personal.lastName||''}`.trim()||emp.contact.email||emp.employeeId; const div=document.createElement('div'); div.style.border='1px solid var(--border)'; div.style.borderRadius='8px'; div.style.background='#fff'; div.style.padding='12px 14px'; div.style.display='flex'; div.style.flexDirection='column'; div.style.gap='6px'; div.innerHTML=`<label style='display:flex;align-items:center;gap:8px;font-size:.65rem;'><input type='checkbox' data-run-emp='${emp.employeeId}' checked> <strong>${full}</strong> <span class='badge'>${emp.employment.payslipCategory||'No Template'}</span></label><div style='font-size:.55rem;color:#64748b;'>${emp.employment.jobTitle||''}</div><div style='font-size:.55rem;color:#475569;'>Basic: ${fmtCurrency(emp.employment.basicSalary||0)}</div>`; wrap.appendChild(div); }); $('#btnGenerateRun').disabled=false; });
+
+$('#btnGenerateRun').addEventListener('click',()=>{ const selected=Array.from(document.querySelectorAll('[data-run-emp]:checked')).map(cb=>cb.getAttribute('data-run-emp')); if(!selected.length){ alert('Select at least one employee'); return; } const month=Number($('#runMonth').value); const year=Number($('#runYear').value); const existingRuns=getRuns(); const periodKey=`${month}/${year}`; // Build run employees
+ const employeesData = getEmployees().filter(e=> selected.includes(e.employeeId)); const templatesIndex = new Map(getTemplates().map(t=>[(t.category||t.code||t.id), t])); const payElementsIndex = new Map(getPayElements().map(p=>[p.id,p])); const runEmployees = employeesData.map(emp=>{ const tpl = templatesIndex.get(emp.employment.payslipCategory||''); const full=`${emp.personal.firstName||''} ${emp.personal.lastName||''}`.trim()||emp.contact.email||emp.employeeId; let earnings=[], deductions=[]; if(tpl){ earnings = (tpl.earnings||[]).map(id=>{ const pe=payElementsIndex.get(id); return { id, code:pe?pe.code:id, name:pe?pe.name:id, amount: pe?Number(pe.defaultAmount||0):0 }; }); deductions = (tpl.deductions||[]).map(id=>{ const pe=payElementsIndex.get(id); return { id, code:pe?pe.code:id, name:pe?pe.name:id, amount: pe?Number(pe.defaultAmount||0):0 }; }); }
+  const earningsTotal=earnings.reduce((s,e)=>s+Number(e.amount||0),0); const deductionsTotal=deductions.reduce((s,d)=>s+Number(d.amount||0),0); const basic=Number(emp.employment.basicSalary||0); // simple tax: 10% of taxable earnings + basic
+  const taxableEarnings = earnings.filter(e=>{ const pe=[...payElementsIndex.values()].find(p=>p.id===e.id); return pe? pe.taxable : true; }).reduce((s,e)=>s+Number(e.amount||0),0) + basic; const tax = Math.round((taxableEarnings * 0.1)*100)/100; const gross = basic + earningsTotal; const net = gross - deductionsTotal - tax; return { employeeId:emp.employeeId, employee:full, basic, earnings, deductions, earningsTotal, deductionsTotal, tax, gross, net, payslipCategory:emp.employment.payslipCategory||null }; });
+ draftRun = { id: uid(), period:{month,year}, periodKey, createdAt:Date.now(), posted:false, employees: runEmployees, companyId:companyId||null };
+ renderDraftRun(); window.scrollTo({top:0,behavior:'smooth'}); });
+
+function renderDraftRun(){ const card=$('#draftRunCard'); if(!draftRun){ card.style.display='none'; return; } card.style.display='block'; const tbody=$('#draftRunTbody'); tbody.innerHTML=draftRun.employees.map((e,i)=>`<tr><td>${e.employee}</td><td>${fmtCurrency(e.basic)}</td><td>${fmtCurrency(e.earningsTotal||e.earnings.reduce((s,x)=>s+x.amount,0))}</td><td>${fmtCurrency(e.deductionsTotal||e.deductions.reduce((s,x)=>s+x.amount,0))}</td><td>${fmtCurrency(e.tax)}</td><td>${fmtCurrency(e.net)}</td><td><div class='actions'><button class='btn' data-edit-line='${i}' title='Edit Lines'><i class="fas fa-list"></i></button><button class='btn-danger' data-remove-line='${i}' title='Remove Employee'><i class="fas fa-xmark"></i></button></div></td></tr>`).join('');
+ // Wire events
+ $$('[data-edit-line]').forEach(btn=>btn.addEventListener('click',()=>openLineModal(Number(btn.dataset.editLine)))); $$('[data-remove-line]').forEach(btn=>btn.addEventListener('click',()=>{ const idx=Number(btn.dataset.removeLine); draftRun.employees.splice(idx,1); if(!draftRun.employees.length){ draftRun=null; } renderDraftRun(); })); }
+
+$('#btnPostRun').addEventListener('click',()=>{ if(!draftRun){ alert('No draft run'); return; } draftRun.posted=true; const runs=getRuns(); runs.push(draftRun); saveRuns(runs); draftRun=null; renderDraftRun(); renderRuns(); $('#payRunSetupCard').style.display='none'; alert('Payroll run posted. Profile payslips will update.'); });
+$('#btnDiscardRun').addEventListener('click',()=>{ if(confirm('Discard current draft run?')){ draftRun=null; renderDraftRun(); $('#payRunSetupCard').style.display='none'; }});
+
+function renderRuns(){ const tbody=$('#runsTbody'); const runs=getRuns().sort((a,b)=> b.createdAt-a.createdAt); if(!runs.length){ tbody.innerHTML='<tr><td colspan="5" class="empty">No runs yet</td></tr>'; return; } tbody.innerHTML=runs.map(r=>`<tr data-id='${r.id}'><td>${r.period.month}/${r.period.year}</td><td>${r.employees.length}</td><td><span class='status-badge ${r.posted?'status-posted':'status-draft'}'>${r.posted?'POSTED':'DRAFT'}</span></td><td>${new Date(r.createdAt).toLocaleDateString()}</td><td><div class='actions'><button class='btn' data-view-run='${r.id}' title='View'><i class="fas fa-eye"></i></button><button class='btn-danger' data-del-run='${r.id}' title='Delete'><i class="fas fa-trash"></i></button></div></td></tr>`).join('');
+$$('[data-del-run]').forEach(btn=>btn.addEventListener('click',()=>{ if(!confirm('Delete run?')) return; const id=btn.dataset.delRun; let runs=getRuns().filter(r=>r.id!==id); saveRuns(runs); renderRuns(); }));
+$$('[data-view-run]').forEach(btn=>btn.addEventListener('click',()=>{ const id=btn.dataset.viewRun; const run=getRuns().find(r=>r.id===id); if(!run) return; alert(`Run ${run.period.month}/${run.period.year}\nEmployees: ${run.employees.length}\nStatus: ${run.posted?'Posted':'Draft'}`); })); }
+renderRuns();
+
+/**************** Line Modal *****************/
+let editingLineIndex=null; function openLineModal(idx){ if(!draftRun) return; editingLineIndex=idx; const emp=draftRun.employees[idx]; if(!emp) return; const body=$('#lineModalBody'); body.innerHTML=''; const earnSection=document.createElement('div'); earnSection.innerHTML='<h4 style="margin:0 0 6px;font-size:.7rem;letter-spacing:.5px;text-transform:uppercase;color:#166534;">Earnings</h4>'; emp.earnings.forEach((l,i)=>{ const row=document.createElement('div'); row.style.display='grid'; row.style.gridTemplateColumns='1fr 120px'; row.style.gap='8px'; row.style.alignItems='center'; row.innerHTML=`<span style='font-size:.65rem;'>${l.name||l.code}</span><input type='number' step='0.01' data-earn-line='${i}' value='${l.amount}' />`; earnSection.appendChild(row); }); const dedSection=document.createElement('div'); dedSection.style.marginTop='12px'; dedSection.innerHTML='<h4 style="margin:0 0 6px;font-size:.7rem;letter-spacing:.5px;text-transform:uppercase;color:#991b1b;">Deductions</h4>'; emp.deductions.forEach((l,i)=>{ const row=document.createElement('div'); row.style.display='grid'; row.style.gridTemplateColumns='1fr 120px'; row.style.gap='8px'; row.style.alignItems='center'; row.innerHTML=`<span style='font-size:.65rem;'>${l.name||l.code}</span><input type='number' step='0.01' data-ded-line='${i}' value='${l.amount}' />`; dedSection.appendChild(row); }); const taxRow=document.createElement('div'); taxRow.style.marginTop='12px'; taxRow.innerHTML=`<label style='font-size:.55rem;font-weight:600;display:flex;flex-direction:column;gap:4px;'>Tax <input type='number' step='0.01' id='editLineTax' value='${emp.tax}' /></label>`; body.appendChild(earnSection); body.appendChild(dedSection); body.appendChild(taxRow); $('#lineModalBackdrop').style.display='flex'; }
+$('#closeLineModal').addEventListener('click',()=>$('#lineModalBackdrop').style.display='none');
+$('#saveLineModal').addEventListener('click',()=>{ if(editingLineIndex==null||!draftRun) return; const emp=draftRun.employees[editingLineIndex]; if(!emp) return; body=$('#lineModalBody'); body.querySelectorAll('[data-earn-line]').forEach(inp=>{ const i=Number(inp.dataset.earnLine); emp.earnings[i].amount=Number(inp.value||0); }); body.querySelectorAll('[data-ded-line]').forEach(inp=>{ const i=Number(inp.dataset.dedLine); emp.deductions[i].amount=Number(inp.value||0); }); emp.earningsTotal=emp.earnings.reduce((s,e)=>s+Number(e.amount||0),0); emp.deductionsTotal=emp.deductions.reduce((s,e)=>s+Number(e.amount||0),0); emp.tax=Number($('#editLineTax').value||0); emp.gross=emp.basic+emp.earningsTotal; emp.net=emp.gross - emp.deductionsTotal - emp.tax; $('#lineModalBackdrop').style.display='none'; renderDraftRun(); });
+
+/**************** Import / Export *****************/
+// Export button removed per requirement
+// Import functionality removed along with button per requirement.
+
+/**************** Modal Builders & Generic Entity Modal *****************/
+const entityModalBackdrop = $('#entityModalBackdrop');
+const entityModalBody = $('#entityModalBody');
+const entityModalTitle = $('#entityModalTitle');
+$('#closeEntityModal').addEventListener('click', ()=> entityModalBackdrop.style.display='none');
+
+function openEntityModal(title, contentNode){
+  entityModalTitle.textContent = title;
+  entityModalBody.innerHTML='';
+  if(contentNode) entityModalBody.appendChild(contentNode);
+  entityModalBackdrop.style.display='flex';
+  const firstInput = entityModalBody.querySelector('input,select,textarea');
+  if(firstInput) setTimeout(()=> firstInput.focus(), 50);
+}
+
+// Payslip Template Preview Modal (PDF-friendly)
+function openTemplatePreviewModal(template){
+  // Helper to centrally derive branding
+  function getBranding(){
+    const comp = window.AppAuth?.currentCompany;
+    const name = comp?.companyName || window.AppAuth?.currentUser?.companyName || document.getElementById('headerCompanyName')?.textContent || 'Company Name';
+    const logo = comp?.logo || comp?.logoUrl || document.getElementById('headerCompanyLogo')?.src || '';
+    return { name, logo };
+  }
+  const { name: companyName, logo } = getBranding();
+  const payElementsIndex = new Map(getPayElements().map(p=>[p.id,p]));
+  const earnings = (template.earnings||[]).map(id=> payElementsIndex.get(id) || { id, code:id, name:id, defaultAmount:0 });
+  const deductions = (template.deductions||[]).map(id=> payElementsIndex.get(id) || { id, code:id, name:id, defaultAmount:0 });
+  const earnCount = earnings.length; const dedCount = deductions.length;
+
+  const wrapper = document.createElement('div');
+  wrapper.className='payslip-preview-container';
+  wrapper.innerHTML = `
+  <style>
+    @page { size: A4 portrait; margin: 0; }
+    .payslip-preview-container{width:100%;display:flex;justify-content:center;}
+    /* A4: 210mm x 297mm. We'll subtract margins for content area. */
+    .payslip-sheet{background:#fff;width:100%;max-width:100%;min-height:100vh;padding:4mm;box-sizing:border-box;border:1px solid #dfe5eb;border-radius:6px;box-shadow:0 4px 14px rgba(0,0,0,0.10);margin:0 auto;font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;position:relative;}
+    .payslip-header{display:flex;justify-content:space-between;gap:20px;border-bottom:2px solid var(--primary-color,#2d5be3);padding-bottom:16px;margin-bottom:20px;}
+  .payslip-logo{width:70px;height:70px;object-fit:contain;border:none;border-radius:8px;background:transparent;}
+    .payslip-company h1{margin:0;font-size:1.35rem;line-height:1.1;font-weight:600;letter-spacing:.5px;}
+    .payslip-company small{display:block;font-size:.6rem;color:#66707a;margin-top:4px;font-weight:500;}
+    .payslip-meta{font-size:.6rem;color:#4b5661;text-align:right;line-height:1.3;}
+    .payslip-section-title{font-size:.65rem;text-transform:uppercase;letter-spacing:.09em;font-weight:700;color:#4e5b68;margin:26px 0 6px;}
+    table.payslip-table{width:100%;border-collapse:collapse;font-size:.68rem;}
+    table.payslip-table th{background:#f1f4f8;text-align:left;padding:6px 8px;border:1px solid #dde3ea;font-size:.58rem;letter-spacing:.05em;font-weight:600;}
+    table.payslip-table td{padding:6px 8px;border:1px solid #eef2f5;vertical-align:top;}
+    .amount-cell{text-align:right;font-variant-numeric:tabular-nums;}
+    .pill{display:inline-block;padding:2px 7px;border-radius:12px;font-size:.55rem;font-weight:600;letter-spacing:.5px;}
+    .pill-earn{background:#e1f8ec;color:#106b38;border:1px solid #b2eccd;}
+    .pill-ded{background:#fdeff0;color:#9d1d2f;border:1px solid #f3c8cf;}
+    .summary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-top:28px;}
+    .summary-card{background:#f9fbfc;border:1px solid #e5eaef;border-radius:8px;padding:12px 14px;}
+    .summary-card h4{margin:0 0 4px;font-size:.58rem;text-transform:uppercase;letter-spacing:.07em;color:#5a6672;font-weight:600;}
+    .summary-card p{margin:0;font-size:.82rem;font-weight:600;letter-spacing:.5px;}
+    .print-btn{position:absolute;top:12px;right:12px;background:var(--primary-color,#2d5be3);color:#fff;border:none;border-radius:4px;padding:6px 10px;font-size:.6rem;cursor:pointer;display:flex;align-items:center;gap:4px;}
+    .print-btn:hover{opacity:.9;}
+    @media print {
+      /* Hide everything by default */
+      body * { visibility:hidden !important; }
+      /* Show only the printable payslip */
+      .printable, .printable * { visibility:visible !important; }
+      /* Normalize layout so it prints from top-left within @page margins */
+      .printable { position:static !important; inset:auto !important; margin:0 !important; box-shadow:none !important; border:none !important; width:100% !important; }
+      .payslip-preview-container { position:static !important; padding:0 !important; margin:0 !important; width:100% !important; }
+      /* Force sheet to fit inside the printable area (page width minus @page margins) */
+      .payslip-sheet { width:100% !important; max-width:100% !important; margin:0 !important; padding:1mm !important; border:none !important; box-shadow:none !important; min-height:100vh !important; }
+      /* Avoid awkward splits */
+      .payslip-header, .summary-grid, table.payslip-table { page-break-inside:avoid !important; }
+      .print-btn { display:none !important; }
+      /* Improve print color fidelity */
+      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
+  </style>
+  <div class='payslip-sheet printable'>
+    <button type='button' class='print-btn' onclick='window.print()'><i class="fas fa-print"></i> Print / PDF</button>
+    <div class='payslip-header'>
+      <div style='display:flex;gap:14px;align-items:center;'>
+        ${logo?`<img class='payslip-logo' src='${logo}' alt='${companyName} logo'/>`:`<div class='payslip-logo' style="display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:600;color:#555;">${(companyName||'CN').split(/\s+/).map(w=>w[0]).slice(0,3).join('').toUpperCase()}</div>`}
+        <div class='payslip-company'>
+          <h1>${companyName}</h1>
+          <small>Code: ${template.category||template.code||template.id}</small>
+        </div>
+      </div>
+      <div class='payslip-meta'>
+        <div><strong>Template:</strong> ${template.name}</div>
+        <div><strong>Earnings:</strong> ${earnCount}</div>
+        <div><strong>Deductions:</strong> ${dedCount}</div>
+        <div><strong>Updated:</strong> ${ template.updatedAt ? new Date(template.updatedAt).toLocaleString() : '-' }</div>
+      </div>
+    </div>
+    <div class='payslip-section-title'>Earnings</div>
+    <table class='payslip-table'>
+      <thead><tr><th style='width:24%'>Code</th><th>Description</th><th style='width:18%;text-align:right;'>Default Amount</th></tr></thead>
+      <tbody>
+        ${ earnings.length ? earnings.map(e=>`<tr><td><span class='pill pill-earn'>${e.code}</span></td><td>${e.name||''}</td><td class='amount-cell'>${Number(e.defaultAmount||0).toFixed(2)}</td></tr>`).join('') : `<tr><td colspan='3' style='text-align:center;color:#7a858f;font-size:.58rem;'>No earnings elements</td></tr>` }
+      </tbody>
+    </table>
+    <div class='payslip-section-title' style='margin-top:22px;'>Deductions</div>
+    <table class='payslip-table'>
+      <thead><tr><th style='width:24%'>Code</th><th>Description</th><th style='width:18%;text-align:right;'>Default Amount</th></tr></thead>
+      <tbody>
+        ${ deductions.length ? deductions.map(d=>`<tr><td><span class='pill pill-ded'>${d.code}</span></td><td>${d.name||''}</td><td class='amount-cell'>${Number(d.defaultAmount||0).toFixed(2)}</td></tr>`).join('') : `<tr><td colspan='3' style='text-align:center;color:#7a858f;font-size:.58rem;'>No deduction elements</td></tr>` }
+      </tbody>
+    </table>
+  </div>`;
+  openEntityModal('Payslip Template Preview', wrapper);
+}
+
+function buildEmployeeForm(){
+  // Build a fully structured modal content replicating position details aesthetic
+  const form=document.createElement('form');
+  form.id='employeeModalForm';
+  form.className='employee-modal-wrapper';
+  form.innerHTML=`
+    <div class="employee-modal-header">
+      <button type="button" class="employee-modal-close" title="Close" aria-label="Close">&times;</button>
+  <h3 aria-label="Employee Form"><i class="fas fa-user-plus"></i></h3>
+      <!-- Meta chips removed per requirement -->
+    </div>
+  <!-- Informational notice removed per requirement -->
+    <div class="emp-tab-nav" role="tablist">
+      <button type="button" class="emp-tab-btn active" data-target="personal" role="tab" aria-selected="true">Personal</button>
+      <button type="button" class="emp-tab-btn" data-target="contact" role="tab" aria-selected="false">Contact</button>
+      <button type="button" class="emp-tab-btn" data-target="employment" role="tab" aria-selected="false">Employment</button>
+      <button type="button" class="emp-tab-btn" data-target="banking" role="tab" aria-selected="false">Banking</button>
+      <button type="button" class="emp-tab-btn" data-target="emergency" role="tab" aria-selected="false">Emergency</button>
+    </div>
+    <div class="employee-form-sections">
+      <section class="emp-section" data-section="personal">
+        <h4><i class="fas fa-user"></i> Personal Information</h4>
+        <div class="emp-grid">
+          <label>Employee ID<input list="employeeIdOptions" type="text" id="empId" placeholder="Select or type" autocomplete="off"></label>
+          <label>First Name*<input type="text" id="empFirstName" required></label>
+          <label>Last Name*<input type="text" id="empLastName" required></label>
+          <label>Gender<select id="empGender"><option value="">--</option><option>Male</option><option>Female</option><option>Other</option></select></label>
+          <label>Date of Birth<input type="date" id="empDob"></label>
+          <label>Nationality<input type="text" id="empNationality"></label>
+          <label>Marital Status<select id="empMarital"><option value="">--</option><option>Single</option><option>Married</option><option>Divorced</option><option>Widowed</option></select></label>
+          <label>Dependents<input type="number" id="empDependents" min="0" value="0"></label>
+          <label style="grid-column:1/-1;">Address<textarea id="empAddress" placeholder="Street, City, State, Country"></textarea></label>
+        </div>
+      </section>
+      <section class="emp-section" data-section="contact">
+        <h4><i class="fas fa-address-book"></i> Contact</h4>
+        <div class="emp-grid">
+          <label>Email<input type="email" id="empEmail"></label>
+          <label>Phone<input type="text" id="empPhone"></label>
+          <label>City<input type="text" id="empCity"></label>
+          <label>Country<input type="text" id="empCountry"></label>
+        </div>
+      </section>
+      <section class="emp-section" data-section="employment">
+        <h4><i class="fas fa-briefcase"></i> Employment</h4>
+        <div class="emp-grid">
+          <label>Department<input type="text" id="empDepartment"></label>
+          <label>Job Title<input type="text" id="empJobTitle"></label>
+          <label>Employment Type<select id="empEmploymentType"><option value="">--</option><option>Full-Time</option><option>Part-Time</option><option>Contract</option><option>Intern</option><option>Consultant</option></select></label>
+          <label>Work Location<input type="text" id="empWorkLocation"></label>
+          <label>Hire Date<input type="date" id="empHireDate"></label>
+          <label>Termination Date<input type="date" id="empTerminationDate"></label>
+          <label>Status<select id="empStatus"><option value="Active">Active</option><option>On Leave</option><option>Terminated</option><option>Inactive</option></select></label>
+          <label>Manager ID<input type="text" id="empManagerId" placeholder="UID / EmpID"></label>
+          <label>Grade<input type="text" id="empGrade"></label>
+          <label>Level<input type="text" id="empLevel"></label>
+          <label>Pay Frequency<select id="empPayFrequency"><option value="Monthly">Monthly</option><option>Bi-Weekly</option><option>Weekly</option></select></label>
+          <label>Basic Salary<input type="number" id="empBasicSalary" step="0.01" value="0"></label>
+          <label>Currency<input type="text" id="empCurrency" value="USD"></label>
+          <label>Payslip Template<select id="empPayslipTemplate"><option value="">-- Select Template --</option></select></label>
+        </div>
+      </section>
+      <section class="emp-section" data-section="banking">
+        <h4><i class="fas fa-building-columns"></i> Banking & Statutory</h4>
+        <div class="emp-grid">
+          <label>Bank Name<input type="text" id="empBankName" placeholder="Full bank name"></label>
+          <label>Account Holder Name<input type="text" id="empAccountName" placeholder="Name on account"></label>
+          <label>Account Number<input type="text" id="empAccountNumber" placeholder="Local account number"></label>
+          <label>Account Type<select id="empAccountType"><option value="">--</option><option>Checking</option><option>Savings</option><option>Current</option><option>Salary</option></select></label>
+          <label>IBAN<input type="text" id="empIBAN" placeholder="International Bank Account Number"></label>
+          <label>SWIFT/BIC Code<input type="text" id="empSwiftCode" placeholder="Bank Identifier Code"></label>
+          <label>Bank Code<input type="text" id="empBankCode" placeholder="National bank code"></label>
+          <label>Branch Code<input type="text" id="empBranchCode" placeholder="Branch/Sort code"></label>
+          <label>Branch Name<input type="text" id="empBranchName" placeholder="Branch location"></label>
+          <label>Routing Number<input type="text" id="empRoutingNumber" placeholder="ABA/ACH routing (US)"></label>
+          <label>BSB Code<input type="text" id="empBSBCode" placeholder="Bank-State-Branch (AU)"></label>
+          <label>IFSC Code<input type="text" id="empIFSCCode" placeholder="Indian Financial System Code"></label>
+          <label>RIB Key<input type="text" id="empRibKey" placeholder="Relevé d'Identité Bancaire"></label>
+          <label>Transit Number<input type="text" id="empTransitNumber" placeholder="Transit number (CA)"></label>
+          <label>Institution Number<input type="text" id="empInstitutionNumber" placeholder="Institution number (CA)"></label>
+          <label>Currency<input type="text" id="empBankCurrency" placeholder="e.g., USD, EUR, GBP" value="USD"></label>
+          <label style="grid-column:1/-1;">Bank Address<textarea id="empBankAddress" rows="2" placeholder="Full bank branch address"></textarea></label>
+          <label>Tax ID / TIN<input type="text" id="empTaxId" placeholder="Tax Identification Number"></label>
+          <label>Social Security #<input type="text" id="empSSN" placeholder="Social Security Number"></label>
+          <label>Pension #<input type="text" id="empPension" placeholder="Pension fund number"></label>
+          <label>National ID<input type="text" id="empNationalId" placeholder="National identification"></label>
+        </div>
+      </section>
+      <section class="emp-section" data-section="emergency">
+        <h4><i class="fas fa-triangle-exclamation"></i> Emergency Contact</h4>
+        <div class="emp-grid">
+          <label>Contact Name<input type="text" id="empEmergName"></label>
+          <label>Relationship<input type="text" id="empEmergRelation"></label>
+          <label>Phone<input type="text" id="empEmergPhone"></label>
+          <label>Email<input type="email" id="empEmergEmail"></label>
+          <label style="grid-column:1/-1;">Notes<textarea id="empNotes" placeholder="Additional remarks / eligibility info"></textarea></label>
+        </div>
+      </section>
+    </div>
+    <div class="employee-modal-footer">
+      <button type="reset" class="btn" id="empModalReset"><i class="fas fa-rotate"></i> Reset</button>
+      <button type="submit" class="btn-primary"><i class="fas fa-save"></i> Save Employee</button>
+    </div>
+    <datalist id="employeeIdOptions"></datalist>
+  `;
+
+  // Close behavior
+  form.querySelector('.employee-modal-close')?.addEventListener('click',()=> entityModalBackdrop.style.display='none');
+  form.querySelector('#empModalReset')?.addEventListener('click',()=>{
+    form.reset();
+    $('#empDependents').value = '0';
+  });
+
+  // Internal tab switching logic
+  const sectionMap = {};
+  form.querySelectorAll('.emp-section').forEach(sec=>{ sectionMap[sec.dataset.section]=sec; });
+  // Activate first section
+  const activateSection = (name)=>{
+    Object.values(sectionMap).forEach(s=>s.classList.remove('active'));
+    form.querySelectorAll('.emp-tab-btn').forEach(b=>{ b.classList.toggle('active', b.dataset.target===name); b.setAttribute('aria-selected', b.dataset.target===name? 'true':'false'); });
+    const target = sectionMap[name]; if(target){ target.classList.add('active'); }
+  };
+  activateSection('personal');
+  form.querySelectorAll('.emp-tab-btn').forEach(btn=> btn.addEventListener('click',()=> activateSection(btn.dataset.target)));
+
+  // Submission replicating original #employeeForm submit handler
+  form.addEventListener('submit', e=>{
+    e.preventDefault();
+    const employees=getEmployees();
+    // Use form-scoped selectors to get values from modal form
+    const getValue = (selector) => {
+      const el = form.querySelector(selector);
+      return el ? el.value.trim() : '';
+    };
+    const getNumberValue = (selector) => {
+      const el = form.querySelector(selector);
+      return Number(el ? el.value : 0) || 0;
+    };
+    
+    const id = getValue('#empId') || uid();
+    const template = getValue('#empPayslipTemplate');
+    const emp = {
+      id,
+      employeeId: getValue('#empId') || id,
+      personal:{
+        firstName: getValue('#empFirstName'),
+        lastName: getValue('#empLastName'),
+        gender: getValue('#empGender'),
+        dob: getValue('#empDob'),
+        nationality: getValue('#empNationality'),
+        marital: getValue('#empMarital'),
+        dependents: getNumberValue('#empDependents'),
+        address: getValue('#empAddress'),
+        city: getValue('#empCity'),
+        country: getValue('#empCountry')
+      },
+      contact:{ 
+        email: getValue('#empEmail'), 
+        phone: getValue('#empPhone') 
+      },
+      employment:{
+        department: getValue('#empDepartment'), 
+        jobTitle: getValue('#empJobTitle'), 
+        employmentType: getValue('#empEmploymentType'),
+        workLocation: getValue('#empWorkLocation'), 
+        hireDate: getValue('#empHireDate'), 
+        terminationDate: getValue('#empTerminationDate'),
+        status: getValue('#empStatus'), 
+        managerId: getValue('#empManagerId'), 
+        grade: getValue('#empGrade'), 
+        level: getValue('#empLevel'),
+        payFrequency: getValue('#empPayFrequency'), 
+        basicSalary: getNumberValue('#empBasicSalary'), 
+        currency: getValue('#empCurrency'), 
+        payslipTemplate: template, 
+        payslipCategory: template
+      },
+      banking:{ 
+        bankName: getValue('#empBankName'), 
+        accountName: getValue('#empAccountName'), 
+        accountNumber: getValue('#empAccountNumber'), 
+        accountType: getValue('#empAccountType'),
+        iban: getValue('#empIBAN'),
+        swiftCode: getValue('#empSwiftCode'),
+        bankCode: getValue('#empBankCode'), 
+        branchCode: getValue('#empBranchCode'), 
+        branchName: getValue('#empBranchName'),
+        routingNumber: getValue('#empRoutingNumber'),
+        bsbCode: getValue('#empBSBCode'),
+        ifscCode: getValue('#empIFSCCode'),
+        ribKey: getValue('#empRibKey'),
+        transitNumber: getValue('#empTransitNumber'),
+        institutionNumber: getValue('#empInstitutionNumber'),
+        currency: getValue('#empBankCurrency'),
+        bankAddress: getValue('#empBankAddress')
+      },
+      statutory:{ 
+        taxId: getValue('#empTaxId'), 
+        ssn: getValue('#empSSN'), 
+        pension: getValue('#empPension'),
+        nationalId: getValue('#empNationalId')
+      },
+      emergency:{ 
+        name: getValue('#empEmergName'), 
+        relation: getValue('#empEmergRelation'), 
+        phone: getValue('#empEmergPhone'), 
+        email: getValue('#empEmergEmail') 
+      },
+      notes: getValue('#empNotes'),
+      createdAt:Date.now(), updatedAt:Date.now()
+    };
+    const existingIndex = employees.findIndex(x=>x.id===id || x.employeeId===emp.employeeId);
+    if(existingIndex>=0){ employees[existingIndex]=emp; } else { employees.push(emp); }
+    // Store directly to Firebase real-time database (primary storage)
+    persistEmployeeToFirebase(emp);
+    // Update local cache for UI responsiveness
+    saveEmployees(employees);
+    entityModalBackdrop.style.display='none';
+    renderEmployees();
+    alert('Employee saved.');
+  });
+
+  // Re-populate payslip template options (mirrors reloadTemplateSelect usage)
+  const tplSel = form.querySelector('#empPayslipTemplate');
+  if(tplSel){
+    const templates = getTemplates();
+    tplSel.innerHTML = '<option value="">-- Select Template --</option>' + templates.map(t=>`<option value="${t.id}">${t.name}</option>`).join('');
+  }
+
+  // Ensure employeeIdOptions datalist is populated (function already exists)
+  if(typeof populateEmployeeIdDatalist === 'function') setTimeout(populateEmployeeIdDatalist, 50);
+  
+  // Hook auto-fill on both change and input events for better datalist support
+  const empIdInput = form.querySelector('#empId');
+  if(empIdInput) {
+    empIdInput.addEventListener('change', ()=> {
+      console.log('🔄 Employee ID changed:', empIdInput.value);
+      setTimeout(() => autoFillEmployeeFromCompanyUser(form), 100);
+    });
+    empIdInput.addEventListener('input', ()=> {
+      // Only trigger on meaningful input (not every keystroke)
+      const val = empIdInput.value.trim();
+      if(val && val.length >= 2) {
+        setTimeout(() => autoFillEmployeeFromCompanyUser(form), 200);
+      }
+    });
+  }
+
+  return form;
+}
+
+function buildPayElementForm(){
+  const wrapper=document.createElement('form');
+  wrapper.id='payElementModalForm';
+  wrapper.className='grid cols-4';
+  wrapper.innerHTML = $('#payElementForm')?.innerHTML || '';
+  // Value mode toggle logic
+  const modeSel = wrapper.querySelector('#peValueMode');
+  const amountWrap = wrapper.querySelector('#peAmountWrapper');
+  const percentWrap = wrapper.querySelector('#pePercentWrapper');
+  const percentBaseWrap = wrapper.querySelector('#pePercentBaseWrapper');
+  const percentCustomWrap = wrapper.querySelector('#pePercentCustomWrapper');
+  const percentBaseSel = wrapper.querySelector('#pePercentBase');
+  const percentCustomSel = wrapper.querySelector('#pePercentCustom');
+
+  // Populate custom element options (excluding self once editing) later on edit populate step
+  const existing = getPayElements();
+  existing.forEach(pe=>{
+    const opt=document.createElement('option');
+    opt.value=pe.code; opt.textContent=`${pe.code} - ${pe.name}`; percentCustomSel.appendChild(opt);
+  });
+
+  function syncValueMode(){
+    const m = modeSel.value;
+    if(m==='amount') { 
+      amountWrap.style.display='block'; 
+      percentWrap.style.display='none'; 
+      percentBaseWrap.style.display='none';
+      percentCustomWrap.style.display='none';
+    } else { 
+      amountWrap.style.display='none'; 
+      percentWrap.style.display='block'; 
+      percentBaseWrap.style.display='block';
+      if(percentBaseSel.value==='custom') percentCustomWrap.style.display='block';
+    }
+  }
+  if(modeSel) { modeSel.addEventListener('change', syncValueMode); syncValueMode(); }
+
+  // BASIC enforcement on new creation too
+  const codeInput = wrapper.querySelector('#peCode');
+  const modeLabel = modeSel?.closest('label');
+  function enforceBasic(){
+    if(!codeInput) return;
+    const isBasic = codeInput.value.trim().toUpperCase()==='BASIC';
+    if(isBasic){
+      if(modeLabel) modeLabel.style.display='none';
+      if(modeSel){ modeSel.value='amount'; modeSel.dispatchEvent(new Event('change')); }
+      ['#pePercentWrapper','#pePercentBaseWrapper','#pePercentCustomWrapper'].forEach(sel=>{ const el=wrapper.querySelector(sel); if(el) el.style.display='none'; });
+    } else {
+      if(modeLabel) modeLabel.style.display='';
+    }
+  }
+  if(codeInput){ codeInput.addEventListener('input', enforceBasic); enforceBasic(); }
+
+  if(percentBaseSel){
+    percentBaseSel.addEventListener('change', ()=>{
+      if(modeSel.value==='percent'){
+        percentCustomWrap.style.display = percentBaseSel.value==='custom' ? 'block':'none';
+      }
+    });
+  }
+  
+  // Add submission handler
+  wrapper.addEventListener('submit', e=>{
+    e.preventDefault();
+    const arr=getPayElements();
+    const editing=wrapper.querySelector('#peEditingId').value;
+    const mode = wrapper.querySelector('#peValueMode')?.value || 'amount';
+    const payload={
+      id: editing || uid(),
+      code:wrapper.querySelector('#peCode').value.trim().toUpperCase(),
+      name:wrapper.querySelector('#peName').value.trim(),
+      type:wrapper.querySelector('#peType').value,
+      defaultAmount: mode==='amount' ? Number(wrapper.querySelector('#peAmount').value||0) : 0,
+      defaultPercent: mode==='percent' ? Number(wrapper.querySelector('#pePercent').value||0) : 0,
+      valueMode: mode,
+      percentBase: mode==='percent' ? (percentBaseSel?.value||'basic') : null,
+      percentBaseElement: (mode==='percent' && (percentBaseSel?.value==='custom')) ? (percentCustomSel?.value||'') : null,
+      taxable:wrapper.querySelector('#peTaxable').value==='true',
+      active:wrapper.querySelector('#peActive').value==='true',
+      createdAt:Date.now(),
+      updatedAt:Date.now()
+    };
+    const idx=arr.findIndex(p=>p.id===payload.id);
+    if(idx>=0) arr[idx]=payload;
+    else arr.push(payload);
+    savePayElements(arr);
+    entityModalBackdrop.style.display='none';
+    renderPayElements();
+    renderTemplates();
+    reloadTemplateSelect();
+    alert('Pay element saved.');
+  });
+  
+  return wrapper;
+}
+
+function buildTemplateForm(){
+  const wrapper=document.createElement('form');
+  wrapper.id='templateModalForm';
+  wrapper.className='grid cols-4';
+  wrapper.innerHTML = $('#templateForm')?.innerHTML || '';
+  
+  // Add submission handler
+  wrapper.addEventListener('submit', e=>{
+    e.preventDefault();
+    const earnings=[...wrapper.querySelector('#tplEarnings').querySelectorAll('input:checked')].map(cb=>cb.dataset.pe);
+    const deductions=[...wrapper.querySelector('#tplDeductions').querySelectorAll('input:checked')].map(cb=>cb.dataset.pe);
+    const editing=wrapper.querySelector('#tplEditingId').value;
+    const existing = editing ? getTemplates().find(t=>t.id===editing) : null;
+    const now=Date.now();
+    const payload={
+      id: editing || uid(),
+      category:wrapper.querySelector('#tplCode').value.trim().toUpperCase(),
+      code:wrapper.querySelector('#tplCode').value.trim().toUpperCase(),
+      name:wrapper.querySelector('#tplName').value.trim(),
+      description:wrapper.querySelector('#tplDesc').value.trim()||'',
+      earnings,
+      deductions,
+      createdAt: existing? existing.createdAt : now,
+      updatedAt: now
+    };
+    saveTemplate(payload);
+    entityModalBackdrop.style.display='none';
+    alert('Template saved.');
+  });
+  
+  return wrapper;
+}
+
+
+/**************** Reactivity to External Changes *****************/
+window.addEventListener('payroll:templates:changed',()=>{ renderTemplates(); reloadTemplateSelect(); });
+window.addEventListener('payroll:payElements:changed',()=>{ renderPayElements(); renderTemplateElementSelectors(); });
+window.addEventListener('payroll:runs:changed',()=>{ renderRuns(); });
+
+/**************** Sidebar Toggle *****************/
+$('#sidebarToggle').addEventListener('click', ()=> {
+    const sidebar = $('#sidebar');
+    const mainContent = $('#mainContent');
+    sidebar.classList.toggle('collapsed');
+    mainContent.classList.toggle('sidebar-collapsed');
+});
+
+/**************** Profile Dropdown *****************/
+const userProfileBtn = $('#userProfileBtn');
+const profileDropdown = userProfileBtn?.nextElementSibling;
+if(userProfileBtn && profileDropdown) {
+    userProfileBtn.addEventListener('click', (e)=> {
+        e.stopPropagation();
+        profileDropdown.classList.toggle('show');
+    });
+    document.addEventListener('click', ()=> profileDropdown.classList.remove('show'));
+    profileDropdown.addEventListener('click', (e)=> e.stopPropagation());
+}
+
+/**************** Notification Dropdown *****************/
+const notificationBtn = $('#notificationBtn');
+const notificationDropdown = document.querySelector('.notification-dropdown');
+if(notificationBtn && notificationDropdown) {
+    notificationBtn.addEventListener('click', (e)=> {
+        e.stopPropagation();
+        notificationDropdown.classList.toggle('show');
+    });
+    document.addEventListener('click', ()=> notificationDropdown.classList.remove('show'));
+    notificationDropdown.addEventListener('click', (e)=> e.stopPropagation());
+}
+
+/**************** Load User Profile *****************/
+function loadUserProfile() {
+    if(!currentUser) {
+        window.location.href='login.html';
+        return;
+    }
+    const userRef = firebase.database().ref('users/'+currentUser.uid);
+    userRef.once('value').then(snap=>{
+        const data = snap.val();
+        if(!data) return;
+        const displayName = data.displayName || currentUser.email?.split('@')[0] || 'User';
+        const photoURL = data.photoURL || '';
+        const profileBtn = $('#userProfileBtn img');
+        if(profileBtn) {
+            if(photoURL) {
+                profileBtn.src = photoURL;
+            } else {
+                profileBtn.src = 'data:image/svg+xml;base64,'+btoa('<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><circle cx="20" cy="20" r="20" fill="#3b82f6"/><text x="20" y="26" text-anchor="middle" fill="white" font-size="16" font-family="sans-serif" font-weight="600">'+displayName.charAt(0).toUpperCase()+'</text></svg>');
+            }
+        }
+        const profileDropdown = document.querySelector('.profile-dropdown ul');
+        if(profileDropdown) {
+            profileDropdown.innerHTML = `
+                <li><a href="profile.html"><i class="fas fa-user"></i> Profile</a></li>
+                <li><a href="account.html"><i class="fas fa-cog"></i> Account Settings</a></li>
+                <li><a href="#" id="logoutBtn"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+            `;
+            const logoutBtn = document.querySelector('#logoutBtn');
+            if(logoutBtn) {
+                logoutBtn.addEventListener('click', (e)=>{
+                    e.preventDefault();
+                    firebase.auth().signOut().then(()=>{
+                        window.location.href='login.html';
+                    });
+                });
+            }
+        }
+    });
+}
+loadUserProfile();
+
+/**************** Load Company Branding *****************/
+function loadCompanyBranding() {
+    if(!companyId) return;
+    const compRef = firebase.database().ref('companies/'+companyId);
+    compRef.once('value').then(snap=>{
+        const comp = snap.val();
+        if(!comp) return;
+        const headerCompanyName = $('#headerCompanyName');
+        const headerCompanyLogo = $('#headerCompanyLogo');
+        if(headerCompanyName) headerCompanyName.textContent = comp.name || '';
+        if(headerCompanyLogo && comp.logo) {
+            headerCompanyLogo.src = comp.logo;
+            headerCompanyLogo.style.display = 'block';
+        } else if(headerCompanyLogo) {
+            headerCompanyLogo.style.display = 'none';
+        }
+        if(comp.primaryColor) {
+            document.documentElement.style.setProperty('--primary-color', comp.primaryColor);
+        }
+        if(comp.secondaryColor) {
+            document.documentElement.style.setProperty('--secondary-color', comp.secondaryColor);
+        }
+    });
+}
+loadCompanyBranding();
+
+/**************** Menu Permissions (Simplified) *****************/
+const sidebar = $('#sidebar');
+if(sidebar) {
+    setTimeout(()=> sidebar.classList.remove('menu-loading'), 500);
+}
+
+/**************** Initialize Firebase Data *****************/
+async function initializePayrollData() {
+  console.log('🔄 Loading payroll data from Firebase...');
+  
+  // Wait a bit for auth to initialize
+  await new Promise(resolve => setTimeout(resolve, 1500));
+  
+  if(!db || !companyId) {
+    console.warn('⚠️ No database or company ID - using local data only');
+    return;
+  }
+  
+  try {
+    // Load all payroll data from Firebase
+    await Promise.all([
+      loadEmployeesFromFirebase(),
+      loadRunsFromFirebase()
+    ]);
+    // Attach real-time listeners
+    attachPayElementsListener();
+    attachTemplatesListener();
+    
+    console.log('✅ Payroll data loaded from Firebase');
+  } catch(error) {
+    console.error('❌ Error loading payroll data:', error);
+  }
+}
+
+// Initialize data on page load
+setTimeout(initializePayrollData, 1000);
+
+</script>
+    </main>
+</div>
+</body>
+</html>
