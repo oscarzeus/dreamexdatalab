@@ -1,2283 +1,2038 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" translate="no">
 <head>
-	<meta charset="UTF-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<title>Daily Access Control - Dreamex Datalab HSE</title>
-	<!-- Firebase v8 CDN (match other pages) -->
-	<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-	<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
-	<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-	<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
-	<!-- jsPDF + AutoTable for PDF export -->
-	<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-	<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.29/jspdf.plugin.autotable.min.js"></script>
-	<!-- Font Awesome -->
-	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
-	<meta name="robots" content="noindex, nofollow">
-	<style>
-		/* === Core Variables / Layout (derived from accessboard.html) === */
-		:root { --primary-color:#2c3e50; --secondary-color:#3498db; --accent-color:#3498db; --text-color:#333; --bg-color:#f5f6fa; --sidebar-width:250px; --blue:#3498db; --green:#2ecc71; --orange:#e67e22; --red:#e74c3c; --purple:#9b59b6; --font-family:'Inter',system-ui,-apple-system,sans-serif; --base-font-size:.9rem; --font-scale:1; --bg-primary:#ffffff; --bg-secondary:#f8f9fa; --text-primary:#333; --text-secondary:#666; --border-color:#e0e0e0; --spacing-unit:.9rem; --padding-sm:.45rem; --padding-md:.75rem; --padding-lg:1.2rem; --transition-speed:.2s; }
-		*{margin:0;padding:0;box-sizing:border-box;} body{font-family:var(--font-family);font-size:var(--base-font-size);line-height:1.4;color:var(--text-primary);background:#f8f9fa;}
-		.app-container{display:flex;min-height:100vh;}
-		.sidebar{width:var(--sidebar-width);background:var(--primary-color);color:#fff;padding:1rem;position:fixed;height:100vh;overflow-y:auto;transition:transform .3s ease;}
-		.sidebar.collapsed{transform:translateX(-100%);} .logo h2{text-align:center;padding:1rem 0;border-bottom:1px solid rgba(255,255,255,.1);font-size:1.05rem;}
-		.menu{list-style:none;margin-top:1.5rem;} .menu li{margin-bottom:.45rem;} .menu a{color:#fff;text-decoration:none;display:flex;align-items:center;padding:.65rem .9rem;border-radius:6px;font-size:.78rem;gap:.55rem;letter-spacing:.25px;transition:background .25s;} .menu a:hover,.menu a.active{background:var(--secondary-color);} .menu-dropdown .submenu{display:none;list-style:none;margin-left:1.2rem;margin-top:.35rem;} .menu-dropdown:hover .submenu{display:block;}
-		/* Feature-based visibility */
-		[data-feature]:not(.menu-visible){display:none !important;} .menu-dropdown:not(.menu-visible){display:none !important;} 
-		
-		/* Hide ALL menu items by default during loading */
-		.sidebar.menu-loading .menu-item, .sidebar.menu-loading .menu-dropdown, .sidebar.menu-loading li[data-feature], .sidebar.menu-loading [data-feature] {display:none !important;} .menu-loading [data-feature]{display:none !important;} .menu-loading .menu-dropdown{display:none !important;}
-		.main-content{flex:1;margin-left:var(--sidebar-width);padding:.45rem;width:calc(100% - var(--sidebar-width));box-sizing:border-box;display:flex;flex-direction:column;transition:margin-left .3s ease,width .3s ease;}
-		.main-content.sidebar-collapsed{margin-left:0;width:100%;}
-		/* Top Nav (copied style approach from staff.html) */
-		.top-nav{display:flex;justify-content:space-between;align-items:center;padding:.5rem .75rem;background:#fff;box-shadow:0 2px 5px rgba(0,0,0,.1);margin-bottom:.35rem;position:fixed;top:.25rem;right:.5rem;left:calc(var(--sidebar-width) + .5rem);height:50px;min-height:50px;z-index:100;transition:left .3s ease;}
-		.top-nav-left{display:flex;align-items:center;gap:1rem;font-size:.8rem;font-weight:600;color:var(--text-secondary);} .sidebar-toggle-btn{background:none;border:none;cursor:pointer;font-size:1.15rem;padding:.45rem;color:#666;border-radius:6px;display:flex;align-items:center;justify-content:center;} .sidebar-toggle-btn:hover{background:rgba(0,0,0,.06);}
-		/* Company logo: remove square background & border (match project-list.html minimal style) */
-		#headerCompanyLogo{width:32px;height:32px;object-fit:contain;display:none;border:none;background:transparent;box-shadow:none;padding:0;margin:0;} 
-		#headerCompanyLogo.visible{display:block;} 
-		#headerCompanyName{font-size:.8rem;font-weight:600;letter-spacing:.5px;color:var(--primary-color);max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-		.top-nav-right{display:flex;align-items:center;gap:1.2rem;margin-left:auto;}
-		.notifications{position:relative;display:flex;align-items:center;} .notification-btn{background:none;border:none;cursor:pointer;position:relative;font-size:1.1rem;padding:.45rem;display:flex;align-items:center;justify-content:center;} .notification-badge{position:absolute;top:-5px;right:-5px;background:var(--accent-color);color:#fff;border-radius:50%;padding:.15rem .45rem;font-size:.6rem;}
-		.notification-dropdown{display:none;position:absolute;right:0;top:100%;width:280px;background:#fff;border-radius:6px;box-shadow:0 4px 18px rgba(0,0,0,.12);z-index:1000;}
-		.notification-dropdown.show{display:block;} .notification-list{max-height:280px;overflow-y:auto;}
-		.profile-btn{background:none;border:none;cursor:pointer;padding:.25rem;display:flex;align-items:center;position:relative;} 
-		.profile-btn img{width:40px;height:40px;border-radius:50%;object-fit:cover;}
-		.avatar-initials{width:40px;height:40px;border-radius:50%;background:#3498db;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:14px;font-family:Arial,sans-serif;}
-		.profile-dropdown{display:none;position:absolute;top:100%;right:0;background:#fff;border-radius:6px;box-shadow:0 4px 18px rgba(0,0,0,.12);min-width:200px;z-index:1000;} .profile-dropdown.show{display:block;} .profile-dropdown ul{list-style:none;margin:0;padding:0;} .profile-dropdown ul li a{display:flex;align-items:center;padding:12px 16px;color:#333;text-decoration:none;font-size:.78rem;gap:.6rem;transition:background .2s;} .profile-dropdown ul li a:hover{background:#f5f7fa;}
-		.avatar-initials{width:40px;height:40px;border-radius:50%;background:var(--secondary-color);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:1rem;}
-		/* Page Header (board title) */
-		.page-header{background:linear-gradient(135deg,var(--primary-color),var(--secondary-color));color:#fff;padding:.55rem .75rem;border-radius:0;margin:.35rem 0 .5rem 0;display:flex;align-items:center;justify-content:space-between;box-shadow:0 10px 28px rgba(0,0,0,.18),0 6px 16px rgba(0,0,0,.14);font-size:.9rem;}
-		.page-header i{font-size:1rem;}
-		/* Add New Button */
-		.btn-add-new{background:none;border:none;color:#fff;padding:.4rem;font-size:1.2rem;font-weight:600;cursor:pointer;transition:all 0.2s ease;display:flex;align-items:center;justify-content:center;text-decoration:none;}
-		.btn-add-new:hover{color:rgba(255,255,255,0.8);transform:scale(1.1);}
-		.btn-add-new i{font-size:1.2rem;}
-		/* Filters Bar */
-		.filters-bar{display:flex;flex-wrap:wrap;gap:.5rem;align-items:flex-end;margin-bottom:.5rem;background:#fff;padding:.6rem .65rem;border-radius:0;box-shadow:0 1px 3px rgba(0,0,0,.08);} .filters-bar .form-group{display:flex;flex-direction:column;gap:.25rem;} .filters-bar label{font-size:.6rem;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:#555;} .filters-bar input,.filters-bar select{padding:.4rem .55rem;font-size:.7rem;border:1px solid #d0d7de;border-radius:6px;min-width:160px;background:#fff;} .filters-bar input:focus,.filters-bar select:focus{outline:2px solid var(--secondary-color);outline-offset:0;border-color:var(--secondary-color);}
-		/* Date Range Display */
-		.date-range-display{background:#e8f4fd;border:1px solid #bee5eb;padding:.5rem .7rem;border-radius:6px;font-size:.75rem;color:#0c5460;font-weight:600;display:flex;align-items:center;gap:.5rem;}
-		.date-range-display i{font-size:.9rem;}
-		/* Time Indicator */
-		.current-time{background:#fff3cd;border:1px solid #ffeaa7;padding:.5rem .7rem;border-radius:6px;font-size:.75rem;color:#856404;font-weight:600;display:flex;align-items:center;gap:.5rem;}
-		.current-time i{font-size:.9rem;color:#f39c12;}
-		/* Table */
-		.board-card{background:#fff;border-radius:0;padding:.65rem .75rem;box-shadow:0 1px 3px rgba(0,0,0,.08);display:flex;flex-direction:column;flex:1;min-height:0;}
-		.table-wrapper{overflow:auto;flex:1;}
-		table{width:100%;border-collapse:collapse;font-size:.7rem;} 
-		thead th{position:sticky;top:0;background:#f5f6f9;z-index:2;font-weight:600;text-align:left;padding:.45rem .55rem;border-bottom:1px solid #e3e6eb;font-size:.65rem;letter-spacing:.4px;text-transform:uppercase;color:#555;} 
-		tbody td{padding:.45rem .55rem;border-bottom:1px solid #f0f1f3;vertical-align:middle;line-height:1.25;} 
-		tbody tr:hover{background:#f9fbfe;} 
-		tbody tr:last-child td{border-bottom:none;}
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="index, follow">
+  <meta name="theme-color" content="#0ea5e9">
+  <meta name="google" content="notranslate">
+  <link rel="manifest" href="manifest.json">
+  <title>Dreamex DataLab - Enterprise Management Platform</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Add Font Awesome for icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <!-- Add Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- Local CSS Files -->
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/modal.css">
+  <link rel="stylesheet" href="css/modal-styles.css">
+  <link rel="stylesheet" href="css/forms.css">
+  
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Poppins', 'sans-serif'],
+          },
+          colors: {
+            primary: {
+              50: '#f0f9ff',
+              100: '#e0f2fe',
+              200: '#bae6fd',
+              300: '#7dd3fc',
+              400: '#38bdf8',
+              500: '#0ea5e9',
+              600: '#0284c7',
+              700: '#0369a1',
+              800: '#075985',
+              900: '#0c4a6e',
+            },
+          },
+        }
+      }
+    }
+  </script>
+  <style>
+    html {
+      scroll-behavior: smooth;
+    }
+    
+    /* Logo text protection - prevent wrapping and translation */
+    header h1,
+    .sidebar-logo h2 {
+      white-space: nowrap !important;
+      word-break: keep-all !important;
+    }
+    
+    /* Prevent translation of brand name */
+    [translate="no"] {
+      -webkit-transform: none !important;
+      transform: none !important;
+    }
+    
+    /* Reinforce application view nav visibility - override Tailwind hidden */
+    body.application-view nav,
+    body.application-view #mainNav,
+    html.app-view nav,
+    html.app-view #mainNav { display:flex !important; visibility:visible !important; }
+    body.application-view #loginButton,
+    html.app-view #loginButton { display:inline-block !important; visibility:visible !important; }
+    body.application-view #logoutButton { display:none !important; }
+    body.application-view #userStatus { display:none !important; }
+    /* Application View Mode (minimal) */
+    html.app-view .app-band, body.application-view .app-band { display:none !important; }
+    html.app-view body.application-view header { position:static; box-shadow:none; }
+    body.application-view { background:#f8fafc; }
+    body.application-view .login-focus-hint { display:block; }
+    .login-focus-hint{ display:none; text-align:center; font-size:.75rem; color:#64748b; margin-top:.75rem; }
+    
+    .feature-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+    }
+    
+    .gradient-bg {
+      background: linear-gradient(135deg, #0369a1 0%, #0ea5e9 100%);
+    }
+    
+    .back-to-top {
+      position: fixed;
+      bottom: 30px;
+      right: 30px;
+      z-index: 99;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    
+    .back-to-top.visible {
+      opacity: 1;
+    }
+    
+    @keyframes float {
+      0% { transform: translateY(0px); }
+      50% { transform: translateY(-20px); }
+      100% { transform: translateY(0px); }
+    }
+    
+    .float-animation {
+      animation: float 6s ease-in-out infinite;
+    }
+    
+    .nav-link {
+      position: relative;
+    }
+    
+    .nav-link::after {
+      content: "";
+      position: absolute;
+      width: 0;
+      height: 2px;
+      bottom: -4px;
+      left: 0;
+      background-color: #0ea5e9;
+      transition: width 0.3s;
+    }
+    
+    .nav-link:hover::after {
+      width: 100%;
+    }
+    
+    /* Login Modal Styles */
+    .login-modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(8px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      opacity: 0;
+      visibility: hidden;
+      transition: all 0.3s ease;
+    }
+    
+    .login-modal-overlay.active {
+      opacity: 1;
+      visibility: visible;
+    }
+    
+    .login-modal {
+      background: white;
+      border-radius: 24px;
+      box-shadow: 0 30px 60px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.05);
+      max-width: 1200px;
+      width: 95%;
+      max-height: 85vh;
+      min-height: 600px;
+      overflow: hidden;
+      transform: scale(0.9) translateY(30px);
+      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      display: flex;
+      position: relative;
+    }
+    
+    .login-modal-overlay.active .login-modal {
+      transform: scale(1) translateY(0);
+    }
+    
+    .login-modal-left {
+      background: linear-gradient(135deg, #0369a1 0%, #0ea5e9 50%, #06b6d4 100%);
+      padding: 4rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      color: white;
+      min-width: 450px;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .login-modal-left::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grid" width="12" height="12" patternUnits="userSpaceOnUse"><path d="M 12 0 L 0 0 0 12" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="0.5"/></pattern></defs><rect width="100" height="100" fill="url(%23grid)"/></svg>');
+      opacity: 0.4;
+    }
+    
+    .login-modal-left::after {
+      content: '';
+      position: absolute;
+      top: -50%;
+      right: -50%;
+      width: 200%;
+      height: 200%;
+      background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+      animation: rotate 20s linear infinite;
+    }
+    
+    .login-modal-left .content {
+      position: relative;
+      z-index: 2;
+    }
+    
+    .login-modal-right {
+      padding: 4rem;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      background: linear-gradient(145deg, #fafafa 0%, #ffffff 100%);
+      position: relative;
+    }
+    
+    .login-modal-right::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 60"><defs><pattern id="dots" width="20" height="20" patternUnits="userSpaceOnUse"><circle cx="10" cy="10" r="1" fill="rgba(59,130,246,0.03)"/></pattern></defs><rect width="60" height="60" fill="url(%23dots)"/></svg>');
+      opacity: 0.5;
+    }
+    
+    .login-form-container {
+      max-width: 480px;
+      margin: 0 auto;
+      width: 100%;
+      position: relative;
+      z-index: 2;
+      background: rgba(255, 255, 255, 0.9);
+      backdrop-filter: blur(10px);
+      padding: 2.5rem;
+      border-radius: 20px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
 
-		/* Tabs */
-		.tabs-bar{margin:.35rem 0;}
-		/* Legacy simple tabs (kept for safety) */
-		.tabs{display:flex;gap:.4rem;flex-wrap:wrap;}
-		.tabs .tab{padding:.35rem .6rem;font-size:.7rem;border:1px solid #d0d7de;background:#fff;color:#333;border-radius:6px;cursor:pointer;}
-		.tabs .tab.active{background:var(--secondary-color);border-color:var(--secondary-color);color:#fff;}
-		/* Staff-like tab styles */
-		.content-tabs{margin:0;width:100%;box-shadow:0 32px 96px rgba(0,0,0,0.35),0 20px 48px rgba(0,0,0,0.25),0 10px 24px rgba(0,0,0,0.18);border-radius:0;transition:box-shadow .3s ease;display:flex;flex-direction:column;background:#fff}
-		.content-tabs:hover{box-shadow:0 40px 120px rgba(0,0,0,0.42),0 26px 60px rgba(0,0,0,0.32),0 14px 32px rgba(0,0,0,0.22)}
-		.tab-navigation{display:flex;gap:.5rem;margin:0 0 1rem 0;background:#fff;padding:.5rem;border-radius:0;box-shadow:0 2px 10px rgba(0,0,0,.05)}
-		.tab-nav-btn{padding:.5rem 1.5rem;border:none;background:transparent;border-radius:0;cursor:pointer;font-size:.7rem;font-weight:600;transition:all .3s ease;display:flex;align-items:center;gap:.75rem;color:#6c757d;flex:1;justify-content:center}
-		.tab-nav-btn:hover{background:#f8f9fa;color:#495057}
-		.tab-nav-btn.active{background:linear-gradient(135deg,var(--primary-color),var(--secondary-color));color:#fff;box-shadow:0 4px 15px rgba(52,152,219,.3)}
-		/* Per-tab active colors to mirror staff.html pattern */
-		#dailyTabBtn.active{background:#28a745;color:#fff;box-shadow:0 4px 15px rgba(40,167,69,.4)}
-		#upcomingTabBtn.active{background:#007bff;color:#fff;box-shadow:0 4px 15px rgba(0,123,255,.4)}
-		#expiredTabBtn.active{background:#dc3545;color:#fff;box-shadow:0 4px 15px rgba(220,53,69,.4)}
-		/* Status indicators for time-based access */
-		.access-status{display:inline-flex;align-items:center;gap:.3rem;padding:.25rem .5rem;border-radius:12px;font-size:.6rem;font-weight:600;text-transform:uppercase;}
-		.access-status.active{background:#d4edda;color:#155724;border:1px solid #c3e6cb;}
-		.access-status.expired{background:#f8d7da;color:#721c24;border:1px solid #f5c6cb;}
-		.access-status.future{background:#fff3cd;color:#856404;border:1px solid #ffeaa7;}
-		.access-status i{font-size:.7rem;}
-		/* Time display */
-		.time-display{font-size:.65rem;color:#666;font-family:monospace;}
-		.empty-state{padding:2rem 1rem;text-align:center;color:#666;font-size:.75rem;}
-		/* Row click */
-		tbody tr.clickable-row{cursor:pointer;}
-		tbody tr.clickable-row:active{background:#eef5ff;}
-		/* Equipment section in daily view */
-		.equipment-list{max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.65rem;}
-		/* Status pills removed */
-
-		/* Modal */
-		.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;z-index:2000;padding:.75rem;}
-		.modal-overlay.show{display:flex;}
-		.modal{background:#fff;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.2);max-width:760px;width:100%;overflow:hidden;}
-		.modal-header{display:flex;align-items:center;justify-content:space-between;padding:.8rem 1rem;border-bottom:1px solid #eee;}
-		.modal-header h3{font-size:.95rem;color:#2c3e50;display:flex;align-items:center;gap:.5rem;}
-		.modal-close{background:none;border:none;font-size:1.2rem;cursor:pointer;color:#666;padding:.2rem .4rem;border-radius:6px;}
-		.modal-close:hover{background:#f3f4f6;color:#111;}
-		.modal-body{padding:1rem;}
-		.modal-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.75rem;}
-		.modal-grid .full{grid-column:1 / -1;}
-		.modal-grid .label{display:block;font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#666;margin-bottom:.2rem;}
-		.modal-grid .value{font-size:.8rem;color:#222;}
-		.modal-footer{display:flex;justify-content:flex-end;gap:.5rem;padding:.8rem 1rem;border-top:1px solid #eee;background:#fafbfc;}
-		.modal-footer .btn{padding:.4rem .7rem;border:1px solid #d0d7de;border-radius:6px;background:#fff;color:#333;font-size:.75rem;cursor:pointer;}
-		.modal-footer .btn:hover{background:#f3f4f6;}
-		.modal-footer .btn-link{padding:.4rem .2rem;color:#1d6fd8;text-decoration:none;font-size:.75rem;}
-		/* Attachments list */
-		.attachments-list{display:flex;flex-wrap:wrap;gap:.35rem;}
-		.attachments-list a,.attachments-list span{display:inline-block;font-size:.72rem;padding:.25rem .45rem;border-radius:12px;background:#f3f4f6;color:#333;text-decoration:none;border:1px solid #e5e7eb;}
-		.attachments-list a{color:#1d6fd8;border-color:#dbeafe;background:#eff6ff;}
-		/* Hide attachments section by default until permission is checked */
-		.attachments-section{display:none;}
-		/* Show attachments section when permission is granted */
-		.attachments-section.visible{display:block !important;}
-		
-		/* Mobile App Design - Same as dashboard.html */
-		@media (max-width: 768px) {
-			/* Prevent horizontal scrolling */
-			body, html {
-				overflow-x: hidden;
-				max-width: 100vw;
-			}
-			
-			.app-container {
-				overflow-x: hidden;
-				max-width: 100vw;
-			}
-			
-			.main-content {
-				overflow-x: hidden;
-				max-width: 100vw;
-			}
-			
-			/* Sidebar becomes slide-in overlay on mobile */
-			.sidebar {
-				position: fixed;
-				top: 0;
-				left: 0;
-				width: 280px;
-				height: 100%;
-				z-index: 9999;
-				transform: translateX(-100%);
-				transition: transform 0.3s ease;
-				box-shadow: none;
-				overflow-y: auto;
-				overflow-x: hidden;
-			}
-			
-			/* Show sidebar when active */
-			.sidebar.mobile-active {
-				transform: translateX(0);
-				box-shadow: 4px 0 15px rgba(0, 0, 0, 0.3);
-			}
-			
-			/* Backdrop overlay */
-			.mobile-sidebar-backdrop {
-				display: none;
-				position: fixed;
-				top: 0;
-				left: 0;
-				right: 0;
-				bottom: 0;
-				background: rgba(0, 0, 0, 0.5);
-				z-index: 9998;
-				opacity: 0;
-				transition: opacity 0.3s ease;
-			}
-			
-			.mobile-sidebar-backdrop.active {
-				display: block;
-				opacity: 1;
-			}
-			
-			/* Mobile hamburger menu button */
-			.mobile-menu-btn {
-				display: flex;
-				align-items: center;
-				justify-content: center;
-				width: 40px;
-				height: 40px;
-				background: var(--secondary-color);
-				color: white;
-				border: none;
-				border-radius: 8px;
-				cursor: pointer;
-				font-size: 1.2rem;
-				transition: all 0.3s ease;
-				box-shadow: 0 2px 8px rgba(52, 152, 219, 0.3);
-			}
-			
-			.mobile-menu-btn:hover {
-				background: #2980b9;
-				transform: scale(1.05);
-			}
-			
-			.mobile-menu-btn:active {
-				transform: scale(0.95);
-			}
-			
-			/* Hide desktop sidebar toggle on mobile */
-			.sidebar-toggle-btn {
-				display: none;
-			}
-			
-			/* Main content takes full width on mobile */
-			.main-content {
-				margin-left: 0;
-				width: 100%;
-				padding-top: 3.5rem;
-			}
-			
-			.top-nav {
-				left: 0.5rem;
-				right: 0.5rem;
-			}
-			
-			/* Reduce gap between header and content on mobile */
-			.page-header {
-				margin-top: 0;
-				padding-top: 0.5rem;
-			}
-			
-			/* Ensure all content fits within mobile viewport */
-			.content-wrapper, .table-container, table {
-				max-width: 100%;
-				overflow-x: auto;
-				box-sizing: border-box;
-			}
-			
-			/* Make table scrollable horizontally if needed */
-			.table-container {
-				overflow-x: auto;
-				-webkit-overflow-scrolling: touch;
-			}
-			
-			/* Responsive table adjustments */
-			table {
-				font-size: 0.75rem;
-			}
-			
-			th, td {
-				padding: 0.4rem 0.3rem;
-				white-space: nowrap;
-			}
-			
-			/* Adjust toolbar for mobile */
-			.toolbar {
-				flex-wrap: wrap;
-				gap: 0.5rem;
-			}
-			
-			.toolbar .btn {
-				font-size: 0.75rem;
-				padding: 0.4rem 0.6rem;
-			}
-			
-			/* Modal adjustments */
-			.modal {
-				max-width: 95%;
-			}
-			
-			.modal-grid {
-				grid-template-columns: 1fr;
-			}
-			
-			/* Images responsive */
-			img {
-				max-width: 100%;
-				height: auto;
-			}
-		}
-		
-		/* Hide mobile menu button on desktop */
-		@media (min-width: 769px) {
-			.mobile-menu-btn {
-				display: none;
-			}
-			
-			.mobile-sidebar-backdrop {
-				display: none !important;
-			}
-		}
-	</style>
+    /* Mobile: hide branding panel, make form full width */
+    @media (max-width: 640px) {
+      .login-modal {
+        min-height: unset;
+        height: auto;
+        flex-direction: column;
+        padding: 1rem 0;
+      }
+      .login-modal-left { display: none !important; }
+      .login-modal-right { padding: 2rem 1.25rem; width: 100% !important; }
+      .login-form-container { padding: 1.75rem 1.25rem; box-shadow: none; background: #ffffff; border-radius: 16px; }
+      .login-modal-overlay { align-items: flex-start; }
+      .modal-close { top: 8px; right: 8px; }
+    }
+    
+    .form-group {
+      margin-bottom: 1.8rem;
+      position: relative;
+    }
+    
+    .form-group label {
+      display: block;
+      margin-bottom: 0.8rem;
+      font-weight: 600;
+      color: #374151;
+      font-size: 1rem;
+      transition: color 0.3s ease;
+    }
+    
+    .form-input-container {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+    
+    .form-input-container.has-icon input {
+      padding-left: 3.2rem;
+    }
+    
+    .form-input-icon {
+      position: absolute;
+      left: 1.2rem;
+      color: #9ca3af;
+      z-index: 2;
+      font-size: 1.1rem;
+      transition: color 0.3s ease;
+    }
+    
+    .form-input-container:focus-within .form-input-icon {
+      color: #3b82f6;
+    }
+    
+    .login-modal input[type="email"], 
+    .login-modal input[type="password"] {
+      width: 100%;
+      padding: 1rem 1.2rem;
+      border: 2px solid #e5e7eb;
+      border-radius: 12px;
+      font-size: 1rem;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      background: rgba(255, 255, 255, 0.8);
+      backdrop-filter: blur(10px);
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.02);
+    }
+    
+    .login-modal input:focus {
+      outline: none;
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.12), 0 8px 16px rgba(59, 130, 246, 0.15);
+      transform: translateY(-1px);
+      background: rgba(255, 255, 255, 0.95);
+    }
+    
+    .password-field {
+      position: relative;
+    }
+    
+    .toggle-password {
+      position: absolute;
+      right: 1rem;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #9ca3af;
+      cursor: pointer;
+      z-index: 3;
+    }
+    
+    .remember-me {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 1.5rem;
+    }
+    
+    .remember-me input[type="checkbox"] {
+      width: auto;
+    }
+    
+    .remember-me label {
+      font-size: 0.9rem;
+      color: #6b7280;
+      margin-bottom: 0;
+    }
+    
+    .btn-login {
+      width: 100%;
+      background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 50%, #1e40af 100%);
+      color: white;
+      border: none;
+      padding: 1.2rem 2rem;
+      border-radius: 12px;
+      font-size: 1.1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.7rem;
+      box-shadow: 0 8px 16px rgba(59, 130, 246, 0.3);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    
+    .btn-login::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+      transition: left 0.5s;
+    }
+    
+    .btn-login:hover::before {
+      left: 100%;
+    }
+    
+    .btn-login:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 24px rgba(59, 130, 246, 0.4);
+      background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 50%, #1e3a8a 100%);
+    }
+    
+    .loading-spinner {
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-top: 2px solid white;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      display: none;
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    
+    @keyframes rotate {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    
+    .login-options {
+      text-align: center;
+      margin-top: 1.5rem;
+    }
+    
+    .login-options a {
+      color: #3b82f6;
+      text-decoration: none;
+      font-size: 1rem;
+      font-weight: 500;
+      transition: all 0.3s ease;
+    }
+    
+    .login-options a:hover {
+      text-decoration: underline;
+      color: #1d4ed8;
+    }
+    
+    .login-options p {
+      color: #6b7280;
+      font-size: 1rem;
+      margin: 0.8rem 0;
+    }
+    
+    .modal-close {
+      position: absolute;
+      top: 1rem;
+      right: 1rem;
+      width: 40px;
+      height: 40px;
+      border: none;
+      background: rgba(255, 255, 255, 0.2);
+      color: white;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      z-index: 10;
+    }
+    
+    .modal-close:hover {
+      background: rgba(255, 255, 255, 0.3);
+      transform: scale(1.05);
+    }
+    
+    #error-message {
+      background: #fef2f2;
+      color: #dc2626;
+      padding: 0.8rem;
+      border-radius: 6px;
+      margin-bottom: 1rem;
+      font-size: 0.9rem;
+      border: 1px solid #fecaca;
+      display: none;
+    }
+    
+    @media (max-width: 1024px) {
+      .login-modal {
+        max-width: 950px;
+        width: 92%;
+      }
+      
+      .login-modal-left {
+        min-width: 380px;
+        padding: 3rem;
+      }
+      
+      .login-form-container {
+        max-width: 420px;
+        padding: 2rem;
+      }
+    }
+    
+    @media (max-width: 768px) {
+      .login-modal {
+        flex-direction: column;
+        max-width: 95%;
+        max-height: 95vh;
+        min-height: auto;
+      }
+      
+      .login-modal-left {
+        min-width: auto;
+        padding: 2.5rem 2rem;
+      }
+      
+      .login-modal-right {
+        padding: 2rem;
+      }
+      
+      .login-form-container {
+        padding: 1.5rem;
+        max-width: 100%;
+      }
+      
+      .btn-login {
+        padding: 1rem 1.5rem;
+        font-size: 1rem;
+      }
+      
+      .login-modal input[type="email"], 
+      .login-modal input[type="password"] {
+        padding: 0.9rem 1rem;
+        font-size: 0.95rem;
+      }
+      
+      .form-input-container.has-icon input {
+        padding-left: 2.8rem;
+      }
+      
+      .form-input-icon {
+        left: 1rem;
+        font-size: 1rem;
+      }
+    }
+    
+    @media (max-width: 480px) {
+      .login-modal {
+        width: 98%;
+        margin: 1rem;
+      }
+      
+      .login-modal-left {
+        padding: 2rem 1.5rem;
+      }
+      
+      .login-modal-right {
+        padding: 1.5rem;
+      }
+      
+      .login-form-container {
+        padding: 1.25rem;
+      }
+    }
+    
+    /* Hide all sections except hero and footer on mobile and tablet */
+    @media (max-width: 1024px) {
+      .app-band,
+      footer {
+        display: none !important;
+      }
+      
+      /* Reduce logo text size on mobile/tablet */
+      header h1 {
+        font-size: 0.875rem !important; /* text-sm - same as logout button */
+        line-height: 1.25rem !important;
+      }
+      
+      .sidebar-logo h2 {
+        font-size: 0.875rem !important; /* text-sm */
+        line-height: 1.25rem !important;
+      }
+    }
+    
+    /* Mobile App Sidebar Styles */
+    .app-sidebar {
+      display: none; /* Hidden by default */
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 280px;
+      height: 100%;
+      background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+      color: white;
+      z-index: 9999;
+      transform: translateX(-100%);
+      transition: transform 0.3s ease;
+      overflow-y: auto;
+      padding: 1rem;
+      box-shadow: none;
+    }
+    
+    .app-view-active .app-sidebar {
+      display: block;
+    }
+    
+    .app-sidebar.mobile-active {
+      transform: translateX(0);
+      box-shadow: 4px 0 15px rgba(0, 0, 0, 0.3);
+    }
+    
+    .sidebar-logo {
+      text-align: center;
+      padding: 1rem 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      margin-bottom: 2rem;
+    }
+    
+    .sidebar-logo h2 {
+      font-size: 1.5rem;
+      font-weight: bold;
+      margin: 0;
+    }
+    
+    .sidebar-menu {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    
+    .sidebar-menu li {
+      margin-bottom: 0.5rem;
+    }
+    
+    .sidebar-menu a {
+      color: white;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      transition: background-color 0.3s;
+      font-size: 1rem;
+    }
+    
+    .sidebar-menu a i {
+      margin-right: 12px;
+      font-size: 1.1rem;
+    }
+    
+    .sidebar-menu a:hover {
+      background-color: rgba(255, 255, 255, 0.1);
+    }
+    
+    .mobile-sidebar-backdrop {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 9998;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+    
+    .mobile-sidebar-backdrop.active {
+      display: block;
+      opacity: 1;
+    }
+    
+    /* Mobile menu button in header */
+    .mobile-menu-btn {
+      display: none;
+      align-items: center;
+      justify-content: center;
+      width: 40px;
+      height: 40px;
+      background: #3b82f6;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 1.2rem;
+      transition: all 0.3s ease;
+      box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+    }
+    
+    .mobile-menu-btn:hover {
+      background: #2563eb;
+      transform: scale(1.05);
+    }
+    
+    .app-view-active .mobile-menu-btn {
+      display: flex;
+    }
+    
+    /* Mobile Profile Dropdown */
+    .mobile-profile-dropdown {
+      display: none;
+      position: absolute;
+      top: calc(100% + 8px);
+      right: 0;
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      min-width: 180px;
+      z-index: 10000;
+      overflow: hidden;
+    }
+    
+    .mobile-profile-dropdown.show {
+      display: block;
+    }
+    
+    .mobile-profile-dropdown ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    
+    .mobile-profile-dropdown ul li {
+      border-bottom: 1px solid #f0f0f0;
+    }
+    
+    .mobile-profile-dropdown ul li:last-child {
+      border-bottom: none;
+    }
+    
+    .mobile-profile-dropdown ul li a {
+      display: flex;
+      align-items: center;
+      padding: 12px 16px;
+      color: #333;
+      text-decoration: none;
+      transition: background-color 0.2s;
+      font-size: 0.875rem;
+    }
+    
+    .mobile-profile-dropdown ul li a:hover {
+      background-color: #f8f9fa;
+    }
+    
+    .mobile-profile-dropdown ul li a i {
+      margin-right: 10px;
+      width: 16px;
+      color: #666;
+    }
+    
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-5px); }
+      75% { transform: translateX(5px); }
+    }
+  </style>
+  <script>
+    // EARLY application view detection - inject critical CSS immediately
+    (function(){
+      try {
+        var qs = window.location.search.toLowerCase();
+        var h = window.location.hash.toLowerCase();
+        var isAppView = /(view=app|appview=1|mode=app|application-view|application=1)/.test(qs + h);
+        
+        if (isAppView) {
+          // Inject critical inline styles IMMEDIATELY (before Tailwind loads)
+          var style = document.createElement('style');
+          style.id = 'app-view-override';
+          style.textContent = `
+            /* Critical app-view overrides - highest priority */
+            .app-view-active #mainNav,
+            .app-view-active nav { 
+              display: flex !important; 
+              visibility: visible !important;
+              opacity: 1 !important;
+            }
+            .app-view-active #loginButton { 
+              display: inline-block !important; 
+              visibility: visible !important;
+              opacity: 1 !important;
+            }
+            .app-view-active .app-band { 
+              display: none !important; 
+            }
+            .app-view-active #logoutButton,
+            .app-view-active #userStatus { 
+              display: none !important; 
+            }
+          `;
+          document.head.appendChild(style);
+          
+          // Add class to html immediately
+          document.documentElement.classList.add('app-view');
+          document.documentElement.classList.add('app-view-active');
+          
+          // Reinforce after DOM ready
+          if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', applyAppView);
+          } else {
+            applyAppView();
+          }
+        }
+        
+        function applyAppView() {
+          document.body.classList.add('application-view');
+          document.body.classList.add('app-view-active');
+          
+          // Force element visibility with direct manipulation
+          setTimeout(function(){
+            var nav = document.getElementById('mainNav');
+            var lb = document.getElementById('loginButton');
+            
+            if (nav) {
+              nav.className = nav.className.replace(/\bhidden\b/g, '');
+              nav.style.cssText = 'display: flex !important; visibility: visible !important;';
+            }
+            
+            if (lb) {
+              lb.className = lb.className.replace(/\bhidden\b/g, '');
+              lb.style.cssText = 'display: inline-block !important; visibility: visible !important;';
+            }
+            
+            // Hide marketing sections
+            var bands = document.querySelectorAll('.app-band');
+            for (var i = 0; i < bands.length; i++) {
+              bands[i].style.display = 'none';
+            }
+          }, 0);
+        }
+      } catch(e){ console.warn('Early app-view detection failed', e); }
+    })();
+  </script>
+  
+  <!-- Firebase v8 CDN for domain compatibility -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <!-- GitHub Pages Fix Script -->
+    <script src="github-pages-fix.js"></script>
+    <script>
+      // Register Service Worker early (non-blocking)
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/service-worker.js')
+            .then(reg => console.log('[PWA] SW registered', reg.scope))
+            .catch(err => console.warn('[PWA] SW registration failed', err));
+        });
+      }
+    </script>
 </head>
-<body>
-	<div class="app-container">
-		<!-- Mobile sidebar backdrop -->
-		<div id="mobileSidebarBackdrop" class="mobile-sidebar-backdrop"></div>
-		
-		<!-- Sidebar (copied from accessboard.html to retain feature markers) -->
-		<nav class="sidebar menu-loading" id="sideNav">
-			<div class="logo"><h2>Dreamex Datalab</h2></div>
-			<ul class="menu" id="roleBasedMenu">
-				<li class="menu-item" data-feature="home_view" data-requires-permission="home_view">
-					<a href="index.html"><i class="fas fa-home"></i> Home</a>
-				</li>
-				<li class="menu-dropdown" data-feature="health_view" data-requires-permission="health_view">
-					<a href="#"><i class="fas fa-medkit"></i> Health</a>
-					<ul class="submenu">
-						<li data-feature="health_assessment_view" data-requires-permission="health_assessment_view">
-							<a href="health-assessment.html">Assessment</a>
-						</li>
-						<li data-feature="health_consultation_view" data-requires-permission="health_consultation_view">
-							<a href="health-consultation.html">Consultation</a>
-						</li>
-						<li data-feature="medical_folder_view" data-requires-permission="medical_folder_view">
-							<a href="medical-folder.html">Medical Folder</a>
-						</li>
-					</ul>
-				</li>
-				<li class="menu-dropdown" data-feature="safety_view" data-requires-permission="safety_view">
-					<a href="#"><i class="fas fa-shield-alt"></i> Safety</a>
-					<ul class="submenu">
-						<li data-feature="training_view" data-requires-permission="training_view"><a href="trainingboard.html">Training</a></li>
-						<li data-feature="risk_view" data-requires-permission="risk_view"><a href="riskboard.html">Risk Management</a></li>
-						<li data-feature="jsa_view" data-requires-permission="jsa_view"><a href="jsaboard.html">Job Safety Analysis</a></li>
-						<li data-feature="ptw_view" data-requires-permission="ptw_view"><a href="ptwboard.html">Permit to Work</a></li>
-						<li data-feature="incident_view" data-requires-permission="incident_view"><a href="incidentboard.html">Incident Reports</a></li>
-						<li data-feature="inspection_view" data-requires-permission="inspection_view"><a href="inspectionboard.html">Inspection</a></li>
-						<li data-feature="audit_view" data-requires-permission="audit_view"><a href="auditboard.html">Audit</a></li>
-					</ul>
-				</li>
-				<li class="menu-dropdown" data-feature="fuel_management" data-requires-permission="fuel_management">
-					<a href="#"><i class="fas fa-gas-pump"></i> Fuel Management</a>
-					<ul class="submenu">
-						<li data-feature="vessel_offloading" data-requires-permission="vessel_offloading"><a href="vessel-offloading.html">Vessel Offloading</a></li>
-						<li data-feature="fuel_storage" data-requires-permission="fuel_storage"><a href="fuelstor.html">Fuel Storage Status</a></li>
-						<li data-feature="tank_transfer" data-requires-permission="tank_transfer"><a href="fueltrans.html">Tank-to-Tank Transfer</a></li>
-						<li data-feature="truck_loading" data-requires-permission="truck_loading"><a href="fuel-truck-loading.html">Fuel Truck Loading</a></li>
-						<li data-feature="quality_analysis" data-requires-permission="quality_analysis"><a href="fuel-quality-analysis.html">Fuel Quality Analysis</a></li>
-							<li data-feature="fuel_distribution" data-requires-permission="fuel_distribution"><a href="fueldist.html">Fuel Distribution</a></li>
-						<li data-feature="fuel_consumption_analysis" data-requires-permission="fuel_consumption_analysis"><a href="fuelanalys.html">Consumption Analysis</a></li>
-						<li data-feature="fuel_daily_report" data-requires-permission="fuel_daily_report"><a href="fueldaily.html">Daily Fuel Report</a></li>
-					</ul>
-				</li>
-				<li class="menu-dropdown" data-feature="environment_view" data-requires-permission="environment_view">
-					<a href="#"><i class="fas fa-leaf"></i> Environment</a>
-					<ul class="submenu">
-						<li data-feature="water_view" data-requires-permission="water_view"><a href="waterboard.html">Water Quality</a></li>
-					</ul>
-				</li>
-				<li class="menu-dropdown" data-feature="security_view" data-requires-permission="security_view">
-					<a href="#"><i class="fas fa-lock"></i> Security</a>
-					<ul class="submenu">
-						<li data-feature="access_view" data-requires-permission="access_view"><a href="accessboard.html">Access Request</a></li>
-						<li data-feature="access_daily_view" data-requires-permission="access_daily_view"><a href="accessdaily.html" class="active">Daily Access Control</a></li>
-						<li data-feature="removal_view" data-requires-permission="removal_view"><a href="removalboard.html">Property Removal</a></li>
-					
-						<li data-feature="security_level_evaluation_view" data-requires-permission="security_level_evaluation_view"><a href="seclevel.html">Security Level Evaluation</a></li></ul>
-				</li>
-				<li class="menu-dropdown" data-feature="logistics_view" data-requires-permission="logistics_view">
-					<a href="#"><i class="fas fa-truck"></i> Logistics</a>
-					<ul class="submenu">
-						<li data-feature="fleet_view" data-requires-permission="fleet_view"><a href="fleet.html">Fleet Management</a></li>
-						<li data-feature="travel_view" data-requires-permission="travel_view"><a href="travel.html">Travel Requests</a></li>
-					</ul>
-				</li>
-				<li class="menu-dropdown" data-feature="accommodation_view" data-requires-permission="accommodation_view">
-					<a href="#"><i class="fas fa-bed"></i> Accommodation</a>
-					<ul class="submenu">
-						<li data-feature="camp_view" data-requires-permission="camp_view"><a href="camp.html">Camp Management</a></li>
-						<li data-feature="camp_settings_view" data-requires-permission="camp_settings_view"><a href="campset.html">Camp Settings</a></li>
-					</ul>
-				</li>
-				<li class="menu-dropdown" data-feature="hr_view" data-requires-permission="hr_view">
-					<a href="#"><i class="fas fa-users"></i> HR</a>
-					<ul class="submenu">
-						<li data-feature="human_hr_view" data-requires-permission="human_hr_view"><a href="human-hr.html"><i class="fas fa-user-tie"></i> Human HR</a></li>
-						<li data-feature="staff_management_view" data-requires-permission="staff_management_view"><a href="staff.html">Staffing</a></li>
-						<li data-feature="authority_to_recruit_view" data-requires-permission="authority_to_recruit_view"><a href="recruit.html">Authority to Recruit</a></li>
-						<li data-feature="job_advertising_view" data-requires-permission="job_advertising_view"><a href="jobpost.html">Job Advertising</a></li>
-						<li data-feature="screening_view" data-requires-permission="screening_view"><a href="jobscreen.html">Screening</a></li>
-						<li data-feature="interview_view" data-requires-permission="interview_view"><a href="interview.html">Interview</a></li>
-						<li data-feature="offer_view" data-requires-permission="offer_view"><a href="offer.html">Offer Management</a></li>
-						<li data-feature="contract_view" data-requires-permission="contract_view"><a href="contract.html">Contract Management</a></li>
-						<li data-feature="onboarding_view" data-requires-permission="onboarding_view"><a href="onboard.html">Onboarding</a></li>
-						<li data-feature="chart_view" data-requires-permission="chart_view"><a href="chart.html">Chart Setup</a></li>
-						<li data-feature="chartboard_view" data-requires-permission="chartboard_view"><a href="chartboard.html">Org Chart</a></li>
-						<li data-feature="kpi_dashboard_view" data-requires-permission="kpi_dashboard_view"><a href="kpi.html">KPI</a></li>
-						<li data-feature="action_plan_view" data-requires-permission="action_plan_view"><a href="actionplan.html"><i class="fas fa-tasks"></i> Action Plan Board</a></li>
-					</ul>
-				</li>
-				<li class="menu-dropdown" data-feature="project_management_section">
-					<a href="#"><i class="fas fa-project-diagram"></i> Project Management</a>
-					<ul class="submenu">
-						<li data-feature="project_dashboard_view" data-requires-permission="project_dashboard_view"><a href="project-dashboard.html">Project Dashboard</a></li>
-						<li data-feature="project_create_view" data-requires-permission="project_create_view"><a href="project-create.html">Create Project</a></li>
-						<li data-feature="project_list_view" data-requires-permission="project_list_view"><a href="project-list.html">Project List</a></li>
-						<li data-feature="project_reports_view" data-requires-permission="project_reports_view"><a href="project-reports.html">Project Reports</a></li>
-					</ul>
-				</li>
-				<li data-feature="communication_view" data-requires-permission="communication_view"><a href="info.html"><i class="fas fa-comments"></i> Communication</a></li>
-				<li class="menu-dropdown" data-feature="settings_view" data-requires-permission="settings_view">
-					<a href="#"><i class="fas fa-cog"></i> Settings</a>
-					<ul class="submenu">
-						<li data-feature="account_settings_view" data-requires-permission="account_settings_view"><a href="account.html">Account Settings</a></li>
-						<li data-feature="company_management_view" data-requires-permission="company_management_view"><a href="companymanagement.html">Company Management</a></li>
-						<li data-feature="approval_settings_view" data-requires-permission="approval_settings_view"><a href="approval-settings.html">Approval Flow Settings</a></li>
-						<li data-feature="field_setup_view" data-requires-permission="field_setup_view"><a href="fieldsetup.html">Field Setup</a></li>
-						<li data-feature="preferences_view" data-requires-permission="preferences_view"><a href="preferences.html">Preferences</a></li>
-						<li data-feature="notification_settings_view" data-requires-permission="notification_settings_view"><a href="notification-settings.html">Notification Settings</a></li>
-						<li data-feature="audit_log_view" data-requires-permission="audit_log_view"><a href="auditlog.html"><i class="fas fa-history"></i> Audit Log</a></li>
-						<li data-feature="user_management_view" data-requires-permission="user_management_view"><a href="users.html">User & Role Management</a></li>
-						<li data-feature="role_permissions_view" data-requires-permission="role_permissions_view"><a href="roles.html">Role Permissions</a></li>
-					</ul>
-				</li>
-			</ul>
-		</nav>
-		<!-- Main Content -->
-		<main class="main-content">
-			<header class="top-nav">
-				<div class="top-nav-left">
-					<!-- Mobile menu button (visible only on mobile) -->
-					<button id="mobileMenuToggle" class="mobile-menu-btn">
-						<i class="fas fa-bars"></i>
-					</button>
-					<!-- Desktop sidebar toggle (hidden on mobile via CSS) -->
-					<button id="sidebarToggle" class="sidebar-toggle-btn" title="Toggle menu"><i class="fas fa-bars"></i></button>
-					<img id="headerCompanyLogo" alt="Company Logo">
-					<span id="headerCompanyName"></span>
-				</div>
-				<div class="top-nav-right">
-					<div class="notifications">
-						<button id="notificationBtn" class="notification-btn" aria-label="Notifications"><i class="fas fa-bell"></i><span class="notification-badge" style="display:none;">0</span></button>
-						<div class="notification-dropdown">
-							<div style="padding:.75rem;border-bottom:1px solid #eee;display:flex;justify-content:space-between;align-items:center;">
-								<strong style="font-size:.7rem;color:#2c3e50;">Notifications</strong>
-								<button class="mark-all-read" style="background:none;border:none;font-size:.6rem;color:var(--secondary-color);cursor:pointer;">Mark all read</button>
-							</div>
-							<div class="notification-list"></div>
-						</div>
-					</div>
-					<div class="user-profile">
-						<button id="userProfileBtn" class="profile-btn" aria-label="Profile">
-							<img id="userAvatarImg" src="" alt="User Avatar" style="display: none;">
-							<div id="userInitials" class="avatar-initials">U</div>
-						</button>
-						<div class="profile-dropdown"><ul></ul></div>
-					</div>
-				</div>
-			</header>
-			<div style="padding-top:3.4rem;"></div>
-			<div class="page-header">
-				<div style="display: flex; align-items: center; gap: 0.6rem;">
-					<i class="fas fa-calendar-check"></i>
-					<span>Daily Access Control</span>
-				</div>
-			</div>
-			<!-- Filters -->
-			<section class="filters-bar" id="filtersBar">
-				<div class="current-time">
-					<i class="fas fa-clock"></i>
-					<span id="currentTime"></span>
-				</div>
-				<div class="form-group">
-					<label for="searchInput">Search</label>
-					<input type="text" id="searchInput" placeholder="Name, company, area..." autocomplete="off">
-				</div>
-				<div class="form-group">
-					<label for="areaFilter">Area</label>
-					<select id="areaFilter">
-						<option value="">All Areas</option>
-					</select>
-				</div>
-				<div class="form-group">
-					<label for="companyFilter">Company</label>
-					<select id="companyFilter">
-						<option value="">All Companies</option>
-					</select>
-				</div>
-				<button type="button" id="clearFiltersBtn" class="btn btn-secondary" style="padding:.4rem .7rem;font-size:.65rem;border:1px solid #ccc;background:#fff;color:#666;border-radius:6px;cursor:pointer;" title="Clear all filters">
-					<i class="fas fa-times"></i> Clear
-				</button>
-				<button type="button" id="exportCsvBtn" class="btn btn-primary" style="padding:.4rem .7rem;font-size:.65rem;border:none;background:var(--secondary-color);color:#fff;border-radius:6px;cursor:pointer;" title="Export to PDF">
-					<i class="fas fa-download"></i> Export
-				</button>
-			</section>
-			<!-- Status Pills removed -->
-			<!-- Summary removed -->
-			<!-- Main Table -->
-			<section class="tabs-bar">
-				<div class="content-tabs">
-					<div class="tab-navigation" id="accessTabs">
-						<button class="tab-nav-btn active" id="dailyTabBtn" data-tab="daily" title="Visitors scheduled for today">Daily</button>
-						<button class="tab-nav-btn" id="upcomingTabBtn" data-tab="upcoming" title="Visitors scheduled for future dates">Upcoming</button>
-						<button class="tab-nav-btn" id="expiredTabBtn" data-tab="expired" title="Visitors whose visit period ended">Expired</button>
-					</div>
-					<section class="board-card" style="box-shadow:none;">
-						<div class="table-wrapper">
-					<table>
-						<thead>
-							<tr>
-								<th>Visitor Name</th>
-								<th>ID Number</th>
-								<th>Company</th>
-								<th>Area</th>
-								<th>Access Period</th>
-								<th>Status</th>
-								<th>Request Ref</th>
-							</tr>
-						</thead>
-						<tbody id="dailyAccessTableBody">
-							<tr>
-								<td colspan="7" class="empty-state">Loading daily access data...</td>
-							</tr>
-						</tbody>
-					</table>
-					</div>
-				</section>
-			</div>
-		</section>
-		</main>
-	</div>
-
-	<!-- Visitor Details Modal -->
-	<div id="visitorModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="visitorModalTitle">
-		<div class="modal">
-			<div class="modal-header">
-				<h3 id="visitorModalTitle"><i class="fas fa-id-card"></i> Visitor Details</h3>
-				<button class="modal-close" aria-label="Close" onclick="window.dailyAccessManager?.closeVisitorModal()"><i class="fas fa-times"></i></button>
-			</div>
-			<div class="modal-body">
-				<div class="modal-grid">
-					<div>
-						<span class="label">Visitor Name</span>
-						<div class="value" id="vmName"></div>
-					</div>
-					<div>
-						<span class="label">ID Number</span>
-						<div class="value" id="vmId"></div>
-					</div>
-					<div>
-						<span class="label">Company</span>
-						<div class="value" id="vmCompany"></div>
-					</div>
-					<div>
-						<span class="label">Area</span>
-						<div class="value" id="vmArea"></div>
-					</div>
-					<div>
-						<span class="label">Access Start</span>
-						<div class="value" id="vmStart"></div>
-					</div>
-					<div>
-						<span class="label">Access End</span>
-						<div class="value" id="vmEnd"></div>
-					</div>
-					<div class="full">
-						<span class="label">Equipment</span>
-						<div class="value" id="vmEquipment"></div>
-					</div>
-					<div class="full">
-						<span class="label">Request Reference</span>
-						<div class="value" id="vmRequestRef"></div>
-					</div>
-					<div class="full attachments-section">
-						<span class="label">Attachments</span>
-						<div class="attachments-list" id="vmAttachments"></div>
-					</div>
-					<div class="full">
-						<span class="label">Access History</span>
-						<div id="vmHistory" style="max-height:180px;overflow:auto;border:1px solid #eee;border-radius:6px;padding:.5rem;background:#fafafa;font-size:.75rem;">
-							<em>Loading history…</em>
-						</div>
-					</div>
-				</div>
-			</div>
-			<div class="modal-footer">
-				<button class="btn" id="vmCheckInBtn" title="Mark this visitor as checked in"><i class="fas fa-sign-in-alt"></i> Check In</button>
-				<button class="btn" id="vmCheckOutBtn" title="Mark this visitor as checked out"><i class="fas fa-sign-out-alt"></i> Check Out</button>
-				<button class="btn" onclick="window.dailyAccessManager?.closeVisitorModal()">Close</button>
-			</div>
-		</div>
-	</div>
-	<!-- Load only notification manager; Firebase/Auth are initialized inline to avoid conflicts -->
-	<script src="js/notification-manager.js"></script>
-	<script>
-	/**************** Auth Manager Integration ****************/
-	document.addEventListener('DOMContentLoaded', function() {
-		// Initialize auth manager
-		if (window.authManager) {
-			window.authManager.initialize();
-		}
-		
-		// Initialize daily access manager
-		window.dailyAccessManager = new DailyAccessManager();
-	});
-
-	/**************** Daily Access Manager ****************/
-	class DailyAccessManager {
-		constructor() {
-			this.allRequests = [];
-			this.allVisitors = [];
-			this.filtered = [];
-			// Status pills removed
-			this.currentTime = new Date();
-			this.activeTab = 'daily'; // daily | upcoming | expired
-			
-			this.dom = {
-				tbody: document.getElementById('dailyAccessTableBody'),
-				search: document.getElementById('searchInput'),
-				areaFilter: document.getElementById('areaFilter'),
-				companyFilter: document.getElementById('companyFilter'),
-				// status pills removed; summary removed
-				tabs: document.getElementById('accessTabs'),
-				clearBtn: document.getElementById('clearFiltersBtn'),
-				exportBtn: document.getElementById('exportCsvBtn'),
-				currentTime: document.getElementById('currentTime')
-			};
-
-			this.attachEvents();
-			// status pills removed
-			this.updateCurrentTime();
-			this.startTimeUpdater();
-			this.waitForCompanyThenLoad();
-		}
-
-		attachEvents() {
-			const debounce = (fn, delay = 250) => {
-				let timeout;
-				return (...args) => {
-					clearTimeout(timeout);
-					timeout = setTimeout(() => fn(...args), delay);
-				};
-			};
-
-			const applyFilters = () => this.applyFilters();
-
-			// Attach filter events
-			['search', 'areaFilter', 'companyFilter'].forEach(key => {
-				if (this.dom[key]) {
-					this.dom[key].addEventListener('input', debounce(applyFilters, 180));
-				}
-			});
-
-			this.dom.clearBtn?.addEventListener('click', () => this.clearFilters());
-			this.dom.exportBtn?.addEventListener('click', () => this.exportPdf());
-
-			// Tabs events
-			if (this.dom.tabs) {
-				this.dom.tabs.querySelectorAll('.tab-nav-btn').forEach(tabBtn => {
-					tabBtn.addEventListener('click', () => {
-						const selected = tabBtn.getAttribute('data-tab');
-						if (!selected || selected === this.activeTab) return;
-						this.activeTab = selected;
-						// Toggle active class
-						this.dom.tabs.querySelectorAll('.tab-nav-btn').forEach(b => b.classList.toggle('active', b === tabBtn));
-						this.applyFilters();
-					});
-				});
-			}
-		}
-
-		// renderStatusPills removed
-
-		clearFilters() {
-			if (this.dom.search) this.dom.search.value = '';
-			if (this.dom.areaFilter) this.dom.areaFilter.value = '';
-			if (this.dom.companyFilter) this.dom.companyFilter.value = '';
-			// status pills removed
-			this.applyFilters();
-		}
-
-		updateCurrentTime() {
-			this.currentTime = new Date();
-			if (this.dom.currentTime) {
-				this.dom.currentTime.textContent = this.currentTime.toLocaleString('en-US', {
-					weekday: 'short',
-					year: 'numeric',
-					month: 'short',
-					day: 'numeric',
-					hour: '2-digit',
-					minute: '2-digit',
-					second: '2-digit'
-				});
-			}
-		}
-
-		startTimeUpdater() {
-			// Update time every second
-			setInterval(() => {
-				this.updateCurrentTime();
-				// Re-apply filters to update access status and tab results
-				this.applyFilters();
-			}, 1000);
-		}
-
-		waitForCompanyThenLoad() {
-			const interval = setInterval(() => {
-				const companyId = window.authManager?.currentUser?.companyId;
-				if (companyId) {
-					clearInterval(interval);
-					this.load(companyId);
-				}
-			}, 400);
-			
-			// Timeout after 15 seconds
-			setTimeout(() => clearInterval(interval), 15000);
-		}
-
-		load(companyId) {
-			console.log('📡 Loading access requests for daily view - Company:', companyId);
-			this.companyId = companyId;
-			
-			window.db.ref(`companies/${companyId}/access`).on('value', snapshot => {
-				const data = snapshot.val() || {};
-				this.allRequests = Object.entries(data)
-					.map(([id, record]) => ({ ...record, id }))
-					.filter(record => {
-						const s = ((record && (record.status || record.approvalStatus)) || '').toString().toLowerCase().trim();
-						// Include approved and pending requests; pending will be shown only in Upcoming tab
-						return s === 'approved' || s.startsWith('pend');
-					})
-					.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
-
-				this.processVisitors();
-				this.updateFilterOptions();
-				this.applyFilters();
-			});
-		}
-
-		processVisitors() {
-			this.allVisitors = [];
-			
-			this.allRequests.forEach(request => {
-				if (Array.isArray(request.visitors)) {
-					request.visitors.forEach((visitor, visitorIndex) => {
-						// Add request context to visitor
-						const reqStatus = ((request.status || request.approvalStatus) || '').toString().toLowerCase().trim();
-						const visitorWithContext = {
-							...visitor,
-							requestId: request.id,
-							requestRef: request.referenceNumber || request.id,
-							requesterName: request.requesterName,
-							equipment: request.equipment || [],
-							visitorIndex,
-							requestStatus: reqStatus
-						};
-						
-						this.allVisitors.push(visitorWithContext);
-					});
-				}
-			});
-			
-			console.log('📊 Processed visitors:', this.allVisitors.length);
-		}
-
-		updateFilterOptions() {
-			// Update area filter
-			const areas = [...new Set(this.allVisitors.map(v => v.area).filter(Boolean))].sort();
-			if (this.dom.areaFilter) {
-				const currentValue = this.dom.areaFilter.value;
-				this.dom.areaFilter.innerHTML = '<option value="">All Areas</option>' +
-					areas.map(area => `<option value="${area}">${area}</option>`).join('');
-				this.dom.areaFilter.value = currentValue;
-			}
-
-			// Update company filter
-			const companies = [...new Set(this.allVisitors.map(v => v.company).filter(Boolean))].sort();
-			if (this.dom.companyFilter) {
-				const currentValue = this.dom.companyFilter.value;
-				this.dom.companyFilter.innerHTML = '<option value="">All Companies</option>' +
-					companies.map(company => `<option value="${company}">${company}</option>`).join('');
-				this.dom.companyFilter.value = currentValue;
-			}
-		}
-
-		getAccessStatus(visitor) {
-			if (!visitor.startDateTime || !visitor.endDateTime) {
-				return 'future'; // No time specified, treat as future
-			}
-
-			const now = this.currentTime;
-			const start = new Date(visitor.startDateTime);
-			const end = new Date(visitor.endDateTime);
-
-			if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-				return 'future'; // Invalid dates, treat as future
-			}
-
-			if (now >= start && now <= end) {
-				return 'active'; // Currently within access period
-			} else if (now > end) {
-				return 'expired'; // Access period has ended
-			} else {
-				return 'future'; // Access period hasn't started yet
-			}
-		}
-
-		applyFilters() {
-			const searchQuery = (this.dom.search?.value || '').toLowerCase();
-			const areaFilter = this.dom.areaFilter?.value || '';
-			const companyFilter = this.dom.companyFilter?.value || '';
-			// status filter removed
-
-			this.filtered = this.allVisitors.filter(visitor => {
-				// Text search
-				const searchText = [
-					visitor.name,
-					visitor.identification,
-					visitor.company,
-					visitor.area,
-					visitor.requestRef
-				].join(' ').toLowerCase();
-				const matchesSearch = !searchQuery || searchText.includes(searchQuery);
-
-				// Area filter
-				const matchesArea = !areaFilter || visitor.area === areaFilter;
-
-				// Company filter
-				const matchesCompany = !companyFilter || visitor.company === companyFilter;
-
-				// Tab filter
-				const status = this.getAccessStatus(visitor); // active | expired | future (time-based)
-				const isPendingReq = (visitor.requestStatus === 'pending' || (visitor.requestStatus||'').startsWith('pend'));
-				let matchesTab = true;
-				if (this.activeTab === 'daily') {
-					// Daily: exclude pending requests
-					matchesTab = !isPendingReq && ((status === 'active') || this.isToday(visitor));
-				} else if (this.activeTab === 'upcoming') {
-					// Upcoming: include future approved AND any pending requests
-					matchesTab = (status === 'future') || isPendingReq;
-				} else if (this.activeTab === 'expired') {
-					// Expired: exclude pending requests
-					matchesTab = !isPendingReq && (status === 'expired');
-				}
-
-				return matchesSearch && matchesArea && matchesCompany && matchesTab;
-			});
-
-			this.render();
-		}
-
-		isToday(visitor) {
-			// If the visit overlaps today at any time, consider it daily.
-			const start = visitor.startDateTime ? new Date(visitor.startDateTime) : null;
-			const end = visitor.endDateTime ? new Date(visitor.endDateTime) : null;
-			if (!start && !end) return false;
-			const now = this.currentTime;
-			const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
-			const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-			const visitStart = start || todayStart;
-			const visitEnd = end || todayEnd;
-			return visitEnd >= todayStart && visitStart <= todayEnd;
-		}
-
-			render() {
-			const tbody = this.dom.tbody;
-			if (!tbody) return;
-
-			if (this.filtered.length === 0) {
-					tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No visitors found for current filters.</td></tr>';
-				return;
-			}
-
-			const rows = this.filtered.map(visitor => {
-				const accessStatus = this.getAccessStatus(visitor);
-				const equipment = Array.isArray(visitor.equipment) ? visitor.equipment : [];
-				const equipmentText = equipment.length > 0 ? 
-					equipment.map(e => e.name || e.item || 'Unknown').join(', ') : 
-					'None';
-
-					const attachments = Array.isArray(visitor.attachments) ? visitor.attachments : (visitor.attachment ? [visitor.attachment] : []);
-					const attachmentsJson = this.escape(JSON.stringify(attachments));
-					const isPendingReq = (visitor.requestStatus === 'pending' || (visitor.requestStatus||'').startsWith('pend'));
-					const statusBadge = isPendingReq 
-						? '<span class="access-status future"><i class="fas fa-clock"></i> Pending</span>'
-						: this.getAccessStatusBadge(accessStatus);
-					return `
-						<tr data-request-id="${visitor.requestId}" data-visitor-index="${visitor.visitorIndex}" data-start="${this.escape(visitor.startDateTime || '')}" data-end="${this.escape(visitor.endDateTime || '')}" data-request-status="${this.escape(visitor.requestStatus || '')}" data-equipment="${this.escape(equipmentText)}" data-attachments='${attachmentsJson}' class="clickable-row">
-						<td><strong>${this.escape(visitor.name || '')}</strong></td>
-						<td class="time-display">${this.escape(visitor.identification || '')}</td>
-						<td>${this.escape(visitor.company || '')}</td>
-						<td>${this.escape(visitor.area || '')}</td>
-						<td class="time-display">
-							${this.fmtDate(visitor.startDateTime)}<br>
-							<small style="opacity:.7;">to ${this.fmtDate(visitor.endDateTime)}</small>
-						</td>
-						<td>${statusBadge}</td>
-						<td style="font-weight:600;">
-							${this.escape(visitor.requestRef)}
-						</td>
-					</tr>
-				`;
-			}).join('');
-
-			tbody.innerHTML = rows;
-			this.bindRowClicks();
-		}
-
-		getAccessStatusBadge(status) {
-			const badges = {
-				'active': '<span class="access-status active"><i class="fas fa-check-circle"></i> Active</span>',
-				'expired': '<span class="access-status expired"><i class="fas fa-times-circle"></i> Expired</span>',
-				'future': '<span class="access-status future"><i class="fas fa-clock"></i> Pending</span>'
-			};
-			return badges[status] || badges['future'];
-		}
-
-		bindRowClicks() {
-			this.dom.tbody?.querySelectorAll('tr[data-request-id]').forEach(tr => {
-				tr.addEventListener('click', (e) => {
-					// Only open modal if the anchor wasn't clicked
-					if ((e.target instanceof HTMLElement) && e.target.closest('a')) return;
-					const requestId = tr.getAttribute('data-request-id');
-					const visitorIndex = parseInt(tr.getAttribute('data-visitor-index') || '-1', 10);
-					const ref = tr.querySelector('td:last-child a')?.textContent?.trim() || requestId || '';
-					const name = tr.children[0]?.textContent?.trim() || '';
-					const idn = tr.children[1]?.textContent?.trim() || '';
-					const company = tr.children[2]?.textContent?.trim() || '';
-					const area = tr.children[3]?.textContent?.trim() || '';
-					const start = tr.getAttribute('data-start') || tr.children[4]?.childNodes?.[0]?.textContent?.trim() || '';
-					const endTxt = tr.getAttribute('data-end') || tr.children[4]?.querySelector('small')?.textContent?.replace(/^to\s+/i,'').trim() || '';
-					const requestStatus = tr.getAttribute('data-request-status') || '';
-					const equip = tr.getAttribute('data-equipment') || '';
-					let atts = [];
-					try { const raw = tr.getAttribute('data-attachments'); if (raw) atts = JSON.parse(raw); } catch {}
-					this.openVisitorModal({ requestId, visitorIndex, ref, name, idn, company, area, start, end: endTxt, equipment: equip, attachments: atts, requestStatus });
-				});
-			});
-		}
-
-		openVisitorModal(v) {
-			const overlay = document.getElementById('visitorModal');
-			if (!overlay) return;
-			// store current context
-			this.currentVisitor = {
-				companyId: this.companyId,
-				requestId: v.requestId,
-				visitorIndex: typeof v.visitorIndex === 'number' ? v.visitorIndex : -1,
-				name: v.name,
-				idn: v.idn
-			};
-			document.getElementById('vmName').textContent = v.name || '';
-			document.getElementById('vmId').textContent = v.idn || '';
-			document.getElementById('vmCompany').textContent = v.company || '';
-			document.getElementById('vmArea').textContent = v.area || '';
-			document.getElementById('vmStart').textContent = v.start || '';
-			document.getElementById('vmEnd').textContent = v.end || '';
-			const equipEl = document.getElementById('vmEquipment');
-			if (equipEl) equipEl.textContent = v.equipment || 'None';
-			const reqRef = document.getElementById('vmRequestRef');
-			if (reqRef) {
-				reqRef.textContent = v.ref || v.requestId || 'N/A';
-			}
-				// attachments
-				const attEl = document.getElementById('vmAttachments');
-				if (attEl) {
-					attEl.innerHTML = '';
-					const items = Array.isArray(v.attachments) ? v.attachments : [];
-					if (items.length === 0) {
-						attEl.innerHTML = '<span>None</span>';
-					} else {
-						attEl.innerHTML = items.map(a => {
-							const name = this.escape(a.name || a.filename || 'file');
-							const url = a.url || a.href;
-							if (url) {
-								return `<a href="${this.escape(url)}" target="_blank" rel="noopener">${name}</a>`;
-							}
-							return `<span>${name}</span>`;
-						}).join('');
-					}
-				}
-
-				// Check permission and hide/show attachments section
-				this.checkAttachmentsPermission();
-
-			// Prepare history and buttons
-			const histEl = document.getElementById('vmHistory');
-			if (histEl) histEl.innerHTML = '<em>Loading history…</em>';
-			const checkInBtn = document.getElementById('vmCheckInBtn');
-			const checkOutBtn = document.getElementById('vmCheckOutBtn');
-			// Hide check-in/out for Upcoming tab
-			const isUpcomingView = this.activeTab === 'upcoming';
-			if (checkInBtn) checkInBtn.style.display = isUpcomingView ? 'none' : '';
-			if (checkOutBtn) checkOutBtn.style.display = isUpcomingView ? 'none' : '';
-			if (checkInBtn) checkInBtn.onclick = null;
-			if (checkOutBtn) checkOutBtn.onclick = null;
-			if (!isUpcomingView) {
-				if (checkInBtn) checkInBtn.onclick = () => this.addHistoryEvent('in');
-				if (checkOutBtn) checkOutBtn.onclick = () => this.addHistoryEvent('out');
-			}
-
-			// Listen to history changes
-			this.detachHistoryListener();
-			if (this.companyId && v.requestId != null && typeof this.currentVisitor.visitorIndex === 'number' && this.currentVisitor.visitorIndex >= 0) {
-				this._historyRef = window.db.ref(`companies/${this.companyId}/access/${v.requestId}/visitors/${this.currentVisitor.visitorIndex}/history`);
-				this._historyRef.on('value', snap => {
-					const hist = snap.val() || {};
-					this.renderHistory(hist);
-				});
-			}
-			overlay.classList.add('show');
-			// Close on outside click
-			overlay.addEventListener('click', (e) => { if (e.target === overlay) this.closeVisitorModal(); }, { once: true });
-			// ESC key
-			document.addEventListener('keydown', this._escHandler = (ev) => { if (ev.key === 'Escape') this.closeVisitorModal(); }, { once: true });
-		}
-
-		closeVisitorModal() {
-			const overlay = document.getElementById('visitorModal');
-			if (!overlay) return;
-			overlay.classList.remove('show');
-			if (this._escHandler) {
-				document.removeEventListener('keydown', this._escHandler);
-				this._escHandler = null;
-			}
-			this.detachHistoryListener();
-			this.currentVisitor = null;
-		}
-
-		async checkAttachmentsPermission() {
-			const attachmentsSection = document.querySelector('.attachments-section');
-			if (!attachmentsSection) {
-				console.warn('⚠️ Attachments section not found in DOM');
-				return;
-			}
-
-			try {
-				const hasPermission = await hasViewAttachmentsPermission();
-				
-				if (hasPermission) {
-					attachmentsSection.classList.add('visible');
-					console.log('✅ User has permission to view attachments - showing attachments section');
-				} else {
-					attachmentsSection.classList.remove('visible');
-					console.log('❌ User does not have permission to view attachments - hiding attachments section');
-				}
-			} catch (error) {
-				console.error('❌ Error checking attachments permission:', error);
-				// Default to showing if there's an error (user-friendly approach)
-				attachmentsSection.classList.add('visible');
-				console.log('⚠️ Defaulting to show attachments due to error');
-			}
-		}
-
-		detachHistoryListener() {
-			if (this._historyRef) {
-				this._historyRef.off();
-				this._historyRef = null;
-			}
-		}
-
-		renderHistory(histObj) {
-			const histEl = document.getElementById('vmHistory');
-			if (!histEl) return;
-			const entries = Object.entries(histObj || {}).map(([key, v]) => ({ key, ...(v || {}) }));
-			entries.sort((a,b) => (a.timestamp||0) - (b.timestamp||0));
-			if (entries.length === 0) {
-				histEl.innerHTML = '<span style="color:#666;">No check-in/out activity yet.</span>';
-				this.updateCheckButtons(null);
-				return;
-			}
-				const lines = entries.map(e => {
-					const when = this.fmtDateTime(e.timestamp);
-					const who = e.by?.name || 'system';
-					const isIn = e.type === 'in';
-					const action = isIn ? 'Checked In' : 'Checked Out';
-					const color = isIn ? '#155724' : '#721c24';
-					return `<div style="display:flex;justify-content:space-between;gap:.5rem;border-bottom:1px dashed #eee;padding:.25rem 0;">
-						<span style="color:${color};"><strong>${action}</strong> by ${this.escape(who)}</span>
-						<span style=\"opacity:.7;\">${this.escape(when)}</span>
-					</div>`;
-				}).join('');
-			histEl.innerHTML = lines;
-			const last = entries[entries.length - 1];
-			this.updateCheckButtons(last?.type || null);
-		}
-
-		updateCheckButtons(lastType) {
-			const checkInBtn = document.getElementById('vmCheckInBtn');
-			const checkOutBtn = document.getElementById('vmCheckOutBtn');
-			const canCheckIn = lastType !== 'in';
-			const canCheckOut = lastType === 'in';
-			if (checkInBtn) { checkInBtn.disabled = !canCheckIn; checkInBtn.style.opacity = canCheckIn ? '1' : '.6'; }
-			if (checkOutBtn) { checkOutBtn.disabled = !canCheckOut; checkOutBtn.style.opacity = canCheckOut ? '1' : '.6'; }
-		}
-
-		fmtDateTime(ts) {
-			const d = new Date(typeof ts === 'number' ? ts : (ts?.toString() || 0));
-			if (isNaN(d.getTime())) return '';
-			return d.toLocaleString('en-US', { year:'numeric', month:'short', day:'2-digit', hour:'2-digit', minute:'2-digit', second:'2-digit' });
-		}
-
-		async addHistoryEvent(type) {
-			try {
-				if (!this.currentVisitor || !this.companyId) return;
-				const { requestId, visitorIndex } = this.currentVisitor;
-				if (requestId == null || visitorIndex == null || visitorIndex < 0) return;
-				const histRef = window.db.ref(`companies/${this.companyId}/access/${requestId}/visitors/${visitorIndex}/history`).push();
-				const user = window.authManager?.currentUser || {};
-				const derivedName = (typeof window.authManager?.getUserDisplayName === 'function' && window.authManager.getUserDisplayName())
-					|| user.displayName
-					|| (user.firstName || user.lastName ? `${user.firstName || ''} ${user.lastName || ''}`.trim() : '')
-					|| user.name
-					|| user.username
-					|| (user.email ? String(user.email).split('@')[0] : null);
-				await histRef.set({
-					type: type === 'out' ? 'out' : 'in',
-					timestamp: Date.now(),
-					by: {
-						uid: user.uid || user.id || null,
-						name: derivedName || null,
-						email: user.email || null
-					}
-				});
-				window.notificationManager?.addNotification({ type: 'Access', message: `Marked ${type === 'in' ? 'Check-In' : 'Check-Out'} for ${this.currentVisitor.name || 'visitor'}.`});
-			} catch (err) {
-				console.error('Failed to add history event', err);
-				window.notificationManager?.addNotification({ type: 'Error', message: 'Failed to record event. Please try again.'});
-			}
-		}
-
-		// renderSummary removed
-
-		exportCsv() {
-			if (this.filtered.length === 0) {
-				window.notificationManager?.addNotification({
-					type: 'Export',
-					message: 'No visitors to export.'
-				});
-				return;
-			}
-
-			const headers = ['Visitor Name', 'ID Number', 'Company', 'Area', 'Start Time', 'End Time', 'Status', 'Equipment', 'Request Ref'];
-			const lines = [headers.join(',')];
-
-			this.filtered.forEach(visitor => {
-				const accessStatus = this.getAccessStatus(visitor);
-				const equipment = Array.isArray(visitor.equipment) ? 
-					visitor.equipment.map(e => e.name || e.item || 'Unknown').join('; ') : 
-					'None';
-
-				const row = [
-					visitor.name || '',
-					visitor.identification || '',
-					visitor.company || '',
-					visitor.area || '',
-					this.fmtDate(visitor.startDateTime),
-					this.fmtDate(visitor.endDateTime),
-					accessStatus.toUpperCase(),
-					equipment,
-					visitor.requestRef
-				];
-
-				lines.push(row.map(value => `"${String(value).replace(/"/g, '""')}"`).join(','));
-			});
-
-			const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
-			const url = URL.createObjectURL(blob);
-			const a = document.createElement('a');
-			a.href = url;
-			a.download = `daily_access_${new Date().toISOString().split('T')[0]}.csv`;
-			document.body.appendChild(a);
-			a.click();
-			
-			setTimeout(() => {
-				URL.revokeObjectURL(url);
-				a.remove();
-			}, 500);
-		}
-
-		exportPdf() {
-			// Use the same "No data" guard as CSV
-			if (this.filtered.length === 0) {
-				window.notificationManager?.addNotification({
-					type: 'Export',
-					message: 'No visitors to export.'
-				});
-				return;
-			}
-
-			// Build table data
-			const headers = ['Visitor Name', 'ID Number', 'Company', 'Area', 'Start Time', 'End Time', 'Status', 'Equipment', 'Request Ref'];
-			const rows = this.filtered.map(visitor => {
-				const accessStatus = this.getAccessStatus(visitor);
-				const equipment = Array.isArray(visitor.equipment)
-					? visitor.equipment.map(e => e.name || e.item || 'Unknown').join('; ')
-					: 'None';
-				return [
-					visitor.name || '',
-					visitor.identification || '',
-					visitor.company || '',
-					visitor.area || '',
-					this.fmtDate(visitor.startDateTime),
-					this.fmtDate(visitor.endDateTime),
-					accessStatus.toUpperCase(),
-					equipment,
-					visitor.requestRef || ''
-				];
-			});
-
-			try {
-				// jsPDF UMD usage
-				const { jsPDF } = window.jspdf || window.jspdf || {};
-				const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'A4' });
-
-				// Page metrics
-				const pageWidth = doc.internal.pageSize.getWidth();
-				const pageHeight = doc.internal.pageSize.getHeight();
-				const leftMargin = 40;
-				const rightMargin = 40;
-				const usableWidth = pageWidth - leftMargin - rightMargin;
-
-				// Company name extraction (header company or localStorage)
-				let companyName = '';
-				const headerNameEl = document.getElementById('headerCompanyName');
-				if (headerNameEl && headerNameEl.textContent.trim()) {
-					companyName = headerNameEl.textContent.trim();
-				} else {
-					try {
-						const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
-						companyName = currentUser.companyName || 'Company';
-					} catch {
-						companyName = 'Company';
-					}
-				}
-
-				// Header content
-				const reportTitle = 'Daily Access Control - Visitor List';
-				const dateStr = new Date().toLocaleString();
-				
-				// Centered company name
-				doc.setFontSize(16);
-				doc.setFont('helvetica', 'bold');
-				doc.text(companyName, pageWidth / 2, 40, { align: 'center' });
-				
-				// Report title
-				doc.setFontSize(12);
-				doc.setFont('helvetica', 'normal');
-				doc.text(reportTitle, pageWidth / 2, 58, { align: 'center' });
-				
-				// Export date
-				doc.setFontSize(9);
-				doc.text(`Exported: ${dateStr}`, pageWidth / 2, 72, { align: 'center' });
-
-				// Calculate column widths to fit content
-				const columnWidths = [90, 70, 90, 60, 85, 85, 60, 120, 70]; // Total: 730, usable: ~762
-				
-				// Truncate cell content to fit width
-				const processedRows = rows.map(row => {
-					return row.map((cell, colIndex) => {
-						const maxChars = Math.floor(columnWidths[colIndex] / 6); // ~6pt per char
-						if (typeof cell === 'string' && cell.length > maxChars) {
-							return cell.substring(0, maxChars - 3) + '...';
-						}
-						return cell || '';
-					});
-				});
-
-				// AutoTable configuration
-				doc.autoTable({
-					head: [headers],
-					body: processedRows,
-					startY: 85,
-					styles: {
-						fontSize: 7,
-						cellPadding: 2,
-						overflow: 'linebreak'
-					},
-					headStyles: {
-						fillColor: [52, 152, 219],
-						textColor: 255,
-						fontSize: 8,
-						fontStyle: 'bold'
-					},
-					bodyStyles: {
-						valign: 'top'
-					},
-					columnStyles: {
-						0: { cellWidth: columnWidths[0] }, // Visitor Name
-						1: { cellWidth: columnWidths[1] }, // ID Number
-						2: { cellWidth: columnWidths[2] }, // Company
-						3: { cellWidth: columnWidths[3] }, // Area
-						4: { cellWidth: columnWidths[4] }, // Start Time
-						5: { cellWidth: columnWidths[5] }, // End Time
-						6: { cellWidth: columnWidths[6] }, // Status
-						7: { cellWidth: columnWidths[7] }, // Equipment
-						8: { cellWidth: columnWidths[8] }  // Request Ref
-					},
-					margin: { left: leftMargin, right: rightMargin },
-					theme: 'striped',
-					alternateRowStyles: {
-						fillColor: [245, 245, 245]
-					}
-				});
-
-				// Footer
-				const pageCount = doc.getNumberOfPages();
-				for (let i = 1; i <= pageCount; i++) {
-					doc.setPage(i);
-					doc.setFontSize(8);
-					doc.text(`Page ${i} of ${pageCount}`, pageWidth - 80, pageHeight - 20);
-				}
-
-				doc.save(`daily_access_${new Date().toISOString().split('T')[0]}.pdf`);
-			} catch (err) {
-				console.error('PDF export failed', err);
-				window.notificationManager?.addNotification({ type: 'Error', message: 'Failed to export PDF.' });
-			}
-		}
-
-		fmtDate(dateStr) {
-			if (!dateStr) return '';
-			const date = new Date(dateStr);
-			if (isNaN(date.getTime())) return dateStr;
-			
-			return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], {
-				hour: '2-digit',
-				minute: '2-digit'
-			});
-		}
-
-		escape(str) {
-			if (str === undefined || str === null) return '';
-			return String(str).replace(/[&<>"']/g, char => ({
-				'&': '&amp;',
-				'<': '&lt;',
-				'>': '&gt;',
-				'"': '&quot;',
-				"'": '&#39;'
-			}[char] || char));
-		}
-	}
-
-	/**************** Firebase Initialization ****************/
-	(function() {
-		const firebaseConfig = {
-			apiKey: "AIzaSyCUTmTn0rRBb0M-UkQJxnUMrWqXYU_BgIc",
-			authDomain: "users-8be65.firebaseapp.com",
-			databaseURL: "https://users-8be65-default-rtdb.firebaseio.com",
-			projectId: "users-8be65",
-			storageBucket: "users-8be65.firebasestorage.app",
-			messagingSenderId: "829083030831",
-			appId: "1:829083030831:web:36a370e62691e560bc3dda"
-		};
-		
-		if (!window.firebase?.apps?.length) {
-			firebase.initializeApp(firebaseConfig);
-			console.log('✅ Firebase initialized (accessdaily)');
-		}
-		
-		window.db = firebase.database();
-		window.auth = firebase.auth();
-		window.storage = firebase.storage();
-	})();
-
-	/**************** Sidebar & Auth Integration ****************/
-	// Copy auth and sidebar management from accessboard.html
-	class AuthManager {
-		constructor() {
-			this.currentUser = this.getCurrentUser();
-			this.currentCompany = null;
-		}
-
-		getCurrentUser() {
-			try {
-				return JSON.parse(localStorage.getItem('currentUser') || 'null');
-			} catch {
-				return null;
-			}
-		}
-
-		setCurrentUser(user) {
-			localStorage.setItem('currentUser', JSON.stringify(user));
-			localStorage.setItem('user', JSON.stringify(user));
-			this.currentUser = user;
-		}
-
-		initialize() {
-			if (this._initialized) return;
-			if (!this.currentUser) {
-				window.location.href = 'login.html';
-				return;
-			}
-
-			this.bindSidebarToggle();
-			this.bindProfileDropdown();
-			this.initializeAuth();
-			this._initialized = true;
-		}
-
-		bindSidebarToggle() {
-			const toggle = document.getElementById('sidebarToggle');
-			const sidebar = document.querySelector('.sidebar');
-			const mainContent = document.querySelector('.main-content');
-			const topNav = document.querySelector('.top-nav');
-
-			if (toggle && sidebar && mainContent) {
-				toggle.addEventListener('click', () => {
-					const collapsed = sidebar.classList.toggle('collapsed');
-					mainContent.classList.toggle('sidebar-collapsed', collapsed);
-					if (topNav) {
-						topNav.style.left = collapsed ? '.5rem' : 'calc(var(--sidebar-width) + .5rem)';
-					}
-				});
-			}
-			
-			// Initialize mobile menu
-			this.initializeMobileMenu();
-		}
-		
-		initializeMobileMenu() {
-			const mobileMenuToggle = document.getElementById('mobileMenuToggle');
-			const sidebar = document.querySelector('.sidebar');
-			const backdrop = document.getElementById('mobileSidebarBackdrop');
-			
-			if (!mobileMenuToggle || !sidebar || !backdrop) return;
-			
-			// Open mobile menu
-			mobileMenuToggle.addEventListener('click', () => {
-				sidebar.classList.add('mobile-active');
-				backdrop.classList.add('active');
-				document.body.style.overflow = 'hidden';
-			});
-			
-			// Close mobile menu when clicking backdrop
-			backdrop.addEventListener('click', () => {
-				this.closeMobileMenu();
-			});
-			
-			// Close mobile menu only when clicking actual navigation links (not dropdown toggles)
-			const menuLinks = sidebar.querySelectorAll('a');
-			menuLinks.forEach(link => {
-				link.addEventListener('click', (e) => {
-					// Only close on mobile (screen width <= 768px)
-					if (window.innerWidth <= 768) {
-						// Check if this is a parent menu item with submenu
-						const parentLi = link.closest('li');
-						const hasSubmenu = parentLi && (parentLi.classList.contains('menu-dropdown') || parentLi.querySelector('.submenu'));
-						
-						// If it has a submenu, don't close - let the submenu toggle
-						if (hasSubmenu && link.getAttribute('href') === '#') {
-							return; // Don't close, allow submenu to open
-						}
-						
-						// If it's an actual link (not just a dropdown toggle), close the menu
-						if (link.getAttribute('href') && link.getAttribute('href') !== '#') {
-							this.closeMobileMenu();
-						}
-					}
-				});
-			});
-			
-			// Close mobile menu on escape key
-			document.addEventListener('keydown', (e) => {
-				if (e.key === 'Escape' && sidebar.classList.contains('mobile-active')) {
-					this.closeMobileMenu();
-				}
-			});
-			
-			// Handle window resize - close mobile menu if resizing to desktop
-			let resizeTimer;
-			window.addEventListener('resize', () => {
-				clearTimeout(resizeTimer);
-				resizeTimer = setTimeout(() => {
-					if (window.innerWidth > 768 && sidebar.classList.contains('mobile-active')) {
-						this.closeMobileMenu();
-					}
-				}, 250);
-			});
-		}
-		
-		closeMobileMenu() {
-			const sidebar = document.querySelector('.sidebar');
-			const backdrop = document.getElementById('mobileSidebarBackdrop');
-			
-			if (sidebar) sidebar.classList.remove('mobile-active');
-			if (backdrop) backdrop.classList.remove('active');
-			document.body.style.overflow = '';
-		}
-
-		bindProfileDropdown() {
-			const btn = document.getElementById('userProfileBtn');
-			const dropdown = document.querySelector('.profile-dropdown');
-			
-			if (btn && dropdown) {
-				btn.addEventListener('click', e => {
-					e.stopPropagation();
-					dropdown.classList.toggle('show');
-				});
-				
-				document.addEventListener('click', e => {
-					if (!btn.contains(e.target)) {
-						dropdown.classList.remove('show');
-					}
-				});
-			}
-		}
-
-		async initializeAuth() {
-			if (!this.currentUser) {
-				window.location.href = 'login.html';
-				return;
-			}
-
-			try {
-				await this.loadUserCompany();
-				// Update header avatar and initials similar to board pages
-				await this.updateUIForAuthenticatedUser();
-				await this.updateMenuVisibility();
-			} catch (error) {
-				console.error('Auth initialization error:', error);
-				this.showBasicMenu();
-				// Ensure fallback branding is shown even if company loading fails
-				this.showFallbackBranding();
-			}
-		}
-
-		async updateMenuVisibility() {
-			// Call the feature-based authorization function
-			await updateMenuWithFeatureAuthorization();
-		}
-
-		showSidebarAfterAuth() {
-			const sidebar = document.querySelector('.sidebar');
-			if (sidebar) {
-				sidebar.classList.remove('menu-loading');
-			}
-		}
-
-		showBasicMenu() {
-			resetMenuVisibility();
-			// Match staff.html fallback: only show Home
-			const homeItem = document.querySelector('#roleBasedMenu li[data-feature="home_view"]');
-			if (homeItem) {
-				homeItem.classList.add('menu-visible');
-			}
-			this.showSidebarAfterAuth();
-		}
-
-		async loadUserCompany() {
-			if (!this.currentUser) {
-				console.warn('⚠️ No current user for company loading');
-				return;
-			}
-			
-			console.log('🔍 Loading user company for UID:', this.currentUser.uid);
-			
-			try {
-				const snap = await window.db.ref('companies').once('value');
-				if (!snap.exists()) {
-					console.warn('⚠️ No companies found in database');
-					resetMenuVisibility();
-					this.showFallbackBranding();
-					return;
-				}
-				
-				const companies = snap.val();
-				console.log('🔍 Searching through', Object.keys(companies).length, 'companies...');
-				
-				for (const [cid, comp] of Object.entries(companies)) {
-					if (comp.status !== 'active') continue;
-					
-					if (comp.users) {
-						for (const [uid, u] of Object.entries(comp.users)) {
-							if (u.authUid === this.currentUser.uid || uid === this.currentUser.uid) {
-								console.log('✅ Found user in company:', comp.companyName || comp.name, 'with role:', u.role || u.userRole || 'user');
-								this.currentUser.companyId = cid;
-								this.currentUser.companyName = comp.companyName || comp.name;
-								this.currentUser.role = u.role || u.userRole || 'user'; // Set user role from company user record
-								this.currentCompany = comp;
-								this.setCurrentUser(this.currentUser);
-								
-								// Force update company branding immediately
-								setTimeout(() => {
-									this.updateCompanyBranding();
-									console.log('🏢 Company branding force-updated');
-								}, 100);
-								
-								// Update menu visibility using new feature-based system
-								setTimeout(() => updateMenuWithFeatureAuthorization(), 200);
-								return;
-							}
-						}
-					}
-					
-					// Check if user is admin (matching accessboard.html logic)
-					if (comp.admin && (comp.admin.authUid === this.currentUser.uid || comp.admin.userId === this.currentUser.uid)) {
-						console.log('✅ Found user as admin in company:', comp.companyName || comp.name);
-						this.currentUser.companyId = cid;
-						this.currentUser.companyName = comp.companyName || comp.name;
-						this.currentUser.role = 'admin';
-						this.currentCompany = comp;
-						this.setCurrentUser(this.currentUser);
-						
-						// Force update company branding immediately
-						setTimeout(() => {
-							this.updateCompanyBranding();
-							console.log('🏢 Company branding force-updated (admin)');
-						}, 100);
-						
-						// Update menu visibility using new feature-based system
-						setTimeout(() => updateMenuWithFeatureAuthorization(), 200);
-						return;
-					}
-				}
-				
-				console.warn('⚠️ User not found in any active company');
-				resetMenuVisibility();
-				this.showFallbackBranding();
-			} catch (e) {
-				console.error('❌ Company load error:', e);
-				resetMenuVisibility();
-				this.showFallbackBranding();
-			}
-		}
-
-		updateCompanyBranding() {
-			console.log('🏢 Updating company branding...');
-			
-			if (!this.currentCompany) {
-				console.warn('⚠️ No company data, showing fallback branding');
-				this.showFallbackBranding();
-				return;
-			}
-			
-			const logoEl = document.getElementById('headerCompanyLogo');
-			const nameEl = document.getElementById('headerCompanyName');
-			
-			console.log('🔍 Header elements found:', {
-				logo: logoEl ? '✅' : '❌',
-				name: nameEl ? '✅' : '❌'
-			});
-			
-			console.log('✅ Company data:', {
-				name: this.currentCompany.companyName || this.currentCompany.name,
-				logo: this.currentCompany.logo || this.currentCompany.logoUrl ? '✅' : '❌'
-			});
-			
-			// Update company name - exact same logic as accessboard.html
-			const companyName = this.currentCompany.companyName || this.currentCompany.name || '';
-			if (nameEl) {
-				nameEl.textContent = companyName;
-				console.log('✅ Company name updated:', companyName);
-			}
-			
-			// Update company logo - exact same logic as accessboard.html
-			const logoUrl = this.currentCompany.logo || this.currentCompany.logoUrl;
-			if (logoEl) {
-				if (logoUrl) {
-					console.log('🖼️ Loading company logo:', logoUrl);
-					logoEl.src = logoUrl;
-					logoEl.style.display = 'block';
-					logoEl.classList.add('visible');
-					
-					// Add error handler for logo loading
-					logoEl.onerror = () => {
-						console.log('❌ Logo failed to load, generating initials');
-						const svg = this.generateCompanyInitialsSVG(this.getCompanyInitials(companyName));
-						logoEl.src = svg;
-						logoEl.style.display = 'block';
-						logoEl.classList.add('visible');
-					};
-					
-					console.log('✅ Company logo updated');
-				} else {
-					console.log('ℹ️ No logo URL, generating initials');
-					const svg = this.generateCompanyInitialsSVG(this.getCompanyInitials(companyName));
-					logoEl.src = svg;
-					logoEl.style.display = 'block';
-					logoEl.classList.add('visible');
-					console.log('✅ Company initials logo generated');
-				}
-			}
-			
-			// Apply CSS custom branding if available (like accessboard.html)
-			if (this.currentCompany.branding) {
-				const root = document.documentElement;
-				if (this.currentCompany.branding.primaryColor) {
-					root.style.setProperty('--primary-color', this.currentCompany.branding.primaryColor);
-				}
-				if (this.currentCompany.branding.secondaryColor) {
-					root.style.setProperty('--secondary-color', this.currentCompany.branding.secondaryColor);
-				}
-				console.log('✅ Custom CSS branding applied');
-			}
-		}
-
-		showFallbackBranding() {
-			console.log('🏢 Showing fallback branding');
-			const logoEl = document.getElementById('headerCompanyLogo');
-			const nameEl = document.getElementById('headerCompanyName');
-			
-			if (nameEl) {
-				nameEl.textContent = '';  // Don't show hardcoded name as fallback
-				console.log('✅ Fallback company name cleared');
-			}
-			
-			if (logoEl) {
-				const svg = this.generateCompanyInitialsSVG('DX');
-				logoEl.src = svg;
-				logoEl.style.display = 'block';
-				logoEl.classList.add('visible');
-				console.log('✅ Fallback logo set');
-			}
-		}
-
-		getCompanyInitials(name) {
-			if (!name) return 'CO';
-			const parts = name.trim().split(/\s+/);
-			if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
-			return (parts[0][0] + parts[1][0]).toUpperCase();
-		}
-
-		generateCompanyInitialsSVG(initials) {
-			const svg = `<svg width="44" height="44" viewBox="0 0 44 44" xmlns="http://www.w3.org/2000/svg">
-				<rect width="44" height="44" rx="6" fill="#f0f3f6"/>
-				<text x="50%" y="52%" dominant-baseline="middle" text-anchor="middle" 
-					  fill="#495057" font-family="Inter,Arial,sans-serif" font-weight="600" font-size="14">${initials}</text>
-			</svg>`;
-			return 'data:image/svg+xml;base64,' + btoa(svg);
-		}
-
-		// --- User profile & avatar (mirrors accessboard.html) ---
-		getUserDisplayName() {
-			if (!this.currentUser) return 'User';
-			const normalize = v => typeof v === 'string' ? v.trim().replace(/\s+/g, ' ') : '';
-			const candidates = [this.currentUser.displayName, this.currentUser.name, this.currentUser.username];
-			for (const c of candidates) {
-				const n = normalize(c);
-				if (n) return n;
-			}
-			if (this.currentUser.email) return normalize(this.currentUser.email.split('@')[0]) || 'User';
-			return 'User';
-		}
-
-		getUserInitials() {
-			const dn = this.getUserDisplayName();
-			const parts = dn.split(' ').filter(Boolean);
-			if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
-			return parts.slice(0, 2).map(p => p[0]).join('').toUpperCase();
-		}
-
-		async getUserAvatarUrl() {
-			if (!this.currentUser) return null;
-			const companyId = this.currentUser.companyId || 'default';
-			try {
-				const paths = [
-					`companies/${companyId}/avatars/${this.currentUser.uid}/profile.jpg`,
-					`companies/${companyId}/avatars/${this.currentUser.uid}/profile.png`,
-					`companies/${companyId}/avatars/${this.currentUser.uid}/profile.jpeg`,
-					`companies/${companyId}/avatars/${this.currentUser.uid}/avatar.jpg`,
-					`companies/${companyId}/avatars/${this.currentUser.uid}/avatar.png`,
-					`avatars/${this.currentUser.uid}/profile.jpg`,
-					`avatars/${this.currentUser.uid}/profile.png`,
-					`avatars/${this.currentUser.uid}/avatar.jpg`,
-					`avatars/${this.currentUser.uid}/avatar.png`,
-					`profiles/${this.currentUser.uid}/profile.jpg`,
-					`profiles/${this.currentUser.uid}/profile.png`
-				];
-				for (const p of paths) {
-					try {
-						const ref = window.storage.ref(p);
-						const url = await ref.getDownloadURL();
-						return url;
-					} catch (_) { /* try next */ }
-				}
-				return null;
-			} catch (e) {
-				console.error('Avatar load error:', e);
-				return null;
-			}
-		}
-
-		async updateUIForAuthenticatedUser() {
-			const userAvatarImg = document.getElementById('userAvatarImg');
-			const userInitials = document.getElementById('userInitials');
-			if (!this.currentUser) return;
-
-			// Set initials fallback
-			if (userInitials) userInitials.textContent = this.getUserInitials();
-
-			let avatarUrl = null;
-			try { avatarUrl = await this.getUserAvatarUrl(); } catch {}
-
-			if (avatarUrl && userAvatarImg) {
-				userAvatarImg.src = avatarUrl;
-				userAvatarImg.alt = this.getUserDisplayName() + ' Avatar';
-				userAvatarImg.style.display = 'block';
-				if (userInitials) userInitials.style.display = 'none';
-				userAvatarImg.onerror = () => {
-					userAvatarImg.style.display = 'none';
-					if (userInitials) userInitials.style.display = 'flex';
-				};
-			} else {
-				if (userAvatarImg) userAvatarImg.style.display = 'none';
-				if (userInitials) userInitials.style.display = 'flex';
-			}
-
-			// Mirror recruitboard: populate profile dropdown with user info, Profile link, and Logout
-			try {
-				const profileBtn = document.querySelector('.profile-btn');
-				const profileDropdownList = document.querySelector('.profile-dropdown ul');
-				if (profileBtn && profileDropdownList) {
-					const displayName = this.getUserDisplayName();
-					const email = this.getUserEmail();
-					const initials = this.getUserInitials();
-					const dropdownAvatarHtml = avatarUrl
-						? `<img src="${avatarUrl}" alt="${displayName} Avatar" style="width:24px;height:24px;border-radius:50%;object-fit:cover;">`
-						: `<div style="width:24px;height:24px;border-radius:50%;background:#3498db;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:10px;">${initials}</div>`;
-
-					const userInfoHtml = `
-						<li style="border-bottom:1px solid #eee;padding:6px 10px;background:#f8f9fa;">
-							<div style="display:flex;align-items:center;gap:6px;">
-								${dropdownAvatarHtml}
-								<div>
-									<div style=\"font-weight:600;color:#333;font-size:12px;margin-bottom:1px;\">${displayName}</div>
-									<div style=\"color:#666;font-size:10px;\">${email}</div>
-								</div>
-							</div>
-						</li>
-						<li><a href="profile.html"><i class="fas fa-id-card"></i> Profile</a></li>
-						<li><a href="#" class="logout-link"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
-					`;
-
-					profileDropdownList.innerHTML = userInfoHtml;
-
-					const logoutBtn = profileDropdownList.querySelector('.logout-link');
-					if (logoutBtn) {
-						logoutBtn.addEventListener('click', (e) => {
-							e.preventDefault();
-							this.logout();
-						});
-					}
-				}
-			} catch (e) {
-				console.warn('Profile dropdown population skipped:', e);
-			}
-		}
-
-		getUserEmail() {
-			return (this.currentUser && this.currentUser.email) ? this.currentUser.email : '';
-		}
-
-		async logout() {
-			try {
-				await window.auth.signOut();
-				localStorage.removeItem('currentUser');
-				// Redirect to index.html; preserve app view mode if currently in app view
-				try {
-					const params = new URLSearchParams(window.location.search);
-					const isAppView = params.get('view') === 'app';
-					window.location.href = 'index.html' + (isAppView ? '?view=app' : '');
-				} catch (redirErr) {
-					// Fallback simple redirect
-					window.location.href = 'index.html';
-				}
-			} catch (error) {
-				console.error('Logout error:', error);
-			}
-		}
-
-		// Method to manually refresh company branding
-		refreshCompanyBranding() {
-			console.log('🔄 Manually refreshing company branding...');
-			if (this.currentCompany) {
-				this.updateCompanyBranding();
-			} else {
-				this.loadUserCompany();
-			}
-		}
-
-		// Debug method to test Firebase connection
-		async testFirebaseConnection() {
-			console.log('🔍 Testing Firebase connection...');
-			console.log('📊 Firebase status:', {
-				app: !!window.firebase,
-				db: !!window.db,
-				auth: !!window.auth,
-				storage: !!window.storage,
-				currentUser: !!this.currentUser
-			});
-
-			if (this.currentUser) {
-				console.log('👤 Current user:', {
-					uid: this.currentUser.uid,
-					email: this.currentUser.email,
-					companyId: this.currentUser.companyId
-				});
-			}
-
-			try {
-				console.log('🔍 Testing database access...');
-				const testRef = await window.db.ref('companies').limitToFirst(1).once('value');
-				if (testRef.exists()) {
-					console.log('✅ Database connection successful');
-					const companies = testRef.val();
-					console.log('📊 Sample company data:', Object.keys(companies)[0]);
-				} else {
-					console.warn('⚠️ No companies found in database');
-				}
-			} catch (error) {
-				console.error('❌ Database connection failed:', error);
-			}
-		}
-	}
-
-	// ========================================================================================
-	// FEATURE-BASED MENU AUTHORIZATION SYSTEM
-	// ========================================================================================
-
-	// Reset all menu items to hidden state
-	function resetMenuVisibility() {
-		console.log('🔄 Resetting menu visibility...');
-		document.querySelectorAll('[data-feature]').forEach(item => {
-			item.classList.remove('menu-visible');
-		});
-		const sidebar = document.querySelector('.sidebar');
-		if (sidebar) {
-			sidebar.classList.add('menu-loading');
-		}
-	}
-
-	// Check if user has permission to view attachments
-	async function hasViewAttachmentsPermission() {
-		try {
-			const currentUser = window.authManager?.getCurrentUser();
-			if (!currentUser || !currentUser.role || !currentUser.companyId) {
-				console.log('❌ No authenticated user or role information available - defaulting to show attachments');
-				return true; // Default to showing attachments if no user info
-			}
-
-			const companyId = currentUser.companyId;
-			const roleId = currentUser.role;
-
-			// Get role permissions from Firebase
-			const roleRef = window.db.ref(`companies/${companyId}/roles/${roleId}`);
-			const roleSnapshot = await roleRef.once('value');
-			const roleData = roleSnapshot.val();
-
-			if (!roleData || !roleData.permissions) {
-				console.log('❌ No role data or permissions found - defaulting to show attachments');
-				return true; // Default to showing attachments if no role data
-			}
-
-			// Check for access_daily_view permissions with nested structure
-			// Permissions are stored as: permissions[featureId][action]
-			// So we need to check: permissions['access_daily_view']['view_attachments']
-			const accessDailyPermissions = roleData.permissions['access_daily_view'];
-			
-			if (!accessDailyPermissions) {
-				console.log('❌ No access_daily_view permissions found - defaulting to show attachments');
-				return true;
-			}
-
-			// If view_attachments permission is not set, default to true (show attachments)
-			// Only hide if explicitly set to false
-			const permissionValue = accessDailyPermissions['view_attachments'];
-			const hasPermission = permissionValue !== false; // Show unless explicitly false
-			console.log(`🔍 View attachments permission value: ${permissionValue}, result: ${hasPermission}`);
-			console.log(`📊 Full access_daily_view permissions:`, accessDailyPermissions);
-			
-			return hasPermission;
-		} catch (error) {
-			console.error('❌ Error checking view attachments permission:', error);
-			return true; // Default to showing attachments on error
-		}
-	}
-
-	// Apply feature-based menu visibility (mirrors staff.html)
-	async function applyFeatureBasedMenuVisibility(companyId) {
-		try {
-			console.log('🔧 Applying feature-based menu visibility for company:', companyId);
-			const database = window.db || firebase.database();
-			// Load platform features
-			const featuresSnapshot = await database.ref('/platformFeatures').once('value');
-			if (!featuresSnapshot.exists()) {
-				console.log('⚠️ No platform features found');
-				resetMenuVisibility();
-				return [];
-			}
-			const featuresData = featuresSnapshot.val();
-			// Load company data for selectedFeatures
-			const companySnapshot = await database.ref(`/companies/${companyId}`).once('value');
-			const companyData = companySnapshot.val();
-			if (!companyData) {
-				console.error('❌ Company data not found');
-				resetMenuVisibility();
-				return [];
-			}
-			const subscribedFeatureIds = companyData.selectedFeatures || [];
-			console.log('🏢 Company subscribed features:', subscribedFeatureIds);
-			if (subscribedFeatureIds.length === 0) {
-				console.log('⚠️ Company has no subscribed features');
-				resetMenuVisibility();
-				return [];
-			}
-
-			// Collect authorized pages from subscribed features
-			const authorizedPages = [];
-			subscribedFeatureIds.forEach(featureId => {
-				const feature = featuresData[featureId];
-				if (feature && feature.status === 'active' && feature.authorizedPages) {
-					console.log(`📦 Adding pages from feature "${feature.name}":`, feature.authorizedPages);
-					authorizedPages.push(...feature.authorizedPages);
-				} else {
-					console.log(`⚠️ Feature ${featureId} not found or inactive`);
-				}
-			});
-
-			console.log('🔐 All authorized pages from company features:', authorizedPages);
-			resetMenuVisibility();
-
-			// Build set of authorized features
-			const authorizedFeatures = new Set();
-			authorizedPages.forEach(pageInfo => { if (pageInfo.feature) authorizedFeatures.add(pageInfo.feature); });
-			console.log('🎯 Authorized features for accessdaily.html:', Array.from(authorizedFeatures));
-
-			// Show items with authorized features
-			const allMenuItems = document.querySelectorAll('#roleBasedMenu li[data-feature]');
-			let visibleCount = 0;
-			allMenuItems.forEach(menuItem => {
-				const featureAttribute = menuItem.getAttribute('data-feature');
-				const isAuthorized = authorizedFeatures.has(featureAttribute);
-				const isDropdownContainer = menuItem.classList.contains('menu-dropdown');
-				if (isDropdownContainer) return;
-				if (isAuthorized) {
-					menuItem.classList.add('menu-visible');
-					visibleCount++;
-					console.log(`✅ Feature authorized - showing menu item: ${featureAttribute}`);
-				} else {
-					menuItem.classList.remove('menu-visible');
-				}
-			});
-
-			// Handle dropdowns
-			const dropdownMenus = document.querySelectorAll('#roleBasedMenu li.menu-dropdown');
-			dropdownMenus.forEach(dropdown => {
-				const dropdownFeature = dropdown.getAttribute('data-feature');
-				const submenuItems = dropdown.querySelectorAll('.submenu li[data-feature]');
-				let hasVisibleChildren = false;
-				submenuItems.forEach(submenuItem => { if (submenuItem.classList.contains('menu-visible')) hasVisibleChildren = true; });
-				if (hasVisibleChildren || authorizedFeatures.has(dropdownFeature)) {
-					dropdown.classList.add('menu-visible');
-					console.log(`✅ Showing dropdown menu: ${dropdownFeature}`);
-				} else {
-					dropdown.classList.remove('menu-visible');
-				}
-			});
-
-			console.log(`🎯 Company feature authorization completed - ${visibleCount} items initially visible`);
-			return authorizedPages;
-		} catch (error) {
-			console.error('❌ Error applying feature-based menu visibility:', error);
-			resetMenuVisibility();
-			return [];
-		}
-	}
-
-	// Feature-based authorization system that takes priority over role permissions (mirrors staff.html)
-	async function updateMenuWithFeatureAuthorization() {
-		// Prevent multiple simultaneous executions
-		if (window.isMenuUpdateInProgress) {
-			console.log('🔄 Menu update already in progress, skipping...');
-			return;
-		}
-		window.isMenuUpdateInProgress = true;
-		console.log('🎯 Starting feature-based menu authorization for accessdaily.html...');
-		try {
-			let currentUser = null;
-			let companyId = null;
-			let userRole = null;
-			// Prefer authManager
-			if (window.authManager && window.authManager.currentUser) {
-				currentUser = window.authManager.currentUser;
-				companyId = currentUser.companyId;
-				userRole = currentUser.role;
-				console.log('👤 Using AuthManager - User:', currentUser.email, 'Company ID:', companyId, 'Role:', userRole);
-			} else if (firebase.auth().currentUser) {
-				currentUser = firebase.auth().currentUser;
-				console.log('👤 Using Firebase auth - will search for company and role');
-			}
-
-			// If no companyId, search companies to locate user
-			if (!companyId && currentUser) {
-				console.log('🔍 Searching for user company and role...');
-				const database = firebase.database();
-				const companiesRef = database.ref('companies');
-				const companiesSnapshot = await companiesRef.once('value');
-				if (companiesSnapshot.exists()) {
-					const companies = companiesSnapshot.val();
-					for (const [cId, company] of Object.entries(companies)) {
-						if (company.status !== 'active') continue;
-						if (company.users && company.users[currentUser.uid]) {
-							companyId = cId;
-							userRole = company.users[currentUser.uid].role || company.users[currentUser.uid].userRole;
-							console.log(`✅ Found user in company: ${companyId} (${company.name}) with role: ${userRole}`);
-							break;
-						}
-					}
-				}
-			}
-
-			if (!companyId) {
-				console.error('❌ No company ID found, cannot determine authorized features');
-				resetMenuVisibility();
-				window.isMenuUpdateInProgress = false;
-				return;
-			}
-
-			// STEP 1: Feature-based visibility
-			const authorizedPages = await applyFeatureBasedMenuVisibility(companyId);
-			// STEP 2: Role filtering
-			if (userRole) {
-				await applyRoleBasedFiltering(companyId, userRole, authorizedPages);
-			} else {
-				console.log('⚠️ No user role found, skipping role-based filtering');
-				showSidebarAfterAuth();
-			}
-		} catch (error) {
-			console.error('❌ Error in feature-based menu authorization:', error);
-			resetMenuVisibility();
-		} finally {
-			window.isMenuUpdateInProgress = false;
-		}
-	}
-
-	// Apply role-based filtering within company authorized features (mirrors staff.html)
-	async function applyRoleBasedFiltering(companyId, userRole, authorizedPages) {
-		try {
-			console.log('👤 Applying role-based filtering for role:', userRole);
-			const database = window.db || firebase.database();
-			const permissionsRef = database.ref(`companies/${companyId}/roles/${userRole}/permissions`);
-			const permissionsSnapshot = await permissionsRef.once('value');
-			if (!permissionsSnapshot.exists()) {
-				console.log(`⚠️ No permissions found for role ${userRole} in company ${companyId}`);
-				if (userRole === 'administrator') {
-					console.log('🔑 ADMINISTRATOR FALLBACK - Skipping role filtering (keeping all company features visible)');
-					showSidebarAfterAuth();
-					return;
-				}
-				console.log('❌ No valid permissions found - filtering out items requiring permissions');
-				hideItemsRequiringPermissions();
-				showSidebarAfterAuth();
-				return;
-			}
-			const permissions = permissionsSnapshot.val();
-			console.log('✅ Loaded role permissions:', permissions);
-			filterMenuByPermissions(permissions);
-		} catch (error) {
-			console.error('❌ Error applying role-based filtering:', error);
-			showSidebarAfterAuth();
-		}
-	}
-
-	function filterMenuByPermissions(permissions) {
-		console.log('🔍 Filtering visible menu items by role permissions...');
-		if (!permissions) {
-			console.log('⚠️ No permissions object provided');
-			hideItemsRequiringPermissions();
-			showSidebarAfterAuth();
-			return;
-		}
-		const visibleMenuItems = document.querySelectorAll('#roleBasedMenu li.menu-visible[data-requires-permission]');
-		console.log(`🎯 Found ${visibleMenuItems.length} visible menu items requiring permissions to check`);
-		let hiddenCount = 0;
-		visibleMenuItems.forEach(item => {
-			const requiresPermission = item.getAttribute('data-requires-permission');
-			const feature = item.getAttribute('data-feature');
-			if (requiresPermission) {
-				const hasPermission = permissions[requiresPermission];
-				const hasViewPermission = hasPermission === true || (hasPermission && hasPermission.view === true);
-				if (!hasViewPermission) {
-					item.classList.remove('menu-visible');
-					hiddenCount++;
-					console.log(`❌ Hiding menu item (no permission): ${feature} (requires: ${requiresPermission})`);
-				} else {
-					console.log(`✅ Keeping menu item visible: ${feature} (has permission: ${requiresPermission})`);
-				}
-			}
-		});
-		// Re-check dropdown menus after permission filtering
-		const dropdownMenus = document.querySelectorAll('#roleBasedMenu li.menu-dropdown');
-		dropdownMenus.forEach(dropdown => {
-			const submenuItems = dropdown.querySelectorAll('.submenu li.menu-visible');
-			const dropdownFeature = dropdown.getAttribute('data-feature');
-			if (submenuItems.length === 0) {
-				dropdown.classList.remove('menu-visible');
-				console.log(`❌ Hiding dropdown (no visible children): ${dropdownFeature}`);
-			} else {
-				console.log(`✅ Keeping dropdown visible (has ${submenuItems.length} visible children): ${dropdownFeature}`);
-			}
-		});
-		console.log(`🎯 Role-based filtering completed - ${hiddenCount} items hidden due to lack of permissions`);
-		showSidebarAfterAuth();
-	}
-
-	function hideItemsRequiringPermissions() {
-		console.log('🔒 Hiding all menu items that require permissions...');
-		const itemsRequiringPermissions = document.querySelectorAll('#roleBasedMenu li.menu-visible[data-requires-permission]');
-		let hiddenCount = 0;
-		itemsRequiringPermissions.forEach(item => {
-			const feature = item.getAttribute('data-feature');
-			const requiresPermission = item.getAttribute('data-requires-permission');
-			item.classList.remove('menu-visible');
-			hiddenCount++;
-			console.log(`❌ Hiding menu item (requires permission): ${feature} (${requiresPermission})`);
-		});
-		console.log(`🔒 Hidden ${hiddenCount} items requiring permissions`);
-	}
-
-	function showSidebarAfterAuth() {
-		const sidebar = document.querySelector('.sidebar');
-		if (sidebar) {
-			sidebar.classList.remove('menu-loading');
-			console.log('✅ Sidebar loading state removed - menu authorization complete');
-		}
-	}
-
-	// Expose globally for other scripts to trigger refresh
-	window.updateMenuWithFeatureAuthorization = updateMenuWithFeatureAuthorization;
-
-	// Initialize auth manager globally and ensure company context is loaded
-	document.addEventListener('DOMContentLoaded', function() {
-		console.log('🚀 DOM loaded, initializing company context...');
-		
-		// Initialize auth manager globally
-		if (!window.authManager) {
-			window.authManager = new AuthManager();
-		}
-		
-		if (window.authManager && !window.authManager._initialized) {
-			window.authManager.initialize();
-		}
-		
-		// Make company branding refresh available globally
-		window.refreshCompanyBranding = () => {
-			if (window.authManager) {
-				window.authManager.refreshCompanyBranding();
-				console.log('🔄 Company branding manually refreshed');
-			}
-		};
-
-		// Make Firebase connection test available globally
-		window.testFirebaseConnection = () => {
-			if (window.authManager) {
-				window.authManager.testFirebaseConnection();
-			}
-		};
-		
-		// Additional company context integration
-		setTimeout(async () => {
-			if (window.authManager && window.authManager.currentUser) {
-				console.log('🔄 Ensuring company context is loaded...');
-				console.log('📊 Firebase status:', {
-					app: !!window.firebase,
-					db: !!window.db,
-					auth: !!window.auth,
-					storage: !!window.storage
-				});
-				
-				try {
-					await window.authManager.loadUserCompany();
-					console.log('✅ Company context loaded successfully');
-				} catch (error) {
-					console.error('❌ Error loading company context:', error);
-					window.authManager.showFallbackBranding();
-				}
-			} else {
-				console.warn('⚠️ No current user found for company context loading');
-			}
-		}, 500);
-	});
-	</script>
+<body class="bg-gray-50 text-gray-800 font-sans">
+
+  <!-- Header -->
+  <header class="bg-white shadow-md p-4 sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto flex justify-between items-center">
+      <div class="flex items-center">
+        <div class="text-primary-600 mr-2">
+          <i class="fas fa-chart-line text-3xl"></i>
+        </div>
+        <h1 class="text-2xl font-bold text-primary-700 whitespace-nowrap" translate="no">Dreamex DataLab</h1>
+      </div>
+  <nav id="mainNav" class="hidden md:flex space-x-8 items-center">
+        <a href="dashboard.html" class="px-4 py-1.5 border border-primary-600 text-primary-700 font-medium rounded-full hover:bg-primary-50 transition duration-300 flex items-center gap-2" title="Go to Dashboard">
+          <i class="fas fa-home"></i>
+          Home
+        </a>
+        <a href="#features" class="nav-link text-gray-700 hover:text-primary-600 font-medium text-base">Features</a>
+        <a href="pricing.html" class="nav-link text-gray-700 hover:text-primary-600 font-medium text-base">Pricing</a>
+        <a href="#about" class="nav-link text-gray-700 hover:text-primary-600 font-medium text-base">About Us</a>
+        <a href="#contact" class="nav-link text-gray-700 hover:text-primary-600 font-medium text-base">Contact</a>
+        <div class="flex items-center">
+          <div id="userStatus" class="hidden items-center mr-4">
+            <i class="fas fa-user-circle text-primary-600 mr-2"></i>
+            <span id="username" class="text-gray-700 font-medium"></span>
+          </div>
+          <button id="loginButton" class="px-6 py-1.5 bg-primary-600 text-white font-medium rounded-full hover:bg-primary-700 transition duration-300">Login</button>
+          <button id="logoutButton" class="hidden px-6 py-1.5 bg-gray-600 text-white font-medium rounded-full hover:bg-gray-700 transition duration-300 ml-2">Logout</button>
+        </div>
+      </nav>
+      <!-- Mobile Login Avatar/Button -->
+      <div class="md:hidden flex items-center gap-2">
+        <button id="mobileMenuToggle" class="mobile-menu-btn">
+          <i class="fas fa-bars"></i>
+        </button>
+        <a href="dashboard.html" class="w-9 h-9 bg-primary-600 text-white rounded-full flex items-center justify-center hover:bg-primary-700 transition duration-300" title="Go to Dashboard">
+          <i class="fas fa-home text-sm"></i>
+        </a>
+        <div id="mobileUserAvatar" class="hidden relative">
+          <div class="avatar-initials w-9 h-9 bg-primary-600 text-white rounded-full flex items-center justify-center text-sm font-semibold cursor-pointer" id="mobileAvatarCircle">
+            <i class="fas fa-user"></i>
+          </div>
+          <div class="mobile-profile-dropdown">
+            <ul>
+              <li><a href="#" id="mobileDropdownLogout"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+            </ul>
+          </div>
+        </div>
+        <button id="mobileLoginBtn" class="px-4 py-1.5 bg-primary-600 text-white font-medium rounded-full hover:bg-primary-700 transition duration-300 text-sm">Login</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Mobile sidebar backdrop (for app view) -->
+  <div id="mobileSidebarBackdrop" class="mobile-sidebar-backdrop"></div>
+
+  <!-- Left Sidebar (for app view) -->
+  <nav id="appSidebar" class="app-sidebar">
+    <div class="sidebar-logo">
+      <h2 class="whitespace-nowrap" translate="no">Dreamex DataLab</h2>
+    </div>
+    <ul class="sidebar-menu">
+      <li><a href="dashboard.html"><i class="fas fa-home"></i> Dashboard</a></li>
+      <li><a href="profile.html"><i class="fas fa-user"></i> Profile</a></li>
+      <li><a href="settings.html"><i class="fas fa-cog"></i> Settings</a></li>
+      <li><a href="notifications.html"><i class="fas fa-bell"></i> Notifications</a></li>
+      <li><a href="#" id="sidebarLogout"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+    </ul>
+  </nav>
+
+  <!-- Hero Section -->
+  <section class="gradient-bg text-white py-24 md:py-32 relative overflow-hidden">
+    <!-- Abstract shapes in background -->
+    <div class="absolute top-0 left-0 w-full h-full opacity-10">
+      <div class="absolute top-10 left-10 w-40 h-40 bg-white rounded-full"></div>
+      <div class="absolute bottom-20 right-20 w-60 h-60 bg-white rounded-full"></div>
+      <div class="absolute top-40 right-40 w-20 h-20 bg-white rounded-full"></div>
+    </div>
+    
+    <div class="max-w-7xl mx-auto px-6 flex flex-col md:flex-row items-center">
+      <div class="md:w-1/2 mb-10 md:mb-0 text-center md:text-left">
+  <h2 class="text-4xl md:text-5xl font-bold mb-6 leading-tight">All-in-one solution for your enterprise operations</h2>
+  <p class="text-lg md:text-xl mb-8 opacity-90">Unify HR, payroll, projects, inventory, fleet, and HSE with an intelligent, automated platform.</p>
+        <div class="flex flex-col sm:flex-row justify-center md:justify-start space-y-4 sm:space-y-0 sm:space-x-4">
+          <a href="#contact" class="px-8 py-3 bg-white text-primary-700 font-semibold rounded-full hover:bg-gray-100 transition duration-300 text-center">Request a Demo</a>
+          <a href="#features" class="px-8 py-3 bg-transparent border-2 border-white text-white font-semibold rounded-full hover:bg-white/10 transition duration-300 text-center">Discover</a>
+        </div>
+      </div>
+      <div class="md:w-1/2 float-animation">
+  <img src="https://images.unsplash.com/photo-1553877522-43269d4ea984?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80" alt="Enterprise Dashboard Preview" class="rounded-xl shadow-2xl max-w-full h-auto">
+      </div>
+    </div>
+  </section>
+
+  <!-- Stats Section -->
+  <section class="py-16 bg-white app-band">
+    <div class="max-w-7xl mx-auto px-6">
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
+        <div class="text-center">
+          <div class="text-primary-600 text-4xl font-bold mb-2">98%</div>
+          <div class="text-gray-600">Regulatory Compliance</div>
+        </div>
+        <div class="text-center">
+          <div class="text-primary-600 text-4xl font-bold mb-2">75%</div>
+          <div class="text-gray-600">Incident Reduction</div>
+        </div>
+        <div class="text-center">
+          <div class="text-primary-600 text-4xl font-bold mb-2">50+</div>
+          <div class="text-gray-600">Partner Companies</div>
+        </div>
+        <div class="text-center">
+          <div class="text-primary-600 text-4xl font-bold mb-2">24/7</div>
+          <div class="text-gray-600">Technical Support</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features Section -->
+  <section id="features" class="py-20 bg-gray-50 app-band">
+    <div class="max-w-6xl mx-auto px-6">
+      <div class="text-center mb-16">
+        <h3 class="text-3xl font-bold mb-4">Platform Features</h3>
+        <p class="text-lg text-gray-600 max-w-3xl mx-auto">Our comprehensive platform offers integrated solutions for all your business operational needs across multiple domains.</p>
+      </div>
+      
+      <!-- Features Loading State -->
+      <div id="featuresLoadingState" class="text-center py-8">
+        <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
+        <p class="mt-2 text-gray-600">Loading platform features...</p>
+      </div>
+
+      <!-- Dynamic Features Grid -->
+      <div id="featuresGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8" style="display: none;">
+        <!-- Features will be dynamically loaded here -->
+      </div>
+
+      <!-- Features Empty State -->
+      <div id="featuresEmptyState" class="text-center py-8" style="display: none;">
+        <div class="text-gray-400 mb-4">
+          <i class="fas fa-puzzle-piece text-6xl"></i>
+        </div>
+        <h4 class="text-xl font-semibold text-gray-600 mb-2">No Features Available</h4>
+        <p class="text-gray-500">Platform features are currently being configured. Please check back later.</p>
+      </div>
+
+      <!-- Call to Action Button -->
+      <div class="text-center mt-12">
+        <button onclick="window.location.href='company-complete-registration.html'" 
+                class="px-8 py-4 bg-primary-600 text-white font-semibold text-lg rounded-full hover:bg-primary-700 transition duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-1">
+          <i class="fas fa-rocket mr-2"></i>
+          Start Your Free Trial
+        </button>
+        <p class="mt-3 text-gray-500 text-sm">No credit card required • Get started in minutes</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- About Section -->
+  <section id="about" class="py-20 gradient-bg text-white app-band">
+    <div class="max-w-6xl mx-auto px-6">
+      <div class="flex flex-col md:flex-row items-center">
+        <div class="md:w-1/2 mb-10 md:mb-0">
+          <img src="https://images.unsplash.com/photo-1551434678-e076c223a692?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=500&h=400&q=80" 
+               alt="Enterprise Management Team" 
+               class="rounded-xl shadow-lg max-w-full">
+          <div class="mt-4 px-2 py-3 bg-white/10 backdrop-blur-sm rounded-lg">
+            <p class="text-sm text-center">Our experienced enterprise solutions team brings over 15 years of combined industry expertise</p>
+          </div>
+        </div>
+        <div class="md:w-1/2 md:pl-12">
+          <h3 class="text-3xl font-bold mb-6">Why Dreamex DataLab?</h3>
+          <p class="text-lg mb-6">Because modern enterprise management requires powerful, simple, and connected tools. Our mission is to help you digitalize your operations for sustainable performance across all departments.</p>
+          
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 mt-8">
+            <div class="flex items-start">
+              <div class="mr-4 text-yellow-300">
+                <i class="fas fa-check-circle text-xl"></i>
+              </div>
+              <div>
+                <h4 class="font-semibold mb-2">Industry Expertise</h4>
+                <p class="text-white/80">15+ years delivering enterprise software</p>
+              </div>
+            </div>
+            <div class="flex items-start">
+              <div class="mr-4 text-yellow-300">
+                <i class="fas fa-check-circle text-xl"></i>
+              </div>
+              <div>
+                <h4 class="font-semibold mb-2">Dedicated Support</h4>
+                <p class="text-white/80">A team available 24/7</p>
+              </div>
+            </div>
+            <div class="flex items-start">
+              <div class="mr-4 text-yellow-300">
+                <i class="fas fa-check-circle text-xl"></i>
+              </div>
+              <div>
+                <h4 class="font-semibold mb-2">Scalable Solution</h4>
+                <p class="text-white/80">Adapts to your growth</p>
+              </div>
+            </div>
+            <div class="flex items-start">
+              <div class="mr-4 text-yellow-300">
+                <i class="fas fa-check-circle text-xl"></i>
+              </div>
+              <div>
+                <h4 class="font-semibold mb-2">Guaranteed Compliance</h4>
+                <p class="text-white/80">Regular regulatory updates</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Enterprise Image Gallery Section (New) -->
+  <section class="py-16 bg-white app-band">
+    <div class="max-w-6xl mx-auto px-6">
+  <h3 class="text-3xl font-bold text-center mb-12">Enterprise in Action</h3>
+      
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="overflow-hidden rounded-lg shadow-md">
+          <img src="https://images.unsplash.com/photo-1587500154541-1cafd74f0efc?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=300&h=200&q=80" 
+               alt="Business analytics dashboard" class="w-full h-48 object-cover transition-transform duration-500 hover:scale-110">
+        </div>
+        <div class="overflow-hidden rounded-lg shadow-md">
+          <img src="https://images.unsplash.com/photo-1581092918056-0c4c3acd3789?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=300&h=200&q=80" 
+               alt="Team collaboration" class="w-full h-48 object-cover transition-transform duration-500 hover:scale-110">
+        </div>
+        <div class="overflow-hidden rounded-lg shadow-md">
+          <img src="https://images.unsplash.com/photo-1581092580497-e0d23cbdf1dc?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=300&h=200&q=80" 
+               alt="Project planning" class="w-full h-48 object-cover transition-transform duration-500 hover:scale-110">
+        </div>
+        <div class="overflow-hidden rounded-lg shadow-md">
+          <img src="https://images.unsplash.com/photo-1540497077202-7c8a3999166f?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=300&h=200&q=80" 
+               alt="Warehouse and logistics" class="w-full h-48 object-cover transition-transform duration-500 hover:scale-110">
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Contact Section -->
+  <section id="contact" class="py-20 bg-white app-band">
+    <div class="max-w-6xl mx-auto px-6">
+      <div class="text-center mb-16">
+        <h3 class="text-3xl font-bold mb-4">Contact Us</h3>
+        <p class="text-lg text-gray-600 max-w-3xl mx-auto">Interested in a demo or custom quote? Send us a message and our team will respond within 24 hours.</p>
+      </div>
+      
+      <div class="flex flex-col md:flex-row gap-8">
+        <div class="w-full">
+          <div class="bg-white rounded-xl shadow-lg p-8 h-full">
+            <form id="contactForm">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-6">
+                <div>
+                  <label class="block text-gray-700 mb-2" for="name">Full Name</label>
+                  <input type="text" id="name" class="w-full p-3 border border-gray-300 rounded-lg focus:ring focus:ring-primary-300 focus:border-primary-500 outline-none transition" placeholder="Your name">
+                </div>
+                <div>
+                  <label class="block text-gray-700 mb-2" for="email">Business Email</label>
+                  <input type="email" id="email" class="w-full p-3 border border-gray-300 rounded-lg focus:ring focus:ring-primary-300 focus:border-primary-500 outline-none transition" placeholder="youremail@company.com">
+                </div>
+              </div>
+              
+              <div class="mb-6">
+                <label class="block text-gray-700 mb-2" for="company">Company</label>
+                <input type="text" id="company" class="w-full p-3 border border-gray-300 rounded-lg focus:ring focus:ring-primary-300 focus:border-primary-500 outline-none transition" placeholder="Your company name">
+              </div>
+              
+              <div class="mb-6">
+                <label class="block text-gray-700 mb-2" for="message">Message</label>
+                <textarea id="message" class="w-full p-3 border border-gray-300 rounded-lg focus:ring focus:ring-primary-300 focus:border-primary-500 outline-none transition h-32" placeholder="How can we help you?"></textarea>
+              </div>
+              
+              <div>
+                <button id="contactSubmitBtn" type="submit" class="w-full py-3 px-6 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 transition duration-300">Submit Request</button>
+                <div id="contactStatus" class="mt-3 text-sm"></div>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+      
+      <div class="mt-16 grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
+        <div>
+          <div class="text-primary-500 mb-4">
+            <i class="fas fa-map-marker-alt text-3xl"></i>
+          </div>
+          <h4 class="text-xl font-semibold mb-2">Address</h4>
+          <p class="text-gray-600">Kamsar cite, Boke, Guinée</p>
+        </div>
+        <div>
+          <div class="text-primary-500 mb-4">
+            <i class="fas fa-phone text-3xl"></i>
+          </div>
+          <h4 class="text-xl font-semibold mb-2">Phone</h4>
+          <p class="text-gray-600">(+224) 62825767</p>
+        </div>
+        <div>
+          <div class="text-primary-500 mb-4">
+            <i class="fas fa-envelope text-3xl"></i>
+          </div>
+          <h4 class="text-xl font-semibold mb-2">Email</h4>
+          <p class="text-gray-600">info@dreamexdatalab.com</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="bg-gray-900 text-white py-12">
+    <div class="max-w-6xl mx-auto px-6">
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
+        <div>
+          <div class="flex items-center mb-4">
+            <i class="fas fa-chart-line text-2xl text-primary-400 mr-2"></i>
+            <h4 class="text-xl font-bold">Dreamex DataLab</h4>
+          </div>
+          <p class="text-gray-400 mb-4">Unified enterprise platform for HR, Payroll, Projects, Inventory, Fleet, and HSE.</p>
+          <div class="flex space-x-4">
+            <a href="#" class="text-gray-400 hover:text-white transition">
+              <i class="fab fa-linkedin"></i>
+            </a>
+            <a href="#" class="text-gray-400 hover:text-white transition">
+              <i class="fab fa-twitter"></i>
+            </a>
+            <a href="#" class="text-gray-400 hover:text-white transition">
+              <i class="fab fa-facebook"></i>
+            </a>
+          </div>
+        </div>
+        <div>
+          <h5 class="text-lg font-semibold mb-4">Solutions</h5>
+          <ul class="space-y-2">
+            <li><a href="#" class="text-gray-400 hover:text-white transition">Core ERP</a></li>
+            <li><a href="#" class="text-gray-400 hover:text-white transition">Projects & Milestones</a></li>
+            <li><a href="#" class="text-gray-400 hover:text-white transition">HR & Payroll</a></li>
+            <li><a href="#" class="text-gray-400 hover:text-white transition">Inventory & Warehousing</a></li>
+            <li><a href="#" class="text-gray-400 hover:text-white transition">Fleet & Logistics</a></li>
+            <li><a href="#" class="text-gray-400 hover:text-white transition">HSE & Compliance</a></li>
+          </ul>
+        </div>
+        <div>
+          <h5 class="text-lg font-semibold mb-4">Resources</h5>
+          <ul class="space-y-2">
+            <li><a href="#" class="text-gray-400 hover:text-white transition">Blog</a></li>
+            <li><a href="#" class="text-gray-400 hover:text-white transition">Webinars</a></li>
+            <li><a href="#" class="text-gray-400 hover:text-white transition">Documentation</a></li>
+            <li><a href="#" class="text-gray-400 hover:text-white transition">Case Studies</a></li>
+          </ul>
+        </div>
+        <div>
+          <h5 class="text-lg font-semibold mb-4">Legal</h5>
+          <ul class="space-y-2">
+            <li><a href="#" class="text-gray-400 hover:text-white transition">Terms of Service</a></li>
+            <li><a href="#" class="text-gray-400 hover:text-white transition">Privacy Policy</a></li>
+            <li><a href="#" class="text-gray-400 hover:text-white transition">Legal Notice</a></li>
+            <li><a href="#" class="text-gray-400 hover:text-white transition">Cookies</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="pt-8 mt-8 border-t border-gray-800 text-center text-gray-400">
+        <p>&copy; 2025 Dreamex DataLab. All rights reserved.</p>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Back to Top Button -->
+  <button id="backToTopBtn" class="back-to-top bg-primary-600 text-white w-12 h-12 rounded-full flex items-center justify-center shadow-lg">
+    <i class="fas fa-arrow-up"></i>
+  </button>
+
+  <!-- EmailJS SDK -->
+  <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+  
+  <script>
+    (function(){
+      // Initialize EmailJS with your public key
+      emailjs.init('fHs6oaqQgkcPoUwpv'); // EmailJS public key from staff.html
+      
+      const form = document.getElementById('contactForm');
+      if (!form) return;
+      const statusEl = document.getElementById('contactStatus');
+      const submitBtn = document.getElementById('contactSubmitBtn');
+
+      function setStatus(msg, type){
+        if (!statusEl) return;
+        statusEl.textContent = msg;
+        statusEl.className = 'mt-3 text-sm ' + (type === 'error' ? 'text-red-600' : 'text-green-600');
+      }
+
+      form.addEventListener('submit', async function(e){
+        e.preventDefault();
+        setStatus('', '');
+        if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Sending...'; }
+
+        const name = (document.getElementById('name')||{}).value?.trim() || '';
+        const email = (document.getElementById('email')||{}).value?.trim() || '';
+        const company = (document.getElementById('company')||{}).value?.trim() || '';
+        const message = (document.getElementById('message')||{}).value?.trim() || '';
+
+        if (!name || !email || !message) {
+          setStatus('Please fill in your name, email, and message.', 'error');
+          if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Submit Request'; }
+          return;
+        }
+
+        try {
+          // Send email using EmailJS
+          const templateParams = {
+            from_name: name,
+            from_email: email,
+            company: company,
+            message: message,
+            to_email: 'info@dreamexdatalab.com'
+          };
+
+          const result = await emailjs.send(
+            'service_p2e9swy',    // EmailJS service ID from staff.html
+            'template_l50h8ks',   // Using same template as staff.html (you may want to create a contact-specific template)
+            templateParams
+          );
+
+          if (result.status === 200) {
+            setStatus('Thank you! Your request has been sent. We will get back to you shortly.', 'success');
+            form.reset();
+          } else {
+            throw new Error('Failed to send message');
+          }
+        } catch (err) {
+          console.error('EmailJS error:', err);
+          setStatus('Unable to send your request. Please try again later.', 'error');
+          // Fallback: open the user’s mail client
+          const subject = encodeURIComponent('New Demo Request');
+          const bodyLines = [
+            `Name: ${name}`,
+            `Email: ${email}`,
+            `Company: ${company}`,
+            '',
+            'Message:',
+            message
+          ];
+          const mailtoUrl = `mailto:info@dreamexdatalab.com?subject=${subject}&body=${encodeURIComponent(bodyLines.join('\r\n'))}`;
+          try { window.location.href = mailtoUrl; } catch(_) {}
+        } finally {
+          if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Submit Request'; }
+        }
+      });
+    })();
+  </script>
+
+  <!-- Login Modal -->
+  <div class="login-modal-overlay" id="loginModal">
+    <div class="login-modal">
+      <button class="modal-close" id="closeLoginModal">
+        <i class="fas fa-times"></i>
+      </button>
+      
+      <!-- Left side with company branding -->
+      <div class="login-modal-left">
+        <div class="content">
+          <div class="mb-6">
+            <i class="fas fa-chart-line text-6xl mb-4"></i>
+            <h2 class="text-3xl font-bold mb-2">Dreamex DataLab</h2>
+            <p class="text-lg opacity-90">HSE Management System</p>
+          </div>
+          
+          <div class="space-y-4 text-left">
+            <div class="flex items-center">
+              <i class="fas fa-shield-alt text-yellow-300 mr-3"></i>
+              <span>Secure & Compliant</span>
+            </div>
+            <div class="flex items-center">
+              <i class="fas fa-chart-bar text-yellow-300 mr-3"></i>
+              <span>Real-time Analytics</span>
+            </div>
+            <div class="flex items-center">
+              <i class="fas fa-cloud text-yellow-300 mr-3"></i>
+              <span>Cloud-based Platform</span>
+            </div>
+            <div class="flex items-center">
+              <i class="fas fa-users text-yellow-300 mr-3"></i>
+              <span>Team Collaboration</span>
+            </div>
+          </div>
+          
+          <div class="mt-8 p-4 bg-white/10 rounded-lg backdrop-blur-sm">
+            <p class="text-sm">
+              <i class="fas fa-info-circle mr-2"></i>
+              Access your HSE dashboard with enterprise-grade security
+            </p>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Right side with login form -->
+      <div class="login-modal-right">
+        <div class="login-form-container">
+          <h2 style="text-align: center; margin-bottom: 18px; color: #334155; font-size: 1.4rem;">Sign in to your account</h2>
+          
+          <div id="error-message"></div>
+          
+          <form class="login-form" id="login-form">
+            <div class="form-group">
+              <label for="modal-email">Email Address</label>
+              <div class="form-input-container has-icon">
+                <i class="fas fa-envelope form-input-icon"></i>
+                <input type="email" id="modal-email" required autocomplete="email" placeholder="your.email@company.com">
+              </div>
+            </div>
+            
+            <div class="form-group">
+              <label for="modal-password">Password</label>
+              <div class="password-field">
+                <div class="form-input-container has-icon">
+                  <i class="fas fa-lock form-input-icon"></i>
+                  <input type="password" id="modal-password" required autocomplete="current-password" placeholder="••••••••">
+                  <i class="fas fa-eye toggle-password" id="togglePassword"></i>
+                </div>
+              </div>
+            </div>
+            
+            <div class="remember-me">
+              <input type="checkbox" id="modal-remember-me">
+              <label for="modal-remember-me">Remember me</label>
+            </div>
+            
+            <button type="submit" class="btn-login">
+              <div class="loading-spinner" id="login-spinner"></div>
+              <span>Sign In</span>
+            </button>
+          </form>
+          
+          <div class="login-options">
+            <a href="#" id="forgot-password">Forgot Password?</a>
+          </div>
+          
+          <div class="login-options">
+            <p>Don't have an account? <a href="#" id="request-access">Request Access</a></p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+    <!-- Self-contained login system - no external dependencies -->
+  <script>
+    // Firebase configuration
+    const firebaseConfig = {
+      apiKey: "AIzaSyCUTmTn0rRBb0M-UkQJxnUMrWqXYU_BgIc",
+      authDomain: "users-8be65.firebaseapp.com",
+      databaseURL: "https://users-8be65-default-rtdb.firebaseio.com",
+      projectId: "users-8be65",
+      storageBucket: "users-8be65.firebasestorage.app",
+      messagingSenderId: "829083030831",
+      appId: "1:829083030831:web:36a370e62691e560bc3dda"
+    };
+
+    // Initialize Firebase when page loads
+    document.addEventListener('DOMContentLoaded', function() {
+      if (typeof window.firebase !== 'undefined' && (!window.firebase.apps || window.firebase.apps.length === 0)) {
+        try {
+          window.firebase.initializeApp(firebaseConfig);
+          console.log('✅ Firebase initialized successfully');
+        } catch (error) {
+          console.error('❌ Firebase initialization failed:', error);
+        }
+      }
+    });
+
+    // Self-contained login function
+    window.handleDomainLogin = async function(email, password) {
+      // Wait for Firebase to be available
+      let retryCount = 0;
+      while (typeof window.firebase === 'undefined' && retryCount < 50) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+        retryCount++;
+      }
+      
+      if (typeof window.firebase === 'undefined') {
+        throw new Error('Login system not available. Please refresh the page and try again.');
+      }
+      
+      // Initialize Firebase if not already done
+      if (!window.firebase.apps || window.firebase.apps.length === 0) {
+        window.firebase.initializeApp(firebaseConfig);
+      }
+      
+      const auth = window.firebase.auth();
+      const database = window.firebase.database();
+      
+      // Sign in with Firebase
+      console.log('🔥 Attempting Firebase sign in...');
+      const userCredential = await auth.signInWithEmailAndPassword(email, password);
+      const userData = userCredential.user;
+      
+      console.log('✅ Firebase sign in successful:', userData.uid);
+      
+      // Search for user in company structures
+      const companiesRef = database.ref('companies');
+      const companiesSnapshot = await companiesRef.once('value');
+      
+      let userInfo = null;
+      let companyData = null;
+      
+      if (companiesSnapshot.exists()) {
+        const companies = companiesSnapshot.val();
+        let foundUser = null;
+        let foundCompanyId = null;
+        
+        // Search through all companies for a user with matching authUid
+        for (const [companyId, company] of Object.entries(companies)) {
+          // Check company status first
+          if (company.status !== 'active') {
+            continue; // Skip inactive companies
+          }
+          
+          // Check in company users
+          if (company.users) {
+            for (const [userId, user] of Object.entries(company.users)) {
+              if (user.authUid === userData.uid || userId === userData.uid) {
+                foundUser = user;
+                foundCompanyId = companyId;
+                companyData = company;
+                break;
+              }
+            }
+          }
+          
+          // Also check in admin section for company admins
+          if (!foundUser && company.admin && (company.admin.authUid === userData.uid || company.admin.userId === userData.uid)) {
+            foundUser = company.admin;
+            foundCompanyId = companyId;
+            companyData = company;
+          }
+          
+          if (foundUser) break;
+        }
+        
+        if (foundUser) {
+          // Create userInfo from company user data
+          userInfo = {
+            uid: userData.uid,
+            email: foundUser.email,
+            name: foundUser.name || foundUser.adminName,
+            role: foundUser.role,
+            department: foundUser.department,
+            companyId: foundCompanyId,
+            requiresPasswordChange: foundUser.requiresPasswordChange,
+            isFirstLogin: foundUser.isFirstLogin,
+            isCompanyAdmin: foundUser.isCompanyAdmin
+          };
+          companyData = companies[foundCompanyId];
+          console.log('✅ User found in company scope:', foundCompanyId);
+        } else {
+          throw new Error('Your account is not associated with any company. Please contact your administrator.');
+        }
+      } else {
+        throw new Error('No companies found. Please contact support.');
+      }
+      
+      // Verify company is active  
+      if (companyData.status !== 'active') {
+        throw new Error('Your company account is inactive. Please contact support.');
+      }
+      
+      // Check if this is the user's first login and requires password change
+      if (userInfo.requiresPasswordChange || userInfo.isFirstLogin) {
+        throw new Error('First login detected. Please use the main login page to complete account setup.');
+      }
+      
+      // Update user data with company info
+      userData.companyId = userInfo.companyId;
+      userData.companyName = companyData.companyName;
+      userData.role = userInfo.role;
+      userData.department = userInfo.department;
+      userData.name = userInfo.name;
+      
+      // Store user info in both keys for compatibility
+      const userDataToStore = {
+        uid: userData.uid,
+        email: userData.email,
+        name: userData.name,
+        role: userData.role,
+        companyId: userData.companyId,
+        companyName: userData.companyName,
+        department: userData.department,
+        lastLogin: new Date().toISOString()
+      };
+      
+      localStorage.setItem('user', JSON.stringify(userDataToStore));
+      localStorage.setItem('currentUser', JSON.stringify(userDataToStore));
+      
+      // Update user display immediately
+      if (window.updateAllUserDisplayElements) {
+        window.updateAllUserDisplayElements();
+      }
+      
+      // Show success message
+      if (window.showSuccessMessage) {
+        window.showSuccessMessage('Welcome back, ' + userData.name + '!');
+      }
+      
+      // Redirect to dashboard page
+      setTimeout(() => {
+        window.location.href = 'dashboard.html';
+      }, 1500);
+    };
+    
+    // Global functions for login modal
+    window.loginModalFunctions = {
+      openModal: function() {
+        document.getElementById('loginModal').classList.add('active');
+        document.body.style.overflow = 'hidden';
+      },
+      
+      closeModal: function() {
+        document.getElementById('loginModal').classList.remove('active');
+        document.body.style.overflow = 'auto';
+      },
+      
+      handleLogin: async function(email, password) {
+        const spinner = document.getElementById('login-spinner');
+        const errorMessage = document.getElementById('error-message');
+        
+        try {
+          spinner.style.display = 'block';
+          errorMessage.style.display = 'none';
+          
+          // Use the self-contained login system
+          console.log('🔄 Using self-contained login system...');
+          await window.handleDomainLogin(email, password);
+          
+          // Close modal on successful login
+          this.closeModal();
+          
+        } catch (error) {
+          console.error('Login error:', error);
+          
+          // Show error message
+          errorMessage.textContent = error.message || 'An error occurred during login. Please try again.';
+          errorMessage.style.display = 'block';
+          
+        } finally {
+          spinner.style.display = 'none';
+        }
+      }
+    };
+  </script>
+
+  <script>
+    // Login Modal Management
+    const loginModal = document.getElementById('loginModal');
+    const loginButton = document.getElementById('loginButton');
+    const mobileLoginBtn = document.getElementById('mobileLoginBtn');
+    const closeLoginModal = document.getElementById('closeLoginModal');
+    const loginForm = document.getElementById('login-form');
+    const togglePassword = document.getElementById('togglePassword');
+    
+    // Open login modal
+    function openLoginModal() {
+      loginModal.classList.add('active');
+      document.body.style.overflow = 'hidden';
+    }
+    
+    // Close login modal
+    function closeLoginModalFunc() {
+      loginModal.classList.remove('active');
+      document.body.style.overflow = 'auto';
+    }
+    
+    // Event listeners for login buttons
+    loginButton.addEventListener('click', openLoginModal);
+    if (mobileLoginBtn) mobileLoginBtn.addEventListener('click', openLoginModal);
+    closeLoginModal.addEventListener('click', closeLoginModalFunc);
+    
+    // Close modal when clicking outside
+    loginModal.addEventListener('click', function(e) {
+      if (e.target === loginModal) {
+        closeLoginModalFunc();
+      }
+    });
+    
+    // Close modal with Escape key
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape' && loginModal.classList.contains('active')) {
+        closeLoginModalFunc();
+      }
+    });
+    
+    // Password toggle functionality
+    togglePassword.addEventListener('click', function() {
+      const passwordInput = document.getElementById('modal-password');
+      const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+      passwordInput.setAttribute('type', type);
+      
+      // Toggle eye icon
+      this.classList.toggle('fa-eye');
+      this.classList.toggle('fa-eye-slash');
+    });
+    
+    // Handle login form submission
+    loginForm.addEventListener('submit', async function(e) {
+      e.preventDefault();
+      
+      const email = document.getElementById('modal-email').value;
+      const password = document.getElementById('modal-password').value;
+      
+      // Basic validation
+      if (!email || !password) {
+        showError('Please fill in all fields.');
+        return;
+      }
+      
+      // Use the self-contained login system
+      await window.loginModalFunctions.handleLogin(email, password);
+    });
+    
+    // Utility functions
+    function showError(message) {
+      const errorDiv = document.getElementById('error-message');
+      errorDiv.textContent = message;
+      errorDiv.style.display = 'block';
+      
+      // Shake animation
+      loginForm.style.animation = 'shake 0.5s ease-in-out';
+      setTimeout(() => {
+        loginForm.style.animation = '';
+      }, 500);
+    }
+    
+    function showSuccessMessage(message) {
+      // Create and show success notification
+      const notification = document.createElement('div');
+      notification.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50 transform translate-x-full transition-transform duration-300';
+      notification.innerHTML = `
+        <div class="flex items-center">
+          <i class="fas fa-check-circle mr-2"></i>
+          <span>${message}</span>
+        </div>
+      `;
+      
+      document.body.appendChild(notification);
+      
+      setTimeout(() => {
+        notification.style.transform = 'translateX(0)';
+      }, 100);
+      
+      setTimeout(() => {
+        notification.style.transform = 'translateX(100%)';
+        setTimeout(() => notification.remove(), 300);
+      }, 3000);
+    }
+    
+    // Make showSuccessMessage available globally
+    window.showSuccessMessage = showSuccessMessage;
+    
+    // User login status check
+    function checkLoginStatus() {
+      // Check both localStorage and sessionStorage
+      const user = JSON.parse(localStorage.getItem('user')) || JSON.parse(sessionStorage.getItem('user'));
+      
+      const mobileUserAvatar = document.getElementById('mobileUserAvatar');
+      const mobileAvatarCircle = document.getElementById('mobileAvatarCircle');
+      const mobileLoginBtn = document.getElementById('mobileLoginBtn');
+      
+      if (user) {
+        // User is logged in, show username and logout button
+        document.getElementById('username').textContent = user.name;
+        
+        document.getElementById('userStatus').classList.remove('hidden');
+        document.getElementById('userStatus').classList.add('flex');
+        document.getElementById('loginButton').classList.add('hidden');
+        document.getElementById('logoutButton').classList.remove('hidden');
+        
+        // Mobile: Show avatar with initials
+        if (mobileUserAvatar && mobileAvatarCircle) {
+          const initials = user.name ? user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'U';
+          mobileAvatarCircle.textContent = initials;
+          mobileUserAvatar.classList.remove('hidden');
+        }
+        if (mobileLoginBtn) mobileLoginBtn.classList.add('hidden');
+      } else {
+        // User is not logged in, show login button
+        document.getElementById('userStatus').classList.add('hidden');
+        document.getElementById('userStatus').classList.remove('flex');
+        document.getElementById('loginButton').classList.remove('hidden');
+        document.getElementById('logoutButton').classList.add('hidden');
+        
+        // Mobile: Hide avatar and show login button
+        if (mobileUserAvatar) mobileUserAvatar.classList.add('hidden');
+        if (mobileLoginBtn) mobileLoginBtn.classList.remove('hidden');
+      }
+    }
+    
+    // Handle logout
+    function handleLogout() {
+      localStorage.removeItem('user');
+      localStorage.removeItem('currentUser');
+      sessionStorage.removeItem('user');
+      sessionStorage.removeItem('currentUser');
+      checkLoginStatus();
+      showSuccessMessage('You have been logged out successfully.');
+      
+      // Also logout from Firebase
+      if (window.firebase && window.firebase.auth) {
+        window.firebase.auth().signOut().catch(console.error);
+      }
+    }
+    
+    // Set up logout button listeners
+    document.getElementById('logoutButton').addEventListener('click', handleLogout);
+    
+    // Mobile Avatar Dropdown Toggle
+    document.addEventListener('DOMContentLoaded', function() {
+      const mobileAvatarCircle = document.getElementById('mobileAvatarCircle');
+      const mobileProfileDropdown = document.querySelector('.mobile-profile-dropdown');
+      const mobileDropdownLogout = document.getElementById('mobileDropdownLogout');
+      
+      if (mobileAvatarCircle && mobileProfileDropdown) {
+        // Toggle dropdown on avatar click
+        mobileAvatarCircle.addEventListener('click', function(e) {
+          e.stopPropagation();
+          mobileProfileDropdown.classList.toggle('show');
+        });
+        
+        // Close dropdown when clicking outside
+        document.addEventListener('click', function(e) {
+          if (!mobileAvatarCircle.contains(e.target) && !mobileProfileDropdown.contains(e.target)) {
+            mobileProfileDropdown.classList.remove('show');
+          }
+        });
+        
+        // Handle logout from dropdown
+        if (mobileDropdownLogout) {
+          mobileDropdownLogout.addEventListener('click', function(e) {
+            e.preventDefault();
+            mobileProfileDropdown.classList.remove('show');
+            handleLogout();
+          });
+        }
+        
+        // Close dropdown when clicking any link
+        const dropdownLinks = mobileProfileDropdown.querySelectorAll('a');
+        dropdownLinks.forEach(link => {
+          link.addEventListener('click', function() {
+            if (link.id !== 'mobileDropdownLogout') {
+              mobileProfileDropdown.classList.remove('show');
+            }
+          });
+        });
+      }
+    });
+    
+    // Check login status when page loads
+    document.addEventListener('DOMContentLoaded', checkLoginStatus);
+    
+    // Mobile Sidebar Toggle (for app view)
+    document.addEventListener('DOMContentLoaded', function() {
+      const mobileMenuToggle = document.getElementById('mobileMenuToggle');
+      const appSidebar = document.getElementById('appSidebar');
+      const backdrop = document.getElementById('mobileSidebarBackdrop');
+      const sidebarLogout = document.getElementById('sidebarLogout');
+      
+      if (!mobileMenuToggle || !appSidebar || !backdrop) return;
+      
+      function closeMobileMenu() {
+        appSidebar.classList.remove('mobile-active');
+        backdrop.classList.remove('active');
+        document.body.style.overflow = '';
+      }
+      
+      // Open mobile menu
+      mobileMenuToggle.addEventListener('click', function() {
+        appSidebar.classList.add('mobile-active');
+        backdrop.classList.add('active');
+        document.body.style.overflow = 'hidden';
+      });
+      
+      // Close mobile menu when clicking backdrop
+      backdrop.addEventListener('click', function() {
+        closeMobileMenu();
+      });
+      
+      // Close mobile menu when clicking links
+      const menuLinks = appSidebar.querySelectorAll('a');
+      menuLinks.forEach(link => {
+        link.addEventListener('click', function(e) {
+          if (link.id === 'sidebarLogout') {
+            e.preventDefault();
+            handleLogout();
+          }
+          closeMobileMenu();
+        });
+      });
+      
+      // Close mobile menu on escape key
+      document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && appSidebar.classList.contains('mobile-active')) {
+          closeMobileMenu();
+        }
+      });
+    });
+  </script>
+  <script src="js/user-display.js"></script>
+
+  <!-- Platform Features Loading Script -->
+  <script>
+    // Features Management for Index Page
+    let platformFeatures = [];
+
+    // Load platform features from Firebase
+    async function loadPlatformFeatures() {
+      try {
+        // Show loading state
+        document.getElementById('featuresLoadingState').style.display = 'block';
+        document.getElementById('featuresGrid').style.display = 'none';
+        document.getElementById('featuresEmptyState').style.display = 'none';
+
+        if (typeof firebase === 'undefined' || !firebase.database) {
+          console.warn('Firebase database not available, using fallback features');
+          showFallbackFeatures();
+          return;
+        }
+
+        const database = firebase.database();
+        const featuresRef = database.ref('platformFeatures');
+        
+        const snapshot = await featuresRef.once('value');
+        const featuresData = snapshot.val();
+
+        if (featuresData) {
+          // Convert Firebase object to array and filter active features
+          platformFeatures = Object.keys(featuresData)
+            .map(key => ({ id: key, ...featuresData[key] }))
+            .filter(feature => feature.status === 'active' || !feature.status);
+          
+          if (platformFeatures.length > 0) {
+            displayPlatformFeatures();
+          } else {
+            showFeaturesEmptyState();
+          }
+        } else {
+          console.warn('No platform features found in Firebase, using fallback');
+          showFallbackFeatures();
+        }
+      } catch (error) {
+        console.error('Error loading platform features:', error);
+        showFallbackFeatures();
+      }
+    }
+
+    // Display platform features in the grid
+    function displayPlatformFeatures() {
+      const featuresGrid = document.getElementById('featuresGrid');
+      const loadingState = document.getElementById('featuresLoadingState');
+      const emptyState = document.getElementById('featuresEmptyState');
+
+      // Hide loading and empty states
+      loadingState.style.display = 'none';
+      emptyState.style.display = 'none';
+
+      // Generate feature cards HTML
+      const featuresHTML = platformFeatures.map(feature => createFeatureCard(feature)).join('');
+      featuresGrid.innerHTML = featuresHTML;
+      
+      // Show the grid
+      featuresGrid.style.display = 'grid';
+    }
+
+    // Create individual feature card HTML
+    function createFeatureCard(feature) {
+      const price = parseFloat(feature.price || 0);
+      const priceDisplay = price > 0 ? `$${price.toFixed(2)}/user/month` : 'Included';
+      const iconClass = feature.icon || 'fas fa-puzzle-piece';
+
+      return `
+        <div class="bg-white p-8 rounded-xl shadow-md feature-card transition duration-300">
+          <div class="text-primary-500 mb-4 flex items-center justify-start">
+            <i class="${iconClass} text-4xl mr-3"></i>
+          </div>
+          <h4 class="text-xl font-semibold mb-3">${feature.name || 'Unknown Feature'}</h4>
+          <p class="text-gray-600 mb-4">${feature.description || 'Feature description not available'}</p>
+          <div class="text-sm text-primary-600 font-medium">
+            ${priceDisplay}
+          </div>
+          ${feature.category ? `<div class="mt-2 text-xs text-gray-500 uppercase tracking-wide">${feature.category}</div>` : ''}
+        </div>
+      `;
+    }
+
+    // Show empty state when no features are available
+    function showFeaturesEmptyState() {
+      document.getElementById('featuresLoadingState').style.display = 'none';
+      document.getElementById('featuresGrid').style.display = 'none';
+      document.getElementById('featuresEmptyState').style.display = 'block';
+    }
+
+    // Fallback features in case Firebase is not available
+    function showFallbackFeatures() {
+      const fallbackFeatures = [
+        {
+          id: 'erp-core',
+          name: 'Core ERP',
+          description: 'Unified business backbone for finance, procurement, inventory, and approvals',
+          icon: 'fas fa-network-wired',
+          category: 'Operations',
+          price: 0,
+          status: 'active'
+        },
+        {
+          id: 'projects',
+          name: 'Projects & Tasks',
+          description: 'Plan, assign, and track projects with milestones, Gantt charts, and dashboards',
+          icon: 'fas fa-project-diagram',
+          category: 'Projects',
+          price: 0,
+          status: 'active'
+        },
+        {
+          id: 'hr-fallback',
+          name: 'Human Capital',
+          description: 'HR management, recruitment, training, and employee development',
+          icon: 'fas fa-users',
+          category: 'HR',
+          price: 0,
+          status: 'active'
+        },
+        {
+          id: 'payroll',
+          name: 'Payroll',
+          description: 'Automated payroll runs, pay elements, payslips, and compliance',
+          icon: 'fas fa-file-invoice-dollar',
+          category: 'Finance',
+          price: 0,
+          status: 'active'
+        },
+        {
+          id: 'logistics-fallback',
+          name: 'Logistics',
+          description: 'Supply chain, inventory, warehouses, and fleet management',
+          icon: 'fas fa-truck',
+          category: 'Logistics',
+          price: 0,
+          status: 'active'
+        },
+        {
+          id: 'hse-fallback',
+          name: 'HSE Management',
+          description: 'Incident tracking, risk assessments, and safety audits',
+          icon: 'fas fa-shield-alt',
+          category: 'Safety',
+          price: 0,
+          status: 'active'
+        }
+      ];
+
+      platformFeatures = fallbackFeatures;
+      displayPlatformFeatures();
+    }
+
+    // Initialize features loading when the page loads
+    document.addEventListener('DOMContentLoaded', function() {
+      // Wait a bit for Firebase to initialize if it's loading
+      setTimeout(() => {
+        loadPlatformFeatures();
+      }, 1000);
+    });
+
+    // Refresh features every 5 minutes to catch updates
+    setInterval(() => {
+      loadPlatformFeatures();
+    }, 5 * 60 * 1000);
+  </script>
+
+<script>
+// GitHub Pages compatibility fixes
+window.addEventListener('error', function(e) {
+  if (e.target.tagName === 'SCRIPT' || e.target.tagName === 'LINK') {
+    console.warn('Resource loading issue:', e.target.src || e.target.href);
+  }
+});
+
+// Fallback for missing CSS
+document.addEventListener('DOMContentLoaded', function() {
+  // Check if Tailwind is loaded
+  const testDiv = document.createElement('div');
+  testDiv.className = 'hidden';
+  document.body.appendChild(testDiv);
+  const isHidden = window.getComputedStyle(testDiv).display === 'none';
+  document.body.removeChild(testDiv);
+  if (!isHidden) console.warn('Tailwind CSS may not be loaded properly');
+});
+</script>
 </body>
 </html>
