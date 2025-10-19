@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device, initial-scale=1.0">
+    <title>Paiement Orange Money</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 500px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, button {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            box-sizing: border-box;
+        }
+        button {
+            background: #FF6600;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background: #e55a00;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 10px;
+            border-radius: 5px;
+            display: none;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+    </style>
+</head>
+<body>
+    <h2>💰 Paiement Orange Money</h2>
+    
+    <form id="paymentForm">
+        <div class="form-group">
+            <label for="amount">Montant (GNF):</label>
+            <input type="number" id="amount" value="10000" required>
+        </div>
+        <div class="form-group">
+            <label for="orderId">ID de commande (auto si vide):</label>
+            <input type="text" id="orderId" placeholder="TEST-{{timestamp}}">
+        </div>
+        
+        <div class="form-group">
+            <label for="phone">Votre numéro Orange Money:</label>
+            <input type="tel" id="phone" placeholder="6XX XXX XXX" required>
+        </div>
+
+        <div class="form-group">
+            <label for="description">Description (optionnel):</label>
+            <input type="text" id="description" placeholder="Paiement de test">
+        </div>
+
+        <div class="form-group">
+            <label for="nextUrl">URL de retour (optionnel):</label>
+            <input type="url" id="nextUrl" placeholder="https://dreamexdatalab.com/test.html">
+        </div>
+        
+        <button type="submit">Payer avec Orange Money</button>
+    </form>
+    
+    <div id="result" class="result"></div>
+
+    <div style="margin-top: 16px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+        <button id="checkApi" type="button">Vérifier l’API</button>
+        <div style="font-size: 12px; color: #555;">API_BASE: <code id="apiBaseInfo"></code></div>
+    </div>
+    <div id="apiHealth" class="result" style="display:none;"></div>
+
+    <script>
+        // Compute API base (supports ?api= override). Never put Orange credentials in this page.
+        (function(){
+            try {
+                const params = new URLSearchParams(location.search);
+                const qp = params.get('api') || params.get('apiBase');
+                const host = location.hostname.toLowerCase();
+                const isProd = (host === 'dreamexdatalab.com' || host.endsWith('.dreamexdatalab.com'));
+                window.API_BASE = qp || (isProd ? location.origin : 'http://127.0.0.1:8080');
+                console.log('API_BASE =', window.API_BASE);
+                const infoEl = document.getElementById('apiBaseInfo');
+                if (infoEl) infoEl.textContent = window.API_BASE;
+            } catch {}
+        })();
+
+        // Helper: Check API health and detect mixed-content/proxy issues
+        document.getElementById('checkApi').addEventListener('click', async function(){
+            const box = document.getElementById('apiHealth');
+            box.style.display = 'block';
+            box.className = 'result';
+            box.textContent = 'Vérification de l’API…';
+            const api = window.API_BASE || '';
+            try {
+                // Mixed content quick hint
+                                if (location.protocol === 'https:' && api.startsWith('http://')) {
+                                        box.className = 'result error';
+                                        box.innerHTML = `Page HTTPS → API HTTP (mixed content) bloqué par le navigateur.<br>
+                                                Solutions: <ul style="margin:6px 0 0 16px;">
+                                                    <li>Activer le proxy IIS vers /api et utiliser l’API en même origine (par défaut).</li>
+                                                    <li>Ou utiliser une API HTTPS (ex: tunnel ngrok) via ?api=https://xxxxx.ngrok.io</li>
+                                                    <li>Ou tester en local via: <code>http://127.0.0.1:8080/app/test.html</code></li>
+                                                </ul>`;
+                                        return;
+                                }
+                const t0 = performance.now();
+                const resp = await fetch(`${api}/health`, { cache: 'no-store' });
+                const txt = await resp.text();
+                const ms = Math.round(performance.now() - t0);
+                if (resp.ok) {
+                    box.className = 'result success';
+                    box.textContent = `OK (${ms} ms): ${txt}`;
+                } else {
+                    box.className = 'result error';
+                    box.textContent = `HTTP ${resp.status}: ${txt}`;
+                }
+            } catch (err) {
+                box.className = 'result error';
+                box.innerHTML = 'Erreur réseau lors de l’appel /health.<br>'+
+                  'Vérifiez que le backend écoute et/ou que le proxy /api est actif.';
+            }
+        });
+
+        document.getElementById('paymentForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const amount = document.getElementById('amount').value;
+            const orderIdInput = document.getElementById('orderId').value.trim();
+            const phone = document.getElementById('phone').value;
+            const description = document.getElementById('description').value.trim();
+            const nextUrl = document.getElementById('nextUrl').value.trim();
+            const resultDiv = document.getElementById('result');
+            
+            // Show loading
+            resultDiv.style.display = 'block';
+            resultDiv.className = 'result';
+            resultDiv.innerHTML = 'Traitement en cours...';
+            
+            try {
+                // Construct minimal required payload for backend
+                const payload = {
+                    amount: Number(amount),
+                    orderId: orderIdInput || `TEST-${Date.now()}`,
+                    currency: 'GNF',
+                    customerMsisdn: phone,
+                    description: description || undefined,
+                    nextUrl: nextUrl || undefined
+                };
+
+                // Call backend (use /api/checkout; /api/pay also supported)
+                const response = await fetch(`${window.API_BASE}/api/checkout`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(payload)
+                });
+                
+                const data = await response.json().catch(() => ({}));
+
+                if (response.ok && data && data.ok && data.redirectUrl) {
+                    // Redirect user to Orange payment page
+                    window.location.href = data.redirectUrl;
+                } else {
+                    resultDiv.className = 'result error';
+                    const msg = data?.error || `HTTP ${response.status}`;
+                    const details = typeof data?.details === 'object' ? JSON.stringify(data.details) : (data?.details || '');
+                    resultDiv.innerHTML = 'Erreur: ' + msg + (details ? '<br><small>' + details + '</small>' : '');
+                }
+                
+            } catch (error) {
+                resultDiv.className = 'result error';
+                const api = window.API_BASE || '';
+                const mixed = (location.protocol === 'https:' && api.startsWith('http://'));
+                resultDiv.innerHTML = mixed
+                    ? 'Appel HTTP depuis une page HTTPS (mixed content) — utiliser une API en HTTPS ou passer par le proxy /api.'
+                    : 'Erreur de connexion. Vérifiez que l’API est accessible et que le proxy /api est configuré.';
+            }
+        });
+    </script>
+</body>
+</html>
