@@ -20,7 +20,9 @@
                     // Use same-origin in production to avoid CORS
                     window.WEBPAY_API_BASE = location.origin;
                 } else {
-                    window.WEBPAY_API_BASE = 'http://localhost:5020';
+                    // For local testing, use production server since Orange requires HTTPS
+                    // Orange Money doesn't accept localhost/127.0.0.1 callback URLs
+                    window.WEBPAY_API_BASE = 'https://dreamexdatalab.com';
                 }
                 console.log('WEBPAY_API_BASE =', window.WEBPAY_API_BASE);
             } catch {}
@@ -921,6 +923,42 @@
                         <div id="priceBreakdownDisplay" style="margin-top: 0.5rem; font-size: 0.9rem; color: #6c757d;"></div>
                     </div>
                 </div>
+
+                <!-- Payment Summary (for Enterprise plan) -->
+                <div id="paymentSummarySection" style="display:none; margin: 1rem 0 2rem 0; background:#f8fafc; border:1px solid #e5e7eb; border-radius:10px; padding:1rem;">
+                    <h4 style="margin:0 0 .5rem 0; color:#2c3e50;">Payment Summary</h4>
+                    <div style="display:flex; flex-wrap:wrap; gap:1rem; align-items:flex-end;">
+                        <div>
+                            <div style="font-size:.9rem; color:#64748b;">Plan</div>
+                            <div id="summaryPlan" style="font-weight:600; color:#111827;">Enterprise</div>
+                        </div>
+                        <div>
+                            <div style="font-size:.9rem; color:#64748b;">Users</div>
+                            <div id="summaryUsers" style="font-weight:600; color:#111827;">1</div>
+                        </div>
+                        <div>
+                            <div style="font-size:.9rem; color:#64748b;">Per-user price (USD)</div>
+                            <div id="summaryPricePerUser" style="font-weight:600; color:#111827;">$25.00</div>
+                        </div>
+                        <div>
+                            <div style="font-size:.9rem; color:#64748b;">Monthly total (USD)</div>
+                            <div id="summaryMonthlyTotal" style="font-weight:700; color:#0f766e;">$25.00</div>
+                        </div>
+                    </div>
+                    <hr style="border:none; border-top:1px solid #e5e7eb; margin: .75rem 0;">
+                    <div style="display:flex; flex-wrap:wrap; gap:1rem; align-items:center;">
+                        <div>
+                            <label for="chargeAmountGNF" style="display:block; font-weight:600; color:#111827;">Charge amount (GNF)</label>
+                            <input type="number" id="chargeAmountGNF" min="1" value="3000" style="width:200px;">
+                            <div style="font-size:.8rem; color:#64748b;">This exact amount will be sent to Orange</div>
+                        </div>
+                        <button type="button" id="startPaymentBtn" class="btn btn-primary" style="display:inline-flex; align-items:center; gap:.5rem;">
+                            <i class="fas fa-mobile-alt"></i>
+                            Pay with Orange Money
+                        </button>
+                        <div id="paymentError" style="display:none; color:#b91c1c;"></div>
+                    </div>
+                </div>
             </div>
 
             <!-- Step 2: Company Information -->
@@ -1539,6 +1577,29 @@
             // Set up user count input listener
             setupUserCountListener();
 
+            // Wire Pay button and live summary updates
+            try {
+                const payBtn = document.getElementById('startPaymentBtn');
+                if (payBtn) {
+                    payBtn.addEventListener('click', () => {
+                        if (window.companyRegistration && typeof window.companyRegistration.startEnterpriseCheckout === 'function') {
+                            window.companyRegistration.startEnterpriseCheckout();
+                        }
+                    });
+                }
+
+                const userCount = document.getElementById('userCount');
+                if (userCount) {
+                    const onChange = () => {
+                        if (window.companyRegistration && typeof window.companyRegistration.updatePaymentSummary === 'function') {
+                            window.companyRegistration.updatePaymentSummary();
+                        }
+                    };
+                    userCount.addEventListener('input', onChange);
+                    userCount.addEventListener('change', onChange);
+                }
+            } catch {}
+
             // Detect payment success from URL and unlock step 2
             try {
                 const url = new URL(location.href);
@@ -1579,9 +1640,19 @@
                         // Show user count section for enterprise plan
                         userCountSection.style.display = 'block';
                         updateTotalPrice();
+                        // Also reveal payment summary and refresh it
+                        const summary = document.getElementById('paymentSummarySection');
+                        if (summary) {
+                            summary.style.display = 'block';
+                        }
+                        if (window.companyRegistration && typeof window.companyRegistration.updatePaymentSummary === 'function') {
+                            window.companyRegistration.updatePaymentSummary();
+                        }
                     } else {
                         // Hide user count section for free trial
                         userCountSection.style.display = 'none';
+                        const summary = document.getElementById('paymentSummarySection');
+                        if (summary) summary.style.display = 'none';
                     }
                 });
             });
@@ -1614,6 +1685,11 @@
             
             totalPriceDisplay.textContent = `Total: $${monthlyTotal.toFixed(2)}/month`;
             priceBreakdownDisplay.textContent = `${userCount} users × $${totalPricePerUser.toFixed(2)}/user = $${monthlyTotal.toFixed(2)}/month`;
+
+            // Refresh summary when totals change
+            if (window.companyRegistration && typeof window.companyRegistration.updatePaymentSummary === 'function') {
+                window.companyRegistration.updatePaymentSummary();
+            }
         }
     </script>
     
