@@ -302,6 +302,56 @@ class CompleteCompanyRegistration {
         }
 
         console.log('Selected plan:', this.selectedPlan, 'User quota:', this.formData.userQuota);
+
+        // When a paid plan is selected, redirect to checkout
+        // Free plan can proceed without payment
+        if (this.selectedPlan === 'enterprise') {
+            // Calculate a simple monthly total based on current UI
+            const userCountInput = document.getElementById('userCount');
+            const users = parseInt(userCountInput?.value) || 1;
+            const featureCount = this.selectedFeatures.size;
+            const basePrice = this.basePrices.enterprise;
+            const featureCost = this.featureCosts.enterprise;
+            const pricePerUser = basePrice + (featureCost * featureCount);
+            const total = pricePerUser * users;
+
+            const orderId = `SUB-${Date.now()}`;
+            const nextUrl = `${location.origin}${location.pathname}`; // return to this page
+
+            // Persist a flag to gate step 2 until payment succeeds
+            sessionStorage.setItem('reg.paymentRequired', '1');
+            sessionStorage.removeItem('reg.paymentOk');
+            sessionStorage.setItem('reg.orderId', orderId);
+
+            // Call backend to create checkout and redirect (supports cross-origin during dev)
+            const API_BASE = window.WEBPAY_API_BASE || 'http://localhost:5020';
+            fetch(`${API_BASE}/api/checkout`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    amount: total,
+                    currency: 'GNF',
+                    orderId,
+                    description: 'Company subscription',
+                    nextUrl
+                })
+            })
+            .then(async r => {
+                const data = await r.json().catch(() => ({}));
+                if (!r.ok || !data.ok) {
+                    const details = data && data.details ? `\nDetails: ${JSON.stringify(data.details)}` : '';
+                    throw new Error((data && data.error) ? `${data.error}${details}` : `Payment init failed${details}`);
+                }
+                return data;
+            })
+            .then(data => {
+                window.location.href = data.redirectUrl;
+            })
+            .catch(err => {
+                alert('Unable to start payment: ' + err.message);
+                console.error('Checkout error', err);
+            });
+        }
     }
 
     toggleFeature(featureCard) {
@@ -751,11 +801,20 @@ class CompleteCompanyRegistration {
     }
 
     prevStep() {
-        if (this.currentStep > 1) {
+        if (!this.validateCurrentStep()) {
             this.currentStep--;
             this.showStep(this.currentStep);
             this.updateProgress();
             this.updateStepIndicator();
+            // Gate moving from Step 1 (plan) to Step 2 (company info) until payment success
+            if (this.currentStep === 1) {
+                const needsPayment = sessionStorage.getItem('reg.paymentRequired') === '1';
+                const paymentOk = sessionStorage.getItem('reg.paymentOk') === '1';
+                if (needsPayment && !paymentOk && this.selectedPlan === 'enterprise') {
+                    alert('Please complete the payment before proceeding to Company Info.');
+                    return;
+                }
+            }
             this.updateNavigationButtons();
         }
     }
