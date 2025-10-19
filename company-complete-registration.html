@@ -12,20 +12,40 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script>
-        // Set the WebPay API base depending on where the page is hosted
+        // Set the WebPay API base with support for overrides via query params and localStorage
         (function(){
             try {
                 const host = location.hostname.toLowerCase();
-                if (host === 'dreamexdatalab.com' || host.endsWith('.dreamexdatalab.com')) {
-                    // Use same-origin in production to avoid CORS
-                    window.WEBPAY_API_BASE = location.origin;
-                } else {
-                    // For local testing, first try production server, fallback to local
-                    // This helps with Orange's HTTPS requirement
-                    window.WEBPAY_API_BASE = 'http://localhost:5020';
-                    window.WEBPAY_API_FALLBACK = 'https://dreamexdatalab.com';
-                }
+                const params = new URLSearchParams(location.search);
+
+                // Allow quick overrides without code changes
+                const qpBase = params.get('apiBase') || params.get('api');
+                const qpFallback = params.get('apiFallback') || params.get('fallback');
+
+                const lsBase = localStorage.getItem('webpay.apiBase');
+                const lsFallback = localStorage.getItem('webpay.apiFallback');
+
+                // Defaults based on environment
+                const defaultBase = (host === 'dreamexdatalab.com' || host.endsWith('.dreamexdatalab.com'))
+                    ? location.origin
+                    : 'http://localhost:5020';
+                const defaultFallback = (host === 'dreamexdatalab.com' || host.endsWith('.dreamexdatalab.com'))
+                    ? undefined // no fallback by default in production
+                    : 'https://dreamexdatalab.com';
+
+                // Choose effective values
+                const apiBase = qpBase || lsBase || defaultBase;
+                const apiFallback = qpFallback || lsFallback || defaultFallback;
+
+                window.WEBPAY_API_BASE = apiBase;
+                if (apiFallback) window.WEBPAY_API_FALLBACK = apiFallback;
+
+                // Persist overrides if provided via query
+                if (qpBase) localStorage.setItem('webpay.apiBase', qpBase);
+                if (qpFallback) localStorage.setItem('webpay.apiFallback', qpFallback);
+
                 console.log('WEBPAY_API_BASE =', window.WEBPAY_API_BASE);
+                if (window.WEBPAY_API_FALLBACK) console.log('WEBPAY_API_FALLBACK =', window.WEBPAY_API_FALLBACK);
             } catch {}
         })();
         tailwind.config = {
@@ -893,7 +913,7 @@
                         </div>
                         <div class="plan-card" data-plan="enterprise">
                             <div class="plan-name">Enterprise</div>
-                            <div class="plan-price" id="enterprisePrice">$25<span style="font-size: 1rem; font-weight: normal;">/user/month</span></div>
+                            <div class="plan-price" id="enterprisePrice">$0<span style="font-size: 1rem; font-weight: normal;">/user/month</span></div>
                             <ul class="plan-features">
                                 <li>Unlimited users</li>
                                 <li>All selected features included</li>
@@ -919,7 +939,7 @@
                                    style="width: 100px; padding: 0.5rem; border: 2px solid #ced4da; border-radius: 4px; text-align: center; font-size: 1rem; font-weight: 600;">
                         </div>
                         <div id="totalPriceDisplay" style="margin-top: 1rem; font-size: 1.2rem; font-weight: 600; color: #667eea;">
-                            Total: $25/month
+                            Total: $0/month
                         </div>
                         <div id="priceBreakdownDisplay" style="margin-top: 0.5rem; font-size: 0.9rem; color: #6c757d;"></div>
                     </div>
@@ -939,19 +959,19 @@
                         </div>
                         <div>
                             <div style="font-size:.9rem; color:#64748b;">Per-user price (USD)</div>
-                            <div id="summaryPricePerUser" style="font-weight:600; color:#111827;">$25.00</div>
+                            <div id="summaryPricePerUser" style="font-weight:600; color:#111827;">$0.00</div>
                         </div>
                         <div>
                             <div style="font-size:.9rem; color:#64748b;">Monthly total (USD)</div>
-                            <div id="summaryMonthlyTotal" style="font-weight:700; color:#0f766e;">$25.00</div>
+                            <div id="summaryMonthlyTotal" style="font-weight:700; color:#0f766e;">$0.00</div>
                         </div>
                     </div>
                     <hr style="border:none; border-top:1px solid #e5e7eb; margin: .75rem 0;">
                     <div style="display:flex; flex-wrap:wrap; gap:1rem; align-items:center;">
                         <div>
                             <label for="chargeAmountGNF" style="display:block; font-weight:600; color:#111827;">Charge amount (GNF)</label>
-                            <input type="number" id="chargeAmountGNF" min="1" value="3000" style="width:200px;">
-                            <div style="font-size:.8rem; color:#64748b;">This exact amount will be sent to Orange</div>
+                            <input type="number" id="chargeAmountGNF" min="1" value="3000" style="width:200px;" readonly>
+                            <div style="font-size:.8rem; color:#64748b;">Auto-calculated at 10,000 GNF = 1 USD. This exact amount will be sent to Orange.</div>
                         </div>
                         <button type="button" id="startPaymentBtn" class="btn btn-primary" style="display:inline-flex; align-items:center; gap:.5rem;">
                             <i class="fas fa-mobile-alt"></i>
@@ -1467,11 +1487,17 @@
                 pricingSection.querySelector('p').textContent = 'Select your preferred plan based on your company size and needs';
                 
                 // Update enterprise plan price with selected features
-                const enterprisePriceBase = 25;
+                const enterprisePriceBase = 0;
                 const featuresTotalPrice = totalPrice;
                 const newEnterprisePrice = enterprisePriceBase + featuresTotalPrice;
                 
                 document.getElementById('enterprisePrice').innerHTML = `$${newEnterprisePrice.toFixed(2)}<span style="font-size: 1rem; font-weight: normal;">/user/month</span>`;
+
+                // If enterprise already selected, refresh totals so summary and GNF update
+                const selectedPlan = document.querySelector('.plan-card.selected');
+                if (selectedPlan && selectedPlan.getAttribute('data-plan') === 'enterprise') {
+                    updateTotalPrice();
+                }
                 
                 // Update the wizard's next button state
                 updateWizardNavigation();
@@ -1484,27 +1510,28 @@
                 pricingSection.querySelector('p').textContent = 'Select features above to view pricing options';
                 
                 // Reset enterprise price
-                document.getElementById('enterprisePrice').innerHTML = `$25<span style="font-size: 1rem; font-weight: normal;">/user/month</span>`;
+                document.getElementById('enterprisePrice').innerHTML = `$0<span style="font-size: 1rem; font-weight: normal;">/user/month</span>`;
+                // Also refresh totals to clear summaries and validations
+                updateTotalPrice();
                 
                 updateWizardNavigation();
             }
         }
 
-        // Update wizard navigation based on feature selection
+        // Update wizard navigation: show Next only when Free Trial is selected and at least one feature is chosen
         function updateWizardNavigation() {
             const nextBtn = document.getElementById('nextBtn');
-            const prevBtn = document.getElementById('prevBtn');
-            
-            if (nextBtn) {
-                if (selectedFeatures.length > 0) {
-                    nextBtn.disabled = false;
-                    nextBtn.style.opacity = '1';
-                    nextBtn.style.cursor = 'pointer';
-                } else {
-                    nextBtn.disabled = true;
-                    nextBtn.style.opacity = '0.5';
-                    nextBtn.style.cursor = 'not-allowed';
-                }
+            if (!nextBtn) return;
+            const selectedPlan = document.querySelector('.plan-card.selected');
+            const isFreeTrial = selectedPlan && selectedPlan.getAttribute('data-plan') === 'free';
+            const canProceed = isFreeTrial && selectedFeatures.length > 0;
+            if (canProceed) {
+                nextBtn.style.display = 'inline-flex';
+                nextBtn.disabled = false;
+                nextBtn.style.opacity = '1';
+                nextBtn.style.cursor = 'pointer';
+            } else {
+                nextBtn.style.display = 'none';
             }
         }
 
@@ -1556,6 +1583,59 @@
             return selectedFeatures;
         };
 
+        // Helper: navigate wizard to a specific step (1-based)
+        function goToStep(stepNumber) {
+            const totalSteps = 5;
+            const clamped = Math.max(1, Math.min(totalSteps, parseInt(stepNumber, 10) || 1));
+            // Toggle step content visibility
+            for (let i = 1; i <= totalSteps; i++) {
+                const el = document.getElementById('step' + i);
+                if (el) el.classList.toggle('active', i === clamped);
+            }
+            // Update step indicators
+            const indicator = document.getElementById('stepIndicator');
+            if (indicator) {
+                const items = indicator.querySelectorAll('.step-item');
+                items.forEach((item, idx) => {
+                    const stepIdx = idx + 1;
+                    item.classList.toggle('active', stepIdx === clamped);
+                    item.classList.toggle('completed', stepIdx < clamped);
+                    const conn = item.querySelector('.step-connector');
+                    if (conn) conn.classList.toggle('completed', stepIdx < clamped);
+                });
+            }
+            // Progress bar
+            const fill = document.getElementById('progressFill');
+            if (fill) {
+                const pct = ((clamped - 1) / (totalSteps - 1)) * 100;
+                fill.style.width = pct + '%';
+            }
+            // Adjust nav buttons for non-welcome steps
+            updateNavForStep(clamped);
+        }
+
+        function updateNavForStep(stepNumber) {
+            const prevBtn = document.getElementById('prevBtn');
+            const nextBtn = document.getElementById('nextBtn');
+            const finishBtn = document.getElementById('finishBtn');
+            const n = parseInt(stepNumber, 10) || 1;
+            if (prevBtn) prevBtn.style.display = (n > 1) ? 'inline-flex' : 'none';
+            if (finishBtn) finishBtn.style.display = (n === 5) ? 'inline-flex' : 'none';
+            if (nextBtn) {
+                if (n === 1) {
+                    // Welcome step uses custom rule (free trial + features) to show Next
+                    updateWizardNavigation();
+                } else if (n < 5) {
+                    nextBtn.style.display = 'inline-flex';
+                    nextBtn.disabled = false;
+                    nextBtn.style.opacity = '1';
+                    nextBtn.style.cursor = 'pointer';
+                } else {
+                    nextBtn.style.display = 'none';
+                }
+            }
+        }
+
         // Initialize when page loads
         document.addEventListener('DOMContentLoaded', function() {
             // Small delay to ensure other scripts are loaded
@@ -1577,6 +1657,12 @@
             
             // Set up user count input listener
             setupUserCountListener();
+
+            // Hide Next initially on the welcome tab
+            try {
+                const nextBtn = document.getElementById('nextBtn');
+                if (nextBtn) nextBtn.style.display = 'none';
+            } catch {}
 
             // Wire Pay button and live summary updates
             try {
@@ -1605,13 +1691,20 @@
             try {
                 const url = new URL(location.href);
                 const payment = url.searchParams.get('payment');
-                const orderId = url.searchParams.get('orderId');
+                const orderId = url.searchParams.get('orderId') || url.searchParams.get('order_id');
                 if (payment === 'success') {
                     sessionStorage.setItem('reg.paymentOk', '1');
                     if (orderId) sessionStorage.setItem('reg.orderId', orderId);
+                    // Jump to Company Info (Step 2)
+                    goToStep(2);
                     // Clean URL
                     url.searchParams.delete('payment');
+                    url.searchParams.delete('orderId');
+                    url.searchParams.delete('order_id');
                     history.replaceState({}, '', url.toString());
+                } else if (sessionStorage.getItem('reg.paymentOk') === '1') {
+                    // If payment already done in session, ensure step 2 is active
+                    goToStep(2);
                 }
             } catch {}
         });
@@ -1655,6 +1748,9 @@
                         const summary = document.getElementById('paymentSummarySection');
                         if (summary) summary.style.display = 'none';
                     }
+
+                    // Refresh Next button visibility per rule
+                    updateWizardNavigation();
                 });
             });
         }
@@ -1680,7 +1776,7 @@
             
             const userCount = parseInt(userCountInput.value) || 1;
             const featuresTotal = selectedFeatures.reduce((sum, f) => sum + (parseFloat(f.price) || 0), 0);
-            const basePricePerUser = 25;
+            const basePricePerUser = 0;
             const totalPricePerUser = basePricePerUser + featuresTotal;
             const monthlyTotal = totalPricePerUser * userCount;
             
@@ -1688,9 +1784,53 @@
             priceBreakdownDisplay.textContent = `${userCount} users × $${totalPricePerUser.toFixed(2)}/user = $${monthlyTotal.toFixed(2)}/month`;
 
             // Refresh summary when totals change
+            try {
+                // Update Payment Summary UI (USD and GNF)
+                const summaryUsersEl = document.getElementById('summaryUsers');
+                const summaryPPUEl = document.getElementById('summaryPricePerUser');
+                const summaryMonthlyEl = document.getElementById('summaryMonthlyTotal');
+                if (summaryUsersEl) summaryUsersEl.textContent = String(userCount);
+                if (summaryPPUEl) summaryPPUEl.textContent = `$${totalPricePerUser.toFixed(2)}`;
+                if (summaryMonthlyEl) summaryMonthlyEl.textContent = `$${monthlyTotal.toFixed(2)}`;
+
+                // Compute GNF charge amount from USD monthly total
+                const fx = getUsdToGnfRate();
+                const gnfAmount = Math.max(0, Math.round(monthlyTotal * fx));
+                const amountInput = document.getElementById('chargeAmountGNF');
+                if (amountInput) {
+                    amountInput.value = String(gnfAmount);
+                }
+
+                // Enforce minimum Orange Money charge (>= 1000 GNF)
+                const payBtn = document.getElementById('startPaymentBtn');
+                const err = document.getElementById('paymentError');
+                if (payBtn) {
+                    const valid = selectedFeatures.length > 0 && userCount > 0 && gnfAmount >= 1000;
+                    payBtn.disabled = !valid;
+                    if (err) {
+                        if (!valid) {
+                            let msg = '';
+                            if (selectedFeatures.length === 0) msg = 'Please select at least one feature.';
+                            else if (userCount <= 0) msg = 'Please enter a valid number of users.';
+                            else if (gnfAmount < 1000) msg = 'Amount must be at least 1000 GNF.';
+                            err.textContent = msg;
+                            err.style.display = 'block';
+                        } else {
+                            err.textContent = '';
+                            err.style.display = 'none';
+                        }
+                    }
+                }
+            } catch {}
+
             if (window.companyRegistration && typeof window.companyRegistration.updatePaymentSummary === 'function') {
                 window.companyRegistration.updatePaymentSummary();
             }
+        }
+
+        // FX helper: fixed at 10,000 GNF per 1 USD
+        function getUsdToGnfRate() {
+            return 10000;
         }
     </script>
     
@@ -1969,6 +2109,29 @@
             });
         }
         document.addEventListener('DOMContentLoaded', wireFinishRedirect);
+    </script>
+    <script>
+        // Wire "Pay with Orange Money" button to redirect to orange-webpay with amount
+        function wireOrangeMoneyRedirect() {
+            const btn = document.getElementById('startPaymentBtn');
+            const amountInput = document.getElementById('chargeAmountGNF');
+            if (!btn || !amountInput) return;
+            btn.addEventListener('click', function() {
+                const amt = parseInt(amountInput.value, 10) || 0;
+                if (isNaN(amt) || amt < 1000) {
+                    const err = document.getElementById('paymentError');
+                    if (err) {
+                        err.textContent = 'Amount must be at least 1000 GNF.';
+                        err.style.display = 'block';
+                    }
+                    return;
+                }
+                const base = window.location.origin;
+                // Navigate to the orange-webpay page with amount carried over
+                window.location.href = base + '/orange-webpay/index.html?amount=' + encodeURIComponent(amt);
+            });
+        }
+        document.addEventListener('DOMContentLoaded', wireOrangeMoneyRedirect);
     </script>
 </body>
 </html>
