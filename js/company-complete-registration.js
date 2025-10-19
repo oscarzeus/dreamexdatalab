@@ -316,8 +316,6 @@ class CompleteCompanyRegistration {
             }
 
             const orderId = `SUB-${Date.now()}`;
-            // Ensure nextUrl uses HTTPS domain that Orange accepts
-            const nextUrl = 'https://dreamexdatalab.com/company-complete-registration.html';
 
             // Set gating flags for later steps
             try {
@@ -326,33 +324,97 @@ class CompleteCompanyRegistration {
                 sessionStorage.setItem('reg.orderId', orderId);
             } catch {}
 
+            // Try main API, then fallback if available
             const API_BASE = (window.WEBPAY_API_BASE && typeof window.WEBPAY_API_BASE === 'string') ? window.WEBPAY_API_BASE : location.origin;
-            const res = await fetch(`${API_BASE}/api/checkout`, {
+            const FALLBACK_API = window.WEBPAY_API_FALLBACK;
+            
+            let lastError = null;
+            
+            // First attempt
+            try {
+                const result = await this.attemptPayment(API_BASE, amount, orderId);
+                if (result.success) return;
+                lastError = result.error;
+            } catch (err) {
+                lastError = err;
+            }
+
+            // Fallback attempt if available and main attempt failed
+            if (FALLBACK_API && FALLBACK_API !== API_BASE) {
+                try {
+                    console.log('Trying fallback API:', FALLBACK_API);
+                    const result = await this.attemptPayment(FALLBACK_API, amount, orderId);
+                    if (result.success) return;
+                    lastError = result.error;
+                } catch (err) {
+                    lastError = err;
+                }
+            }
+
+            // If we get here, both attempts failed
+            throw lastError || new Error('Payment initialization failed');
+
+        } catch (err) {
+            console.error('Enterprise checkout error', err);
+            const errorEl = document.getElementById('paymentError');
+            let msg = 'Unable to start payment: ' + (err && err.message ? err.message : String(err));
+            
+            // Add deployment guidance for common errors
+            if (err && err.message && err.message.includes('405')) {
+                msg += '\n\nTip: Your production server may not be running the Orange WebPay backend. Please deploy the orange-webpay application to your server.';
+            } else if (err && err.message && (err.message.includes('ECONNREFUSED') || err.message.includes('Unable to connect'))) {
+                msg += '\n\nTip: Start your local server with "npm run dev" in the orange-webpay folder.';
+            }
+            
+            if (errorEl) { 
+                errorEl.innerHTML = msg.replace(/\n/g, '<br>'); 
+                errorEl.style.display = 'block'; 
+            } else { 
+                alert(msg); 
+            }
+        }
+    }
+
+    async attemptPayment(apiBase, amount, orderId) {
+        let res;
+        try {
+            res = await fetch(`${apiBase}/api/checkout`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ amount, currency: 'GNF', orderId, description: 'Company subscription' })
             });
-
-            const text = await res.text();
-            let data = {};
-            try { data = text ? JSON.parse(text) : {}; } catch {}
-            if (!res.ok || !data.ok) {
-                const details = data && (data.details || data.message) ? `\nDetails: ${JSON.stringify(data.details || data.message)}` : '';
-                const statusInfo = ` (HTTP ${res.status})`;
-                throw new Error((data && data.error) ? `${data.error}${statusInfo}${details}` : `Payment init failed${statusInfo}${details}`);
+        } catch (networkErr) {
+            const hints = [];
+            if (window.location.protocol === 'https:' && apiBase.startsWith('http://')) {
+                hints.push('Browsers block requests from HTTPS pages to HTTP APIs. Use an HTTPS tunnel (ngrok) or the production domain.');
             }
-
-            if (data.redirectUrl) {
-                window.location.href = data.redirectUrl;
+            if (apiBase.includes('dreamexdatalab.com')) {
+                hints.push('Deploy the orange-webpay backend to dreamexdatalab.com so the endpoint exists and returns CORS headers.');
             } else {
-                throw new Error('No redirect URL returned by gateway');
+                hints.push('Start the orange-webpay server locally with "npm run dev" so http://localhost:5020/api/checkout is reachable.');
             }
-        } catch (err) {
-            console.error('Enterprise checkout error', err);
-            const errorEl = document.getElementById('paymentError');
-            const msg = 'Unable to start payment: ' + (err && err.message ? err.message : String(err));
-            if (errorEl) { errorEl.textContent = msg; errorEl.style.display = 'block'; }
-            else { alert(msg); }
+            const tip = hints.join(' ');
+            const friendlyError = new Error(`Failed to reach ${apiBase}/api/checkout. ${tip}`.trim());
+            friendlyError.cause = networkErr;
+            return { success: false, error: friendlyError };
+        }
+
+        const text = await res.text();
+        let data = {};
+        try { data = text ? JSON.parse(text) : {}; } catch {}
+        
+        if (!res.ok || !data.ok) {
+            const details = data && (data.details || data.message) ? `\nDetails: ${JSON.stringify(data.details || data.message)}` : '';
+            const statusInfo = ` (HTTP ${res.status})`;
+            const errorMsg = (data && data.error) ? `${data.error}${statusInfo}${details}` : `Payment init failed${statusInfo}${details}`;
+            return { success: false, error: new Error(errorMsg) };
+        }
+
+        if (data.redirectUrl) {
+            window.location.href = data.redirectUrl;
+            return { success: true };
+        } else {
+            return { success: false, error: new Error('No redirect URL returned by gateway') };
         }
     }
 
