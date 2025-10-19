@@ -199,8 +199,8 @@
         <form id="paymentForm">
             <div class="form-group">
                 <label for="amount">Montant à payer (GNF):</label>
-                <input type="number" id="amount" value="10000" min="1000" required>
-                <small>Montant minimum: 1,000 GNF</small>
+                <input type="number" id="amount" value="10000" min="1000" required readonly>
+                <small>Montant minimum: 1,000 GNF. Ce montant est prérempli depuis l’inscription.</small>
             </div>
             
             <div class="form-group">
@@ -223,6 +223,33 @@
     </div>
 
     <script>
+        // Detect API base URL
+        const API_BASE = (() => {
+            const { hostname, origin, protocol } = window.location;
+            const lower = (hostname || '').toLowerCase();
+            const isProd = (lower === 'dreamexdatalab.com' || lower.endsWith('.dreamexdatalab.com'));
+            const isLocal = (lower === 'localhost' || lower === '127.0.0.1');
+            if (isProd) return 'https://api.dreamexdatalab.com';
+            if (isLocal) return origin; // preserve exact host:port to avoid localhost vs 127.0.0.1 CORS
+            if (protocol === 'file:') return 'http://localhost:8080';
+            return origin; // fallback to same origin
+        })();
+        
+        // Prefill amount from query parameter if provided
+        (function prefillAmountFromQuery(){
+            try {
+                const params = new URLSearchParams(window.location.search);
+                const amt = params.get('amount');
+                if (amt) {
+                    const n = parseInt(amt, 10);
+                    if (!isNaN(n) && n >= 1000) {
+                        const amountEl = document.getElementById('amount');
+                        if (amountEl) amountEl.value = n;
+                    }
+                }
+            } catch {}
+        })();
+        
         document.getElementById('paymentForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             
@@ -248,18 +275,25 @@
             showResult('loading', '🔄 Initialisation du paiement...');
             
             try {
-                const response = await fetch('/api/pay', {
+                const payload = {
+                    amount: parseInt(amount, 10),  // Ensure it's a number
+                    phone: phone
+                };
+                
+                console.log('Sending payment request:', payload);
+                console.log('API URL:', `${API_BASE}/api/pay`);
+                
+                const response = await fetch(`${API_BASE}/api/pay`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({
-                        amount: amount,
-                        phone: phone
-                    })
+                    body: JSON.stringify(payload)
                 });
                 
+                console.log('Response status:', response.status);
                 const data = await response.json();
+                console.log('Response data:', data);
                 
                 if (data.success) {
                     showResult('success', `
@@ -280,7 +314,8 @@
                 }
                 
             } catch (error) {
-                showResult('error', '❌ Erreur de connexion au serveur');
+                console.error('Payment error:', error);
+                showResult('error', '❌ Erreur de connexion au serveur. Vérifiez que l\'API est accessible.');
                 button.disabled = false;
                 button.textContent = '🔒 Payer avec Orange Money';
             }
