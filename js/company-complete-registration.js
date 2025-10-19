@@ -246,40 +246,78 @@ class CompleteCompanyRegistration {
         planCard.classList.add('selected');
         this.selectedPlan = planCard.dataset.plan;
 
-        // Update max users field based on plan
-        const maxUsersField = document.getElementById('maxUsers');
-        if (maxUsersField) {
-            const planLimits = {
-                'basic': 10,
-                'professional': 50,
-                'enterprise': 1000
-            };
-            
-            maxUsersField.value = planLimits[this.selectedPlan] || 10;
-            maxUsersField.max = planLimits[this.selectedPlan] || 10;
-        }
-
         console.log('Selected plan:', this.selectedPlan);
 
-        // If enterprise plan selected, immediately initiate payment
+        // If enterprise plan selected, reveal and update Payment Summary
         if (this.selectedPlan === 'enterprise') {
-            this.startEnterpriseCheckout();
+            try {
+                const section = document.getElementById('paymentSummarySection');
+                const userCountSection = document.getElementById('userCountSection');
+                if (userCountSection) userCountSection.style.display = 'block';
+                if (section) {
+                    section.style.display = 'block';
+                    this.updatePaymentSummary();
+                }
+            } catch {}
+        } else {
+            // Hide summary for non-enterprise plans
+            const section = document.getElementById('paymentSummarySection');
+            if (section) section.style.display = 'none';
+        }
+    }
+
+    updatePaymentSummary() {
+        try {
+            const planEl = document.getElementById('summaryPlan');
+            const usersEl = document.getElementById('summaryUsers');
+            const ppuEl = document.getElementById('summaryPricePerUser');
+            const totalEl = document.getElementById('summaryMonthlyTotal');
+            const userCountInput = document.getElementById('userCount');
+            const enterprisePriceEl = document.getElementById('enterprisePrice');
+
+            if (!planEl || !usersEl || !ppuEl || !totalEl || !userCountInput || !enterprisePriceEl) return;
+
+            // Plan name
+            planEl.textContent = 'Enterprise';
+
+            // Users
+            const users = Math.max(1, parseInt(userCountInput.value || '1', 10) || 1);
+            usersEl.textContent = String(users);
+
+            // Per-user price from the visible enterprise price label (e.g., "$25.00/..")
+            const priceMatch = (enterprisePriceEl.textContent || '').match(/\$\s*([0-9]+(?:\.[0-9]+)?)/);
+            const pricePerUser = priceMatch ? parseFloat(priceMatch[1]) : 25;
+            ppuEl.textContent = `$${pricePerUser.toFixed(2)}`;
+
+            // Monthly total
+            const monthlyTotal = pricePerUser * users;
+            totalEl.textContent = `$${monthlyTotal.toFixed(2)}`;
+        } catch (e) {
+            console.warn('Failed to update payment summary', e);
         }
     }
 
     async startEnterpriseCheckout() {
         try {
-            // Determine users and features to compute a simple total
-            const maxUsersField = document.getElementById('maxUsers');
-            const users = parseInt(maxUsersField?.value || '1', 10) || 1;
-            const featureCount = this.selectedFeatures.size;
-            const basePrice = this.basePrices.enterprise ?? 0;
-            const featureCost = this.featureCosts.enterprise ?? 0;
-            const pricePerUser = basePrice + (featureCost * featureCount);
-            const total = Math.max(1, Math.round(pricePerUser * users));
+            // Use exact GNF amount from the Payment Summary input
+            const amountInput = document.getElementById('chargeAmountGNF');
+            const errorEl = document.getElementById('paymentError');
+            if (errorEl) { errorEl.style.display = 'none'; errorEl.textContent = ''; }
+
+            let amount = 0;
+            if (amountInput) {
+                amount = parseInt((amountInput.value || '').trim(), 10);
+            }
+            if (!Number.isFinite(amount) || amount <= 0) {
+                const msg = 'Please enter a valid charge amount in GNF.';
+                if (errorEl) { errorEl.textContent = msg; errorEl.style.display = 'block'; }
+                else { alert(msg); }
+                return;
+            }
 
             const orderId = `SUB-${Date.now()}`;
-            const nextUrl = `${location.origin}${location.pathname}`;
+            // Ensure nextUrl uses HTTPS domain that Orange accepts
+            const nextUrl = 'https://dreamexdatalab.com/company-complete-registration.html';
 
             // Set gating flags for later steps
             try {
@@ -292,7 +330,7 @@ class CompleteCompanyRegistration {
             const res = await fetch(`${API_BASE}/api/checkout`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ amount: total, currency: 'GNF', orderId, description: 'Company subscription', nextUrl })
+                body: JSON.stringify({ amount, currency: 'GNF', orderId, description: 'Company subscription' })
             });
 
             const text = await res.text();
@@ -310,8 +348,11 @@ class CompleteCompanyRegistration {
                 throw new Error('No redirect URL returned by gateway');
             }
         } catch (err) {
-            alert('Unable to start payment: ' + (err && err.message ? err.message : String(err)));
             console.error('Enterprise checkout error', err);
+            const errorEl = document.getElementById('paymentError');
+            const msg = 'Unable to start payment: ' + (err && err.message ? err.message : String(err));
+            if (errorEl) { errorEl.textContent = msg; errorEl.style.display = 'block'; }
+            else { alert(msg); }
         }
     }
 
