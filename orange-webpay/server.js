@@ -39,6 +39,8 @@ const ORANGE_CONFIG = {
     client_secret: 'V6mpOxb7TFWQws2YKHE6GJyuA5j2RBYoamcoFGH36gdO',
     // Merchant key fourni par Orange Money (WebPay GN)
     merchant_key: '427ab675',
+    // Application ID (si requis par Orange/partenaire)
+    application_id: process.env.ORANGE_APPLICATION_ID || process.env.APPLICATION_ID || 'sdbSYSBaO2e2Dg60',
     // En-tête Authorization "Basic ..." (optionnel si calculé à partir de client_id:client_secret)
     authorization: 'Basic Wkx3N0ZqQUVKM2g5N1pjRjJrMnFHOTN0cTJMREZzRk06VjZtcE94YjdURldRd3MyWUtIRTZHSnl1QTVqMlJCWW9hbWNvRkdIMzZnZE8='
 };
@@ -98,6 +100,16 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
+// Route pour la page de test API
+app.get('/api-test.html', (req, res) => {
+    res.sendFile(path.join(__dirname, 'api-test.html'));
+});
+
+// Route explicite pour index.html
+app.get('/index.html', (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html'));
+});
+
 // Handler commun d'initiation de paiement (utilisé par /api/pay et /api/checkout)
 async function initiatePayment(req, res) {
     console.log('🔄 Nouvelle demande de paiement:', req.body);
@@ -136,14 +148,25 @@ async function initiatePayment(req, res) {
                 ? `${nextUrl}${nextUrl.includes('?') ? '&' : '?'}order_id=${orderId}`
                 : `${getPublicBaseUrl()}/success.html?order_id=${orderId}`,
             cancel_url: `${getPublicBaseUrl()}/cancel.html?order_id=${orderId}`,
-            notif_url: `${getApiBaseUrl(req)}/api/webhook`,
+            notif_url: `${getNotifBaseUrl(req)}/api/webhook`,
             lang: "fr",
             reference: description && String(description).trim() ? String(description).trim() : "REF" + orderId,
             // Certaines implémentations attendent un champ 'phone' (facultatif côté WebPay)
             phone: normalizedPhone
         };
 
+        // Inclure application_id si disponible
+        if (ORANGE_CONFIG.application_id) {
+            paymentData.application_id = ORANGE_CONFIG.application_id;
+        }
+
         console.log('📤 Envoi de la demande de paiement à Orange...');
+        
+        // Mode debug: renvoyer le payload sans appeler Orange
+        if (req.query && req.query.debug === '1') {
+            const { merchant_key, ...safePayload } = paymentData; // ne pas renvoyer la clé marchande
+            return res.json({ success: true, debug: true, payload: safePayload });
+        }
         
         // Envoyer la demande de paiement à Orange
         const orangeResponse = await axios.post(
@@ -188,10 +211,31 @@ async function initiatePayment(req, res) {
     }
 }
 
-// Route pour initier un paiement
-app.post('/api/pay', initiatePayment);
+// Route pour initier un paiement (avec error handler)
+app.post('/api/pay', async (req, res) => {
+    try {
+        await initiatePayment(req, res);
+    } catch (error) {
+        console.error('❌ Error in /api/pay:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: 'Internal server error: ' + error.message 
+        });
+    }
+});
+
 // Alias pour compatibilité
-app.post('/api/checkout', initiatePayment);
+app.post('/api/checkout', async (req, res) => {
+    try {
+        await initiatePayment(req, res);
+    } catch (error) {
+        console.error('❌ Error in /api/checkout:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: 'Internal server error: ' + error.message 
+        });
+    }
+});
 
 // Webhook pour les notifications de paiement
 app.post('/api/webhook', (req, res) => {
@@ -218,6 +262,36 @@ app.post('/api/webhook', (req, res) => {
 // Health check endpoint
 app.get('/health', (req, res) => {
     res.json({ status: 'ok', time: new Date().toISOString() });
+});
+
+// Debug config (non-sensitive)
+app.get('/api/debug/config', (req, res) => {
+    const cfg = {
+        env: process.env.NODE_ENV || 'development',
+        port: process.env.PORT || 8080,
+        public_base_url: getPublicBaseUrl(),
+        api_base_url: getApiBaseUrl(req),
+        notif_base_url: getNotifBaseUrl(req),
+        merchant_key_present: !!ORANGE_CONFIG.merchant_key,
+        application_id_present: !!ORANGE_CONFIG.application_id,
+        application_id_masked: ORANGE_CONFIG.application_id ? ORANGE_CONFIG.application_id.replace(/.(?=.{4})/g, '*') : null,
+        has_basic_header: !!ORANGE_CONFIG.authorization,
+        token_url: 'https://api.orange.com/oauth/v3/token',
+        payment_url: 'https://api.orange.com/orange-money-webpay/gn/v1/webpayment',
+        status_url: 'https://api.orange.com/orange-money-webpay/gn/v1/transactionstatus'
+    };
+    res.json(cfg);
+});
+
+// Simple echo endpoint to verify JSON responses
+app.get('/api/echo', (req, res) => {
+    res.json({
+        success: true,
+        message: 'echo',
+        method: req.method,
+        path: req.path,
+        time: new Date().toISOString()
+    });
 });
 
 // Page de succès
@@ -356,6 +430,53 @@ function getApiBaseUrl(req) {
     }
     return `http://localhost:${process.env.PORT || 8080}`;
 }
+
+// ============================================================================
+// URL de notification (Doit être publique; localhost/127.0.0.1 interdits par Orange)
+function getNotifBaseUrl(req) {
+    const override = process.env.ORANGE_NOTIF_BASE || process.env.NOTIF_BASE_URL;
+    if (override && /^https?:\/\//i.test(override)) {
+        return override.replace(/\/$/, '');
+    }
+    if (process.env.NODE_ENV === 'production') {
+        const host = (req.get('host') || '').toLowerCase();
+        if (host.includes('localhost') || host.includes('127.0.0.1')) {
+            // Fallback to intended public API subdomain
+            return 'https://api.dreamexdatalab.com';
+        }
+        return `https://${host}`;
+    }
+    // In dev, fallback to public site domain so it's not localhost
+    return 'https://dreamexdatalab.com';
+}
+
+// ============================================================================
+// CATCH-ALL ERROR HANDLER - Must be last
+// ============================================================================
+
+// Handle 404 for API routes
+app.use('/api/*', (req, res) => {
+    res.status(404).json({ 
+        success: false, 
+        error: 'API endpoint not found: ' + req.path 
+    });
+});
+
+// General error handler
+app.use((err, req, res, next) => {
+    console.error('❌ Unhandled error:', err);
+    
+    // If it's an API route, return JSON
+    if (req.path.startsWith('/api/')) {
+        return res.status(500).json({ 
+            success: false, 
+            error: 'Server error: ' + err.message 
+        });
+    }
+    
+    // Otherwise return HTML error page
+    res.status(500).send('<h1>Server Error</h1><p>' + err.message + '</p>');
+});
 
 // ============================================================================
 // DÉMARRAGE DU SERVEUR
