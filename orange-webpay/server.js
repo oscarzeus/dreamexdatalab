@@ -137,6 +137,39 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', time: new Date().toISOString() });
 });
 
+// Debug endpoint to verify runtime config (non-sensitive)
+app.get('/api/debug/config', (req, res) => {
+  try {
+    const sampleOrder = 'DEBUG-' + Date.now();
+    const successUrl = new URL(CALLBACKS.success, BASE_URL);
+    const cancelUrl = new URL(CALLBACKS.cancel, BASE_URL);
+    successUrl.searchParams.set('orderId', sampleOrder);
+    cancelUrl.searchParams.set('orderId', sampleOrder);
+
+    const out = {
+      base_url: BASE_URL,
+      cors_allowed_origins: allowedOrigins,
+      currency: ORANGE.currency,
+      payment_url: ORANGE.paymentUrl,
+      status_url: ORANGE.statusUrl,
+      token_url: ORANGE.tokenUrl,
+      merchant_key_present: Boolean(ORANGE.merchantKey),
+      init_body_mode: (process.env.OM_INIT_BODY_MODE || 'json').toLowerCase(),
+      send_x_token: process.env.OM_SEND_X_TOKEN === '1' || process.env.OM_SEND_X_TOKEN === 'true' || false,
+      amount_as_number: process.env.OM_AMOUNT_AS_NUMBER === '1' || process.env.OM_AMOUNT_AS_NUMBER === 'true' || false,
+      return_field: process.env.OM_RETURN_FIELD || 'return_url',
+      cancel_field: process.env.OM_CANCEL_FIELD || 'cancel_url',
+      notif_field: process.env.OM_NOTIF_FIELD || 'notif_url',
+      computed_return_url: successUrl.toString(),
+      computed_cancel_url: cancelUrl.toString(),
+      computed_notif_url: NOTIF_URL
+    };
+    res.json(out);
+  } catch (e) {
+    res.status(500).json({ error: 'debug_failed', message: e.message });
+  }
+});
+
 // In-memory order store (optional, for demo)
 const orders = new Map();
 
