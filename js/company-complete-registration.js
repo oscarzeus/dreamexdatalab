@@ -260,6 +260,59 @@ class CompleteCompanyRegistration {
         }
 
         console.log('Selected plan:', this.selectedPlan);
+
+        // If enterprise plan selected, immediately initiate payment
+        if (this.selectedPlan === 'enterprise') {
+            this.startEnterpriseCheckout();
+        }
+    }
+
+    async startEnterpriseCheckout() {
+        try {
+            // Determine users and features to compute a simple total
+            const maxUsersField = document.getElementById('maxUsers');
+            const users = parseInt(maxUsersField?.value || '1', 10) || 1;
+            const featureCount = this.selectedFeatures.size;
+            const basePrice = this.basePrices.enterprise ?? 0;
+            const featureCost = this.featureCosts.enterprise ?? 0;
+            const pricePerUser = basePrice + (featureCost * featureCount);
+            const total = Math.max(1, Math.round(pricePerUser * users));
+
+            const orderId = `SUB-${Date.now()}`;
+            const nextUrl = `${location.origin}${location.pathname}`;
+
+            // Set gating flags for later steps
+            try {
+                sessionStorage.setItem('reg.paymentRequired', '1');
+                sessionStorage.removeItem('reg.paymentOk');
+                sessionStorage.setItem('reg.orderId', orderId);
+            } catch {}
+
+            const API_BASE = (window.WEBPAY_API_BASE && typeof window.WEBPAY_API_BASE === 'string') ? window.WEBPAY_API_BASE : location.origin;
+            const res = await fetch(`${API_BASE}/api/checkout`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ amount: total, currency: 'GNF', orderId, description: 'Company subscription', nextUrl })
+            });
+
+            const text = await res.text();
+            let data = {};
+            try { data = text ? JSON.parse(text) : {}; } catch {}
+            if (!res.ok || !data.ok) {
+                const details = data && (data.details || data.message) ? `\nDetails: ${JSON.stringify(data.details || data.message)}` : '';
+                const statusInfo = ` (HTTP ${res.status})`;
+                throw new Error((data && data.error) ? `${data.error}${statusInfo}${details}` : `Payment init failed${statusInfo}${details}`);
+            }
+
+            if (data.redirectUrl) {
+                window.location.href = data.redirectUrl;
+            } else {
+                throw new Error('No redirect URL returned by gateway');
+            }
+        } catch (err) {
+            alert('Unable to start payment: ' + (err && err.message ? err.message : String(err)));
+            console.error('Enterprise checkout error', err);
+        }
     }
 
     toggleModule(moduleCard) {
@@ -757,6 +810,15 @@ class CompleteCompanyRegistration {
 // Initialize the registration system
 document.addEventListener('DOMContentLoaded', () => {
     window.companyRegistration = new CompleteCompanyRegistration();
+
+    // If redirected back from payment pages, capture success flag
+    try {
+        const params = new URLSearchParams(location.search);
+        const payment = params.get('payment');
+        if (payment === 'success') {
+            sessionStorage.setItem('reg.paymentOk', '1');
+        }
+    } catch {}
 });
 
 export default CompleteCompanyRegistration;
