@@ -37,7 +37,7 @@ class CompleteCompanyRegistration {
             free: 0,
             basic: 29,
             professional: 79,
-            enterprise: 199
+            enterprise: 0
         };
         
         // Cost per feature for each plan type
@@ -45,7 +45,7 @@ class CompleteCompanyRegistration {
             free: 0,    // Free trial includes all features
             basic: 15,   // Each additional feature costs $15/month
             professional: 25, // Each additional feature costs $25/month  
-            enterprise: 35   // Each additional feature costs $35/month
+            enterprise: 0   // Enterprise: feature costs handled inline; default $0 here
         };
         
         this.initializeEventListeners();
@@ -286,7 +286,7 @@ class CompleteCompanyRegistration {
 
             // Per-user price from the visible enterprise price label (e.g., "$25.00/..")
             const priceMatch = (enterprisePriceEl.textContent || '').match(/\$\s*([0-9]+(?:\.[0-9]+)?)/);
-            const pricePerUser = priceMatch ? parseFloat(priceMatch[1]) : 25;
+            const pricePerUser = priceMatch ? parseFloat(priceMatch[1]) : 0;
             ppuEl.textContent = `$${pricePerUser.toFixed(2)}`;
 
             // Monthly total
@@ -539,7 +539,8 @@ class CompleteCompanyRegistration {
         const totalPrice = basePrice + (featureCost * featureCount);
         
         // Update the price display
-        const suffix = planType === 'free' ? '/15 days' : '/month';
+    // Enterprise displays per-user pricing on the wizard card
+    const suffix = planType === 'free' ? '/15 days' : (planType === 'enterprise' ? '/user/month' : '/month');
         priceElement.innerHTML = `$${totalPrice}<span style="font-size: 1rem; font-weight: normal;">${suffix}</span>`;
         
         // Add feature breakdown for non-free plans
