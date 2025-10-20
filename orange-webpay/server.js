@@ -1,3 +1,16 @@
+// Load environment variables from .env/.env.local if present
+try {
+    const fs = require('fs');
+    const dotenv = require('dotenv');
+    const localEnv = require('path').join(__dirname, '.env.local');
+    const baseEnv = require('path').join(__dirname, '.env');
+    if (fs.existsSync(localEnv)) {
+        dotenv.config({ path: localEnv });
+    } else if (fs.existsSync(baseEnv)) {
+        dotenv.config({ path: baseEnv });
+    }
+} catch (_) { /* dotenv optional */ }
+
 const express = require('express');
 const axios = require('axios');
 const path = require('path');
@@ -15,11 +28,13 @@ app.use((req, res, next) => {
             // Allow same-origin and *.dreamexdatalab.com
             const u = new URL(origin);
             const host = u.hostname.toLowerCase();
-            if (host === 'dreamexdatalab.com' || host.endsWith('.dreamexdatalab.com')) {
+            const allowDev = process.env.NODE_ENV !== 'production' && (host === 'localhost' || host === '127.0.0.1');
+            if (host === 'dreamexdatalab.com' || host.endsWith('.dreamexdatalab.com') || allowDev) {
                 res.setHeader('Access-Control-Allow-Origin', origin);
                 res.setHeader('Vary', 'Origin');
                 res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
                 res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
+                res.setHeader('Access-Control-Max-Age', '86400');
             }
         }
         if (req.method === 'OPTIONS') return res.sendStatus(204);
@@ -35,14 +50,15 @@ app.use((req, res, next) => {
 
 const ORANGE_CONFIG = {
     // Fourni par Orange Money Guinée
-    client_id: 'ZLw7FjAEJ3h97ZcF2k2qG93tq2LDFsFM',
-    client_secret: 'V6mpOxb7TFWQws2YKHE6GJyuA5j2RBYoamcoFGH36gdO',
+    client_id: process.env.ORANGE_CLIENT_ID || process.env.CLIENT_ID || process.env.OM_CLIENT_ID || 'ZLw7FjAEJ3h97ZcF2k2qG93tq2LDFsFM',
+    client_secret: process.env.ORANGE_CLIENT_SECRET || process.env.CLIENT_SECRET || process.env.OM_CLIENT_SECRET || '',
     // Merchant key fourni par Orange Money (WebPay GN)
-    merchant_key: '427ab675',
+    merchant_key: process.env.ORANGE_MERCHANT_KEY || process.env.MERCHANT_KEY || process.env.OM_MERCHANT_KEY || '427ab675',
     // Application ID (si requis par Orange/partenaire)
-    application_id: process.env.ORANGE_APPLICATION_ID || process.env.APPLICATION_ID || 'sdbSYSBaO2e2Dg60',
+    application_id: process.env.ORANGE_APPLICATION_ID || process.env.APPLICATION_ID || process.env.APP_ID || process.env.OM_APP_ID || 'sdbSYSBaO2e2Dg60',
     // En-tête Authorization "Basic ..." (optionnel si calculé à partir de client_id:client_secret)
-    authorization: 'Basic Wkx3N0ZqQUVKM2g5N1pjRjJrMnFHOTN0cTJMREZzRk06VjZtcE94YjdURldRd3MyWUtIRTZHSnl1QTVqMlJCWW9hbWNvRkdIMzZnZE8='
+    // Utiliser uniquement si spécifié dans l'environnement; sinon, sera calculé dynamiquement
+    authorization: process.env.ORANGE_AUTH_BASIC || process.env.AUTH_BASIC || process.env.OM_AUTHORIZATION
 };
 
 // ============================================================================
@@ -62,6 +78,9 @@ async function getOrangeToken() {
     console.log('🔄 Obtention d\'un nouveau token...');
     
     try {
+        if (!ORANGE_CONFIG.client_id || !ORANGE_CONFIG.client_secret) {
+            throw new Error('Missing client credentials. Set ORANGE_CLIENT_ID and ORANGE_CLIENT_SECRET.');
+        }
         const basicHeader = ORANGE_CONFIG.authorization || ('Basic ' + Buffer.from(
             `${ORANGE_CONFIG.client_id}:${ORANGE_CONFIG.client_secret}`
         ).toString('base64'));
@@ -139,39 +158,72 @@ async function initiatePayment(req, res) {
         
         // Préparer les données de paiement
         const orderId = providedOrderId && String(providedOrderId).trim() ? String(providedOrderId).trim() : 'CMD' + Date.now();
+        // Build full candidate payload
+        const publicBase = getPublicBaseUrl();
+        const notifBase = getNotifBaseUrl(req);
+        const returnUrl = (nextUrl && typeof nextUrl === 'string' && nextUrl.startsWith('http') && isPublicHttpUrl(nextUrl))
+            ? `${nextUrl}${nextUrl.includes('?') ? '&' : '?'}order_id=${orderId}`
+            : `${publicBase}/success.html?order_id=${orderId}`;
+        const cancelUrl = `${publicBase}/cancel.html?order_id=${orderId}`;
+
         const paymentData = {
             merchant_key: ORANGE_CONFIG.merchant_key,
             currency: (currency && typeof currency === 'string' ? currency.toUpperCase() : 'GNF'),
             order_id: orderId,
             amount: amount,
-            return_url: nextUrl && typeof nextUrl === 'string' && nextUrl.startsWith('http')
-                ? `${nextUrl}${nextUrl.includes('?') ? '&' : '?'}order_id=${orderId}`
-                : `${getPublicBaseUrl()}/success.html?order_id=${orderId}`,
-            cancel_url: `${getPublicBaseUrl()}/cancel.html?order_id=${orderId}`,
-            notif_url: `${getNotifBaseUrl(req)}/api/webhook`,
-            lang: "fr",
-            reference: description && String(description).trim() ? String(description).trim() : "REF" + orderId,
-            // Certaines implémentations attendent un champ 'phone' (facultatif côté WebPay)
-            phone: normalizedPhone
+            return_url: returnUrl,
+            cancel_url: cancelUrl,
+            notif_url: `${notifBase}/api/webhook`
         };
 
-        // Inclure application_id si disponible
-        if (ORANGE_CONFIG.application_id) {
+        // Only include non-standard fields when explicitly enabled
+        const includePhone = String(process.env.OM_INCLUDE_PHONE || '').toLowerCase() === 'true';
+        // Default include application_id unless explicitly disabled
+        const includeAppId = (process.env.OM_INCLUDE_APP_ID == null)
+            ? true
+            : String(process.env.OM_INCLUDE_APP_ID).toLowerCase() === 'true';
+        const includeLang = String(process.env.OM_INCLUDE_LANG || '').toLowerCase() === 'true';
+        const includeReference = String(process.env.OM_INCLUDE_REFERENCE || '').toLowerCase() === 'true';
+        if (includePhone) {
+            paymentData.phone = normalizedPhone;
+        }
+        if (includeAppId && ORANGE_CONFIG.application_id) {
             paymentData.application_id = ORANGE_CONFIG.application_id;
         }
+        if (includeLang) {
+            paymentData.lang = 'fr';
+        }
+        if (includeReference) {
+            paymentData.reference = description && String(description).trim() ? String(description).trim() : "REF" + orderId;
+        }
+
+        // Create the minimal payload Orange expects (omit any unknown fields by default)
+        const payloadToOrange = {
+            merchant_key: paymentData.merchant_key,
+            currency: paymentData.currency,
+            order_id: paymentData.order_id,
+            amount: paymentData.amount,
+            return_url: paymentData.return_url,
+            cancel_url: paymentData.cancel_url,
+            notif_url: paymentData.notif_url
+        };
+        if (includeAppId && paymentData.application_id) payloadToOrange.application_id = paymentData.application_id;
+        if (includePhone && paymentData.phone) payloadToOrange.phone = paymentData.phone;
+        if (includeLang && paymentData.lang) payloadToOrange.lang = paymentData.lang;
+        if (includeReference && paymentData.reference) payloadToOrange.reference = paymentData.reference;
 
         console.log('📤 Envoi de la demande de paiement à Orange...');
         
         // Mode debug: renvoyer le payload sans appeler Orange
         if (req.query && req.query.debug === '1') {
-            const { merchant_key, ...safePayload } = paymentData; // ne pas renvoyer la clé marchande
-            return res.json({ success: true, debug: true, payload: safePayload });
+            const { merchant_key, ...safePayload } = payloadToOrange; // ne pas renvoyer la clé marchande
+            return res.json({ success: true, debug: true, payload: safePayload, computed: { publicBase, notifBase } });
         }
         
         // Envoyer la demande de paiement à Orange
         const orangeResponse = await axios.post(
             'https://api.orange.com/orange-money-webpay/gn/v1/webpayment',
-            paymentData,
+            payloadToOrange,
             {
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -192,21 +244,20 @@ async function initiatePayment(req, res) {
         });
 
     } catch (error) {
-        console.error('❌ Erreur de paiement:', error.response?.data || error.message);
-        
+        const status = error.response?.status;
+        const data = error.response?.data;
+        console.error('❌ Erreur de paiement:', status, data || error.message);
+
         let errorMessage = 'Erreur lors de la création du paiement';
-        
-        if (error.response?.data) {
-            errorMessage = error.response.data.message || errorMessage;
-        } else if (error.code === 'ECONNABORTED') {
-            errorMessage = 'Timeout - Service Orange Money non disponible';
-        }
-        
-        res.json({
+        if (data?.message) errorMessage = data.message;
+        else if (error.code === 'ECONNABORTED') errorMessage = 'Timeout - Service Orange Money non disponible';
+
+        res.status(200).json({
             success: false,
             ok: false,
             error: errorMessage,
-            details: error.response?.data || undefined
+            status,
+            details: data || undefined
         });
     }
 }
@@ -273,6 +324,9 @@ app.get('/api/debug/config', (req, res) => {
         api_base_url: getApiBaseUrl(req),
         notif_base_url: getNotifBaseUrl(req),
         merchant_key_present: !!ORANGE_CONFIG.merchant_key,
+        client_id_present: !!ORANGE_CONFIG.client_id,
+        client_id_masked: ORANGE_CONFIG.client_id ? ORANGE_CONFIG.client_id.replace(/.(?=.{4})/g, '*') : null,
+        client_secret_present: !!ORANGE_CONFIG.client_secret,
         application_id_present: !!ORANGE_CONFIG.application_id,
         application_id_masked: ORANGE_CONFIG.application_id ? ORANGE_CONFIG.application_id.replace(/.(?=.{4})/g, '*') : null,
         has_basic_header: !!ORANGE_CONFIG.authorization,
@@ -281,6 +335,17 @@ app.get('/api/debug/config', (req, res) => {
         status_url: 'https://api.orange.com/orange-money-webpay/gn/v1/transactionstatus'
     };
     res.json(cfg);
+});
+
+// Simple endpoint to verify OAuth token retrieval without exposing the token
+app.get('/api/test-token', async (req, res) => {
+    try {
+        const token = await getOrangeToken();
+        const ttlMs = Math.max(0, tokenExpiry - Date.now());
+        res.json({ ok: true, success: true, tokenPresent: !!token, expiresInSec: Math.round(ttlMs / 1000) });
+    } catch (err) {
+        res.status(500).json({ ok: false, success: false, error: err.message });
+    }
 });
 
 // Simple echo endpoint to verify JSON responses
@@ -415,11 +480,19 @@ app.get('/cancel', (req, res) => {
 // ============================================================================
 
 function getPublicBaseUrl() {
-    if (process.env.NODE_ENV === 'production') {
-        // Public site (GitHub Pages in Option B)
-        return 'https://dreamexdatalab.com';
+    // Prefer explicit public base override
+    const override = process.env.ORANGE_PUBLIC_BASE || process.env.PUBLIC_BASE_URL || process.env.BASE_URL;
+    if (override && /^https?:\/\//i.test(override)) {
+        try {
+            const u = new URL(override);
+            const host = u.hostname.toLowerCase();
+            if (host !== 'localhost' && host !== '127.0.0.1') {
+                return override.replace(/\/$/, '');
+            }
+        } catch (_) {}
     }
-    return `http://localhost:${process.env.PORT || 8080}`;
+    // Default public site (GitHub Pages in Option B)
+    return 'https://dreamexdatalab.com';
 }
 
 function getApiBaseUrl(req) {
@@ -448,6 +521,18 @@ function getNotifBaseUrl(req) {
     }
     // In dev, fallback to public site domain so it's not localhost
     return 'https://dreamexdatalab.com';
+}
+
+function isPublicHttpUrl(url) {
+    try {
+        const u = new URL(url);
+        if (u.protocol !== 'http:' && u.protocol !== 'https:') return false;
+        const host = u.hostname.toLowerCase();
+        if (host === 'localhost' || host === '127.0.0.1') return false;
+        return true;
+    } catch (_) {
+        return false;
+    }
 }
 
 // ============================================================================
