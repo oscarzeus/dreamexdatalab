@@ -244,9 +244,8 @@
             
             // Local development
             if (isLocal) {
-                // If running on :8080, try localhost:5020 for API
-                if (window.location.port === '8080') return 'http://localhost:5020';
-                return origin; // preserve exact host:port to avoid CORS issues
+                // Always target local backend on 5020 when developing on localhost/127.0.0.1 (any port)
+                return 'http://localhost:5020';
             }
             
             if (protocol === 'file:') return 'http://localhost:5020';
@@ -313,9 +312,21 @@
                     },
                     body: JSON.stringify(payload)
                 });
-                
                 console.log('Response status:', response.status);
-                const data = await response.json();
+
+                // Ensure we parse JSON only when server responded with JSON
+                const contentType = response.headers.get('content-type') || '';
+                if (!response.ok) {
+                    const errText = await response.text().catch(() => '');
+                    throw new Error(`HTTP ${response.status} ${response.statusText}${errText ? ' - ' + errText.slice(0, 300) : ''}`);
+                }
+                let data;
+                if (contentType.includes('application/json')) {
+                    data = await response.json();
+                } else {
+                    const text = await response.text();
+                    throw new Error('Réponse non-JSON reçue du serveur (est-ce un serveur statique?) → ' + text.slice(0, 300));
+                }
                 console.log('Response data:', data);
                 
                 if (data.success) {
