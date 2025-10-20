@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Quick API Test</title>
+    <style>
+        body { font-family: Arial; padding: 20px; max-width: 800px; margin: 0 auto; }
+        button { padding: 10px 20px; font-size: 16px; cursor: pointer; background: #FF6600; color: white; border: none; border-radius: 5px; }
+        button:hover { background: #e55a00; }
+        pre { background: #f5f5f5; padding: 15px; border-radius: 5px; overflow-x: auto; }
+        .info { background: #e7f3ff; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Quick Payment API Test</h1>
+    
+    <div class="info">
+        <strong>⚠️ Important:</strong> This page MUST be accessed via:
+        <br><code>http://localhost:8080/api-test.html</code>
+        <br>NOT via file:// protocol (opening directly from file explorer)
+    </div>
+    
+    <button onclick="testAPI()">🚀 Test API Call</button>
+    <button onclick="testEcho()">🔁 Test /api/echo</button>
+    <button onclick="testAPIDebug()">🧩 Debug /api/pay (no Orange)</button>
+    <button onclick="testHealth()">❤️ Test Health</button>
+    
+    <h3>Result:</h3>
+    <pre id="result">Click a button above to test...</pre>
+
+    <script>
+        async function testHealth() {
+            const resultEl = document.getElementById('result');
+            resultEl.textContent = 'Testing health endpoint...';
+            
+            try {
+                const response = await fetch('/health');
+                const text = await response.text();
+                try {
+                    const data = JSON.parse(text);
+                    resultEl.textContent = '✅ Health Check OK:\n' + JSON.stringify(data, null, 2);
+                } catch (e) {
+                    resultEl.textContent = '⚠️ Health returned non-JSON:\n' + text;
+                }
+            } catch (error) {
+                resultEl.textContent = '❌ Error: ' + error.message + '\n\nMake sure you access this page via http://localhost:8080/api-test.html';
+            }
+        }
+        
+        async function testAPI() {
+            const resultEl = document.getElementById('result');
+            resultEl.textContent = 'Testing payment API...';
+            
+            try {
+                const payload = {
+                    amount: 10000,
+                    phone: '624123456'
+                };
+                
+                console.log('📤 Sending:', payload);
+                
+                const response = await fetch('/api/pay', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(payload)
+                });
+                
+                console.log('📥 Response status:', response.status);
+                const text = await response.text();
+                let data;
+                try {
+                    data = JSON.parse(text);
+                } catch (e) {
+                    resultEl.textContent = '⚠️ Non-JSON response from /api/pay:\n' + text;
+                    return;
+                }
+                console.log('📥 Response data:', data);
+                
+                if (data.success) {
+                    resultEl.textContent = '✅ Payment Init SUCCESS:\n\n' + JSON.stringify(data, null, 2) + 
+                        '\n\n🎉 The backend is working! You would be redirected to:\n' + data.payment_url;
+                } else {
+                    resultEl.textContent = '⚠️ Payment Init FAILED:\n\n' + JSON.stringify(data, null, 2);
+                }
+                
+            } catch (error) {
+                console.error('❌ Error:', error);
+                resultEl.textContent = '❌ Error: ' + error.message + 
+                    '\n\nMake sure you access this page via:\nhttp://localhost:8080/api-test.html\n\nNOT file:///...';
+            }
+        }
+        
+        async function testEcho() {
+            const resultEl = document.getElementById('result');
+            resultEl.textContent = 'Testing /api/echo...';
+            try {
+                const response = await fetch('/api/echo');
+                const text = await response.text();
+                try {
+                    const data = JSON.parse(text);
+                    resultEl.textContent = '✅ Echo OK:\n' + JSON.stringify(data, null, 2);
+                } catch (e) {
+                    resultEl.textContent = '⚠️ Echo returned non-JSON:\n' + text;
+                }
+            } catch (error) {
+                resultEl.textContent = '❌ Error calling /api/echo: ' + error.message;
+            }
+        }
+
+        async function testAPIDebug() {
+            const resultEl = document.getElementById('result');
+            resultEl.textContent = 'Debugging /api/pay (no call to Orange)...';
+            try {
+                const payload = { amount: 10000, phone: '624123456' };
+                const response = await fetch('/api/pay?debug=1', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const text = await response.text();
+                try {
+                    const data = JSON.parse(text);
+                    resultEl.textContent = '✅ Debug OK:\n' + JSON.stringify(data, null, 2);
+                } catch (e) {
+                    resultEl.textContent = '⚠️ Debug returned non-JSON:\n' + text;
+                }
+            } catch (error) {
+                resultEl.textContent = '❌ Error in debug call: ' + error.message;
+            }
+        }
+        
+        // Show current URL
+        document.addEventListener('DOMContentLoaded', () => {
+            const info = document.querySelector('.info');
+            info.innerHTML += '<br><br><strong>Current URL:</strong> ' + location.href;
+            
+            if (location.protocol === 'file:') {
+                info.style.background = '#f8d7da';
+                info.style.color = '#721c24';
+                info.innerHTML = '<strong>❌ WRONG ACCESS METHOD</strong><br>' +
+                    'You opened this file directly. This will NOT work due to CORS.<br><br>' +
+                    '<strong>Correct way:</strong><br>' +
+                    '1. Open your browser<br>' +
+                    '2. Go to: <code>http://localhost:8080/api-test.html</code>';
+            }
+        });
+    </script>
+</body>
+</html>
