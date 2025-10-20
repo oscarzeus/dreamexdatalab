@@ -223,17 +223,40 @@
     </div>
 
     <script>
-        // Detect API base URL
+        // Detect API base URL with localStorage override support
         const API_BASE = (() => {
+            // Check for manual override first
+            try {
+                const override = localStorage.getItem('webpay.apiBase');
+                if (override) {
+                    console.log('Using API override from localStorage:', override);
+                    return override;
+                }
+            } catch {}
+            
             const { hostname, origin, protocol } = window.location;
             const lower = (hostname || '').toLowerCase();
             const isProd = (lower === 'dreamexdatalab.com' || lower.endsWith('.dreamexdatalab.com'));
             const isLocal = (lower === 'localhost' || lower === '127.0.0.1');
+            
+            // Production: always use the API subdomain
             if (isProd) return 'https://api.dreamexdatalab.com';
-            if (isLocal) return origin; // preserve exact host:port to avoid localhost vs 127.0.0.1 CORS
-            if (protocol === 'file:') return 'http://localhost:8080';
-            return origin; // fallback to same origin
+            
+            // Local development
+            if (isLocal) {
+                // If running on :8080, try localhost:5020 for API
+                if (window.location.port === '8080') return 'http://localhost:5020';
+                return origin; // preserve exact host:port to avoid CORS issues
+            }
+            
+            if (protocol === 'file:') return 'http://localhost:5020';
+            
+            // Default: same origin
+            return origin;
         })();
+        
+        console.log('Payment API Base:', API_BASE);
+        console.log('Tip: Set localStorage.setItem("webpay.apiBase", "YOUR_URL") to override');
         
         // Prefill amount from query parameter if provided
         (function prefillAmountFromQuery(){
@@ -315,7 +338,20 @@
                 
             } catch (error) {
                 console.error('Payment error:', error);
-                showResult('error', '❌ Erreur de connexion au serveur. Vérifiez que l\'API est accessible.');
+                
+                // Enhanced error message with deployment guidance
+                let errorMsg = '❌ Erreur de connexion au serveur.<br><br>';
+                errorMsg += '<small>';
+                errorMsg += '• Vérifiez que l\'API backend est déployée à: <strong>' + API_BASE + '</strong><br>';
+                errorMsg += '• Testez: <a href="' + API_BASE + '/health" target="_blank">' + API_BASE + '/health</a><br>';
+                if (API_BASE.includes('api.dreamexdatalab.com')) {
+                    errorMsg += '• Le backend Node.js doit tourner sur api.dreamexdatalab.com<br>';
+                    errorMsg += '• Assurez-vous que les certificats SSL sont valides<br>';
+                }
+                errorMsg += '• Erreur: ' + (error.message || String(error));
+                errorMsg += '</small>';
+                
+                showResult('error', errorMsg);
                 button.disabled = false;
                 button.textContent = '🔒 Payer avec Orange Money';
             }
