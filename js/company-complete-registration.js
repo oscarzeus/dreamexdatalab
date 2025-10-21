@@ -360,35 +360,22 @@ class CompleteCompanyRegistration {
                 sessionStorage.setItem('reg.orderId', orderId);
             } catch {}
 
-            // Try main API, then fallback if available
-            const API_BASE = (window.WEBPAY_API_BASE && typeof window.WEBPAY_API_BASE === 'string') ? window.WEBPAY_API_BASE : location.origin;
-            const FALLBACK_API = window.WEBPAY_API_FALLBACK;
-            
-            let lastError = null;
-            
-            // First attempt
-            try {
-                const result = await this.attemptPayment(API_BASE, amount, orderId, phone);
-                if (result.success) return;
-                lastError = result.error;
-            } catch (err) {
-                lastError = err;
-            }
-
-            // Fallback attempt if available and main attempt failed
-            if (FALLBACK_API && FALLBACK_API !== API_BASE) {
-                try {
-                    console.log('Trying fallback API:', FALLBACK_API);
-                    const result = await this.attemptPayment(FALLBACK_API, amount, orderId, phone);
-                    if (result.success) return;
-                    lastError = result.error;
-                } catch (err) {
-                    lastError = err;
-                }
-            }
-
-            // If we get here, both attempts failed
-            throw lastError || new Error('Payment initialization failed');
+            // Redirect the user to the dedicated Orange Money index page which will initiate the payment
+            const apiBase = (window.WEBPAY_API_BASE && typeof window.WEBPAY_API_BASE === 'string') ? window.WEBPAY_API_BASE : window.location.origin;
+            const params = new URLSearchParams({
+                amount: String(amount),
+                phone,
+                order_id: orderId,
+                description: 'Company subscription',
+                autostart: '1'
+            });
+            // Build final URL on the API base (the backend serves the index UI at '/')
+            const indexUrlBase = (typeof window.WEBPAY_INDEX_URL === 'string' && window.WEBPAY_INDEX_URL)
+                ? window.WEBPAY_INDEX_URL
+                : (apiBase.replace(/\/$/, '') + '/');
+            const finalUrl = indexUrlBase + (indexUrlBase.includes('?') ? '&' : '?') + params.toString();
+            window.location.href = finalUrl;
+            return;
 
         } catch (err) {
             console.error('Enterprise checkout error', err);
