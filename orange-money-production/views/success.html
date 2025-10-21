@@ -43,7 +43,34 @@
                 try {
                     const params = new URLSearchParams(location.search);
                     const orderId = params.get('order_id') || params.get('orderId') || '';
-                    const target = `/company-complete-registration.html?payment=success${orderId ? `&order_id=${encodeURIComponent(orderId)}` : ''}`;
+
+                    // Determine the correct FRONTEND base URL.
+                    // Priority:
+                    // 1) window.FRONTEND_DOMAIN if provided (e.g., set by server)
+                    // 2) If current host starts with api., drop the prefix (api.example.com -> example.com)
+                    // 3) Fallback to the known public site
+                    // 4) Otherwise, current origin
+                    function computeFrontendBase() {
+                        try {
+                            const explicit = (typeof window.FRONTEND_DOMAIN === 'string' && window.FRONTEND_DOMAIN.trim()) ? window.FRONTEND_DOMAIN.trim() : '';
+                            if (explicit) return explicit.replace(/\/$/, '');
+
+                            const { protocol, hostname } = window.location;
+                            if (/^api\./i.test(hostname)) {
+                                return `${protocol}//${hostname.replace(/^api\./i, '')}`;
+                            }
+                            // When using the Render/onrender host, send users to the public site
+                            if (/onrender\.com$/i.test(hostname)) {
+                                return 'https://dreamexdatalab.com';
+                            }
+                            return window.location.origin;
+                        } catch {
+                            return 'https://dreamexdatalab.com';
+                        }
+                    }
+
+                    const base = computeFrontendBase();
+                    const target = `${base}/company-complete-registration.html?payment=success${orderId ? `&order_id=${encodeURIComponent(orderId)}` : ''}`;
 
                     // Ensure the button goes back to the registration wizard and unlocks Next
                     var back = document.getElementById('backToMerchant');
