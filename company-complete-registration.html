@@ -1601,6 +1601,100 @@
         let availableFeatures = [];
         let selectedFeatures = [];
 
+        // --- Persistent state helpers (session-scoped) ---
+        function persistSelectedFeatures() {
+            try {
+                const ids = selectedFeatures.map(f => f.id);
+                sessionStorage.setItem('reg.selectedFeatures', JSON.stringify(ids));
+            } catch {}
+        }
+
+        function restoreFeatureSelections() {
+            try {
+                const raw = sessionStorage.getItem('reg.selectedFeatures');
+                if (!raw) return;
+                const ids = JSON.parse(raw);
+                if (!Array.isArray(ids) || ids.length === 0) return;
+
+                // Clear any existing selection first
+                selectedFeatures = [];
+                const cards = document.querySelectorAll('.module-card[data-feature]');
+                cards.forEach(card => {
+                    const fid = card.getAttribute('data-feature');
+                    if (ids.includes(fid)) {
+                        // Mark selected visually
+                        card.classList.add('selected');
+                        // Add to in-memory arrays/sets
+                        const feature = availableFeatures.find(f => f.id === fid);
+                        if (feature) {
+                            selectedFeatures.push(feature);
+                        }
+                        if (window.companyRegistration && window.companyRegistration.selectedFeatures) {
+                            window.companyRegistration.selectedFeatures.add(fid);
+                        }
+                    } else {
+                        card.classList.remove('selected');
+                        if (window.companyRegistration && window.companyRegistration.selectedFeatures) {
+                            window.companyRegistration.selectedFeatures.delete(fid);
+                        }
+                    }
+                });
+
+                // Refresh dependent UI
+                updateFeatureSelectionSummary();
+            } catch {}
+        }
+
+        function persistPlan(planType) {
+            try { sessionStorage.setItem('reg.selectedPlan', planType || ''); } catch {}
+        }
+
+        function persistUserCount() {
+            try {
+                const userCountInput = document.getElementById('userCount');
+                if (userCountInput) {
+                    sessionStorage.setItem('reg.userCount', String(userCountInput.value || ''));
+                }
+            } catch {}
+        }
+
+        function restorePlanAndUserCount() {
+            try {
+                const plan = sessionStorage.getItem('reg.selectedPlan');
+                const savedUsers = sessionStorage.getItem('reg.userCount');
+
+                if (plan) {
+                    // Apply visual selection to plan card
+                    const planCards = document.querySelectorAll('.plan-card');
+                    planCards.forEach(c => c.classList.remove('selected'));
+                    const planCard = document.querySelector(`.plan-card[data-plan="${plan}"]`);
+                    if (planCard) {
+                        planCard.classList.add('selected');
+                    }
+
+                    // Toggle sections according to plan
+                    const userCountSection = document.getElementById('userCountSection');
+                    const summary = document.getElementById('paymentSummarySection');
+                    if (plan === 'enterprise') {
+                        if (userCountSection) userCountSection.style.display = 'block';
+                        if (summary) summary.style.display = 'block';
+                    } else {
+                        if (userCountSection) userCountSection.style.display = 'none';
+                        if (summary) summary.style.display = 'none';
+                    }
+                }
+
+                if (savedUsers) {
+                    const userCountInput = document.getElementById('userCount');
+                    if (userCountInput) userCountInput.value = savedUsers;
+                }
+
+                // Recalculate totals and update nav visibility
+                try { updateTotalPrice(); } catch {}
+                try { updateWizardNavigation(); } catch {}
+            } catch {}
+        }
+
         // Firebase Configuration (inline for compatibility)
         const firebaseConfig = {
             apiKey: "AIzaSyDkEWtZqc4Nt8z0WOJxqx9RgwOjRoHdyW8",
@@ -1693,6 +1787,13 @@
 
             // Attach event listeners for feature selection
             attachFeatureSelectionListeners();
+
+            // Restore any previously selected features (after cards exist)
+            restoreFeatureSelections();
+            // Ensure navigation state reflects restored selections
+            try { updateWizardNavigation(); } catch {}
+            // If a plan was saved earlier, make sure dependent totals/sections refresh
+            try { restorePlanAndUserCount(); } catch {}
         }
 
         // Create individual feature card HTML for registration
@@ -1748,6 +1849,8 @@
                     }
                     
                     updateFeatureSelectionSummary();
+                    // Persist selections on every change
+                    persistSelectedFeatures();
                 });
             });
         }
@@ -1792,6 +1895,8 @@
                 
                 // Update the wizard's next button state
                 updateWizardNavigation();
+                // Persist selection state
+                persistSelectedFeatures();
             } else {
                 summaryDiv.style.display = 'none';
                 
@@ -1806,6 +1911,7 @@
                 updateTotalPrice();
                 
                 updateWizardNavigation();
+                persistSelectedFeatures();
             }
         }
 
@@ -1957,6 +2063,9 @@
             // Set up user count input listener
             setupUserCountListener();
 
+            // Restore saved plan and user count early (features restored after grid loads)
+            try { restorePlanAndUserCount(); } catch {}
+
             // Hide Next initially on the welcome tab
             try {
                 const nextBtn = document.getElementById('nextBtn');
@@ -2025,6 +2134,8 @@
                     this.classList.add('selected');
                     
                     const planType = this.getAttribute('data-plan');
+                    // Persist plan selection
+                    persistPlan(planType);
                     
                     if (planType === 'enterprise') {
                         // Show user count section for enterprise plan
@@ -2055,8 +2166,14 @@
         function setupUserCountListener() {
             const userCountInput = document.getElementById('userCount');
             
-            userCountInput.addEventListener('input', updateTotalPrice);
-            userCountInput.addEventListener('change', updateTotalPrice);
+            userCountInput.addEventListener('input', function(){
+                updateTotalPrice();
+                persistUserCount();
+            });
+            userCountInput.addEventListener('change', function(){
+                updateTotalPrice();
+                persistUserCount();
+            });
         }
 
         // Update total price calculation
