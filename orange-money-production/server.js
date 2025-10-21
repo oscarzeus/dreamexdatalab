@@ -36,6 +36,7 @@ app.use(helmet({
 // CORS configuration
 const allowedOrigins = [
   process.env.DOMAIN || 'https://dreamexdatalab.com',
+  'https://api.dreamexdatalab.com',
   'http://localhost:3000',
   'http://localhost:3001', 
   'http://localhost:3002',
