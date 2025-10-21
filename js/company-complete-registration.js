@@ -297,7 +297,7 @@ class CompleteCompanyRegistration {
         }
     }
 
-    // Try to obtain the Orange Money phone number (9 digits) from the page or prompt
+    // Try to obtain the Orange Money phone number (9 digits) from known inputs (no popup)
     getPaymentPhone() {
         // Common candidate inputs
         const candidates = [
@@ -316,11 +316,7 @@ class CompleteCompanyRegistration {
                 if (/^[0-9]{9}$/.test(raw)) return raw;
             }
         }
-
-        // As a fallback, prompt the user
-        const entered = (window.prompt('Enter Orange Money phone (9 digits, e.g., 624123456):') || '').trim();
-        const digits = entered.replace(/\D/g, '');
-        if (/^[0-9]{9}$/.test(digits)) return digits;
+        // No popup fallback; return null to let the index page collect it
         return null;
     }
 
@@ -344,15 +340,6 @@ class CompleteCompanyRegistration {
 
             const orderId = `SUB-${Date.now()}`;
 
-            // Collect Orange Money phone
-            const phone = this.getPaymentPhone();
-            if (!phone) {
-                const msg = 'Please provide a valid Orange Money phone number (9 digits).';
-                if (errorEl) { errorEl.textContent = msg; errorEl.style.display = 'block'; }
-                else { alert(msg); }
-                return;
-            }
-
             // Set gating flags for later steps
             try {
                 sessionStorage.setItem('reg.paymentRequired', '1');
@@ -360,15 +347,13 @@ class CompleteCompanyRegistration {
                 sessionStorage.setItem('reg.orderId', orderId);
             } catch {}
 
-            // Redirect the user to the dedicated Orange Money index page which will initiate the payment
+            // Redirect directly to the Orange Money index page without modal popup
             const apiBase = (window.WEBPAY_API_BASE && typeof window.WEBPAY_API_BASE === 'string') ? window.WEBPAY_API_BASE : window.location.origin;
-            const params = new URLSearchParams({
-                amount: String(amount),
-                phone,
-                order_id: orderId,
-                description: 'Company subscription',
-                autostart: '1'
-            });
+            const params = new URLSearchParams();
+            params.set('amount', String(amount));
+            params.set('order_id', orderId);
+            params.set('description', 'Company subscription');
+            
             // Build final URL on the API base (the backend serves the index UI at '/')
             const indexUrlBase = (typeof window.WEBPAY_INDEX_URL === 'string' && window.WEBPAY_INDEX_URL)
                 ? window.WEBPAY_INDEX_URL
