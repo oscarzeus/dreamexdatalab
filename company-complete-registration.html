@@ -1181,6 +1181,15 @@
                         <div id="paymentError" style="display:none; color:#b91c1c;"></div>
                     </div>
                 </div>
+
+                <!-- Payment Success Banner (shown after returning from successful payment) -->
+                <div id="paymentSuccessBanner" style="display:none; margin: 1rem 0 0 0; border:1px solid #bbf7d0; background:#f0fdf4; border-radius:10px; padding:1rem;">
+                    <div style="display:flex; align-items:center; gap:.5rem; color:#065f46;">
+                        <span style="font-size:1.1rem;">✅</span>
+                        <strong>Payment received</strong>
+                    </div>
+                    <div id="paymentSuccessDetails" style="margin-top:.5rem; color:#065f46; font-size:.95rem;"></div>
+                </div>
             </div>
 
             <!-- Step 2: Company Information -->
@@ -1678,9 +1687,19 @@
                     if (plan === 'enterprise') {
                         if (userCountSection) userCountSection.style.display = 'block';
                         if (summary) summary.style.display = 'block';
+                        // Ensure payment controls visible for enterprise
+                        try {
+                            const controlsRow = document.getElementById('startPaymentBtn')?.closest('div');
+                            if (controlsRow) controlsRow.style.display = 'flex';
+                        } catch {}
                     } else {
+                        // Free Trial: hide user count but show summary with $0, hide payment controls
                         if (userCountSection) userCountSection.style.display = 'none';
-                        if (summary) summary.style.display = 'none';
+                        if (summary) summary.style.display = 'block';
+                        try {
+                            const controlsRow = document.getElementById('startPaymentBtn')?.closest('div');
+                            if (controlsRow) controlsRow.style.display = 'none';
+                        } catch {}
                     }
                 }
 
@@ -2102,6 +2121,8 @@
                     if (orderId) sessionStorage.setItem('reg.orderId', orderId);
                     // Stay on Welcome step but show Next button
                     updateWizardNavigation();
+                    // Show success banner
+                    updatePaymentSuccessBanner();
                     // Clean URL
                     url.searchParams.delete('payment');
                     url.searchParams.delete('orderId');
@@ -2110,9 +2131,39 @@
                 } else if (sessionStorage.getItem('reg.paymentOk') === '1') {
                     // If payment already done in session, ensure Next is visible on Welcome
                     updateWizardNavigation();
+                    updatePaymentSuccessBanner();
                 }
             } catch {}
         });
+
+        // Populate/Toggle the payment success banner on the Welcome step
+        function updatePaymentSuccessBanner() {
+            try {
+                const banner = document.getElementById('paymentSuccessBanner');
+                const details = document.getElementById('paymentSuccessDetails');
+                if (!banner || !details) return;
+
+                const ok = sessionStorage.getItem('reg.paymentOk') === '1';
+                if (!ok) {
+                    banner.style.display = 'none';
+                    details.textContent = '';
+                    return;
+                }
+
+                // Determine purchased plan (prefer saved selection)
+                let plan = sessionStorage.getItem('reg.selectedPlan');
+                if (!plan) {
+                    const sel = document.querySelector('.plan-card.selected');
+                    plan = sel ? sel.getAttribute('data-plan') : 'enterprise';
+                }
+                const planLabel = plan === 'free' ? 'Free Trial' : 'Enterprise';
+
+                const orderId = sessionStorage.getItem('reg.orderId') || '';
+                const orderTxt = orderId ? ` • Order: ${orderId}` : '';
+                details.textContent = `Your ${planLabel} plan payment was successful. You can continue your company setup now.${orderTxt}`;
+                banner.style.display = 'block';
+            } catch {}
+        }
 
         // Set up plan selection event listeners
         function setupPlanSelectionListeners() {
@@ -2149,11 +2200,33 @@
                         if (window.companyRegistration && typeof window.companyRegistration.updatePaymentSummary === 'function') {
                             window.companyRegistration.updatePaymentSummary();
                         }
+                        // Ensure payment controls visible for enterprise
+                        try {
+                            const controlsRow = document.getElementById('startPaymentBtn')?.closest('div');
+                            if (controlsRow) controlsRow.style.display = 'flex';
+                            const planEl = document.getElementById('summaryPlan');
+                            if (planEl) planEl.textContent = 'Enterprise';
+                        } catch {}
                     } else {
-                        // Hide user count section for free trial
+                        // Free Trial: hide user count, show summary with $0 and no payment controls
                         userCountSection.style.display = 'none';
                         const summary = document.getElementById('paymentSummarySection');
-                        if (summary) summary.style.display = 'none';
+                        if (summary) {
+                            summary.style.display = 'block';
+                            // Update summary fields for free
+                            try {
+                                const planEl = document.getElementById('summaryPlan');
+                                const usersEl = document.getElementById('summaryUsers');
+                                const ppuEl = document.getElementById('summaryPricePerUser');
+                                const totalEl = document.getElementById('summaryMonthlyTotal');
+                                if (planEl) planEl.textContent = 'Free Trial';
+                                if (usersEl) usersEl.textContent = 'Up to 5';
+                                if (ppuEl) ppuEl.textContent = '$0.00';
+                                if (totalEl) totalEl.textContent = '$0.00';
+                                const controlsRow = document.getElementById('startPaymentBtn')?.closest('div');
+                                if (controlsRow) controlsRow.style.display = 'none';
+                            } catch {}
+                        }
                     }
 
                     // Refresh Next button visibility per rule
@@ -2183,7 +2256,23 @@
             const totalPriceDisplay = document.getElementById('totalPriceDisplay');
             const priceBreakdownDisplay = document.getElementById('priceBreakdownDisplay');
             
-            if (!selectedPlan || selectedPlan.getAttribute('data-plan') !== 'enterprise') {
+            if (!selectedPlan) return;
+            const planType = selectedPlan.getAttribute('data-plan');
+            
+            if (planType !== 'enterprise') {
+                // Update summary for Free Trial (no payment controls)
+                try {
+                    const planEl = document.getElementById('summaryPlan');
+                    const usersEl = document.getElementById('summaryUsers');
+                    const ppuEl = document.getElementById('summaryPricePerUser');
+                    const totalEl = document.getElementById('summaryMonthlyTotal');
+                    if (planEl) planEl.textContent = 'Free Trial';
+                    if (usersEl) usersEl.textContent = 'Up to 5';
+                    if (ppuEl) ppuEl.textContent = '$0.00';
+                    if (totalEl) totalEl.textContent = '$0.00';
+                    const controlsRow = document.getElementById('startPaymentBtn')?.closest('div');
+                    if (controlsRow) controlsRow.style.display = 'none';
+                } catch {}
                 return;
             }
             
