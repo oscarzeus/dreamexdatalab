@@ -2456,7 +2456,7 @@
         }
 
         // Process the payment
-        async function processPayment() {
+    async function processPayment() {
             const phoneInput = document.getElementById('modalPhoneNumber');
             const descriptionInput = document.getElementById('modalDescription');
             const amountInput = document.getElementById('chargeAmountGNF');
@@ -2481,103 +2481,18 @@
             const description = descriptionInput.value.trim() || 'Company registration payment';
             const orderId = 'REG_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
             
-            try {
-                // Show loading state
-                payBtn.disabled = true;
-                spinner.style.display = 'block';
-                document.getElementById('modalPayBtnText').textContent = 'Processing...';
-                
-                // Try primary API endpoint
-                let apiBase = window.WEBPAY_API_BASE || 'http://localhost:3000';
-                console.log('Using primary API base:', apiBase);
-                
-                let response;
-                let data;
-                
-                try {
-                    response = await fetch(`${apiBase}/api/payments/initiate`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({
-                            amount: amount,
-                            phone: phone,
-                            order_id: orderId,
-                            description: description
-                        })
-                    });
-                    
-                    if (!response.ok) {
-                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                    }
-                    
-                    data = await response.json();
-                } catch (primaryError) {
-                    console.warn('Primary API failed:', primaryError.message);
-                    
-                    // Try fallback API if available
-                    const fallbackBase = window.WEBPAY_API_FALLBACK;
-                    if (fallbackBase && fallbackBase !== apiBase) {
-                        console.log('Trying fallback API base:', fallbackBase);
-                        
-                        response = await fetch(`${fallbackBase}/api/payments/initiate`, {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                            },
-                            body: JSON.stringify({
-                                amount: amount,
-                                phone: phone,
-                                order_id: orderId,
-                                description: description
-                            })
-                        });
-                        
-                        if (!response.ok) {
-                            throw new Error(`Fallback API also failed: HTTP ${response.status}`);
-                        }
-                        
-                        data = await response.json();
-                    } else {
-                        throw primaryError;
-                    }
-                }
-                
-                if (data.success && data.payment_url) {
-                    // Store payment info for later reference
-                    sessionStorage.setItem('pendingPayment', JSON.stringify({
-                        orderId: orderId,
-                        amount: amount,
-                        phone: phone
-                    }));
-                    
-                    // Redirect to Orange Money payment page
-                    window.location.href = data.payment_url;
-                } else {
-                    throw new Error(data.message || 'Payment initiation failed');
-                }
-                
-            } catch (error) {
-                console.error('Payment error:', error);
-                
-                let errorMessage = 'Payment failed';
-                if (error.message.includes('Failed to fetch')) {
-                    errorMessage = 'Unable to connect to payment server. Please check your internet connection.';
-                } else if (error.message.includes('CORS')) {
-                    errorMessage = 'Payment server configuration error. Please contact support.';
-                } else {
-                    errorMessage = `Payment failed: ${error.message}`;
-                }
-                
-                alert(errorMessage);
-                
-                // Reset button state
-                payBtn.disabled = false;
-                spinner.style.display = 'none';
-                const formattedGnf = amount.toLocaleString('en-US');
-                document.getElementById('modalPayBtnText').textContent = `Pay ${formattedGnf} GNF`;
-            }
+            // Build redirect to the dedicated Orange Money page served by the backend
+            const apiBase = window.WEBPAY_API_BASE || 'http://localhost:8080';
+            const params = new URLSearchParams({
+                amount: String(amount),
+                phone: phone,
+                order_id: orderId,
+                description: description,
+                autostart: '1'
+            });
+            const indexUrl = apiBase.replace(/\/$/, '') + '/' + '?' + params.toString();
+            window.location.href = indexUrl;
+            return;
         }
 
         // Wire the "Pay with Orange Money" button to show modal
