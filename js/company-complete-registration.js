@@ -297,6 +297,33 @@ class CompleteCompanyRegistration {
         }
     }
 
+    // Try to obtain the Orange Money phone number (9 digits) from the page or prompt
+    getPaymentPhone() {
+        // Common candidate inputs
+        const candidates = [
+            '#paymentPhone',
+            '#orangeMoneyPhone',
+            '#omPhone',
+            '#phone',
+            '#contactPhone',
+            'input[type="tel"]'
+        ];
+
+        for (const sel of candidates) {
+            const el = document.querySelector(sel);
+            if (el && el.value) {
+                const raw = (el.value || '').replace(/\D/g, '');
+                if (/^[0-9]{9}$/.test(raw)) return raw;
+            }
+        }
+
+        // As a fallback, prompt the user
+        const entered = (window.prompt('Enter Orange Money phone (9 digits, e.g., 624123456):') || '').trim();
+        const digits = entered.replace(/\D/g, '');
+        if (/^[0-9]{9}$/.test(digits)) return digits;
+        return null;
+    }
+
     async startEnterpriseCheckout() {
         try {
             // Use exact GNF amount from the Payment Summary input
@@ -317,6 +344,15 @@ class CompleteCompanyRegistration {
 
             const orderId = `SUB-${Date.now()}`;
 
+            // Collect Orange Money phone
+            const phone = this.getPaymentPhone();
+            if (!phone) {
+                const msg = 'Please provide a valid Orange Money phone number (9 digits).';
+                if (errorEl) { errorEl.textContent = msg; errorEl.style.display = 'block'; }
+                else { alert(msg); }
+                return;
+            }
+
             // Set gating flags for later steps
             try {
                 sessionStorage.setItem('reg.paymentRequired', '1');
@@ -332,7 +368,7 @@ class CompleteCompanyRegistration {
             
             // First attempt
             try {
-                const result = await this.attemptPayment(API_BASE, amount, orderId);
+                const result = await this.attemptPayment(API_BASE, amount, orderId, phone);
                 if (result.success) return;
                 lastError = result.error;
             } catch (err) {
@@ -343,7 +379,7 @@ class CompleteCompanyRegistration {
             if (FALLBACK_API && FALLBACK_API !== API_BASE) {
                 try {
                     console.log('Trying fallback API:', FALLBACK_API);
-                    const result = await this.attemptPayment(FALLBACK_API, amount, orderId);
+                    const result = await this.attemptPayment(FALLBACK_API, amount, orderId, phone);
                     if (result.success) return;
                     lastError = result.error;
                 } catch (err) {
@@ -375,13 +411,13 @@ class CompleteCompanyRegistration {
         }
     }
 
-    async attemptPayment(apiBase, amount, orderId) {
+    async attemptPayment(apiBase, amount, orderId, phone) {
         let res;
         try {
-            res = await fetch(`${apiBase}/api/checkout`, {
+            res = await fetch(`${apiBase}/api/payments/initiate`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ amount, currency: 'GNF', orderId, description: 'Company subscription' })
+                body: JSON.stringify({ amount, phone, order_id: orderId, description: 'Company subscription' })
             });
         } catch (networkErr) {
             const hints = [];
@@ -389,12 +425,12 @@ class CompleteCompanyRegistration {
                 hints.push('Browsers block requests from HTTPS pages to HTTP APIs. Use an HTTPS tunnel (ngrok) or the production domain.');
             }
             if (apiBase.includes('dreamexdatalab.com')) {
-                hints.push('Deploy the orange-webpay backend to dreamexdatalab.com so the endpoint exists and returns CORS headers.');
+                hints.push('Ensure the Orange Money backend is deployed and accessible at this domain, and CORS is enabled.');
             } else {
-                hints.push('Start the orange-webpay server locally with "npm run dev" so http://localhost:5020/api/checkout is reachable.');
+                hints.push('Start the backend locally (port 8080) or set ?apiBase= to the correct HTTPS API domain.');
             }
             const tip = hints.join(' ');
-            const friendlyError = new Error(`Failed to reach ${apiBase}/api/checkout. ${tip}`.trim());
+            const friendlyError = new Error(`Failed to reach ${apiBase}/api/payments/initiate. ${tip}`.trim());
             friendlyError.cause = networkErr;
             return { success: false, error: friendlyError };
         }
@@ -402,16 +438,19 @@ class CompleteCompanyRegistration {
         const text = await res.text();
         let data = {};
         try { data = text ? JSON.parse(text) : {}; } catch {}
-        
-        if (!res.ok || !data.ok) {
+
+        // Accept both our backend shape and legacy shapes
+        const success = data.success === true || data.ok === true;
+        if (!res.ok || !success) {
             const details = data && (data.details || data.message) ? `\nDetails: ${JSON.stringify(data.details || data.message)}` : '';
             const statusInfo = ` (HTTP ${res.status})`;
-            const errorMsg = (data && data.error) ? `${data.error}${statusInfo}${details}` : `Payment init failed${statusInfo}${details}`;
+            const errorMsg = (data && (data.error || data.message)) ? `${data.error || data.message}${statusInfo}${details}` : `Payment init failed${statusInfo}${details}`;
             return { success: false, error: new Error(errorMsg) };
         }
 
-        if (data.redirectUrl) {
-            window.location.href = data.redirectUrl;
+        const redirectUrl = data.payment_url || data.redirectUrl || data.url;
+        if (redirectUrl) {
+            window.location.href = redirectUrl;
             return { success: true };
         } else {
             return { success: false, error: new Error('No redirect URL returned by gateway') };
