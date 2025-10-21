@@ -5,6 +5,7 @@ class OrangeMoneyPayment {
     this.resultMessage = document.getElementById('resultMessage');
     this.buttonText = this.payButton.querySelector('.button-text');
     this.buttonLoading = this.payButton.querySelector('.button-loading');
+    this.urlParams = new URLSearchParams(window.location.search);
         
     this.init();
   }
@@ -13,6 +14,8 @@ class OrangeMoneyPayment {
     this.form.addEventListener('submit', this.handleSubmit.bind(this));
     this.setupInputValidation();
     this.generateOrderId();
+    this.prefillFromQuery();
+    this.maybeAutoStart();
   }
 
   generateOrderId() {
@@ -39,6 +42,54 @@ class OrangeMoneyPayment {
         e.target.setCustomValidity('');
       }
     });
+  }
+
+  prefillFromQuery() {
+    try {
+      const params = this.urlParams;
+      const setIf = (id, val) => {
+        if (val !== null && val !== undefined && val !== '') {
+          const el = document.getElementById(id);
+          if (el) el.value = val;
+        }
+      };
+
+      const normalizePhone = (p) => {
+        if (!p) return p;
+        const digits = String(p).replace(/\D/g, '');
+        // If user passed a full +224XXXXXXXXX, keep last 9 digits
+        if (digits.length >= 9) return digits.slice(-9);
+        return digits;
+      };
+
+      const amount = params.get('amount');
+      const phone = normalizePhone(params.get('phone'));
+      const orderId = params.get('order_id');
+      const description = params.get('description');
+
+      setIf('amount', amount);
+      setIf('phone', phone);
+      setIf('order_id', orderId);
+      setIf('description', description);
+    } catch (e) {
+      console.warn('Prefill from query failed:', e);
+    }
+  }
+
+  maybeAutoStart() {
+    const auto = (this.urlParams.get('autostart') || '').toLowerCase();
+    if (['1', 'true', 'yes', 'y'].includes(auto)) {
+      // Slight delay to allow DOM updates and validation wiring
+      setTimeout(() => {
+        // Ensure fields are present and valid before triggering
+        const amount = document.getElementById('amount')?.value;
+        const phone = document.getElementById('phone')?.value;
+        const orderId = document.getElementById('order_id')?.value;
+        if (amount && phone && orderId) {
+          this.handleSubmit(new Event('submit'));
+        }
+      }, 150);
+    }
   }
 
   async handleSubmit(event) {
