@@ -1809,10 +1809,18 @@
             }
         }
 
-        // Update wizard navigation: show Next only when Free Trial is selected and at least one feature is chosen
+        // Update wizard navigation: show Next when payment is done OR when Free Trial is selected and a feature is chosen
         function updateWizardNavigation() {
             const nextBtn = document.getElementById('nextBtn');
             if (!nextBtn) return;
+            const paymentOk = (sessionStorage.getItem('reg.paymentOk') === '1');
+            if (paymentOk) {
+                nextBtn.style.display = 'inline-flex';
+                nextBtn.disabled = false;
+                nextBtn.style.opacity = '1';
+                nextBtn.style.cursor = 'pointer';
+                return;
+            }
             const selectedPlan = document.querySelector('.plan-card.selected');
             const isFreeTrial = selectedPlan && selectedPlan.getAttribute('data-plan') === 'free';
             const canProceed = isFreeTrial && selectedFeatures.length > 0;
@@ -1978,7 +1986,7 @@
                 }
             } catch {}
 
-            // Detect payment success from URL and unlock step 2
+            // Detect payment success from URL and unlock Next button on Welcome step
             try {
                 const url = new URL(location.href);
                 const payment = url.searchParams.get('payment');
@@ -1986,16 +1994,16 @@
                 if (payment === 'success') {
                     sessionStorage.setItem('reg.paymentOk', '1');
                     if (orderId) sessionStorage.setItem('reg.orderId', orderId);
-                    // Jump to Company Info (Step 2)
-                    goToStep(2);
+                    // Stay on Welcome step but show Next button
+                    updateWizardNavigation();
                     // Clean URL
                     url.searchParams.delete('payment');
                     url.searchParams.delete('orderId');
                     url.searchParams.delete('order_id');
                     history.replaceState({}, '', url.toString());
                 } else if (sessionStorage.getItem('reg.paymentOk') === '1') {
-                    // If payment already done in session, ensure step 2 is active
-                    goToStep(2);
+                    // If payment already done in session, ensure Next is visible on Welcome
+                    updateWizardNavigation();
                 }
             } catch {}
         });
@@ -2495,12 +2503,43 @@
             return;
         }
 
-        // Wire the "Pay with Orange Money" button to show modal
-        function wireOrangeMoneyModal() {
+        // Wire the "Pay with Orange Money" button to redirect directly
+        function wireOrangeMoneyDirect() {
             const btn = document.getElementById('startPaymentBtn');
             if (!btn) return;
             
-            btn.addEventListener('click', showPaymentModal);
+            btn.addEventListener('click', function() {
+                // Get the amount from the charge input
+                const amountInput = document.getElementById('chargeAmountGNF');
+                const amount = parseInt(amountInput.value, 10) || 0;
+                
+                if (isNaN(amount) || amount < 1000) {
+                    alert('Please enter a valid amount (minimum 1000 GNF)');
+                    return;
+                }
+                
+                // Generate order ID
+                const orderId = 'SUB-' + Date.now();
+                
+                // Build redirect to the Orange Money index page
+                const apiBase = window.WEBPAY_API_BASE || 'http://localhost:8080';
+                const params = new URLSearchParams({
+                    amount: String(amount),
+                    order_id: orderId,
+                    description: 'Company subscription'
+                });
+                const indexUrl = apiBase.replace(/\/$/, '') + '/' + '?' + params.toString();
+                
+                // Store payment info for later
+                try {
+                    sessionStorage.setItem('reg.paymentRequired', '1');
+                    sessionStorage.setItem('reg.orderId', orderId);
+                    sessionStorage.removeItem('reg.paymentOk');
+                } catch {}
+                
+                // Redirect directly to Orange Money payment page
+                window.location.href = indexUrl;
+            });
         }
 
         // Close modal when clicking outside
@@ -2520,7 +2559,7 @@
 
         // Phone number input validation
         document.addEventListener('DOMContentLoaded', function() {
-            wireOrangeMoneyModal();
+            wireOrangeMoneyDirect();
             
             const phoneInput = document.getElementById('modalPhoneNumber');
             if (phoneInput) {
