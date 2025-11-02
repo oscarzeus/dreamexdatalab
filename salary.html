@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -2953,6 +2953,13 @@
             transition: background-color 0.2s ease;
         }
 
+        /* Reduce text size specifically in the Salary Grid tab table */
+        #salaryGridTabContent .jobs-table,
+        #salaryGridTabContent .jobs-table th,
+        #salaryGridTabContent .jobs-table td {
+            font-size: 0.8rem;
+        }
+
         .job-title-cell { /* Candidate Name for offers */
             font-weight: 600;
             color: #2c3e50;
@@ -3262,6 +3269,8 @@
                             <option value="GNF">GNF - Guinean Franc</option>
                         </select>
                     </div>
+                    <!-- Dynamic Subitems Container (rendered from Settings) -->
+                    <div class="form-group" id="bandSubitemsContainer" style="grid-column:1 / -1; display:none;"></div>
                     <div class="form-group">
                         <label for="bandMinSalary">Min Salary <span class="required">*</span></label>
                         <input type="number" id="bandMinSalary" class="form-control" placeholder="e.g., 50000" required step="100">
@@ -3315,12 +3324,18 @@
                     <a href="#"><i class="fas fa-shield-alt"></i> Safety</a>
                     <ul class="submenu">
                         <li data-feature="training_view" data-requires-permission="training_view"><a href="trainingboard.html">Training</a></li>
-                        <li data-feature="risk_view" data-requires-permission="risk_view"><a href="riskboard.html">Risk Management</a></li>
                         <li data-feature="jsa_view" data-requires-permission="jsa_view"><a href="jsaboard.html">Job Safety Analysis</a></li>
                         <li data-feature="ptw_view" data-requires-permission="ptw_view"><a href="ptwboard.html">Permit to Work</a></li>
                         <li data-feature="incident_view" data-requires-permission="incident_view"><a href="incidentboard.html">Incident Reports</a></li>
                         <li data-feature="inspection_view" data-requires-permission="inspection_view"><a href="inspectionboard.html">Inspection</a></li>
                         <li data-feature="audit_view" data-requires-permission="audit_view"><a href="auditboard.html">Audit</a></li>
+                    </ul>
+                </li>
+                <!-- Risk Management (separate section) -->
+                <li class="menu-dropdown" data-feature="risk_view" data-requires-permission="risk_view">
+                    <a href="#"><i class="fas fa-exclamation-triangle"></i> Risk Management</a>
+                    <ul class="submenu">
+                        <li data-feature="risk_view" data-requires-permission="risk_view"><a href="riskboard.html">Risk Management</a></li>
                     </ul>
                 </li>
                 <li class="menu-dropdown" data-feature="fuel_management" data-requires-permission="fuel_management">
@@ -3334,6 +3349,17 @@
                         <li data-feature="fuel_distribution" data-requires-permission="fuel_distribution"><a href="fueldist.html">Fuel Distribution</a></li>
                         <li data-feature="fuel_consumption_analysis" data-requires-permission="fuel_consumption_analysis"><a href="fuelanalys.html">Consumption Analysis</a></li>
                         <li data-feature="fuel_daily_report" data-requires-permission="fuel_daily_report"><a href="fueldaily.html">Daily Fuel Report</a></li>
+                    </ul>
+                </li>
+                <!-- Workspaces: Catering -->
+                <li class="menu-dropdown" data-feature="catering_view" data-requires-permission="catering_view">
+                    <a href="#"><i class="fas fa-utensils"></i> Workspaces — Catering</a>
+                    <ul class="submenu">
+                        <li data-feature="catering_manage_types" data-requires-permission="catering_manage_types"><a href="catering-meal-types.html"><i class="fas fa-list"></i> Meal Types</a></li>
+                        <li data-feature="catering_assign" data-requires-permission="catering_assign"><a href="catering-eligibility.html"><i class="fas fa-user-check"></i> Eligibility & Assign</a></li>
+                        <li data-feature="catering_consumption_manual" data-requires-permission="catering_consumption_manual"><a href="catering-consumption.html"><i class="fas fa-keyboard"></i> Consumption (Manual)</a></li>
+                        <li data-feature="catering_consumption_nfc" data-requires-permission="catering_consumption_nfc"><a href="catering-consumption.html#nfc"><i class="fas fa-id-card"></i> Consumption (NFC)</a></li>
+                        <li data-feature="catering_reports" data-requires-permission="catering_reports"><a href="catering-reports.html"><i class="fas fa-chart-line"></i> Reports</a></li>
                     </ul>
                 </li>
                 <li class="menu-dropdown" data-feature="environment_view" data-requires-permission="environment_view">
@@ -3468,7 +3494,7 @@
                             <span>Salary Management</span>
                         </div>
                         <div class="page-actions">
-                            <button type="button" class="btn-add-new" onclick="openSalaryGradeModal()" title="Add New Salary Grade">
+                            <button type="button" class="btn-add-new" onclick="handleAddNewClick()" title="Add New">
                                 <i class="fas fa-plus"></i>
                             </button>
                         </div>
@@ -3486,6 +3512,10 @@
                                 <i class="fas fa-layer-group"></i>
                                 Salary Bands
                             </button>
+                            <button class="tab-nav-btn" id="settingsTabBtn" onclick="switchToTab('settings')">
+                                <i class="fas fa-gear"></i>
+                                Settings
+                            </button>
                         </div>
 
                         <!-- Salary Grid Tab Content -->
@@ -3502,12 +3532,7 @@
                                         </button>
                                     </div>
                                 </div>
-                                <div style="background: #e3f2fd; border-left: 4px solid #2196f3; padding: 12px; margin: 16px 0; border-radius: 4px;">
-                                    <p style="margin: 0; color: #1565c0; font-weight: 500;">
-                                        <i class="fas fa-info-circle" style="margin-right: 8px;"></i>
-                                        This is a read-only view of all job titles with their salary information. To modify salary data, use the <strong>Salary Bands</strong> tab to create bands that automatically populate this grid.
-                                    </p>
-                                </div>
+                                
                             </div>
                             <div class="table-container">
                                 <div class="loading-state" id="salaryGridLoadingState">
@@ -3550,14 +3575,7 @@
                                         <i class="fas fa-search search-icon"></i>
                                         <input type="text" class="search-input" id="salaryBandsSearchInput" placeholder="Search by band name or job title..." oninput="filterSalaryBands()">
                                     </div>
-                                    <div style="display:flex; gap:.5rem;">
-                                        <button class="btn btn-secondary" id="addSalaryBandBtn" title="Add Salary Band" onclick="openSalaryBandModal()" style="display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;padding:0;">
-                                            <i class="fas fa-plus"></i>
-                                        </button>
-                                        <button class="btn btn-secondary" id="exportSalaryBandsBtn" aria-label="Export Salary Bands" title="Export Salary Bands" onclick="exportSalaryBands()" style="display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;padding:0;">
-                                            <i class="fas fa-download"></i>
-                                        </button>
-                                    </div>
+                                    <!-- Removed Add and Export buttons for Salary Bands; use header + button instead -->
                                 </div>
                             </div>
                             <div class="table-container">
@@ -3586,6 +3604,45 @@
                                     <p>Create bands to group related job titles under shared salary ranges.</p>
                                 </div>
                                 <div class="pagination d-none" id="salaryBandsPagination"></div>
+                            </div>
+                        </div>
+
+                        <!-- Settings Tab Content -->
+                        <div class="tab-content" id="settingsTabContent">
+                            <div class="tab-controls">
+                                
+                                <div style="display:flex;gap:.5rem;align-items:center;justify-content:flex-end;">
+                                    <button class="btn btn-secondary" id="resetSubitemsBtn" onclick="resetSalarySubitemsToDefault()" title="Reset to Default" style="display:inline-flex;align-items:center;gap:.4rem;">
+                                        <i class="fas fa-rotate-left"></i>
+                                        Reset
+                                    </button>
+                                    <button class="btn btn-secondary" id="saveSubitemsBtn" onclick="saveSalarySubitems()" title="Save Changes" style="display:inline-flex;align-items:center;gap:.4rem;">
+                                        <i class="fas fa-save"></i>
+                                        Save
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="table-container">
+                                <table class="jobs-table" id="salarySubitemsTable">
+                                    <thead>
+                                        <tr>
+                                            <th style="width:38px;">#</th>
+                                            <th>Label</th>
+                                            <th style="width:120px;">Enabled</th>
+                                            <th style="width:120px;">Order</th>
+                                            <th style="width:120px;">Type</th>
+                                            <th style="width:120px;">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="salarySubitemsTbody">
+                                        <!-- rows injected by JS -->
+                                    </tbody>
+                                </table>
+                                <div class="empty-state d-none" id="salarySubitemsEmptyState">
+                                    <i class="fas fa-sliders"></i>
+                                    <h3>No Subitems Configured</h3>
+                                    <p>Use Add Subitem to create your structure or Reset to restore defaults.</p>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -4163,12 +4220,33 @@
             }
             await loadSalaryGrades();
             await populateDropdowns();
+            // Preload settings so Band modal can reflect latest subitems immediately
+            await loadSalarySettings();
             
             // Set up real-time listeners for live updates
             setupRealTimeOrgChartListener();
             setupRealTimeSalaryBandsListener();
             
             // Note: User profile initialization is now handled by SalaryAuthManager
+        }
+
+        // Unified handler for the header "+" button to respect the active tab
+        async function handleAddNewClick(){
+            try{
+                if (currentSalaryTab === 'salaryBands') {
+                    await openSalaryBandModal();
+                } else if (currentSalaryTab === 'salaryGrid') {
+                    // No action for Salary Grid tab - it's read-only
+                    console.log('Salary Grid is read-only. Use Salary Bands tab to manage salary data.');
+                } else if (currentSalaryTab === 'settings') {
+                    // Add a new subitem when on Settings tab
+                    addSalarySubitem();
+                } else {
+                    // No default action for other tabs
+                }
+            } catch (e){
+                console.error('Error handling header add button:', e);
+            }
         }
 
         // Initialize basic page functionality (non-authentication dependent)
@@ -4284,6 +4362,8 @@
                         loadSalaryGrades();
                     } else if (tabName === 'salaryBands') {
                         loadSalaryBands();
+                    } else if (tabName === 'settings') {
+                        loadSalarySettings();
                     }
                 } else {
                     console.error('Tab elements not found:', {
@@ -4295,6 +4375,191 @@
             } catch (error) {
                 console.error('Error switching tabs:', error);
             }
+        }
+
+        /* ================= Settings (Salary Subitems) ================= */
+        let salarySubitems = []; // {id,label,key,enabled,order,type}
+
+        async function ensureSalarySettingsLoaded(){
+            if(!Array.isArray(salarySubitems) || salarySubitems.length===0){
+                await loadSalarySettings();
+            }
+        }
+
+        function getDefaultSalarySubitems(){
+            return [
+                { id: 'minSalary', label: 'Min', key: 'minSalary', enabled: true, order: 1, type: 'number' },
+                { id: 'midSalary', label: 'Mid', key: 'midSalary', enabled: true, order: 2, type: 'number' },
+                { id: 'maxSalary', label: 'Max', key: 'maxSalary', enabled: true, order: 3, type: 'number' },
+            ];
+        }
+
+        async function loadSalarySettings(){
+            try{
+                if (!companyContext) await initializeCompanyContext();
+                const companyPath = companyContext || 'default';
+                const snap = await database.ref(`companies/${companyPath}/salarySettings/subitems`).once('value');
+                if(snap.exists()){
+                    const obj = snap.val();
+                    salarySubitems = Object.values(obj).sort((a,b)=> (a.order||0)-(b.order||0));
+                } else {
+                    salarySubitems = getDefaultSalarySubitems();
+                }
+                renderSalarySubitemsEditor();
+            }catch(err){
+                console.error('Error loading salary settings:', err);
+                salarySubitems = getDefaultSalarySubitems();
+                renderSalarySubitemsEditor();
+            }
+        }
+
+        function renderSalarySubitemsEditor(){
+            const tbody = document.getElementById('salarySubitemsTbody');
+            const empty = document.getElementById('salarySubitemsEmptyState');
+            if(!tbody) return;
+            tbody.innerHTML = '';
+            if(!salarySubitems || salarySubitems.length===0){
+                if(empty){ empty.classList.remove('d-none'); empty.style.display='block'; }
+                return;
+            }
+            if(empty){ empty.classList.add('d-none'); empty.style.display='none'; }
+            salarySubitems.forEach((it, idx)=>{
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${idx+1}</td>
+                    <td><input type="text" value="${escapeHtml(it.label||'')}" oninput="updateSubitemField('${it.id}','label', this.value)" placeholder="Label"/></td>
+                    <td style="text-align:center;"><input type="checkbox" ${it.enabled? 'checked':''} onchange="updateSubitemField('${it.id}','enabled', this.checked)"/></td>
+                    <td><input type="number" min="0" value="${Number(it.order||0)}" oninput="updateSubitemField('${it.id}','order', Number(this.value)||0)"/></td>
+                    <td>
+                        <select onchange="updateSubitemField('${it.id}','type', this.value)">
+                            <option value="number" ${it.type==='number'?'selected':''}>Number</option>
+                            <option value="text" ${it.type==='text'?'selected':''}>Text</option>
+                        </select>
+                    </td>
+                    <td class="action-buttons">
+                        <button class="btn-action btn-delete" title="Remove" onclick="removeSalarySubitem('${it.id}')"><i class="fas fa-trash"></i></button>
+                    </td>`;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function updateSubitemField(id, field, value){
+            const idx = salarySubitems.findIndex(s=>s.id===id);
+            if(idx>=0){
+                salarySubitems[idx] = Object.assign({}, salarySubitems[idx], { [field]: value });
+            }
+        }
+
+        function addSalarySubitem(){
+            const id = 'sub_'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+            const maxOrder = salarySubitems.length ? Math.max(...salarySubitems.map(s=>Number(s.order||0))) : 0;
+            salarySubitems.push({ id, label:'New Item', key:id, enabled:true, order:maxOrder+1, type:'number' });
+            renderSalarySubitemsEditor();
+        }
+
+        function removeSalarySubitem(id){
+            salarySubitems = salarySubitems.filter(s=>s.id!==id);
+            renderSalarySubitemsEditor();
+        }
+
+        function resetSalarySubitemsToDefault(){
+            if(!confirm('Reset subitems to default (Min, Mid, Max)?')) return;
+            salarySubitems = getDefaultSalarySubitems();
+            renderSalarySubitemsEditor();
+        }
+
+        async function saveSalarySubitems(){
+            try{
+                if (!companyContext) await initializeCompanyContext();
+                const companyPath = companyContext || 'default';
+                // Validate keys are unique and non-empty
+                const keys = salarySubitems.map(s=>String(s.key||'').trim()).filter(k=>k);
+                const unique = new Set(keys);
+                if(keys.length !== unique.size){
+                    alert('Each subitem must have a unique, non-empty key.');
+                    return;
+                }
+                // Persist as object keyed by id
+                const toSave = {};
+                salarySubitems.forEach(s=>{ toSave[s.id] = s; });
+                await database.ref(`companies/${companyPath}/salarySettings/subitems`).set(toSave);
+                alert('Settings saved');
+                // If Settings changed while modal is open, re-render subitems in the modal next time it's opened
+            }catch(err){
+                console.error('Error saving salary settings:', err);
+                alert('Failed to save settings');
+            }
+        }
+
+        // Render salary subitem fields inside Salary Band modal
+        function renderBandSubitemFields(band){
+            const container = document.getElementById('bandSubitemsContainer');
+            if(!container){ return; }
+            // Filter to enabled subitems and sort by order
+            const enabled = (salarySubitems||[]).filter(s=>s.enabled).sort((a,b)=> (a.order||0)-(b.order||0));
+            if(!enabled.length){
+                // No dynamic subitems configured – show legacy fields
+                container.style.display = 'none';
+                toggleLegacySalaryFields(true);
+                return;
+            }
+            // Build fields
+            container.innerHTML = '';
+            enabled.forEach(item=>{
+                const fieldId = `bandSub_${item.key}`;
+                const wrapper = document.createElement('div');
+                wrapper.className = 'form-group';
+                const label = document.createElement('label');
+                label.setAttribute('for', fieldId);
+                label.textContent = item.label || item.key;
+                const input = document.createElement('input');
+                input.className = 'form-control';
+                input.id = fieldId;
+                input.setAttribute('data-subkey', item.key);
+                if(item.type === 'number'){
+                    input.type = 'number';
+                    input.step = '100';
+                } else {
+                    input.type = 'text';
+                }
+                // Required for canonical min/max
+                if(item.key === 'minSalary' || item.key === 'maxSalary'){
+                    input.required = true;
+                }
+                // Prefill values when editing
+                if(band){
+                    let val = null;
+                    if(item.key in band){ val = band[item.key]; }
+                    if(val==null && band.subitems && (item.key in band.subitems)){ val = band.subitems[item.key]; }
+                    if(val!=null){ input.value = val; }
+                }
+                wrapper.appendChild(label);
+                wrapper.appendChild(input);
+                container.appendChild(wrapper);
+            });
+            container.style.display = 'block';
+            // Hide legacy triplet
+            toggleLegacySalaryFields(false);
+        }
+
+        function toggleLegacySalaryFields(show){
+            const ids = ['bandMinSalary','bandMidSalary','bandMaxSalary'];
+            ids.forEach(id=>{
+                const input = document.getElementById(id);
+                const label = input ? document.querySelector(`label[for="${id}"]`) : null;
+                if(input){
+                    input.parentElement.style.display = show ? '' : 'none';
+                    // Adjust required attributes so hidden required fields don't block form submission
+                    if (id === 'bandMinSalary' || id === 'bandMaxSalary'){
+                        if (show){
+                            input.setAttribute('required','');
+                        } else {
+                            input.removeAttribute('required');
+                        }
+                    }
+                }
+                if(label){ /* label is inside same parent; already hidden with parent */ }
+            });
         }
 
         /* ================= Salary Bands Logic ================= */
@@ -4451,10 +4716,19 @@
             showLoadingState('salaryBands');
             try {
                 if (!companyContext) await initializeCompanyContext();
+                // Ensure settings are loaded so we can render dynamic subitem columns
+                await ensureSalarySettingsLoaded();
                 const companyPath = companyContext || 'default';
                 const snapshot = await database.ref(`companies/${companyPath}/salaryBands`).once('value');
                 if (snapshot.exists()) {
-                    allSalaryBands = snapshot.val();
+                    // Normalize bands to ensure each item has an id field matching its key
+                    const raw = snapshot.val() || {};
+                    const normalized = {};
+                    Object.keys(raw).forEach(key => {
+                        const b = raw[key] || {};
+                        normalized[key] = { id: key, ...b };
+                    });
+                    allSalaryBands = normalized;
                     renderSalaryBands(Object.values(allSalaryBands));
                     console.log(`✅ Loaded ${Object.keys(allSalaryBands).length} salary bands for company: ${companyPath}`);
                 } else {
@@ -4471,99 +4745,201 @@
         }
 
         function renderSalaryBands(bands) {
+            const tableEl = document.getElementById('salaryBandsTable');
+            const thead = tableEl ? tableEl.querySelector('thead') : null;
             const tbody = document.getElementById('salaryBandsTableBody');
-            tbody.innerHTML = '';
+            if (tbody) tbody.innerHTML = '';
+
+            // Build dynamic header from enabled subitems
+            const enabledSubitems = (salarySubitems || [])
+                .filter(s => s.enabled)
+                .sort((a,b) => (a.order||0) - (b.order||0));
+            if (thead) {
+                const subHeaders = enabledSubitems.map(it => `<th>${escapeHtml(it.label || it.key)}</th>`).join('');
+                thead.innerHTML = `
+                    <tr>
+                        <th>Band Name</th>
+                        <th>Job Titles</th>
+                        ${subHeaders}
+                        <th>Currency</th>
+                        <th>Last Updated</th>
+                        <th>Actions</th>
+                    </tr>
+                `;
+            }
+
             if (!bands || bands.length === 0) {
                 showEmptyState('salaryBands', true);
                 return;
             }
+
+            // Ensure the table is visible when we have data
             showEmptyState('salaryBands', false);
+            if (tableEl) tableEl.style.display = 'table';
+
+            const formatNum = (val, currency) => {
+                const num = Number(val);
+                if (Number.isFinite(num)) return `${escapeHtml(currency || '')} ${num.toLocaleString()}`.trim();
+                return 'N/A';
+            };
+
             bands.forEach(band => {
                 const row = tbody.insertRow();
+
+                const dynamicCells = enabledSubitems.map(item => {
+                    let value = null;
+                    if (Object.prototype.hasOwnProperty.call(band, item.key)) {
+                        value = band[item.key];
+                    } else if (band.subitems && Object.prototype.hasOwnProperty.call(band.subitems, item.key)) {
+                        value = band.subitems[item.key];
+                    }
+                    if (item.type === 'number') return `<td>${formatNum(value, band.currency)}</td>`;
+                    return `<td>${value!=null && value!=='' ? escapeHtml(String(value)) : 'N/A'}</td>`;
+                }).join('');
+
                 row.innerHTML = `
                     <td>${escapeHtml(band.bandName)}</td>
-                    <td>${(band.jobTitles || []).map(j=>`<span style=\"display:inline-block;background:#eee;border-radius:12px;padding:2px 8px;margin:2px;font-size:.65rem;\">${escapeHtml(j)}</span>`).join('')}</td>
-                    <td>${escapeHtml(band.currency)} ${parseFloat(band.minSalary).toLocaleString()}</td>
-                    <td>${band.midSalary ? `${escapeHtml(band.currency)} ${parseFloat(band.midSalary).toLocaleString()}` : 'N/A'}</td>
-                    <td>${escapeHtml(band.currency)} ${parseFloat(band.maxSalary).toLocaleString()}</td>
+                    <td>${(band.jobTitles || []).map(j=>`<span style="display:inline-block;background:#eee;border-radius:12px;padding:2px 8px;margin:2px;font-size:.65rem;">${escapeHtml(j)}</span>`).join('')}</td>
+                    ${dynamicCells}
                     <td>${escapeHtml(band.currency)}</td>
                     <td>${new Date(band.lastUpdated || band.createdAt).toLocaleDateString()}</td>
                     <td class="action-buttons">
-                        <button class="btn-action btn-edit" onclick="editSalaryBand('${band.id}')" title="Edit"><i class='fas fa-edit'></i></button>
-                        <button class="btn-action btn-delete" onclick="deleteSalaryBand('${band.id}')" title="Delete"><i class='fas fa-trash'></i></button>
+                        <button class="btn-action btn-edit" onclick="editSalaryBand('${band.id || ''}')" title="Edit"><i class='fas fa-edit'></i></button>
+                        <button class="btn-action btn-delete" onclick="deleteSalaryBand('${band.id || ''}')" title="Delete"><i class='fas fa-trash'></i></button>
                     </td>`;
             });
         }
 
-        function openSalaryBandModal(bandId = null) {
-            salaryBandForm.reset();
-            bandJobTitlesContainer.querySelectorAll('.tag').forEach(t=>t.remove());
-            document.getElementById('salaryBandId').value='';
-            editingSalaryBandId = bandId;
+        async function openSalaryBandModal(bandId = null) {
+                    salaryBandForm.reset();
+                    bandJobTitlesContainer.querySelectorAll('.tag').forEach(t=>t.remove());
+                    document.getElementById('salaryBandId').value='';
+                    editingSalaryBandId = bandId;
+
+                    // Ensure settings loaded BEFORE showing modal to prevent flicker
+                    await ensureSalarySettingsLoaded();
+                    const band = bandId && allSalaryBands[bandId] ? allSalaryBands[bandId] : null;
+                    renderBandSubitemFields(band);
             
-            // Load job titles when opening modal
-            loadJobTitlesForBands();
+                    // Load job titles when opening modal
+                    loadJobTitlesForBands();
             
-            if (bandId && allSalaryBands[bandId]) {
-                const band = allSalaryBands[bandId];
-                salaryBandModalTitle.textContent = 'Edit Salary Band';
-                document.getElementById('bandNameInput').value = band.bandName;
-                document.getElementById('bandCurrencySelect').value = band.currency;
-                document.getElementById('bandMinSalary').value = band.minSalary;
-                document.getElementById('bandMidSalary').value = band.midSalary || '';
-                document.getElementById('bandMaxSalary').value = band.maxSalary;
-                document.getElementById('bandNotes').value = band.notes || '';
-                (band.jobTitles || []).forEach(addBandJobTitleTag);
-                document.getElementById('salaryBandId').value = bandId;
-            } else {
-                salaryBandModalTitle.textContent = 'Add Salary Band';
-            }
-            salaryBandModal.style.display='flex';
+                    if (bandId && allSalaryBands[bandId]) {
+                        const bandData = allSalaryBands[bandId];
+                        salaryBandModalTitle.textContent = 'Edit Salary Band';
+                        document.getElementById('bandNameInput').value = bandData.bandName;
+                        document.getElementById('bandCurrencySelect').value = bandData.currency;
+                        // Keep legacy fields populated (may be hidden)
+                        document.getElementById('bandMinSalary').value = bandData.minSalary;
+                        document.getElementById('bandMidSalary').value = bandData.midSalary || '';
+                        document.getElementById('bandMaxSalary').value = bandData.maxSalary;
+                        document.getElementById('bandNotes').value = bandData.notes || '';
+                        (bandData.jobTitles || []).forEach(addBandJobTitleTag);
+                        document.getElementById('salaryBandId').value = bandId;
+                    } else {
+                        salaryBandModalTitle.textContent = 'Add Salary Band';
+                    }
+                    salaryBandModal.style.display='flex';
         }
 
-        function closeSalaryBandModal() {
-            salaryBandModal.style.display='none';
+        function closeSalaryBandModal(){
+            if (salaryBandModal) salaryBandModal.style.display='none';
             editingSalaryBandId = null;
         }
 
-        function editSalaryBand(id){ openSalaryBandModal(id); }
+        async function editSalaryBand(id){ await openSalaryBandModal(id); }
 
-        salaryBandForm && salaryBandForm.addEventListener('submit', async (e)=>{
-            e.preventDefault();
-            if (!companyContext) await initializeCompanyContext();
-            const companyPath = companyContext || 'default';
-            const id = document.getElementById('salaryBandId').value || database.ref().child(`companies/${companyPath}/salaryBands`).push().key;
-            const now = new Date().toISOString();
-            const band = {
-                id,
-                bandName: document.getElementById('bandNameInput').value.trim(),
-                jobTitles: getBandJobTitles(),
-                currency: document.getElementById('bandCurrencySelect').value,
-                minSalary: parseFloat(document.getElementById('bandMinSalary').value),
-                midSalary: document.getElementById('bandMidSalary').value ? parseFloat(document.getElementById('bandMidSalary').value): null,
-                maxSalary: parseFloat(document.getElementById('bandMaxSalary').value),
-                notes: document.getElementById('bandNotes').value.trim(),
-                lastUpdated: now,
-                createdAt: editingSalaryBandId ? allSalaryBands[editingSalaryBandId].createdAt : now,
-                companyId: companyPath
-            };
-            if (!band.bandName) return alert('Band name required');
-            if (!band.jobTitles.length) return alert('Add at least one job title');
-            if (band.minSalary >= band.maxSalary) return alert('Min Salary must be less than Max Salary');
-            if (band.midSalary && (band.midSalary < band.minSalary || band.midSalary > band.maxSalary)) return alert('Midpoint must be between Min and Max');
-            try {
-                await database.ref(`companies/${companyPath}/salaryBands/${id}`).set(band);
-                console.log('✅ Salary band saved');
-                closeSalaryBandModal();
-                loadSalaryBands();
-                // Refresh job titles dropdown for future band creations
-                loadJobTitlesForBands();
-                alert(editingSalaryBandId ? 'Salary band updated!' : 'Salary band added!');
-            } catch (err) {
-                console.error('Error saving salary band:', err);
-                alert('Error saving salary band');
+    salaryBandForm && salaryBandForm.addEventListener('submit', async (e)=>{
+        e.preventDefault();
+        if (!companyContext) await initializeCompanyContext();
+        const companyPath = companyContext || 'default';
+
+        const id = document.getElementById('salaryBandId').value || database.ref().child(`companies/${companyPath}/salaryBands`).push().key;
+        const now = new Date().toISOString();
+
+        // Collect subitem values from dynamic fields
+        const subitemValues = {};
+        let minVal = null, midVal = null, maxVal = null;
+        const enabled = (salarySubitems || []).filter(s=>s.enabled).sort((a,b)=> (a.order||0)-(b.order||0));
+        enabled.forEach(item=>{
+            const el = document.getElementById(`bandSub_${item.key}`);
+            if(!el) return;
+            let val = el.value;
+            if(item.type==='number'){
+                val = val ? parseFloat(val) : null;
             }
+            if(item.key==='minSalary') minVal = val;
+            else if(item.key==='midSalary') midVal = val;
+            else if(item.key==='maxSalary') maxVal = val;
+            else subitemValues[item.key] = val;
         });
+        // Fallback to legacy inputs if dynamic not present
+        if(minVal==null){ const v = document.getElementById('bandMinSalary').value; minVal = v? parseFloat(v): null; }
+        if(midVal==null){ const v = document.getElementById('bandMidSalary').value; midVal = v? parseFloat(v): null; }
+        if(maxVal==null){ const v = document.getElementById('bandMaxSalary').value; maxVal = v? parseFloat(v): null; }
+
+        // If canonical min/max are still missing but there are numeric dynamic subitems, derive them
+        if ((minVal==null || maxVal==null)){
+            const numericValues = [];
+            // include canonical numeric values if present
+            ['minSalary','midSalary','maxSalary'].forEach(k=>{
+                const v = (k==='minSalary')? minVal : (k==='midSalary'? midVal : maxVal);
+                if (v!=null && !isNaN(v)) numericValues.push(Number(v));
+            });
+            // include other numeric subitems
+            (salarySubitems||[]).forEach(def=>{
+                if (def.enabled && def.type==='number'){
+                    const key = def.key;
+                    if (key==='minSalary' || key==='midSalary' || key==='maxSalary') return;
+                    const v = subitemValues[key];
+                    if (v!=null && !isNaN(v)) numericValues.push(Number(v));
+                }
+            });
+            if (numericValues.length){
+                // derive min and max if not set
+                if (minVal==null) minVal = Math.min(...numericValues);
+                if (maxVal==null) maxVal = Math.max(...numericValues);
+                // midVal remains optional
+            }
+        }
+
+        const band = {
+            id,
+            bandName: document.getElementById('bandNameInput').value.trim(),
+            jobTitles: getBandJobTitles(),
+            currency: document.getElementById('bandCurrencySelect').value,
+            minSalary: minVal,
+            midSalary: midVal,
+            maxSalary: maxVal,
+            subitems: subitemValues,
+            notes: document.getElementById('bandNotes').value.trim(),
+            lastUpdated: now,
+            createdAt: editingSalaryBandId ? allSalaryBands[editingSalaryBandId].createdAt : now,
+            companyId: companyPath
+        };
+
+        if (!band.bandName) return alert('Band name required');
+        if (!band.jobTitles.length) return alert('Add at least one job title');
+        // If there are no numeric values at all, require min and max; otherwise allow derived values
+        const hasAnyNumeric = ['minSalary','midSalary','maxSalary'].some(k=> band[k]!=null && !isNaN(band[k]))
+            || Object.keys(subitemValues).some(k=> subitemValues[k]!=null && !isNaN(subitemValues[k]));
+        if (!hasAnyNumeric && (band.minSalary==null || band.maxSalary==null)) return alert('Please provide both Min and Max salaries or at least one numeric subitem');
+        if (band.minSalary >= band.maxSalary) return alert('Min Salary must be less than Max Salary');
+        if (band.midSalary!=null && (band.midSalary < band.minSalary || band.midSalary > band.maxSalary)) return alert('Midpoint must be between Min and Max');
+
+        try {
+            await database.ref(`companies/${companyPath}/salaryBands/${id}`).set(band);
+            console.log('✅ Salary band saved');
+            closeSalaryBandModal();
+            loadSalaryBands();
+            // Refresh job titles dropdown for future band creations
+            loadJobTitlesForBands();
+            alert(editingSalaryBandId ? 'Salary band updated!' : 'Salary band added!');
+        } catch (err) {
+            console.error('Error saving salary band:', err);
+            alert('Error saving salary band');
+        }
+    });
 
         async function deleteSalaryBand(id){
             if (!confirm('Delete this salary band?')) return;
@@ -4746,6 +5122,8 @@
                 if (!companyContext) {
                     await initializeCompanyContext();
                 }
+                // Ensure salary settings (subitems) are loaded so we can render dynamic columns
+                await ensureSalarySettingsLoaded();
                 
                 const companyPath = companyContext || 'default';
                 
@@ -4806,6 +5184,8 @@
                                 minSalary: matchingBand.minSalary,
                                 midSalary: matchingBand.midSalary,
                                 maxSalary: matchingBand.maxSalary,
+                                // carry dynamic subitems if present
+                                subitems: matchingBand.subitems || {},
                                 notes: `Auto-filled from salary band: ${matchingBand.bandName}`,
                                 isAutoFilled: true,
                                 bandId: Object.keys(salaryBands).find(key => salaryBands[key] === matchingBand),
@@ -4852,11 +5232,31 @@
         }
 
         function renderSalaryGrid(grades) {
+            // Build dynamic header from enabled salary subitems
+            const enabledSubitems = (salarySubitems || [])
+                .filter(s => s.enabled)
+                .sort((a,b) => (a.order||0) - (b.order||0));
+            const thead = salaryGridTable ? salaryGridTable.querySelector('thead') : null;
+            if (thead) {
+                const subitemHeaders = enabledSubitems.map(it => `<th>${escapeHtml(it.label || it.key)}</th>`).join('');
+                thead.innerHTML = `
+                    <tr>
+                        <th>Job Title</th>
+                        <th>Department</th>
+                        <th>Salary Grade</th>
+                        ${subitemHeaders}
+                        <th>Currency</th>
+                        <th>Last Updated</th>
+                    </tr>
+                `;
+            }
+
             salaryGridTableBody.innerHTML = '';
             if (!grades || grades.length === 0) {
+                const colCount = 3 + (enabledSubitems.length) + 2; // job/department/grade + subitems + currency/lastUpdated
                 salaryGridTableBody.innerHTML = `
                     <tr>
-                        <td colspan="9" style="text-align: center; padding: 2rem; color: #666;">
+                        <td colspan="${colCount}" style="text-align: center; padding: 2rem; color: #666;">
                             <i class="fas fa-briefcase fa-2x" style="display: block; margin-bottom: 1rem; opacity: 0.5;"></i>
                             <p style="margin: 0; font-size: 1.1rem;">No salary data available</p>
                             <p style="margin: 0.5rem 0 0 0; font-size: 0.9rem;">Create salary bands to automatically populate this grid</p>
@@ -4883,34 +5283,35 @@
                     titlePrefix = '⚠️ '; // Warning icon for missing data
                 }
                 
-                // Format salary display
+                // Format salary display for numeric fields
                 const formatSalary = (amount, currency) => {
-                    if (amount === null || amount === undefined) return 'Not Set';
-                    return `${currency} ${parseFloat(amount).toLocaleString()}`;
+                    if (amount === null || amount === undefined || amount === '') return 'Not Set';
+                    const num = Number(amount);
+                    if (isNaN(num)) return escapeHtml(String(amount));
+                    return `${currency || ''} ${num.toLocaleString()}`.trim();
                 };
                 
-                // Only show view action for auto-filled entries, otherwise show read-only indicator
-                let actionsHTML = '';
-                if (grade.isAutoFilled && grade.bandId) {
-                    actionsHTML = `<button class="btn-action btn-info" onclick="viewBandDetails('${grade.bandId}')" title="View Salary Band">
-                        <i class="fas fa-eye"></i>
-                    </button>`;
-                } else {
-                    actionsHTML = `<span style="color: #666; font-size: 0.8rem; font-style: italic;">Read Only</span>`;
-                }
+                // Note: Data Source column hidden per request. Actions removed from grid.
+                
+                // Build dynamic subitem cells
+                const dynamicCells = enabledSubitems.map(item => {
+                    let value = null;
+                    if (Object.prototype.hasOwnProperty.call(grade, item.key)) {
+                        value = grade[item.key];
+                    } else if (grade.subitems && Object.prototype.hasOwnProperty.call(grade.subitems, item.key)) {
+                        value = grade.subitems[item.key];
+                    }
+                    const cellValue = item.type === 'number' ? formatSalary(value, grade.currency) : (value!=null && value!=='' ? escapeHtml(String(value)) : 'Not Set');
+                    return `<td ${rowClass}>${cellValue}</td>`;
+                }).join('');
                 
                 row.innerHTML = `
                     <td ${rowClass}>${titlePrefix}${escapeHtml(grade.jobTitle)}</td>
                     <td ${rowClass}>${escapeHtml(grade.department)}</td>
                     <td ${rowClass}>${escapeHtml(grade.grade)}</td>
-                    <td ${rowClass}>${formatSalary(grade.minSalary, grade.currency)}</td>
-                    <td ${rowClass}>${formatSalary(grade.midSalary, grade.currency)}</td>
-                    <td ${rowClass}>${formatSalary(grade.maxSalary, grade.currency)}</td>
+                    ${dynamicCells}
                     <td ${rowClass}>${escapeHtml(grade.currency || 'USD')}</td>
                     <td ${rowClass}>${grade.lastUpdated ? new Date(grade.lastUpdated).toLocaleDateString() : 'N/A'}</td>
-                    <td class="action-buttons" ${rowClass}>
-                        ${actionsHTML}
-                    </td>
                 `;
             });
         }
@@ -5128,20 +5529,32 @@ Would you like to edit this salary band?
                 alert('No salary data to export');
                 return;
             }
-            
-            const headers = ['Job Title', 'Department', 'Salary Grade', 'Min Salary', 'Mid Salary', 'Max Salary', 'Currency', 'Data Source', 'Last Updated', 'Notes'];
-            const rows = dataToExport.map(grade => [
-                grade.jobTitle,
-                grade.department,
-                grade.grade,
-                grade.minSalary || '',
-                grade.midSalary || '',
-                grade.maxSalary || '',
-                grade.currency,
-                grade.isAutoFilled ? 'Auto-filled from Band' : grade.isPlaceholder ? 'Placeholder' : 'Manual Entry',
-                grade.lastUpdated || '',
-                grade.notes || ''
-            ]);
+            // Build dynamic headers from enabled subitems
+            const enabledSubitems = (salarySubitems || [])
+                .filter(s => s.enabled)
+                .sort((a,b) => (a.order||0) - (b.order||0));
+            const dynamicHeaders = enabledSubitems.map(it => it.label || it.key);
+            const headers = ['Job Title', 'Department', 'Salary Grade', ...dynamicHeaders, 'Currency', 'Data Source', 'Last Updated', 'Notes'];
+            const rows = dataToExport.map(grade => {
+                const dynamicValues = enabledSubitems.map(item => {
+                    if (Object.prototype.hasOwnProperty.call(grade, item.key)) {
+                        return grade[item.key] ?? '';
+                    } else if (grade.subitems && Object.prototype.hasOwnProperty.call(grade.subitems, item.key)) {
+                        return grade.subitems[item.key] ?? '';
+                    }
+                    return '';
+                });
+                return [
+                    grade.jobTitle,
+                    grade.department,
+                    grade.grade,
+                    ...dynamicValues,
+                    grade.currency,
+                    grade.isAutoFilled ? 'Auto-filled from Band' : grade.isPlaceholder ? 'Placeholder' : 'Manual Entry',
+                    grade.lastUpdated || '',
+                    grade.notes || ''
+                ];
+            });
             
             const csv = [headers, ...rows].map(row => 
                 row.map(val => '"' + String(val).replace(/"/g, '""') + '"').join(',')

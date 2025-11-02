@@ -1,0 +1,1243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Resource Allocation - Dreamex Datalab</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
+<!-- Firebase v8 Scripts for Centralized Authentication -->
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
+<style>
+:root { --primary-color:#2c3e50; --secondary-color:#34495e; --accent-color:#e74c3c; --success-color:#27ae60; --warning-color:#f39c12; --info-color:#3498db; --light-color:#ecf0f1; --dark-color:#2c3e50; --sidebar-width:250px; --transition-speed:.25s; }
+* { box-sizing:border-box; margin:0; padding:0; }
+body { font-family: 'Segoe UI', Arial, sans-serif; background:#f5f7fa; color:#222; }
+.app-container { display:flex; min-height:100vh; }
+.sidebar { width:var(--sidebar-width); background:var(--primary-color); color:#fff; padding:1rem; position:fixed; top:0; left:0; bottom:0; overflow-y:auto; transition:transform .3s ease; z-index:1000; }
+.sidebar.collapsed { transform:translateX(-100%); }
+.main-content { flex:1; margin-left:var(--sidebar-width); padding:0.3rem; padding-top:3.2rem; transition:margin-left .3s ease; }
+.main-content.sidebar-collapsed { margin-left:0; }
+.main-content.sidebar-collapsed .top-nav { left:0.5rem; }
+.logo h2 { text-align:center; padding:1rem 0; border-bottom:1px solid rgba(255,255,255,0.1); font-size:1.05rem; letter-spacing:.5px; }
+.menu { list-style:none; margin-top:2rem; }
+.menu li { margin-bottom:0.45rem; }
+.menu a { display:flex; align-items:center; gap:10px; color:#fff; text-decoration:none; padding:0.6rem 0.75rem; border-radius:6px; font-size:0.82rem; font-weight:500; transition:background .25s; }
+.menu a:hover, .menu a.active { background:rgba(255,255,255,0.12); }
+.submenu { list-style:none; margin-left:0.75rem; display:none; margin-top:0.25rem; }
+.menu-dropdown:hover .submenu { display:block; }
+.submenu a { font-size:0.75rem; padding:0.45rem 0.65rem; }
+[data-feature]:not(.menu-visible) { display:none !important; }
+.menu-dropdown:not(.menu-visible) { display:none !important; }
+
+/* Hide ALL menu items by default during loading */
+.sidebar.menu-loading .menu-item,
+.sidebar.menu-loading .menu-dropdown,
+.sidebar.menu-loading li[data-feature],
+.sidebar.menu-loading [data-feature] {
+    display: none !important;
+}
+
+/* Allow menu-visible items to show even during loading */
+.sidebar.menu-loading .menu-visible,
+.sidebar.menu-loading li.menu-visible,
+.sidebar.menu-loading [data-feature].menu-visible {
+    display: block !important;
+}
+
+.menu-loading [data-feature] {
+    display: none !important;
+}
+
+.menu-loading .menu-dropdown {
+    display: none !important;
+}
+
+/* Ensure menu-visible items are always shown */
+.menu-visible {
+    display: block !important;
+}
+
+li.menu-visible,
+[data-feature].menu-visible {
+    display: block !important;
+}
+.top-nav { display:flex; justify-content:space-between; align-items:center; padding:0.5rem 0.75rem; background-color:#fff; box-shadow:0 2px 5px rgba(0,0,0,0.1); margin-bottom:0.3rem; position:fixed; top:0.25rem; right:0.5rem; left:calc(var(--sidebar-width) + 0.5rem); height:50px; min-height:50px; z-index:100; transition:left 0.3s ease; }
+.sidebar-toggle-btn { background:none; border:none; cursor:pointer; font-size:1.1rem; padding:0.4rem; color:#555; }
+.top-nav-left { display:flex; align-items:center; gap:0.75rem; }
+.company-branding { display:flex; align-items:center; gap:0.5rem; }
+#headerCompanyLogo { width:32px; height:32px; object-fit:contain; display:none; }
+#headerCompanyName { font-weight:600; font-size:0.85rem; }
+.header-company-logo { height:32px; width:auto; border-radius:6px; box-shadow:0 2px 4px rgba(0,0,0,0.1); }
+.company-name-header { font-weight:700; color:var(--dark-color); font-size:1rem; letter-spacing:0.5px; white-space:nowrap; }
+.top-nav-right { display:flex; align-items:center; gap:1rem; }
+.notifications { position:relative; display:flex; align-items:center; }
+.notification-btn { background:none; border:none; cursor:pointer; position:relative; font-size:1.2rem; padding:0.5rem; display:flex; align-items:center; justify-content:center; }
+.notification-badge { position:absolute; top:-5px; right:-5px; background-color:var(--accent-color); color:white; border-radius:50%; padding:0.2rem 0.5rem; font-size:0.7rem; }
+.notification-dropdown { display:none; position:absolute; right:0; top:100%; width:300px; background-color:white; border-radius:5px; box-shadow:0 2px 10px rgba(0,0,0,0.1); z-index:1000; }
+.notification-dropdown.show { display:block; }
+.notification-dropdown .notification-header { display:flex; justify-content:space-between; align-items:center; padding:1rem; border-bottom:1px solid #eee; }
+.notification-header h3 { margin:0; font-size:1rem; }
+.mark-all-read { background:none; border:none; color:var(--primary-color); cursor:pointer; font-size:0.8rem; }
+.notification-list { max-height:300px; overflow-y:auto; }
+.notification-item { padding:0.75rem 1rem; border-bottom:1px solid #f0f0f0; cursor:pointer; }
+.notification-item:hover { background-color:#f8f9fa; }
+.notification-item.unread { background-color:#f0f8ff; }
+.user-profile { position:relative; }
+.profile-btn { background:none; border:none; border-radius:50%; overflow:hidden; width:38px; height:38px; cursor:pointer; }
+.profile-btn img { width:100%; height:100%; object-fit:cover; }
+.profile-dropdown { display:none; position:absolute; right:0; top:110%; background:#fff; border-radius:8px; min-width:200px; box-shadow:0 6px 18px rgba(0,0,0,0.12); overflow:hidden; }
+.profile-dropdown.show { display:block; }
+.profile-dropdown ul { list-style:none; }
+.profile-dropdown li a { display:block; padding:0.65rem 0.85rem; font-size:0.72rem; text-decoration:none; color:#1e293b; font-weight:500; }
+.profile-dropdown li a:hover { background:#f1f5f9; }
+.page-header { 
+    background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)); 
+    color: #fff; 
+    padding: 0.55rem 0.75rem; 
+    margin: 0.35rem 0 0.5rem 0; 
+    display: flex; 
+    align-items: center; 
+    justify-content: space-between; 
+    box-shadow: 0 10px 28px rgba(0,0,0,0.18), 0 6px 16px rgba(0,0,0,0.14); 
+    font-size: 0.9rem; 
+}
+.page-header h1 { 
+    color: #fff; 
+    font-size: 0.9rem; 
+    display: flex; 
+    align-items: center; 
+    gap: 0.5rem; 
+    letter-spacing: 0.5px; 
+    margin: 0; 
+    font-weight: 600; 
+}
+.page-header i { 
+    font-size: 1rem; 
+}
+.page-actions { display:flex; gap:0.4rem; flex-wrap:wrap; }
+.btn { border:none; border-radius:6px; padding:0.45rem 0.75rem; font-size:0.68rem; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:0.4rem; letter-spacing:.5px; background:#eef2f6; color:#1e293b; transition:.2s; }
+.btn:hover { background:#e2e8f0; }
+.btn-primary { background:var(--primary-color); color:#fff; }
+.btn-primary:hover { background:#1f2f3d; }
+.btn-accent { background:var(--accent-color); color:#fff; }
+.btn-accent:hover { background:#c0392b; }
+.btn-success { background:var(--success-color); color:#fff; }
+.btn-success:hover { background:#218c4f; }
+.btn-outline { background:#fff; border:1px solid #cbd5e1; }
+.btn-outline:hover { background:#f1f5f9; }
+.section { background:#fff; padding:0.7rem; border-radius:10px; box-shadow:0 2px 5px rgba(0,0,0,0.06); margin-bottom:0.3rem; }
+.section-title { font-size:0.8rem; font-weight:700; text-transform:uppercase; letter-spacing:.5px; margin-bottom:0.5rem; color:#334155; display:flex; align-items:center; justify-content:space-between; gap:0.4rem; position:relative; }
+
+/* Resource specific styles */
+.resource-dashboard {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.resource-overview {
+    background: white;
+    border-radius: 12px;
+    padding: 2rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.resource-stats {
+    background: white;
+    border-radius: 12px;
+    padding: 2rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+}
+
+.stat-item {
+    text-align: center;
+    padding: 1rem;
+    border-radius: 8px;
+    background: #f8fafc;
+}
+
+.stat-number {
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: var(--primary-color);
+    margin-bottom: 0.25rem;
+}
+
+.stat-label {
+    font-size: 0.8rem;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.resource-filters {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-bottom: 1.5rem;
+}
+
+.filter-group {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.filter-group label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--dark-color);
+}
+
+.filter-group select,
+.filter-group input {
+    padding: 0.5rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    font-size: 0.8rem;
+}
+
+.resource-tabs {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+    border-bottom: 2px solid #e2e8f0;
+}
+
+.tab-btn {
+    padding: 0.75rem 1.5rem;
+    border: none;
+    background: none;
+    color: #64748b;
+    font-weight: 600;
+    cursor: pointer;
+    border-bottom: 3px solid transparent;
+    transition: all 0.3s ease;
+}
+
+.tab-btn.active {
+    color: var(--primary-color);
+    border-bottom-color: var(--primary-color);
+}
+
+.resource-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1.5rem;
+}
+
+.resource-card {
+    background: white;
+    border-radius: 12px;
+    padding: 1.5rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    border-left: 4px solid var(--info-color);
+    transition: all 0.3s ease;
+}
+
+.resource-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+}
+
+.resource-card.human { border-left-color: var(--success-color); }
+.resource-card.equipment { border-left-color: var(--warning-color); }
+.resource-card.financial { border-left-color: var(--info-color); }
+.resource-card.overallocated { border-left-color: var(--accent-color); }
+
+.resource-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 1rem;
+}
+
+.resource-info {
+    flex: 1;
+}
+
+.resource-name {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--dark-color);
+    margin-bottom: 0.25rem;
+}
+
+.resource-type {
+    font-size: 0.8rem;
+    color: #64748b;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.resource-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: var(--info-color);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 1.2rem;
+}
+
+.resource-avatar.human { background: var(--success-color); }
+.resource-avatar.equipment { background: var(--warning-color); }
+.resource-avatar.financial { background: var(--info-color); }
+
+.resource-allocation {
+    margin-bottom: 1rem;
+}
+
+.allocation-label {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+    font-size: 0.85rem;
+}
+
+.allocation-bar {
+    width: 100%;
+    height: 8px;
+    background: #e2e8f0;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.allocation-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.3s ease;
+}
+
+.allocation-fill.low { background: var(--success-color); }
+.allocation-fill.medium { background: var(--warning-color); }
+.allocation-fill.high { background: var(--accent-color); }
+
+.resource-projects {
+    margin-bottom: 1rem;
+}
+
+.project-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.project-tag {
+    background: #f1f5f9;
+    color: var(--primary-color);
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.resource-meta {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+}
+
+.meta-item {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.8rem;
+    color: #64748b;
+}
+
+.meta-item i {
+    color: var(--primary-color);
+}
+
+.resource-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.resource-actions .btn {
+    font-size: 0.75rem;
+    padding: 0.4rem 0.8rem;
+}
+
+.allocation-matrix {
+    background: white;
+    border-radius: 12px;
+    padding: 2rem;
+    margin-bottom: 2rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.matrix-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 1rem;
+}
+
+.matrix-table th,
+.matrix-table td {
+    padding: 0.75rem;
+    text-align: left;
+    border-bottom: 1px solid #e2e8f0;
+    font-size: 0.85rem;
+}
+
+.matrix-table th {
+    background: #f8fafc;
+    font-weight: 600;
+    color: var(--dark-color);
+}
+
+.allocation-cell {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.allocation-percentage {
+    font-weight: 600;
+}
+
+.allocation-indicator {
+    width: 60px;
+    height: 6px;
+    background: #e2e8f0;
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.allocation-indicator .fill {
+    height: 100%;
+    border-radius: 3px;
+}
+
+.status-available { color: var(--success-color); }
+.status-busy { color: var(--warning-color); }
+.status-overallocated { color: var(--accent-color); }
+.status-unavailable { color: #64748b; }
+
+/* Responsive */
+@media (max-width: 900px) { 
+    .main-content { 
+        margin-left: 0; 
+    } 
+    .sidebar { 
+        transform: translateX(-100%); 
+    } 
+    .sidebar.open { 
+        transform: translateX(0); 
+    } 
+    .top-nav { 
+        left: 0.5rem; 
+    }
+}
+
+@media (max-width: 768px) {
+    .resource-dashboard {
+        grid-template-columns: 1fr;
+    }
+    
+    .stats-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .resource-filters {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .filter-group {
+        justify-content: space-between;
+    }
+    
+    .resource-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .resource-tabs {
+        flex-wrap: wrap;
+    }
+    
+    .matrix-table {
+        font-size: 0.8rem;
+    }
+    
+    .matrix-table th,
+    .matrix-table td {
+        padding: 0.5rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .resource-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1rem;
+    }
+    
+    .resource-meta {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    
+    .resource-actions {
+        justify-content: center;
+    }
+}
+</style>
+</head>
+<body>
+<div class="app-container">
+	<nav class="sidebar menu-loading" id="sidebar">
+		<div class="logo"><h2>Dreamex Datalab</h2></div>
+		<ul class="menu" id="roleBasedMenu">
+			<li class="menu-item" data-feature="home_view" data-requires-permission="home_view"><a href="index.html"><i class="fas fa-home"></i> Home</a></li>
+            <li class="menu-dropdown" data-feature="health_view" data-requires-permission="health_view">
+				<a href="#"><i class="fas fa-medkit"></i> Health</a>
+				<ul class="submenu">
+					<li data-feature="health_assessment_view" data-requires-permission="health_assessment_view"><a href="health-assessment.html">Assessment</a></li>
+					<li data-feature="health_consultation_view" data-requires-permission="health_consultation_view"><a href="health-consultation.html">Consultation</a></li>
+					<li data-feature="medical_folder_view" data-requires-permission="medical_folder_view"><a href="medical-folder.html">Medical Folder</a></li>
+				</ul>
+			</li>
+            <li class="menu-dropdown" data-feature="safety_view" data-requires-permission="safety_view">
+				<a href="#"><i class="fas fa-shield-alt"></i> Safety</a>
+				<ul class="submenu">
+					<li data-feature="training_view" data-requires-permission="training_view"><a href="trainingboard.html">Training</a></li>
+					<li data-feature="jsa_view" data-requires-permission="jsa_view"><a href="jsaboard.html">Job Safety Analysis</a></li>
+					<li data-feature="ptw_view" data-requires-permission="ptw_view"><a href="ptwboard.html">Permit to Work</a></li>
+					<li data-feature="incident_view" data-requires-permission="incident_view"><a href="incidentboard.html">Incident Reports</a></li>
+					<li data-feature="inspection_view" data-requires-permission="inspection_view"><a href="inspectionboard.html">Inspection</a></li>
+					<li data-feature="audit_view" data-requires-permission="audit_view"><a href="auditboard.html">Audit</a></li>
+				</ul>
+			</li>
+            <!-- Risk Management (separate section) -->
+            <li class="menu-dropdown" data-feature="risk_view" data-requires-permission="risk_view">
+                <a href="#"><i class="fas fa-exclamation-triangle"></i> Risk Management</a>
+                <ul class="submenu">
+                    <li data-feature="risk_view" data-requires-permission="risk_view"><a href="riskboard.html">Risk Management</a></li>
+                </ul>
+            </li>
+            <li class="menu-dropdown" data-feature="fuel_management" data-requires-permission="fuel_management">
+				<a href="#"><i class="fas fa-gas-pump"></i> Fuel Management</a>
+				<ul class="submenu">
+                    <li data-feature="vessel_offloading" data-requires-permission="vessel_offloading"><a href="vessel-offloading.html">Vessel Offloading</a></li>
+                    <li data-feature="fuel_storage" data-requires-permission="fuel_storage"><a href="fuelstor.html">Fuel Storage Status</a></li>
+                    <li data-feature="tank_transfer" data-requires-permission="tank_transfer"><a href="fueltrans.html">Tank-to-Tank Transfer</a></li>
+                    <li data-feature="truck_loading" data-requires-permission="truck_loading"><a href="fuel-truck-loading.html">Fuel Truck Loading</a></li>
+                    <li data-feature="quality_analysis" data-requires-permission="quality_analysis"><a href="fuel-quality-analysis.html">Fuel Quality Analysis</a></li>
+                    <li data-feature="fuel_distribution" data-requires-permission="fuel_distribution"><a href="fueldist.html">Fuel Distribution</a></li>
+                    <li data-feature="fuel_consumption_analysis" data-requires-permission="fuel_consumption_analysis"><a href="fuelanalys.html">Consumption Analysis</a></li>
+                    <li data-feature="fuel_daily_report" data-requires-permission="fuel_daily_report"><a href="fueldaily.html">Daily Fuel Report</a></li>
+				</ul>
+			</li>
+            <li class="menu-dropdown" data-feature="environment_view" data-requires-permission="environment_view">
+				<a href="#"><i class="fas fa-leaf"></i> Environment</a>
+				<ul class="submenu">
+                    <li data-feature="water_view" data-requires-permission="water_view"><a href="waterboard.html">Water Quality</a></li>
+				</ul>
+			</li>
+            <li class="menu-dropdown" data-feature="security_view" data-requires-permission="security_view">
+				<a href="#"><i class="fas fa-lock"></i> Security</a>
+				<ul class="submenu">
+                    <li data-feature="access_view" data-requires-permission="access_view"><a href="accessboard.html">Access Request</a></li>
+                    <li data-feature="access_daily_view" data-requires-permission="access_daily_view"><a href="accessdaily.html">Daily Access Control</a></li>
+                    <li data-feature="removal_view" data-requires-permission="removal_view"><a href="removalboard.html">Property Removal</a></li>
+				
+						<li data-feature="security_level_evaluation_view" data-requires-permission="security_level_evaluation_view"><a href="seclevel.html">Security Level Evaluation</a></li></ul>
+			</li>
+			<li class="menu-dropdown" data-feature="logistics_view" data-requires-permission="logistics_view">
+				<a href="#"><i class="fas fa-truck"></i> Logistics</a>
+				<ul class="submenu">
+                    <li data-feature="fleet_view" data-requires-permission="fleet_view"><a href="fleet.html">Fleet Management</a></li>
+                    <li data-feature="travel_view" data-requires-permission="travel_view"><a href="travel.html">Travel Requests</a></li>
+				</ul>
+			</li>
+			<li class="menu-dropdown" data-feature="accommodation_view" data-requires-permission="accommodation_view">
+				<a href="#"><i class="fas fa-bed"></i> Accommodation</a>
+				<ul class="submenu">
+					<li data-feature="camp_view" data-requires-permission="camp_view"><a href="camp.html">Camp Management</a></li>
+                    <li data-feature="camp_settings_view" data-requires-permission="camp_settings_view"><a href="campset.html">Camp Settings</a></li>
+				</ul>
+			</li>
+			<li class="menu-dropdown" data-feature="hr_view" data-requires-permission="hr_view">
+				<a href="#"><i class="fas fa-users"></i> HR</a>
+				<ul class="submenu">
+					<li data-feature="human_hr_view" data-requires-permission="human_hr_view"><a href="human-hr.html"><i class="fas fa-user-tie"></i> Human HR</a></li>
+					<li data-feature="staff_management_view" data-requires-permission="staff_management_view"><a href="staff.html">Staffing</a></li>
+					<li data-feature="authority_to_recruit_view" data-requires-permission="authority_to_recruit_view"><a href="recruit.html">Authority to Recruit</a></li>
+					<li data-feature="job_advertising_view" data-requires-permission="job_advertising_view"><a href="jobpost.html">Job Advertising</a></li>
+					<li data-feature="screening_view" data-requires-permission="screening_view"><a href="jobscreen.html">Screening</a></li>
+					<li data-feature="interview_view" data-requires-permission="interview_view"><a href="interview.html">Interview</a></li>
+					<li data-feature="offer_view" data-requires-permission="offer_view"><a href="offer.html">Offer Management</a></li>
+					<li data-feature="contract_view" data-requires-permission="contract_view"><a href="contract.html">Contract Management</a></li>
+                    <li data-feature="salary_management_view" data-requires-permission="salary_management_view"><a href="salary.html">Salary Management</a></li>
+					<li data-feature="onboarding_view" data-requires-permission="onboarding_view"><a href="onboard.html">Onboarding</a></li>
+					<li data-feature="chart_view" data-requires-permission="chart_view"><a href="chart.html">Chart Setup</a></li>
+					<li data-feature="chartboard_view" data-requires-permission="chartboard_view"><a href="chartboard.html">Org Chart</a></li>
+					<li data-feature="kpi_dashboard_view" data-requires-permission="kpi_dashboard_view"><a href="kpi.html">KPI</a></li>
+                    <li data-feature="action_plan_view" data-requires-permission="action_plan_view"><a href="actionplan.html"><i class="fas fa-tasks"></i> Action Plan Board</a></li>
+				</ul>
+			</li>
+            <li class="menu-dropdown" data-feature="project_management_view" data-requires-permission="project_management_view">
+                <a href="#"><i class="fas fa-project-diagram"></i> Project Management</a>
+                <ul class="submenu">
+                    <li data-feature="project_dashboard_view" data-requires-permission="project_dashboard_view"><a href="project-dashboard.html">Project Dashboard</a></li>
+                    <li data-feature="project_create_view" data-requires-permission="project_create_view"><a href="project-create.html">Create Project</a></li>
+                    <li data-feature="project_list_view" data-requires-permission="project_list_view"><a href="project-list.html">Project List</a></li>
+                    <li data-feature="task_management_view" data-requires-permission="task_management_view"><a href="tasks.html">Task Management</a></li>
+                    <li data-feature="milestone_tracking_view" data-requires-permission="milestone_tracking_view"><a href="milestones.html">Milestone Tracking</a></li>
+                    <li data-feature="resource_allocation_view" data-requires-permission="resource_allocation_view"><a href="resources.html" class="active">Resource Allocation</a></li>
+                    <li data-feature="project_reports_view" data-requires-permission="project_reports_view"><a href="project-reports.html">Project Reports</a></li>
+                    <li data-feature="gantt_chart_view" data-requires-permission="gantt_chart_view"><a href="gantt-chart.html">Gantt Chart</a></li>
+                </ul>
+            </li>
+            <li data-feature="communication_view" data-requires-permission="communication_view"><a href="info.html"><i class="fas fa-comments"></i> Communication</a></li>
+            <li class="menu-dropdown" data-feature="settings_view" data-requires-permission="settings_view">
+				<a href="#"><i class="fas fa-cog"></i> Settings</a>
+				<ul class="submenu">
+                    <li data-feature="account_settings_view" data-requires-permission="account_settings_view"><a href="account.html">Account Settings</a></li>
+                    <li data-feature="company_management_view" data-requires-permission="company_management_view"><a href="companymanagement.html">Company Management</a></li>
+                    <li data-feature="approval_settings_view" data-requires-permission="approval_settings_view"><a href="approval-settings.html">Approval Flow Settings</a></li>
+                    <li data-feature="field_setup_view" data-requires-permission="field_setup_view"><a href="fieldsetup.html">Field Setup</a></li>
+                    <li data-feature="preferences_view" data-requires-permission="preferences_view"><a href="preferences.html">Preferences</a></li>
+                    <li data-feature="notification_settings_view" data-requires-permission="notification_settings_view"><a href="notification-settings.html">Notification Settings</a></li>
+                    <li data-feature="audit_log_view" data-requires-permission="audit_log_view"><a href="auditlog.html"><i class="fas fa-history"></i> Audit Log</a></li>
+                    <li data-feature="user_management_view" data-requires-permission="user_management_view"><a href="users.html">User & Role Management</a></li>
+                    <li data-feature="role_permissions_view" data-requires-permission="role_permissions_view"><a href="roles.html">Role Permissions</a></li>
+				</ul>
+			</li>
+		</ul>
+	</nav>
+    <main class="main-content" id="mainContent">
+        <nav class="top-nav">
+            <div class="top-nav-left">
+                <button id="sidebarToggle" class="sidebar-toggle-btn" title="Toggle Menu"><i class="fas fa-bars"></i></button>
+                <div class="company-branding">
+                    <img id="headerCompanyLogo" alt="Company Logo" />
+                    <span id="headerCompanyName"></span>
+                </div>
+            </div>
+            <div class="top-nav-right">
+                <div class="notifications">
+                    <button id="notificationBtn" class="notification-btn">
+                        <i class="fas fa-bell"></i>
+                        <span class="notification-badge">0</span>
+                    </button>
+                    <div class="notification-dropdown">
+                        <div class="notification-header">
+                            <h3>Notifications</h3>
+                            <button class="mark-all-read">Mark all as read</button>
+                        </div>
+                        <div class="notification-list">
+                            <!-- Notifications will be dynamically added here -->
+                        </div>
+                    </div>
+                </div>
+                <div class="user-profile" style="position:relative;">
+                    <button id="userProfileBtn" class="profile-btn"><img src="" alt="User Avatar" /></button>
+                    <div class="profile-dropdown"><ul></ul></div>
+                </div>
+            </div>
+        </nav>
+		<div class="page-header">
+			<h1><i class="fas fa-users-cog"></i> Resource Allocation</h1>
+            <div class="page-actions">
+                <button class="btn btn-primary" onclick="allocateResource()">
+                    <i class="fas fa-plus"></i> Allocate Resource
+                </button>
+                <button class="btn btn-outline" onclick="exportResourceData()">
+                    <i class="fas fa-download"></i> Export
+                </button>
+                <button class="btn btn-outline" onclick="optimizeAllocation()">
+                    <i class="fas fa-magic"></i> Optimize
+                </button>
+            </div>
+		</div>
+
+        <!-- Resource Dashboard -->
+        <div class="resource-dashboard">
+            <div class="resource-overview">
+                <h2 class="section-title">
+                    <i class="fas fa-chart-bar"></i>
+                    Resource Utilization Overview
+                </h2>
+                <canvas id="utilizationChart" width="400" height="200"></canvas>
+            </div>
+            
+            <div class="resource-stats">
+                <h3 class="section-title">
+                    <i class="fas fa-tachometer-alt"></i>
+                    Key Metrics
+                </h3>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <div class="stat-number">24</div>
+                        <div class="stat-label">Total Resources</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-number">18</div>
+                        <div class="stat-label">Active</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-number">78%</div>
+                        <div class="stat-label">Avg Utilization</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-number">3</div>
+                        <div class="stat-label">Overallocated</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="section">
+            <div class="resource-filters">
+                <div class="filter-group">
+                    <label for="resourceTypeFilter">Type:</label>
+                    <select id="resourceTypeFilter" onchange="filterResources()">
+                        <option value="">All Types</option>
+                        <option value="human">Human Resources</option>
+                        <option value="equipment">Equipment</option>
+                        <option value="financial">Financial</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="statusFilter">Status:</label>
+                    <select id="statusFilter" onchange="filterResources()">
+                        <option value="">All Status</option>
+                        <option value="available">Available</option>
+                        <option value="busy">Busy</option>
+                        <option value="overallocated">Overallocated</option>
+                        <option value="unavailable">Unavailable</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="projectFilter">Project:</label>
+                    <select id="projectFilter" onchange="filterResources()">
+                        <option value="">All Projects</option>
+                        <option value="web-platform">E-commerce Platform</option>
+                        <option value="mobile-app">Mobile App</option>
+                        <option value="data-analytics">Data Analytics</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="searchFilter">Search:</label>
+                    <input type="text" id="searchFilter" placeholder="Search resources..." onkeyup="filterResources()">
+                </div>
+            </div>
+        </div>
+
+        <!-- Resource Tabs -->
+        <div class="resource-tabs">
+            <button class="tab-btn active" onclick="showTab('overview')">Overview</button>
+            <button class="tab-btn" onclick="showTab('allocation')">Allocation Matrix</button>
+            <button class="tab-btn" onclick="showTab('timeline')">Timeline</button>
+            <button class="tab-btn" onclick="showTab('reports')">Reports</button>
+        </div>
+
+        <!-- Overview Tab -->
+        <div id="overviewTab" class="tab-content">
+            <div class="resource-grid">
+                <!-- Human Resources -->
+                <div class="resource-card human" data-type="human" data-status="busy">
+                    <div class="resource-header">
+                        <div class="resource-info">
+                            <div class="resource-name">John Smith</div>
+                            <div class="resource-type">
+                                <i class="fas fa-user"></i>
+                                Senior Developer
+                            </div>
+                        </div>
+                        <div class="resource-avatar human">JS</div>
+                    </div>
+                    <div class="resource-allocation">
+                        <div class="allocation-label">
+                            <span>Current Allocation</span>
+                            <span>85%</span>
+                        </div>
+                        <div class="allocation-bar">
+                            <div class="allocation-fill high" style="width: 85%"></div>
+                        </div>
+                    </div>
+                    <div class="resource-projects">
+                        <div class="project-tags">
+                            <div class="project-tag">E-commerce Platform</div>
+                            <div class="project-tag">Mobile App</div>
+                        </div>
+                    </div>
+                    <div class="resource-meta">
+                        <div class="meta-item">
+                            <i class="fas fa-clock"></i>
+                            <span>40h/week</span>
+                        </div>
+                        <div class="meta-item">
+                            <i class="fas fa-dollar-sign"></i>
+                            <span>$85/hour</span>
+                        </div>
+                        <div class="meta-item">
+                            <i class="fas fa-calendar"></i>
+                            <span>Available until Mar 15</span>
+                        </div>
+                    </div>
+                    <div class="resource-actions">
+                        <button class="btn btn-primary" onclick="editAllocation('john-smith')">
+                            <i class="fas fa-edit"></i> Edit
+                        </button>
+                        <button class="btn btn-outline" onclick="viewSchedule('john-smith')">
+                            <i class="fas fa-calendar"></i> Schedule
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Equipment Resource -->
+                <div class="resource-card equipment" data-type="equipment" data-status="available">
+                    <div class="resource-header">
+                        <div class="resource-info">
+                            <div class="resource-name">Development Server #3</div>
+                            <div class="resource-type">
+                                <i class="fas fa-server"></i>
+                                High-Performance Server
+                            </div>
+                        </div>
+                        <div class="resource-avatar equipment">DS</div>
+                    </div>
+                    <div class="resource-allocation">
+                        <div class="allocation-label">
+                            <span>Current Usage</span>
+                            <span>45%</span>
+                        </div>
+                        <div class="allocation-bar">
+                            <div class="allocation-fill medium" style="width: 45%"></div>
+                        </div>
+                    </div>
+                    <div class="resource-projects">
+                        <div class="project-tags">
+                            <div class="project-tag">Data Analytics</div>
+                        </div>
+                    </div>
+                    <div class="resource-meta">
+                        <div class="meta-item">
+                            <i class="fas fa-microchip"></i>
+                            <span>32 CPU Cores</span>
+                        </div>
+                        <div class="meta-item">
+                            <i class="fas fa-memory"></i>
+                            <span>128GB RAM</span>
+                        </div>
+                        <div class="meta-item">
+                            <i class="fas fa-dollar-sign"></i>
+                            <span>$50/hour</span>
+                        </div>
+                    </div>
+                    <div class="resource-actions">
+                        <button class="btn btn-primary" onclick="allocateEquipment('server-3')">
+                            <i class="fas fa-plus"></i> Allocate
+                        </button>
+                        <button class="btn btn-outline" onclick="viewSpecs('server-3')">
+                            <i class="fas fa-info"></i> Specs
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Financial Resource -->
+                <div class="resource-card financial" data-type="financial" data-status="available">
+                    <div class="resource-header">
+                        <div class="resource-info">
+                            <div class="resource-name">Development Budget Q1</div>
+                            <div class="resource-type">
+                                <i class="fas fa-dollar-sign"></i>
+                                Project Budget
+                            </div>
+                        </div>
+                        <div class="resource-avatar financial">$</div>
+                    </div>
+                    <div class="resource-allocation">
+                        <div class="allocation-label">
+                            <span>Budget Used</span>
+                            <span>62%</span>
+                        </div>
+                        <div class="allocation-bar">
+                            <div class="allocation-fill medium" style="width: 62%"></div>
+                        </div>
+                    </div>
+                    <div class="resource-projects">
+                        <div class="project-tags">
+                            <div class="project-tag">E-commerce Platform</div>
+                            <div class="project-tag">Mobile App</div>
+                            <div class="project-tag">Data Analytics</div>
+                        </div>
+                    </div>
+                    <div class="resource-meta">
+                        <div class="meta-item">
+                            <i class="fas fa-wallet"></i>
+                            <span>$250,000 Total</span>
+                        </div>
+                        <div class="meta-item">
+                            <i class="fas fa-chart-line"></i>
+                            <span>$155,000 Used</span>
+                        </div>
+                        <div class="meta-item">
+                            <i class="fas fa-clock"></i>
+                            <span>45 days remaining</span>
+                        </div>
+                    </div>
+                    <div class="resource-actions">
+                        <button class="btn btn-primary" onclick="allocateBudget('budget-q1')">
+                            <i class="fas fa-plus"></i> Allocate
+                        </button>
+                        <button class="btn btn-outline" onclick="viewBudgetDetails('budget-q1')">
+                            <i class="fas fa-chart-pie"></i> Details
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Overallocated Resource -->
+                <div class="resource-card overallocated human" data-type="human" data-status="overallocated">
+                    <div class="resource-header">
+                        <div class="resource-info">
+                            <div class="resource-name">Sarah Johnson</div>
+                            <div class="resource-type">
+                                <i class="fas fa-user"></i>
+                                UI/UX Designer
+                            </div>
+                        </div>
+                        <div class="resource-avatar human">SJ</div>
+                    </div>
+                    <div class="resource-allocation">
+                        <div class="allocation-label">
+                            <span>Current Allocation</span>
+                            <span>120%</span>
+                        </div>
+                        <div class="allocation-bar">
+                            <div class="allocation-fill high" style="width: 100%"></div>
+                        </div>
+                    </div>
+                    <div class="resource-projects">
+                        <div class="project-tags">
+                            <div class="project-tag">E-commerce Platform</div>
+                            <div class="project-tag">Mobile App</div>
+                            <div class="project-tag">Marketing Site</div>
+                        </div>
+                    </div>
+                    <div class="resource-meta">
+                        <div class="meta-item">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            <span>Overallocated</span>
+                        </div>
+                        <div class="meta-item">
+                            <i class="fas fa-clock"></i>
+                            <span>48h/week</span>
+                        </div>
+                        <div class="meta-item">
+                            <i class="fas fa-dollar-sign"></i>
+                            <span>$75/hour</span>
+                        </div>
+                    </div>
+                    <div class="resource-actions">
+                        <button class="btn btn-accent" onclick="rebalanceAllocation('sarah-johnson')">
+                            <i class="fas fa-balance-scale"></i> Rebalance
+                        </button>
+                        <button class="btn btn-outline" onclick="viewSchedule('sarah-johnson')">
+                            <i class="fas fa-calendar"></i> Schedule
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Allocation Matrix Tab -->
+        <div id="allocationTab" class="tab-content" style="display: none;">
+            <div class="allocation-matrix">
+                <h2 class="section-title">
+                    <i class="fas fa-table"></i>
+                    Resource Allocation Matrix
+                </h2>
+                <table class="matrix-table">
+                    <thead>
+                        <tr>
+                            <th>Resource</th>
+                            <th>Type</th>
+                            <th>E-commerce Platform</th>
+                            <th>Mobile App</th>
+                            <th>Data Analytics</th>
+                            <th>Total Allocation</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>John Smith</td>
+                            <td>Developer</td>
+                            <td>
+                                <div class="allocation-cell">
+                                    <span class="allocation-percentage">50%</span>
+                                    <div class="allocation-indicator">
+                                        <div class="fill medium" style="width: 50%"></div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="allocation-cell">
+                                    <span class="allocation-percentage">35%</span>
+                                    <div class="allocation-indicator">
+                                        <div class="fill low" style="width: 35%"></div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>-</td>
+                            <td>85%</td>
+                            <td><span class="status-busy">Busy</span></td>
+                        </tr>
+                        <tr>
+                            <td>Sarah Johnson</td>
+                            <td>Designer</td>
+                            <td>
+                                <div class="allocation-cell">
+                                    <span class="allocation-percentage">60%</span>
+                                    <div class="allocation-indicator">
+                                        <div class="fill high" style="width: 60%"></div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="allocation-cell">
+                                    <span class="allocation-percentage">40%</span>
+                                    <div class="allocation-indicator">
+                                        <div class="fill medium" style="width: 40%"></div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="allocation-cell">
+                                    <span class="allocation-percentage">20%</span>
+                                    <div class="allocation-indicator">
+                                        <div class="fill low" style="width: 20%"></div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>120%</td>
+                            <td><span class="status-overallocated">Overallocated</span></td>
+                        </tr>
+                        <tr>
+                            <td>Mike Chen</td>
+                            <td>Developer</td>
+                            <td>-</td>
+                            <td>
+                                <div class="allocation-cell">
+                                    <span class="allocation-percentage">70%</span>
+                                    <div class="allocation-indicator">
+                                        <div class="fill high" style="width: 70%"></div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>-</td>
+                            <td>70%</td>
+                            <td><span class="status-busy">Busy</span></td>
+                        </tr>
+                        <tr>
+                            <td>Server #3</td>
+                            <td>Equipment</td>
+                            <td>-</td>
+                            <td>-</td>
+                            <td>
+                                <div class="allocation-cell">
+                                    <span class="allocation-percentage">45%</span>
+                                    <div class="allocation-indicator">
+                                        <div class="fill medium" style="width: 45%"></div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>45%</td>
+                            <td><span class="status-available">Available</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script>
+// Firebase configuration
+const firebaseConfig = {
+    apiKey: "AIzaSyCUTmTn0rRBb0M-UkQJxnUMrWqXYU_BgIc",
+    authDomain: "users-8be65.firebaseapp.com",
+    databaseURL: "https://users-8be65-default-rtdb.firebaseio.com",
+    projectId: "users-8be65",
+    storageBucket: "users-8be65.firebasestorage.app",
+    messagingSenderId: "909025468149",
+    appId: "1:909025468149:web:fb4e7c4a8b4bd6d1076e4d",
+    measurementId: "G-XHFMRCJQEZ"
+};
+
+// Initialize Firebase
+function initializeFirebase() {
+    if (!window.firebase || !window.firebase.apps || window.firebase.apps.length === 0) {
+        window.firebase.initializeApp(firebaseConfig);
+        console.log('✅ Firebase v8 initialized successfully for centralized auth');
+    }
+    return window.firebase;
+}
+
+const firebase = initializeFirebase();
+
+// Initialize page
+document.addEventListener('DOMContentLoaded', function() {
+    initializePage();
+    loadResources();
+});
+
+function initializePage() {
+    // Setup sidebar toggle
+    const sidebarToggle = document.getElementById('sidebarToggle');
+    const sidebar = document.getElementById('sidebar');
+    const mainContent = document.getElementById('mainContent');
+    
+    if (sidebarToggle) {
+        sidebarToggle.addEventListener('click', function() {
+            sidebar.classList.toggle('collapsed');
+            mainContent.classList.toggle('sidebar-collapsed');
+        });
+    }
+}
+
+function loadResources() {
+    // Sample resource data would be loaded from Firebase here
+    console.log('Loading resources from Firebase...');
+}
+
+function filterResources() {
+    const typeFilter = document.getElementById('resourceTypeFilter').value;
+    const statusFilter = document.getElementById('statusFilter').value;
+    const projectFilter = document.getElementById('projectFilter').value;
+    const searchFilter = document.getElementById('searchFilter').value.toLowerCase();
+    
+    const resources = document.querySelectorAll('.resource-card');
+    
+    resources.forEach(resource => {
+        let show = true;
+        
+        if (typeFilter && resource.dataset.type !== typeFilter) {
+            show = false;
+        }
+        
+        if (statusFilter && resource.dataset.status !== statusFilter) {
+            show = false;
+        }
+        
+        if (searchFilter) {
+            const resourceName = resource.querySelector('.resource-name').textContent.toLowerCase();
+            if (!resourceName.includes(searchFilter)) {
+                show = false;
+            }
+        }
+        
+        resource.style.display = show ? 'block' : 'none';
+    });
+}
+
+function showTab(tabName) {
+    // Hide all tab contents
+    const tabs = document.querySelectorAll('.tab-content');
+    tabs.forEach(tab => tab.style.display = 'none');
+    
+    // Remove active class from all tab buttons
+    const tabBtns = document.querySelectorAll('.tab-btn');
+    tabBtns.forEach(btn => btn.classList.remove('active'));
+    
+    // Show selected tab and mark button as active
+    const selectedTab = document.getElementById(tabName + 'Tab');
+    if (selectedTab) {
+        selectedTab.style.display = 'block';
+    }
+    
+    event.target.classList.add('active');
+}
+
+function allocateResource() {
+    alert('Resource allocation dialog would be implemented here');
+}
+
+function editAllocation(resourceId) {
+    console.log('Editing allocation for:', resourceId);
+    alert('Edit allocation functionality would be implemented here');
+}
+
+function viewSchedule(resourceId) {
+    console.log('Viewing schedule for:', resourceId);
+    alert('Schedule view would be implemented here');
+}
+
+function allocateEquipment(equipmentId) {
+    console.log('Allocating equipment:', equipmentId);
+    alert('Equipment allocation functionality would be implemented here');
+}
+
+function viewSpecs(equipmentId) {
+    console.log('Viewing specs for:', equipmentId);
+    alert('Equipment specifications would be shown here');
+}
+
+function allocateBudget(budgetId) {
+    console.log('Allocating budget:', budgetId);
+    alert('Budget allocation functionality would be implemented here');
+}
+
+function viewBudgetDetails(budgetId) {
+    console.log('Viewing budget details for:', budgetId);
+    alert('Budget details would be shown here');
+}
+
+function rebalanceAllocation(resourceId) {
+    console.log('Rebalancing allocation for:', resourceId);
+    alert('Rebalancing functionality would be implemented here');
+}
+
+function exportResourceData() {
+    console.log('Exporting resource data');
+    alert('Export functionality would be implemented here');
+}
+
+function optimizeAllocation() {
+    console.log('Optimizing resource allocation');
+    alert('Optimization algorithm would be implemented here');
+}
+
+// Responsive handling
+function handleResize() {
+    const sidebar = document.getElementById('sidebar');
+    const mainContent = document.getElementById('mainContent');
+    
+    if (window.innerWidth <= 900) {
+        sidebar.classList.add('collapsed');
+        mainContent.classList.add('sidebar-collapsed');
+    } else {
+        sidebar.classList.remove('collapsed');
+        mainContent.classList.remove('sidebar-collapsed');
+    }
+}
+
+window.addEventListener('resize', handleResize);
+window.addEventListener('load', handleResize);
+</script>
+</body>
+</html>
