@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Warehouses - Dreamex Datalab</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
+  <!-- Firebase v8 Scripts -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
+  <style>
+    :root { --primary-color:#2c3e50; --secondary-color:#34495e; --accent-color:#e74c3c; --success-color:#27ae60; --warning-color:#f39c12; --info-color:#3498db; --light-color:#ecf0f1; --dark-color:#2c3e50; --sidebar-width:250px; }
+    * { box-sizing:border-box; margin:0; padding:0; }
+    body { font-family:'Segoe UI', Arial, sans-serif; background:#f5f7fa; color:#222; }
+    .app-container { display:flex; min-height:100vh; }
+    .sidebar { width:var(--sidebar-width); background:var(--primary-color); color:#fff; padding:1rem; position:fixed; top:0; left:0; bottom:0; overflow-y:auto; z-index:1000; }
+    .main-content { flex:1; margin-left:var(--sidebar-width); padding:0.3rem; padding-top:3.2rem; }
+    .logo h2 { text-align:center; padding:1rem 0; border-bottom:1px solid rgba(255,255,255,0.1); font-size:1.05rem; }
+    .menu { list-style:none; margin-top:2rem; }
+    .menu li { margin-bottom:0.45rem; }
+    .menu a { display:flex; align-items:center; gap:10px; color:#fff; text-decoration:none; padding:0.6rem 0.75rem; border-radius:6px; font-size:0.82rem; font-weight:500; }
+    .menu a:hover, .menu a.active { background:rgba(255,255,255,0.12); }
+    .submenu { list-style:none; margin-left:0.75rem; display:none; margin-top:0.25rem; }
+    .menu-dropdown:hover .submenu { display:block; }
+    .submenu a { font-size:0.75rem; padding:0.45rem 0.65rem; }
+
+    .top-nav { display:flex; justify-content:space-between; align-items:center; padding:0.5rem 0.75rem; background-color:#fff; box-shadow:0 2px 5px rgba(0,0,0,0.1); margin-bottom:0.3rem; position:fixed; top:0.25rem; right:0.5rem; left:calc(var(--sidebar-width) + 0.5rem); height:50px; min-height:50px; z-index:100; }
+    .sidebar-toggle-btn { background:none; border:none; cursor:pointer; font-size:1.1rem; padding:0.4rem; color:#555; }
+    .top-nav-left, .top-nav-right { display:flex; align-items:center; gap:0.75rem; }
+
+    .page-header { background:#fff; padding:1.1rem 1.3rem; margin-bottom:0.8rem; border-radius:8px; box-shadow:0 2px 4px rgba(0,0,0,0.1); display:flex; justify-content:space-between; align-items:center; }
+    .page-header h1 { color:#1f2937; font-size:1.1rem; font-weight:700; display:flex; align-items:center; gap:0.5rem; }
+    .filters { display:flex; gap:0.5rem; flex-wrap:wrap; }
+    .filters input { padding:0.4rem 0.6rem; font-size:0.78rem; border:1px solid #cbd5e1; border-radius:6px; background:#fff; }
+
+    .section { background:#fff; padding:0.9rem; border-radius:10px; box-shadow:0 2px 5px rgba(0,0,0,0.06); }
+
+    table { width:100%; border-collapse:separate; border-spacing:0 6px; }
+    th, td { text-align:left; padding:0.6rem 0.7rem; font-size:0.85rem; }
+    thead th { color:#475569; font-weight:700; text-transform:uppercase; font-size:0.7rem; letter-spacing:0.6px; }
+    tbody tr { background:#fff; box-shadow:0 1px 3px rgba(0,0,0,0.06); }
+
+    .chip { background:#f1f5f9; color:#334155; padding:0.2rem 0.5rem; border-radius:999px; font-size:0.72rem; font-weight:600; }
+    .muted { color:#64748b; font-size:0.8rem; }
+    .btn { border:none; border-radius:6px; padding:0.5rem 0.8rem; font-size:0.78rem; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:0.4rem; background:#eef2f6; color:#1e293b; }
+    .btn-primary { background:#2c3e50; color:#fff; }
+    .btn-danger { background:#dc2626; color:#fff; }
+    .btn-outline { background:#fff; border:1px solid #cbd5e1; }
+
+    .modal-backdrop { position:fixed; inset:0; background:rgba(0,0,0,0.45); display:none; align-items:flex-start; justify-content:center; padding-top:5vh; z-index:1001; }
+    .modal { width:clamp(320px, 680px, 92vw); background:#fff; border-radius:12px; overflow:hidden; }
+    .modal-header, .modal-footer { padding:0.9rem 1rem; background:#f8fafc; border:1px solid #e2e8f0; }
+    .modal-body { padding:1rem; max-height:70vh; overflow:auto; }
+    .close-btn { background:none; border:none; font-size:1.1rem; cursor:pointer; color:#64748b; }
+    .form-grid { display:grid; grid-template-columns: 1fr 1fr; gap:0.6rem; }
+    .form-grid .full { grid-column:1/-1; }
+    .form-grid label { font-size:0.78rem; color:#475569; margin-bottom:0.25rem; display:block; }
+    .form-grid input, .form-grid select, .form-grid textarea { width:100%; padding:0.5rem 0.6rem; border:1px solid #cbd5e1; border-radius:6px; font-size:0.85rem; }
+    .error { color:#b91c1c; background:#fee2e2; border:1px solid #fecaca; padding:0.5rem 0.6rem; border-radius:6px; font-size:0.8rem; margin-bottom:0.6rem; display:none; }
+    .ok { color:#065f46; background:#ecfdf5; border:1px solid #a7f3d0; padding:0.5rem 0.6rem; border-radius:6px; font-size:0.8rem; margin-bottom:0.6rem; display:none; }
+  </style>
+</head>
+<body>
+  <div class="app-container">
+    <nav class="sidebar" id="sidebar">
+      <div class="logo"><h2>Dreamex Datalab</h2></div>
+      <ul class="menu" id="roleBasedMenu">
+        <li class="menu-item" data-feature="home_view"><a href="index.html"><i class="fas fa-home"></i> Home</a></li>
+        <li class="menu-item" data-feature="projects_view"><a href="project-list.html"><i class="fas fa-briefcase"></i> Projects</a></li>
+        <li class="menu-dropdown menu-visible" data-feature="inventory_view">
+          <a href="#"><i class="fas fa-warehouse"></i> Inventory</a>
+          <ul class="submenu">
+            <li data-feature="inventory_dashboard_view"><a href="inventory-dashboard.html"><i class="fas fa-gauge"></i> Dashboard</a></li>
+            <li data-feature="inventory_items_view"><a href="inventory-items.html"><i class="fas fa-box"></i> Items</a></li>
+            <li class="menu-visible" data-feature="inventory_warehouses_view"><a class="active" href="inventory-warehouses.html"><i class="fas fa-building"></i> Warehouses</a></li>
+            <li data-feature="inventory_reservations_view"><a href="inventory-reservations.html"><i class="fas fa-bookmark"></i> Material Reservations</a></li>
+            <li data-feature="inventory_approvals_view"><a href="inventory-approvals.html"><i class="fas fa-check-circle"></i> Approvals</a></li>
+            <li data-feature="inventory_issue_view"><a href="inventory-issue.html"><i class="fas fa-dolly"></i> Issue Materials</a></li>
+            <li data-feature="approval_settings_view"><a href="approval-settings.html"><i class="fas fa-sliders-h"></i> Approval Flow Settings</a></li>
+          </ul>
+        </li>
+        <li class="menu-item" data-feature="settings_view"><a href="settings.html"><i class="fas fa-cog"></i> Settings</a></li>
+      </ul>
+    </nav>
+
+    <main class="main-content" id="mainContent">
+      <header class="top-nav">
+        <div class="top-nav-left">
+          <button class="sidebar-toggle-btn" id="sidebarToggle" title="Toggle menu"><i class="fas fa-bars"></i></button>
+          <div class="company-branding" style="display:flex;align-items:center;gap:10px;">
+            <img id="headerCompanyLogo" src="" alt="Company Logo" style="width:38px;height:38px;border-radius:6px;object-fit:cover;display:none;" />
+            <span id="headerCompanyName" style="font-weight:600;font-size:1rem;color:#222;">Warehouses</span>
+          </div>
+        </div>
+        <div class="top-nav-right">
+          <button id="notificationBtn" title="Notifications" style="background:none;border:none;position:relative;font-size:1.2rem;margin-right:8px;color:#555;">
+            <i class="fas fa-bell"></i>
+          </button>
+          <div class="notification-dropdown" style="position:absolute;top:48px;right:60px;min-width:320px;max-width:400px;background:#fff;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.12);display:none;z-index:999;">
+            <div style="padding:12px 16px;border-bottom:1px solid #eee;font-weight:600;color:#333;">Notifications</div>
+            <ul id="notificationList" style="list-style:none;padding:0;margin:0;max-height:320px;overflow:auto;"></ul>
+            <div style="padding:8px 16px;text-align:right;"><a href="notifications.html" style="font-size:12px;color:#3498db;text-decoration:none;">View all</a></div>
+          </div>
+          <div class="user-profile">
+            <button class="profile-btn" id="userProfileBtn" style="display:flex;align-items:center;gap:8px;background:none;border:none;cursor:pointer;">
+              <img src="" alt="User" style="width:38px;height:38px;border-radius:50%;object-fit:cover;display:none;" />
+              <span id="userProfileName">Account</span>
+              <i class="fas fa-chevron-down"></i>
+            </button>
+            <div class="profile-dropdown" style="position:absolute;top:48px;right:12px;min-width:260px;background:#fff;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.12);display:none;z-index:999;">
+              <ul style="list-style:none;padding:0;margin:0;"></ul>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <section class="page-header">
+        <h1><i class="fas fa-building"></i> Warehouses</h1>
+        <div class="filters">
+          <input type="text" id="searchBox" placeholder="Search name/code/location" />
+          <button class="btn btn-primary" id="addWarehouse"><i class="fas fa-plus"></i> New Warehouse</button>
+        </div>
+      </section>
+
+      <section class="section">
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Code</th>
+              <th>Location</th>
+              <th>Capacity</th>
+              <th class="right">Action</th>
+            </tr>
+          </thead>
+          <tbody id="warehousesBody"><tr><td colspan="5" class="muted">Loading…</td></tr></tbody>
+        </table>
+      </section>
+    </main>
+  </div>
+
+  <!-- Warehouse Modal -->
+  <div class="modal-backdrop" id="warehouseModal">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title"><i class="fas fa-building"></i> <span id="modalTitle">New Warehouse</span></div>
+        <button class="close-btn" id="closeWarehouseModal"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="modal-body">
+        <div id="modalAlertError" class="error"></div>
+        <div id="modalAlertOk" class="ok"></div>
+        <div class="form-grid">
+          <div>
+            <label>Name</label>
+            <input type="text" id="whName" />
+          </div>
+          <div>
+            <label>Code</label>
+            <input type="text" id="whCode" />
+          </div>
+          <div>
+            <label>Location</label>
+            <input type="text" id="whLocation" />
+          </div>
+          <div>
+            <label>Capacity (optional)</label>
+            <input type="number" id="whCapacity" min="0" step="1" />
+          </div>
+          <div class="full">
+            <label>Description</label>
+            <textarea id="whDesc" rows="2"></textarea>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" id="deleteWarehouse"><i class="fas fa-trash"></i> Delete</button>
+        <button class="btn btn-primary" id="saveWarehouse"><i class="fas fa-save"></i> Save</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Centralized Firebase initialization (from project-list.html)
+    function initializeFirebase() {
+      if (!window.firebase || !window.firebase.apps || window.firebase.apps.length === 0) {
+        window.firebase.initializeApp({
+          apiKey: "AIzaSyCUTmTn0rRBb0M-UkQJxnUMrWqXYU_BgIc",
+          authDomain: "users-8be65.firebaseapp.com",
+          databaseURL: "https://users-8be65-default-rtdb.firebaseio.com",
+          projectId: "users-8be65",
+          storageBucket: "users-8be65.firebasestorage.app",
+          messagingSenderId: "909025468149",
+          appId: "1:909025468149:web:fb4e7c4a8b4bd6d1076e4d",
+          measurementId: "G-XHFMRCJQEZ"
+        });
+        console.log('✅ Firebase v8 initialized successfully for centralized auth');
+      }
+      return window.firebase;
+    }
+    const firebase = initializeFirebase();
+    const db = firebase.database();
+    const auth = firebase.auth();
+
+    let companyId = null;
+    let currentUser = null;
+    let warehousesCache = {};
+    let activeWarehouseId = null;
+
+    // AuthManager class for centralized authentication and profile management
+    class AuthManager {
+      constructor() {
+        this.currentUser = this.getCurrentUser();
+        this.currentCompany = null;
+        this.init();
+      }
+      getCurrentUser() {
+        try { return JSON.parse(localStorage.getItem('currentUser') || 'null'); } catch { return null; }
+      }
+      setCurrentUser(u) {
+        localStorage.setItem('currentUser', JSON.stringify(u));
+        localStorage.setItem('user', JSON.stringify(u));
+        this.currentUser = u;
+      }
+      async init() {
+        if (!this.currentUser) {
+          window.location.href = 'login.html';
+          return;
+        }
+        await this.loadUserCompany();
+        this.updateCompanyBranding();
+        await this.updateUIForAuthenticatedUser();
+        this.bindProfileDropdown();
+      }
+      async loadUserCompany() {
+        if (!this.currentUser) return;
+        try {
+          const snap = await firebase.database().ref('companies').once('value');
+          if (!snap.exists()) return;
+          const companies = snap.val();
+          for (const [cid, comp] of Object.entries(companies)) {
+            if (comp.status !== 'active') continue;
+            if (comp.users) {
+              for (const [uid, u] of Object.entries(comp.users)) {
+                if (u.authUid === this.currentUser.uid || uid === this.currentUser.uid) {
+                  this.currentUser.companyId = cid;
+                  this.currentUser.companyName = comp.companyName;
+                  this.currentUser.role = u.role || u.userRole || 'user';
+                  this.currentCompany = comp;
+                  this.setCurrentUser(this.currentUser);
+                  companyId = cid;
+                  return;
+                }
+              }
+            }
+          }
+        } catch (e) { }
+      }
+      updateCompanyBranding() {
+        const logoEl = document.getElementById('headerCompanyLogo');
+        const nameEl = document.getElementById('headerCompanyName');
+        if (!this.currentCompany) { this.showFallbackBranding(); return; }
+        if (nameEl) nameEl.textContent = this.currentCompany.companyName || '';
+        const logoUrl = this.currentCompany.logo || this.currentCompany.logoUrl;
+        if (logoEl) {
+          if (logoUrl) {
+            logoEl.src = logoUrl;
+            logoEl.classList.add('visible');
+            logoEl.style.display = 'block';
+          } else {
+            const svg = this.generateCompanyInitialsSVG(this.getCompanyInitials(this.currentCompany.companyName || ''));
+            logoEl.src = svg;
+            logoEl.classList.add('visible');
+            logoEl.style.display = 'block';
+          }
+        }
+        if (this.currentCompany.branding) {
+          const root = document.documentElement;
+          if (this.currentCompany.branding.primaryColor) root.style.setProperty('--primary-color', this.currentCompany.branding.primaryColor);
+          if (this.currentCompany.branding.secondaryColor) root.style.setProperty('--secondary-color', this.currentCompany.branding.secondaryColor);
+        }
+      }
+      showFallbackBranding() {
+        const logoEl = document.getElementById('headerCompanyLogo');
+        if (logoEl) {
+          const svg = this.generateCompanyInitialsSVG('DX');
+          logoEl.src = svg;
+          logoEl.classList.add('visible');
+          logoEl.style.display = 'block';
+        }
+      }
+      getCompanyInitials(name) {
+        if (!name) return 'CO';
+        const parts = name.trim().split(/\s+/);
+        if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+        return (parts[0][0] + parts[1][0]).toUpperCase();
+      }
+      generateCompanyInitialsSVG(initials) {
+        const svg = `<svg width="44" height="44" viewBox="0 0 44 44" xmlns="http://www.w3.org/2000/svg"><rect width="44" height="44" rx="6" fill="#f0f3f6"/><text x="50%" y="52%" dominant-baseline="middle" text-anchor="middle" fill="#495057" font-family="Inter,Arial,sans-serif" font-weight="600" font-size="14">${initials}</text></svg>`;
+        return 'data:image/svg+xml;base64,' + btoa(svg);
+      }
+      getUserDisplayName() {
+        if (!this.currentUser) return 'User';
+        const n = v => typeof v === 'string' ? v.trim().replace(/\s+/g, ' ') : '';
+        const cand = [this.currentUser.displayName, this.currentUser.name, this.currentUser.username];
+        for (const c of cand) { const cleaned = n(c); if (cleaned) return cleaned; }
+        if (this.currentUser.email) return n(this.currentUser.email.split('@')[0]) || 'User';
+        return 'User';
+      }
+      getUserInitials() {
+        const dn = this.getUserDisplayName();
+        const parts = dn.split(' ').filter(Boolean);
+        if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+        return parts.slice(0, 2).map(p => p[0]).join('').toUpperCase();
+      }
+      async getUserAvatarUrl() {
+        if (!this.currentUser) return null;
+        const companyId = this.currentUser.companyId || 'default';
+        const possiblePaths = [
+          `companies/${companyId}/avatars/${this.currentUser.uid}/profile.jpg`,
+          `companies/${companyId}/avatars/${this.currentUser.uid}/profile.png`,
+          `companies/${companyId}/avatars/${this.currentUser.uid}/profile.jpeg`,
+          `companies/${companyId}/avatars/${this.currentUser.uid}/avatar.jpg`,
+          `companies/${companyId}/avatars/${this.currentUser.uid}/avatar.png`,
+          `avatars/${this.currentUser.uid}/profile.jpg`,
+          `avatars/${this.currentUser.uid}/profile.png`,
+          `avatars/${this.currentUser.uid}/avatar.jpg`,
+          `avatars/${this.currentUser.uid}/avatar.png`,
+          `profiles/${this.currentUser.uid}/profile.jpg`,
+          `profiles/${this.currentUser.uid}/profile.png`
+        ];
+        for (const path of possiblePaths) {
+          try {
+            const ref = firebase.storage().ref(path);
+            const url = await ref.getDownloadURL();
+            return url;
+          } catch (err) { continue; }
+        }
+        return null;
+      }
+      async updateUIForAuthenticatedUser() {
+        const btn = document.getElementById('userProfileBtn');
+        const list = document.querySelector('.profile-dropdown ul');
+        if (!btn || !list || !this.currentUser) return;
+        const displayName = this.getUserDisplayName();
+        const email = this.currentUser.email || '';
+        let avatarUrl = null;
+        try { avatarUrl = await this.getUserAvatarUrl(); } catch (error) { }
+        const btnImg = btn.querySelector('img');
+        if (avatarUrl && btnImg) {
+          btnImg.src = avatarUrl;
+          btnImg.alt = displayName + ' Avatar';
+          btnImg.style.display = 'block';
+          btnImg.onerror = () => {
+            btnImg.style.display = 'none';
+            btn.innerHTML = `<div style="width:38px;height:38px;border-radius:50%;background:#3498db;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:0.8rem;">${this.getUserInitials()}</div>`;
+          };
+        } else {
+          btn.innerHTML = `<div style="width:38px;height:38px;border-radius:50%;background:#3498db;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:0.8rem;">${this.getUserInitials()}</div>`;
+        }
+        const avatarHtml = avatarUrl ? `<img src="${avatarUrl}" alt="${displayName} Avatar" style="width:32px;height:32px;border-radius:50%;object-fit:cover;">` : `<div style="width:32px;height:32px;border-radius:50%;background:#3498db;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:12px;">${this.getUserInitials()}</div>`;
+        list.innerHTML = `<li style="border-bottom:1px solid #eee;padding:12px 16px;background:#f8f9fa;"><div style="display:flex;align-items:center;gap:12px;">${avatarHtml}<div><div style="font-weight:600;color:#333;font-size:14px;margin-bottom:2px;">${displayName}</div><div style="color:#666;font-size:12px;">${email}</div></div></div></li><li><a href="profile.html"><i class="fas fa-user"></i> Profile</a></li><li><a href="account.html"><i class="fas fa-cog"></i> Account Settings</a></li><li><a href="#" id="logoutLink"><i class="fas fa-sign-out-alt"></i> Sign out</a></li>`;
+        list.querySelector('#logoutLink')?.addEventListener('click', e => { e.preventDefault(); this.logout(); });
+      }
+      bindProfileDropdown() {
+        const btn = document.getElementById('userProfileBtn');
+        const dd = document.querySelector('.profile-dropdown');
+        if (btn && dd) {
+          btn.addEventListener('click', e => { e.stopPropagation(); dd.classList.toggle('show'); });
+          document.addEventListener('click', e => { if (!btn.contains(e.target)) dd.classList.remove('show'); });
+        }
+      }
+      async logout() {
+        try {
+          await firebase.auth().signOut();
+          localStorage.removeItem('currentUser');
+          localStorage.removeItem('user');
+          window.location.href = 'login.html';
+        } catch (error) {
+          console.error('Logout error:', error);
+          localStorage.removeItem('currentUser');
+          localStorage.removeItem('user');
+          window.location.href = 'login.html';
+        }
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      window.authManager = new AuthManager();
+      if (typeof initializeMenuAuthorization === 'function') {
+        initializeMenuAuthorization();
+      }
+      document.getElementById('sidebarToggle').addEventListener('click', () => {
+        document.getElementById('sidebar').classList.toggle('collapsed');
+        document.getElementById('mainContent').classList.toggle('sidebar-collapsed');
+      });
+      document.getElementById('notificationBtn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        document.querySelector('.notification-dropdown').classList.toggle('show');
+      });
+      document.getElementById('addWarehouse').addEventListener('click', () => openWarehouseModal());
+      document.getElementById('closeWarehouseModal').addEventListener('click', closeWarehouseModal);
+      document.getElementById('saveWarehouse').addEventListener('click', saveWarehouse);
+      document.getElementById('deleteWarehouse').addEventListener('click', deleteWarehouse);
+      document.getElementById('searchBox').addEventListener('input', renderWarehouses);
+    });
+
+    async function loadWarehouses() {
+      const snap = await db.ref(`companies/${companyId}/inventory/warehouses`).once('value');
+      warehousesCache = snap.val() || {};
+      renderWarehouses();
+    }
+
+    function renderWarehouses() {
+      const q = (document.getElementById('searchBox').value || '').toLowerCase();
+      const tbody = document.getElementById('warehousesBody');
+      let list = Object.entries(warehousesCache).map(([id, w]) => ({ id, ...w }));
+      if (q) list = list.filter(x => (x.name||'').toLowerCase().includes(q) || (x.code||'').toLowerCase().includes(q) || (x.location||'').toLowerCase().includes(q));
+      if (!list.length) { tbody.innerHTML = '<tr><td colspan="5" class="muted">No warehouses found</td></tr>'; return; }
+      list.sort((a,b)=> (a.name||'').localeCompare(b.name||''));
+      tbody.innerHTML = list.map(w => `
+        <tr>
+          <td>${w.name || '-'}</td>
+          <td>${w.code || '-'}</td>
+          <td>${w.location || '-'}</td>
+          <td>${w.capacity ? Number(w.capacity) : '-'}</td>
+          <td class="right"><button class="btn" onclick="openWarehouseModal('${w.id || w.code || w.name || ''}')"><i class="fas fa-pen"></i> Edit</button></td>
+        </tr>`).join('');
+    }
+
+    function openWarehouseModal(id=null) {
+      activeWarehouseId = null;
+      document.getElementById('modalAlertError').style.display='none';
+      document.getElementById('modalAlertOk').style.display='none';
+
+      if (id) {
+        const entry = Object.entries(warehousesCache).find(([k,v]) => v.id===id || k===id);
+        if (entry) {
+          const [key, w] = entry;
+          activeWarehouseId = key;
+          document.getElementById('modalTitle').textContent = 'Edit Warehouse';
+          document.getElementById('whName').value = w.name || '';
+          document.getElementById('whCode').value = w.code || '';
+          document.getElementById('whLocation').value = w.location || '';
+          document.getElementById('whCapacity').value = Number(w.capacity||0);
+          document.getElementById('whDesc').value = w.description || '';
+        }
+      } else {
+        document.getElementById('modalTitle').textContent = 'New Warehouse';
+        document.getElementById('whName').value = '';
+        document.getElementById('whCode').value = '';
+        document.getElementById('whLocation').value = '';
+        document.getElementById('whCapacity').value = 0;
+        document.getElementById('whDesc').value = '';
+      }
+
+      document.getElementById('warehouseModal').style.display = 'flex';
+    }
+
+    function closeWarehouseModal() { document.getElementById('warehouseModal').style.display = 'none'; }
+
+    async function saveWarehouse() {
+      const errorBox = document.getElementById('modalAlertError');
+      const okBox = document.getElementById('modalAlertOk');
+      errorBox.style.display = 'none';
+      okBox.style.display = 'none';
+
+      const name = (document.getElementById('whName').value||'').trim();
+      const code = (document.getElementById('whCode').value||'').trim();
+      const location = (document.getElementById('whLocation').value||'').trim();
+      const capacity = Number(document.getElementById('whCapacity').value||0);
+      const description = (document.getElementById('whDesc').value||'').trim();
+
+      if (!name) { errorBox.textContent = 'Name is required.'; errorBox.style.display='block'; return; }
+
+      try {
+        if (!activeWarehouseId) activeWarehouseId = db.ref().push().key;
+        const payload = { id: activeWarehouseId, name, code, location, capacity, description, updatedAt: Date.now(), updatedBy: { uid: currentUser.uid, email: currentUser.email } };
+        await db.ref(`companies/${companyId}/inventory/warehouses/${activeWarehouseId}`).set(payload);
+        await loadWarehouses();
+        okBox.textContent = 'Warehouse saved.';
+        okBox.style.display = 'block';
+        setTimeout(() => closeWarehouseModal(), 800);
+      } catch (err) {
+        console.error(err);
+        errorBox.textContent = 'Failed to save warehouse.';
+        errorBox.style.display='block';
+      }
+    }
+
+    async function deleteWarehouse() {
+      if (!activeWarehouseId) { closeWarehouseModal(); return; }
+      if (!confirm('Delete this warehouse?')) return;
+      try {
+        await db.ref(`companies/${companyId}/inventory/warehouses/${activeWarehouseId}`).remove();
+        await loadWarehouses();
+        closeWarehouseModal();
+      } catch (err) {
+        console.error(err);
+        alert('Failed to delete warehouse.');
+      }
+    }
+  // Use AuthManager and menu authorization as in project-list.html
+  function initializeMenuSystem() {
+    window.authManager = new AuthManager();
+    initializeMenuAuthorization();
+  }
+  </script>
+</body>
+</html>

@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Inventory Approvals - Dreamex Datalab</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
+  <!-- Firebase v8 Scripts -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
+  <style>
+    :root { --primary-color:#2c3e50; --secondary-color:#34495e; --accent-color:#e74c3c; --success-color:#27ae60; --warning-color:#f39c12; --info-color:#3498db; --light-color:#ecf0f1; --dark-color:#2c3e50; --sidebar-width:250px; }
+    * { box-sizing:border-box; margin:0; padding:0; }
+    body { font-family:'Segoe UI', Arial, sans-serif; background:#f5f7fa; color:#222; }
+    .app-container { display:flex; min-height:100vh; }
+    .sidebar { width:var(--sidebar-width); background:var(--primary-color); color:#fff; padding:1rem; position:fixed; top:0; left:0; bottom:0; overflow-y:auto; z-index:1000; }
+    .main-content { flex:1; margin-left:var(--sidebar-width); padding:0.3rem; padding-top:3.2rem; }
+    .logo h2 { text-align:center; padding:1rem 0; border-bottom:1px solid rgba(255,255,255,0.1); font-size:1.05rem; }
+    .menu { list-style:none; margin-top:2rem; }
+    .menu li { margin-bottom:0.45rem; }
+    .menu a { display:flex; align-items:center; gap:10px; color:#fff; text-decoration:none; padding:0.6rem 0.75rem; border-radius:6px; font-size:0.82rem; font-weight:500; }
+    .menu a:hover, .menu a.active { background:rgba(255,255,255,0.12); }
+    .submenu { list-style:none; margin-left:0.75rem; display:none; margin-top:0.25rem; }
+    .menu-dropdown:hover .submenu { display:block; }
+    .submenu a { font-size:0.75rem; padding:0.45rem 0.65rem; }
+    [data-feature]:not(.menu-visible) { display:none !important; }
+    .menu-dropdown:not(.menu-visible) { display:none !important; }
+
+    .top-nav { display:flex; justify-content:space-between; align-items:center; padding:0.5rem 0.75rem; background-color:#fff; box-shadow:0 2px 5px rgba(0,0,0,0.1); margin-bottom:0.3rem; position:fixed; top:0.25rem; right:0.5rem; left:calc(var(--sidebar-width) + 0.5rem); height:50px; min-height:50px; z-index:100; }
+    .sidebar-toggle-btn { background:none; border:none; cursor:pointer; font-size:1.1rem; padding:0.4rem; color:#555; }
+    .top-nav-left, .top-nav-right { display:flex; align-items:center; gap:0.75rem; }
+
+    .page-header { background:#fff; padding:1.1rem 1.3rem; margin-bottom:0.8rem; border-radius:8px; box-shadow:0 2px 4px rgba(0,0,0,0.1); display:flex; justify-content:space-between; align-items:center; }
+    .page-header h1 { color:#1f2937; font-size:1.1rem; font-weight:700; display:flex; align-items:center; gap:0.5rem; }
+    .filters { display:flex; gap:0.5rem; flex-wrap:wrap; }
+    .filters input, .filters select { padding:0.4rem 0.6rem; font-size:0.78rem; border:1px solid #cbd5e1; border-radius:6px; background:#fff; }
+    .section { background:#fff; padding:0.9rem; border-radius:10px; box-shadow:0 2px 5px rgba(0,0,0,0.06); }
+
+    table { width:100%; border-collapse:separate; border-spacing:0 6px; }
+    th, td { text-align:left; padding:0.6rem 0.7rem; font-size:0.85rem; }
+    thead th { color:#475569; font-weight:700; text-transform:uppercase; font-size:0.7rem; letter-spacing:0.6px; }
+    tbody tr { background:#fff; box-shadow:0 1px 3px rgba(0,0,0,0.06); }
+    .status { display:inline-flex; align-items:center; gap:6px; padding:0.2rem 0.5rem; border-radius:999px; font-size:0.72rem; font-weight:700; }
+    .status.pending { background:#fff7ed; color:#b45309; }
+    .status.approved { background:#ecfdf5; color:#059669; }
+    .status.rejected { background:#fee2e2; color:#b91c1c; }
+
+    .modal-backdrop { position:fixed; inset:0; background:rgba(0,0,0,0.45); display:none; align-items:flex-start; justify-content:center; padding-top:5vh; z-index:1001; }
+    .modal { width:clamp(320px, 780px, 92vw); background:#fff; border-radius:12px; overflow:hidden; }
+    .modal-header, .modal-footer { padding:0.9rem 1rem; background:#f8fafc; border:1px solid #e2e8f0; }
+    .modal-body { padding:1rem; max-height:70vh; overflow:auto; }
+    .close-btn { background:none; border:none; font-size:1.1rem; cursor:pointer; color:#64748b; }
+    .btn { border:none; border-radius:6px; padding:0.5rem 0.8rem; font-size:0.78rem; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:0.4rem; background:#eef2f6; color:#1e293b; }
+    .btn-primary { background:#2c3e50; color:#fff; }
+    .btn-danger { background:#dc2626; color:#fff; }
+    .btn-outline { background:#fff; border:1px solid #cbd5e1; }
+    .chip { background:#f1f5f9; color:#334155; padding:0.2rem 0.5rem; border-radius:999px; font-size:0.72rem; font-weight:600; }
+    .muted { color:#64748b; font-size:0.8rem; }
+    .error { color:#b91c1c; background:#fee2e2; border:1px solid #fecaca; padding:0.5rem 0.6rem; border-radius:6px; font-size:0.8rem; margin-bottom:0.6rem; display:none; }
+    .ok { color:#065f46; background:#ecfdf5; border:1px solid #a7f3d0; padding:0.5rem 0.6rem; border-radius:6px; font-size:0.8rem; margin-bottom:0.6rem; display:none; }
+  </style>
+</head>
+<body>
+  <div class="app-container">
+    <nav class="sidebar menu-loading" id="sidebar">
+      <div class="logo"><h2>Dreamex Datalab</h2></div>
+      <ul class="menu" id="roleBasedMenu">
+        <li class="menu-item" data-feature="home_view"><a href="index.html"><i class="fas fa-home"></i> Home</a></li>
+        <!-- ...other menu items as in project-list.html... -->
+        <li class="menu-dropdown" data-feature="inventory_view" data-requires-permission="inventory_view">
+          <a href="#"><i class="fas fa-boxes"></i> Inventory Management</a>
+          <ul class="submenu">
+            <li data-feature="inventory_dashboard_view" data-requires-permission="inventory_dashboard_view"><a href="inventory-dashboard.html"><i class="fas fa-tachometer-alt"></i> Inventory Dashboard</a></li>
+            <li data-feature="inventory_items_view" data-requires-permission="inventory_items_view"><a href="inventory-items.html"><i class="fas fa-cubes"></i> Items Management</a></li>
+            <li data-feature="inventory_warehouses_view" data-requires-permission="inventory_warehouses_view"><a href="inventory-warehouses.html"><i class="fas fa-warehouse"></i> Warehouses</a></li>
+            <li data-feature="inventory_reservations_view" data-requires-permission="inventory_reservations_view"><a href="inventory-reservations.html"><i class="fas fa-bookmark"></i> Material Reservations</a></li>
+            <li data-feature="inventory_approvals_view" data-requires-permission="inventory_approvals_view"><a href="inventory-approvals.html" class="active"><i class="fas fa-check-circle"></i> Approvals</a></li>
+            <li data-feature="inventory_issue_view" data-requires-permission="inventory_issue_view"><a href="inventory-issue.html"><i class="fas fa-shipping-fast"></i> Material Issue</a></li>
+          </ul>
+        </li>
+        <!-- ...other menu items as in project-list.html... -->
+      </ul>
+    </nav>
+    <main class="main-content" id="mainContent">
+      <nav class="top-nav">
+        <div class="top-nav-left">
+          <button id="sidebarToggle" class="sidebar-toggle-btn" title="Toggle Menu"><i class="fas fa-bars"></i></button>
+          <div class="company-branding">
+            <img id="headerCompanyLogo" alt="Company Logo" />
+            <span id="headerCompanyName"></span>
+          </div>
+        </div>
+        <div class="top-nav-right">
+          <div class="notifications">
+            <button id="notificationBtn" class="notification-btn">
+              <i class="fas fa-bell"></i>
+              <span class="notification-badge">0</span>
+            </button>
+            <div class="notification-dropdown">
+              <div class="notification-header">
+                <h3>Notifications</h3>
+                <button class="mark-all-read">Mark all as read</button>
+              </div>
+              <div class="notification-list"></div>
+              <div class="notification-empty">
+                <i class="fas fa-inbox"></i>
+                <div class="notification-empty-title">No notifications</div>
+                <div class="notification-empty-message">You're all caught up</div>
+              </div>
+            </div>
+          </div>
+          <div class="user-profile">
+            <button class="profile-btn" id="userProfileBtn" style="display:flex;align-items:center;gap:8px;background:none;border:none;cursor:pointer;">
+              <img src="" alt="User" style="width:38px;height:38px;border-radius:50%;object-fit:cover;display:none;" />
+              <span id="userProfileName">Account</span>
+            </button>
+            <div class="profile-dropdown" style="position:absolute;top:48px;right:12px;min-width:260px;background:#fff;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.12);display:none;z-index:999;">
+              <ul style="list-style:none;padding:0;margin:0;"></ul>
+            </div>
+          </div>
+        </div>
+      </nav>
+
+      <section class="page-header">
+        <h1><i class="fas fa-check-circle"></i> Approvals</h1>
+        <div class="filters">
+          <input type="text" id="searchBox" placeholder="Search by reservation no/requester" />
+          <select id="statusFilter">
+            <option value="pending">Pending</option>
+            <option value="approved">Approved</option>
+            <option value="rejected">Rejected</option>
+            <option value="all">All</option>
+          </select>
+        </div>
+      </section>
+
+      <section class="section">
+        <table>
+          <thead>
+            <tr>
+              <th>Reservation No.</th>
+              <th>Requester</th>
+              <th>Items</th>
+              <th>Priority</th>
+              <th>Status</th>
+              <th>Submitted</th>
+              <th class="right">Action</th>
+            </tr>
+          </thead>
+          <tbody id="reservationsBody">
+            <tr><td colspan="7" class="muted">Loading reservations…</td></tr>
+          </tbody>
+        </table>
+      </section>
+    </main>
+  </div>
+
+  <!-- Approval Modal -->
+  <div class="modal-backdrop" id="approvalModal">
+    <div class="modal">
+          <div class="top-nav-left">
+            <button id="sidebarToggle" class="sidebar-toggle-btn" title="Toggle Menu"><i class="fas fa-bars"></i></button>
+            <div class="company-branding">
+              <img id="headerCompanyLogo" alt="Company Logo" />
+              <span id="headerCompanyName"></span>
+            </div>
+          </div>
+          <div class="top-nav-right">
+            <div class="notifications">
+              <button id="notificationBtn" class="notification-btn">
+                <i class="fas fa-bell"></i>
+                <span class="notification-badge">0</span>
+              </button>
+              <div class="notification-dropdown">
+                <div class="notification-header">
+                  <h3>Notifications</h3>
+                  <button class="mark-all-read">Mark all as read</button>
+                </div>
+                <div class="notification-list">
+                  <!-- Notifications will be dynamically added here -->
+                </div>
+                <div class="notification-empty">
+                  <i class="fas fa-inbox"></i>
+                  <div class="notification-empty-title">No notifications</div>
+                  <div class="notification-empty-message">You're all caught up</div>
+                </div>
+              </div>
+            </div>
+            <div class="user-profile" style="position:relative;">
+              <button id="userProfileBtn" class="profile-btn"><img src="" alt="User Avatar" /></button>
+              <div class="profile-dropdown"><ul></ul></div>
+            </div>
+          </div>
+      }
+      return window.firebase;
+    }
+    const firebase = initializeFirebase();
+    const db = firebase.database();
+    const auth = firebase.auth();
+
+    let companyId = null;
+    let currentUser = null;
+    let reservationsCache = {};
+    let itemsCache = {};
+
+    document.addEventListener('DOMContentLoaded', () => {
+      auth.onAuthStateChanged(async user => {
+        if (!user) { return; }
+        currentUser = user;
+        const userSnap = await db.ref(`users/${user.uid}`).once('value');
+        const userData = userSnap.val() || {};
+        companyId = userData.company;
+        if (!companyId) return;
+
+        initTopbar();
+        await preloadReferenceData();
+        await loadReservations();
+      });
+
+      document.getElementById('sidebarToggle').addEventListener('click', () => {
+        document.getElementById('sidebar').classList.toggle('collapsed');
+        document.getElementById('mainContent').classList.toggle('sidebar-collapsed');
+      });
+      document.getElementById('userProfileBtn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        document.querySelector('.profile-dropdown').classList.toggle('show');
+      });
+      document.addEventListener('click', () => {
+        document.querySelector('.profile-dropdown').classList.remove('show');
+      });
+      document.getElementById('logoutBtn').addEventListener('click', async (e) => { e.preventDefault(); await auth.signOut(); });
+
+      document.getElementById('searchBox').addEventListener('input', renderReservations);
+      document.getElementById('statusFilter').addEventListener('change', renderReservations);
+
+      document.getElementById('closeApprovalModal').addEventListener('click', closeApprovalModal);
+      document.getElementById('approveBtn').addEventListener('click', () => handleDecision('approved'));
+      document.getElementById('rejectBtn').addEventListener('click', () => handleDecision('rejected'));
+    });
+
+    // Use AuthManager and menu authorization as in project-list.html
+    function initializeMenuSystem() {
+      window.authManager = new AuthManager();
+      initializeMenuAuthorization();
+    }
+
+    async function preloadReferenceData() {
+      const iSnap = await db.ref(`companies/${companyId}/inventory/items`).once('value');
+      itemsCache = iSnap.val() || {};
+    }
+
+    async function loadReservations() {
+      const snap = await db.ref(`companies/${companyId}/inventory/reservations`).once('value');
+      reservationsCache = snap.val() || {};
+      renderReservations();
+    }
+
+    function statusBadge(status) {
+      if (status === 'pending' || !status) return '<span class="status pending"><i class="fas fa-hourglass-half"></i> Pending</span>';
+      if (status === 'approved') return '<span class="status approved"><i class="fas fa-check"></i> Approved</span>';
+      if (status === 'rejected') return '<span class="status rejected"><i class="fas fa-xmark"></i> Rejected</span>';
+      return `<span class="chip">${status}</span>`;
+    }
+
+    function renderReservations() {
+      const tbody = document.getElementById('reservationsBody');
+      const q = (document.getElementById('searchBox').value || '').toLowerCase();
+      const statusFilter = document.getElementById('statusFilter').value;
+
+      let list = Object.entries(reservationsCache).map(([id, r]) => ({ id, ...r }));
+      if (statusFilter !== 'all') list = list.filter(r => (r.status || 'pending') === statusFilter);
+      if (q) list = list.filter(r => (r.reservationNumber || '').toLowerCase().includes(q) || (r.requesterName || '').toLowerCase().includes(q));
+
+      if (!list.length) { tbody.innerHTML = '<tr><td colspan="7" class="muted">No reservations found</td></tr>'; return; }
+      list.sort((a,b) => (b.createdAt || 0) - (a.createdAt || 0));
+
+      tbody.innerHTML = list.map(r => {
+        const itemsCount = r.items ? Object.keys(r.items).length : 0;
+        const date = r.createdAt ? new Date(r.createdAt).toLocaleString() : '-';
+        const canReview = (r.status || 'pending') === 'pending';
+        return `
+          <tr>
+            <td><strong>${r.reservationNumber || r.id}</strong></td>
+            <td>${r.requesterName || r.requester || '—'}</td>
+            <td>${itemsCount}</td>
+            <td><span class="chip">${(r.priority || 'normal').toString().toUpperCase()}</span></td>
+            <td>${statusBadge(r.status || 'pending')}</td>
+            <td>${date}</td>
+            <td class="right">${canReview ? `<button class="btn btn-primary" onclick="openApprovalModal('${r.id}')"><i class='fas fa-eye'></i> Review</button>` : '-'}</td>
+          </tr>`;
+      }).join('');
+    }
+
+    function openApprovalModal(resId) {
+      const r = Object.values(reservationsCache).find(x => x.id === resId) || reservationsCache[resId];
+      if (!r) return;
+      r.id = r.id || resId;
+      document.getElementById('modalResNo').textContent = r.reservationNumber || r.id;
+
+      const container = document.getElementById('reservationDetails');
+      const lines = Object.entries(r.items || {}).map(([itemId, line]) => {
+        const item = itemsCache[itemId] || {};
+        const qty = Number(line.quantity || line.qty || 0);
+        const uom = item.uom || 'EA';
+        return `<div style="display:flex; justify-content:space-between; padding:0.35rem 0; border-bottom:1px solid #f1f5f9;">
+          <div><strong>${item.name || line.name || ('Item ' + itemId)}</strong><div class="muted">SKU: ${item.sku || item.code || itemId}</div></div>
+          <div>${qty} <span class="muted">${uom}</span></div>
+        </div>`;
+      }).join('') || '<div class="muted">No items.</div>';
+
+      const meta = `
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem; margin:0.25rem 0 0.75rem;">
+          <div><div class="muted">Requester</div><div>${r.requesterName || r.requester || '—'}</div></div>
+          <div><div class="muted">Priority</div><div><span class="chip">${(r.priority || 'normal').toString().toUpperCase()}</span></div></div>
+          <div><div class="muted">Needed by</div><div>${r.neededDate ? new Date(r.neededDate).toLocaleDateString() : '—'}</div></div>
+          <div><div class="muted">Submitted</div><div>${r.createdAt ? new Date(r.createdAt).toLocaleString() : '—'}</div></div>
+        </div>`;
+
+      container.innerHTML = meta + `<div>${lines}</div>`;
+      document.getElementById('approvalModal').style.display = 'flex';
+      document.getElementById('approvalModal').dataset.resId = r.id;
+      document.getElementById('modalAlertError').style.display = 'none';
+      document.getElementById('modalAlertOk').style.display = 'none';
+    }
+
+    function closeApprovalModal() {
+      document.getElementById('approvalModal').style.display = 'none';
+      document.getElementById('approvalModal').dataset.resId = '';
+    }
+
+    async function handleDecision(decision) {
+      const resId = document.getElementById('approvalModal').dataset.resId;
+      if (!resId) return;
+
+      const errorBox = document.getElementById('modalAlertError');
+      const okBox = document.getElementById('modalAlertOk');
+      errorBox.style.display = 'none';
+      okBox.style.display = 'none';
+
+      try {
+        const now = Date.now();
+        const updates = {};
+        updates[`companies/${companyId}/inventory/reservations/${resId}/status`] = decision;
+        if (decision === 'approved') {
+          updates[`companies/${companyId}/inventory/reservations/${resId}/approvedBy`] = { uid: currentUser.uid, email: currentUser.email };
+          updates[`companies/${companyId}/inventory/reservations/${resId}/approvedAt`] = now;
+        } else {
+          updates[`companies/${companyId}/inventory/reservations/${resId}/rejectedBy`] = { uid: currentUser.uid, email: currentUser.email };
+          updates[`companies/${companyId}/inventory/reservations/${resId}/rejectedAt`] = now;
+        }
+        updates[`companies/${companyId}/inventory/reservations/${resId}/approvalTrail/${now}`] = { action: decision, by: { uid: currentUser.uid, email: currentUser.email }, at: now };
+
+        await db.ref().update(updates);
+        // reload
+        await loadReservations();
+        okBox.textContent = decision === 'approved' ? 'Reservation approved.' : 'Reservation rejected.';
+        okBox.style.display = 'block';
+        setTimeout(() => closeApprovalModal(), 900);
+      } catch (err) {
+        console.error(err);
+        errorBox.textContent = 'Operation failed. Please try again.';
+        errorBox.style.display = 'block';
+      }
+    }
+  </script>
+</body>
+</html>

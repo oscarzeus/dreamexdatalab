@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Material Issue - Dreamex Datalab</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
+  <!-- Firebase v8 Scripts for Centralized Authentication -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
+  <style>
+    :root { --primary-color:#2c3e50; --secondary-color:#34495e; --accent-color:#e74c3c; --success-color:#27ae60; --warning-color:#f39c12; --info-color:#3498db; --light-color:#ecf0f1; --dark-color:#2c3e50; --sidebar-width:250px; --transition-speed:.25s; }
+    * { box-sizing:border-box; margin:0; padding:0; }
+    body { font-family:'Segoe UI', Arial, sans-serif; background:#f5f7fa; color:#222; }
+    .app-container { display:flex; min-height:100vh; }
+    .sidebar { width:var(--sidebar-width); background:var(--primary-color); color:#fff; padding:1rem; position:fixed; top:0; left:0; bottom:0; overflow-y:auto; transition:transform .3s ease; z-index:1000; }
+    .sidebar.collapsed { transform:translateX(-100%); }
+    .main-content { flex:1; margin-left:var(--sidebar-width); padding:0.3rem; padding-top:3.2rem; transition:margin-left .3s ease; }
+    .main-content.sidebar-collapsed { margin-left:0; }
+    .main-content.sidebar-collapsed .top-nav { left:0.5rem; }
+    .logo h2 { text-align:center; padding:1rem 0; border-bottom:1px solid rgba(255,255,255,0.1); font-size:1.05rem; letter-spacing:.5px; }
+    .menu { list-style:none; margin-top:2rem; }
+    .menu li { margin-bottom:0.45rem; }
+    .menu a { display:flex; align-items:center; gap:10px; color:#fff; text-decoration:none; padding:0.6rem 0.75rem; border-radius:6px; font-size:0.82rem; font-weight:500; transition:background .25s; }
+    .menu a:hover, .menu a.active { background:rgba(255,255,255,0.12); }
+    .submenu { list-style:none; margin-left:0.75rem; display:none; margin-top:0.25rem; }
+    .menu-dropdown:hover .submenu { display:block; }
+    .submenu a { font-size:0.75rem; padding:0.45rem 0.65rem; }
+    [data-feature]:not(.menu-visible) { display:none !important; }
+    .menu-dropdown:not(.menu-visible) { display:none !important; }
+
+    /* Hide ALL menu items by default during loading */
+    .sidebar.menu-loading .menu-item,
+    .sidebar.menu-loading .menu-dropdown,
+    .sidebar.menu-loading li[data-feature],
+    .sidebar.menu-loading [data-feature] { display:none !important; }
+    .sidebar.menu-loading .menu-visible,
+    .sidebar.menu-loading li.menu-visible,
+    .sidebar.menu-loading [data-feature].menu-visible { display:block !important; }
+
+    .menu-visible { display:block !important; }
+
+    .top-nav { display:flex; justify-content:space-between; align-items:center; padding:0.5rem 0.75rem; background-color:#fff; box-shadow:0 2px 5px rgba(0,0,0,0.1); margin-bottom:0.3rem; position:fixed; top:0.25rem; right:0.5rem; left:calc(var(--sidebar-width) + 0.5rem); height:50px; min-height:50px; z-index:100; transition:left 0.3s ease; }
+    .sidebar-toggle-btn { background:none; border:none; cursor:pointer; font-size:1.1rem; padding:0.4rem; color:#555; }
+    .top-nav-left { display:flex; align-items:center; gap:0.75rem; }
+    .company-branding { display:flex; align-items:center; gap:0.5rem; }
+    #headerCompanyLogo { width:32px; height:32px; object-fit:contain; display:none; }
+    #headerCompanyName { font-weight:600; font-size:0.85rem; }
+    .header-company-logo { height:32px; width:auto; border-radius:6px; box-shadow:0 2px 4px rgba(0,0,0,0.1); }
+    .company-name-header { font-weight:700; color:var(--dark-color); font-size:1rem; letter-spacing:0.5px; white-space:nowrap; }
+    .top-nav-right { display:flex; align-items:center; gap:1rem; }
+    .notifications { position:relative; display:flex; align-items:center; }
+    .notification-btn { background:none; border:none; cursor:pointer; position:relative; font-size:1.2rem; padding:0.5rem; display:flex; align-items:center; justify-content:center; }
+    .notification-badge { position:absolute; top:-5px; right:-5px; background-color:var(--accent-color); color:white; border-radius:50%; padding:0.2rem 0.5rem; font-size:0.7rem; display:none; }
+    .notification-dropdown { display:none; position:absolute; right:0; top:100%; width:320px; background:#fff; border-radius:8px; box-shadow:0 4px 20px rgba(0,0,0,0.15); z-index:1000; border:1px solid #e9ecef; max-height:400px; overflow:hidden; }
+    .notification-dropdown.show { display:block; animation: slideDown 0.2s ease-out; }
+    .notification-header { padding:12px 16px; border-bottom:1px solid #e9ecef; background:linear-gradient(135deg,#f8f9fa 0%, #e9ecef 100%); display:flex; justify-content:space-between; align-items:center; }
+    .notification-header h3 { margin:0; color:#333; font-size:14px; font-weight:600; }
+    .mark-all-read { background:none; border:none; color:#3498db; cursor:pointer; font-size:12px; padding:4px 8px; border-radius:4px; transition:all .2s ease; }
+    .mark-all-read:hover { background:#e3f2fd; color:#1976d2; }
+    .user-profile { position:relative; }
+    .profile-btn { background:none; border:none; cursor:pointer; display:flex; align-items:center; gap:0.5rem; padding:0.5rem; border-radius:25px; transition:background .2s; }
+    .profile-btn:hover { background:rgba(0,0,0,0.05); }
+    .profile-btn img { width:32px; height:32px; border-radius:50%; object-fit:cover; }
+    .profile-dropdown { display:none; position:absolute; right:0; top:100%; background:#fff; border-radius:8px; box-shadow:0 4px 20px rgba(0,0,0,0.15); min-width:180px; z-index:1000; }
+    .profile-dropdown.show { display:block; }
+    .profile-dropdown ul { list-style:none; margin:0; padding:0.5rem 0; }
+    .profile-dropdown a { display:flex; align-items:center; gap:0.5rem; padding:0.75rem 1rem; color:#333; text-decoration:none; transition:background .2s; }
+    .profile-dropdown a:hover { background:#f8f9fa; }
+
+    .page-header { background:#fff; padding:1.1rem 1.3rem; margin-bottom:0.8rem; border-radius:8px; box-shadow:0 2px 4px rgba(0,0,0,0.1); display:flex; justify-content:space-between; align-items:center; }
+    .page-header h1 { color:var(--dark-color); font-size:1.2rem; font-weight:600; margin:0; display:flex; align-items:center; gap:0.6rem; }
+    .page-actions { display:flex; gap:0.5rem; }
+    .btn { border:none; border-radius:6px; padding:0.5rem 0.8rem; font-size:0.78rem; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:0.4rem; letter-spacing:.5px; background:#eef2f6; color:#1e293b; transition:.2s; }
+    .btn:hover { background:#e2e8f0; }
+    .btn-primary { background:var(--primary-color); color:#fff; }
+    .btn-primary:hover { background:#1f2f3d; }
+    .btn-success { background:var(--success-color); color:#fff; }
+    .btn-success:hover { background:#218c4f; }
+    .btn-outline { background:#fff; border:1px solid #cbd5e1; }
+    .btn-outline:hover { background:#f1f5f9; }
+
+    .section { background:#fff; padding:0.9rem; border-radius:10px; box-shadow:0 2px 5px rgba(0,0,0,0.06); margin-bottom:0.5rem; }
+    .section-title { font-size:0.85rem; font-weight:700; text-transform:uppercase; letter-spacing:.5px; margin-bottom:0.6rem; color:#334155; display:flex; align-items:center; justify-content:space-between; gap:0.4rem; }
+    .filters { display:flex; gap:0.5rem; flex-wrap:wrap; }
+    .filters input, .filters select { padding:0.4rem 0.6rem; font-size:0.78rem; border:1px solid #cbd5e1; border-radius:6px; background:#fff; }
+
+    table { width:100%; border-collapse:separate; border-spacing:0 6px; }
+    th, td { text-align:left; padding:0.6rem 0.7rem; font-size:0.85rem; }
+    thead th { color:#475569; font-weight:700; text-transform:uppercase; font-size:0.7rem; letter-spacing:0.6px; }
+    tbody tr { background:#fff; box-shadow:0 1px 3px rgba(0,0,0,0.06); }
+    tbody tr td { border-top:1px solid #f1f5f9; border-bottom:1px solid #f1f5f9; }
+    .status { display:inline-flex; align-items:center; gap:6px; padding:0.2rem 0.5rem; border-radius:999px; font-size:0.72rem; font-weight:700; }
+    .status.approved { background:#ecfdf5; color:#059669; }
+    .status.partial { background:#fffbeb; color:#d97706; }
+    .status.issued { background:#eff6ff; color:#2563eb; }
+    .chip { background:#f1f5f9; color:#334155; padding:0.2rem 0.5rem; border-radius:999px; font-size:0.72rem; font-weight:600; }
+
+    .empty { text-align:center; color:#94a3b8; padding:1rem; }
+
+    /* Modal */
+    .modal-backdrop { position:fixed; inset:0; background:rgba(0,0,0,0.45); display:none; align-items:flex-start; justify-content:center; padding-top:5vh; z-index:1001; }
+    .modal { width:clamp(320px, 900px, 92vw); background:#fff; border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,0.2); overflow:hidden; }
+    .modal-header { padding:0.9rem 1rem; display:flex; align-items:center; justify-content:space-between; background:#f8fafc; border-bottom:1px solid #e2e8f0; }
+    .modal-title { font-size:1rem; font-weight:700; color:#1f2937; display:flex; align-items:center; gap:0.5rem; }
+    .modal-body { padding:1rem; max-height:70vh; overflow:auto; }
+    .modal-footer { display:flex; justify-content:flex-end; gap:0.5rem; padding:0.9rem 1rem; background:#f8fafc; border-top:1px solid #e2e8f0; }
+    .close-btn { background:none; border:none; font-size:1.1rem; cursor:pointer; color:#64748b; }
+
+    .item-grid { display:grid; grid-template-columns: 1fr 110px 110px 120px 120px; gap:0.5rem; align-items:center; }
+    .item-grid .label { font-weight:600; font-size:0.8rem; color:#334155; }
+    .item-grid input, .item-grid select { width:100%; padding:0.45rem 0.55rem; border:1px solid #cbd5e1; border-radius:6px; font-size:0.85rem; }
+    .item-row { padding:0.6rem; background:#fff; border:1px solid #e2e8f0; border-radius:8px; display:grid; grid-template-columns: 1fr 110px 110px 120px 120px; gap:0.5rem; align-items:center; }
+    .row-note { font-size:0.75rem; color:#64748b; }
+    .error { color:#b91c1c; background:#fee2e2; border:1px solid #fecaca; padding:0.5rem 0.6rem; border-radius:6px; font-size:0.8rem; margin-bottom:0.6rem; display:none; }
+    .ok { color:#065f46; background:#ecfdf5; border:1px solid #a7f3d0; padding:0.5rem 0.6rem; border-radius:6px; font-size:0.8rem; margin-bottom:0.6rem; display:none; }
+
+    /* Small helpers */
+    .muted { color:#64748b; font-size:0.8rem; }
+    .right { text-align:right; }
+  </style>
+</head>
+<body>
+
+  <div class="app-container">
+    <nav class="sidebar menu-loading" id="sidebar">
+      <div class="logo"><h2>Dreamex Datalab</h2></div>
+      <ul class="menu" id="roleBasedMenu">
+        <li class="menu-item" data-feature="home_view"><a href="index.html"><i class="fas fa-home"></i> Home</a></li>
+        <!-- ...other menu items as in project-list.html... -->
+        <li class="menu-dropdown" data-feature="inventory_view" data-requires-permission="inventory_view">
+          <a href="#"><i class="fas fa-boxes"></i> Inventory Management</a>
+          <ul class="submenu">
+            <li data-feature="inventory_dashboard_view" data-requires-permission="inventory_dashboard_view"><a href="inventory-dashboard.html"><i class="fas fa-tachometer-alt"></i> Inventory Dashboard</a></li>
+            <li data-feature="inventory_items_view" data-requires-permission="inventory_items_view"><a href="inventory-items.html"><i class="fas fa-cubes"></i> Items Management</a></li>
+            <li data-feature="inventory_warehouses_view" data-requires-permission="inventory_warehouses_view"><a href="inventory-warehouses.html"><i class="fas fa-warehouse"></i> Warehouses</a></li>
+            <li data-feature="inventory_reservations_view" data-requires-permission="inventory_reservations_view"><a href="inventory-reservations.html"><i class="fas fa-bookmark"></i> Material Reservations</a></li>
+            <li data-feature="inventory_approvals_view" data-requires-permission="inventory_approvals_view"><a href="inventory-approvals.html"><i class="fas fa-check-circle"></i> Approvals</a></li>
+            <li data-feature="inventory_issue_view" data-requires-permission="inventory_issue_view"><a href="inventory-issue.html" class="active"><i class="fas fa-shipping-fast"></i> Material Issue</a></li>
+          </ul>
+        </li>
+        <!-- ...other menu items as in project-list.html... -->
+      </ul>
+    </nav>
+    <main class="main-content" id="mainContent">
+      <nav class="top-nav">
+        <div class="top-nav-left">
+          <button id="sidebarToggle" class="sidebar-toggle-btn" title="Toggle Menu"><i class="fas fa-bars"></i></button>
+          <div class="company-branding">
+            <img id="headerCompanyLogo" alt="Company Logo" />
+            <span id="headerCompanyName"></span>
+          </div>
+        </div>
+        <div class="top-nav-right">
+          <div class="notifications">
+            <button id="notificationBtn" class="notification-btn">
+              <i class="fas fa-bell"></i>
+              <span class="notification-badge">0</span>
+            </button>
+            <div class="notification-dropdown">
+              <div class="notification-header">
+                <h3>Notifications</h3>
+                <button class="mark-all-read">Mark all as read</button>
+              </div>
+              <div class="notification-list"></div>
+              <div class="notification-empty">
+                <i class="fas fa-inbox"></i>
+                <div class="notification-empty-title">No notifications</div>
+                <div class="notification-empty-message">You're all caught up</div>
+              </div>
+            </div>
+          </div>
+          <div class="user-profile" style="position:relative;">
+            <button id="userProfileBtn" class="profile-btn"><img src="" alt="User Avatar" /></button>
+            <div class="profile-dropdown"><ul></ul></div>
+          </div>
+        </div>
+      </nav>
+
+      <header class="page-header">
+        <h1><i class="fas fa-shipping-fast"></i> Material Issue</h1>
+        <div class="page-actions">
+          <a href="inventory-dashboard.html" class="btn btn-outline"><i class="fas fa-tachometer-alt"></i> Dashboard</a>
+          <a href="inventory-reservations.html" class="btn btn-outline"><i class="fas fa-bookmark"></i> Reservations</a>
+        </div>
+      </header>
+
+      <section class="section">
+        <div class="section-title">
+          <span>Approved Reservations</span>
+          <div class="filters">
+            <input type="text" id="searchBox" placeholder="Search by reservation no/requester" />
+            <select id="statusFilter">
+              <option value="all">All statuses</option>
+              <option value="approved">Approved</option>
+              <option value="partially_issued">Partially Issued</option>
+              <option value="issued">Issued</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Reservation No.</th>
+                <th>Requester</th>
+                <th class="right">Items</th>
+                <th>Priority</th>
+                <th>Status</th>
+                <th>Date</th>
+                <th class="right">Action</th>
+              </tr>
+            </thead>
+            <tbody id="reservationsBody">
+              <tr><td colspan="7" class="empty">Loading reservations…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-title"><span>Recent Issues</span></div>
+        <div id="recentIssues" class="muted">No recent issues to show.</div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Issue Modal -->
+  <div class="modal-backdrop" id="issueModal">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title"><i class="fas fa-box-open"></i> Issue Reservation <span id="modalResNo" class="chip"></span></div>
+        <button class="close-btn" id="closeIssueModal"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="modal-body">
+        <div id="modalAlertError" class="error"></div>
+        <div id="modalAlertOk" class="ok"></div>
+        <div class="item-grid" style="margin-bottom:0.4rem;">
+          <div class="label">Item</div>
+          <div class="label right">Reserved</div>
+          <div class="label right">Issued</div>
+          <div class="label">Issue Now</div>
+          <div class="label">Warehouse (optional)</div>
+        </div>
+        <div id="issueItems"></div>
+        <div class="row-note" id="stockNote"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" id="cancelIssue">Cancel</button>
+        <button class="btn btn-success" id="confirmIssue"><i class="fas fa-check"></i> Confirm Issue</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Firebase Config - centralized config from project-list.html
+    const firebaseConfig = {
+      apiKey: "AIzaSyCUTmTn0rRBb0M-UkQJxnUMrWqXYU_BgIc",
+      authDomain: "users-8be65.firebaseapp.com",
+      databaseURL: "https://users-8be65-default-rtdb.firebaseio.com",
+      projectId: "users-8be65",
+      storageBucket: "users-8be65.firebasestorage.app",
+      messagingSenderId: "909025468149",
+      appId: "1:909025468149:web:fb4e7c4a8b4bd6d1076e4d",
+      measurementId: "G-XHFMRCJQEZ"
+    };
+
+    function initializeFirebase() {
+      if (!window.firebase || !window.firebase.apps || window.firebase.apps.length === 0) {
+        window.firebase.initializeApp(firebaseConfig);
+        console.log('✅ Firebase v8 initialized successfully for centralized auth');
+      }
+      return window.firebase;
+    }
+    const firebase = initializeFirebase();
+    const db = firebase.database();
+    const auth = firebase.auth();
+
+    // State
+    let companyId = null;
+    let currentUser = null;
+    let reservationsCache = {};
+    let warehousesCache = {};
+    let itemsCache = {};
+    let activeReservation = null;
+
+    // AuthManager class for centralized authentication and profile management
+    class AuthManager {
+      constructor() {
+        this.currentUser = this.getCurrentUser();
+        this.currentCompany = null;
+        this.init();
+      }
+      getCurrentUser() {
+        try { return JSON.parse(localStorage.getItem('currentUser') || 'null'); } catch { return null; }
+      }
+      setCurrentUser(u) {
+        localStorage.setItem('currentUser', JSON.stringify(u));
+        localStorage.setItem('user', JSON.stringify(u));
+        this.currentUser = u;
+      }
+      async init() {
+        if (!this.currentUser) {
+          window.location.href = 'login.html';
+          return;
+        }
+        await this.loadUserCompany();
+        this.updateCompanyBranding();
+        await this.updateUIForAuthenticatedUser();
+        this.bindProfileDropdown();
+      }
+      async loadUserCompany() {
+        if (!this.currentUser) return;
+        try {
+          const snap = await firebase.database().ref('companies').once('value');
+          if (!snap.exists()) return;
+          const companies = snap.val();
+          for (const [cid, comp] of Object.entries(companies)) {
+            if (comp.status !== 'active') continue;
+            if (comp.users) {
+              for (const [uid, u] of Object.entries(comp.users)) {
+                if (u.authUid === this.currentUser.uid || uid === this.currentUser.uid) {
+                  this.currentUser.companyId = cid;
+                  this.currentUser.companyName = comp.companyName;
+                  this.currentUser.role = u.role || u.userRole || 'user';
+                  this.currentCompany = comp;
+                  this.setCurrentUser(this.currentUser);
+                  companyId = cid;
+                  return;
+                }
+              }
+            }
+          }
+        } catch (e) { }
+      }
+      updateCompanyBranding() {
+        const logoEl = document.getElementById('headerCompanyLogo');
+        const nameEl = document.getElementById('headerCompanyName');
+        if (!this.currentCompany) { this.showFallbackBranding(); return; }
+        if (nameEl) nameEl.textContent = this.currentCompany.companyName || '';
+        const logoUrl = this.currentCompany.logo || this.currentCompany.logoUrl;
+        if (logoEl) {
+          if (logoUrl) {
+            logoEl.src = logoUrl;
+            logoEl.classList.add('visible');
+          } else {
+            const svg = this.generateCompanyInitialsSVG(this.getCompanyInitials(this.currentCompany.companyName || ''));
+            logoEl.src = svg;
+            logoEl.classList.add('visible');
+          }
+        }
+        if (this.currentCompany.branding) {
+          const root = document.documentElement;
+          if (this.currentCompany.branding.primaryColor) root.style.setProperty('--primary-color', this.currentCompany.branding.primaryColor);
+          if (this.currentCompany.branding.secondaryColor) root.style.setProperty('--secondary-color', this.currentCompany.branding.secondaryColor);
+        }
+      }
+      showFallbackBranding() {
+        const logoEl = document.getElementById('headerCompanyLogo');
+        if (logoEl) {
+          const svg = this.generateCompanyInitialsSVG('DX');
+          logoEl.src = svg;
+          logoEl.classList.add('visible');
+        }
+      }
+      getCompanyInitials(name) {
+        if (!name) return 'CO';
+        const parts = name.trim().split(/\s+/);
+        if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+        return (parts[0][0] + parts[1][0]).toUpperCase();
+      }
+      generateCompanyInitialsSVG(initials) {
+        const svg = `<svg width="44" height="44" viewBox="0 0 44 44" xmlns="http://www.w3.org/2000/svg"><rect width="44" height="44" rx="6" fill="#f0f3f6"/><text x="50%" y="52%" dominant-baseline="middle" text-anchor="middle" fill="#495057" font-family="Inter,Arial,sans-serif" font-weight="600" font-size="14">${initials}</text></svg>`;
+        return 'data:image/svg+xml;base64,' + btoa(svg);
+      }
+      getUserDisplayName() {
+        if (!this.currentUser) return 'User';
+        const n = v => typeof v === 'string' ? v.trim().replace(/\s+/g, ' ') : '';
+        const cand = [this.currentUser.displayName, this.currentUser.name, this.currentUser.username];
+        for (const c of cand) { const cleaned = n(c); if (cleaned) return cleaned; }
+        if (this.currentUser.email) return n(this.currentUser.email.split('@')[0]) || 'User';
+        return 'User';
+      }
+      getUserInitials() {
+        const dn = this.getUserDisplayName();
+        const parts = dn.split(' ').filter(Boolean);
+        if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+        return parts.slice(0, 2).map(p => p[0]).join('').toUpperCase();
+      }
+      async getUserAvatarUrl() {
+        if (!this.currentUser) return null;
+        const companyId = this.currentUser.companyId || 'default';
+        const possiblePaths = [
+          `companies/${companyId}/avatars/${this.currentUser.uid}/profile.jpg`,
+          `companies/${companyId}/avatars/${this.currentUser.uid}/profile.png`,
+          `companies/${companyId}/avatars/${this.currentUser.uid}/profile.jpeg`,
+          `companies/${companyId}/avatars/${this.currentUser.uid}/avatar.jpg`,
+          `companies/${companyId}/avatars/${this.currentUser.uid}/avatar.png`,
+          `avatars/${this.currentUser.uid}/profile.jpg`,
+          `avatars/${this.currentUser.uid}/profile.png`,
+          `avatars/${this.currentUser.uid}/avatar.jpg`,
+          `avatars/${this.currentUser.uid}/avatar.png`,
+          `profiles/${this.currentUser.uid}/profile.jpg`,
+          `profiles/${this.currentUser.uid}/profile.png`
+        ];
+        for (const path of possiblePaths) {
+          try {
+            const ref = firebase.storage().ref(path);
+            const url = await ref.getDownloadURL();
+            return url;
+          } catch (err) { continue; }
+        }
+        return null;
+      }
+      async updateUIForAuthenticatedUser() {
+        const btn = document.getElementById('userProfileBtn');
+        const list = document.querySelector('.profile-dropdown ul');
+        if (!btn || !list || !this.currentUser) return;
+        const displayName = this.getUserDisplayName();
+        const email = this.currentUser.email || '';
+        let avatarUrl = null;
+        try { avatarUrl = await this.getUserAvatarUrl(); } catch (error) { }
+        const btnImg = btn.querySelector('img');
+        if (avatarUrl && btnImg) {
+          btnImg.src = avatarUrl;
+          btnImg.alt = displayName + ' Avatar';
+          btnImg.style.display = 'block';
+          btnImg.onerror = () => {
+            btnImg.style.display = 'none';
+            btn.innerHTML = `<div style="width:38px;height:38px;border-radius:50%;background:#3498db;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:0.8rem;">${this.getUserInitials()}</div>`;
+          };
+        } else {
+          btn.innerHTML = `<div style="width:38px;height:38px;border-radius:50%;background:#3498db;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:0.8rem;">${this.getUserInitials()}</div>`;
+        }
+        const avatarHtml = avatarUrl ? `<img src="${avatarUrl}" alt="${displayName} Avatar" style="width:32px;height:32px;border-radius:50%;object-fit:cover;">` : `<div style="width:32px;height:32px;border-radius:50%;background:#3498db;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:12px;">${this.getUserInitials()}</div>`;
+        list.innerHTML = `<li style="border-bottom:1px solid #eee;padding:12px 16px;background:#f8f9fa;"><div style="display:flex;align-items:center;gap:12px;">${avatarHtml}<div><div style="font-weight:600;color:#333;font-size:14px;margin-bottom:2px;">${displayName}</div><div style="color:#666;font-size:12px;">${email}</div></div></div></li><li><a href="profile.html"><i class="fas fa-user"></i> Profile</a></li><li><a href="account.html"><i class="fas fa-cog"></i> Account Settings</a></li><li><a href="#" id="logoutLink"><i class="fas fa-sign-out-alt"></i> Sign out</a></li>`;
+        list.querySelector('#logoutLink')?.addEventListener('click', e => { e.preventDefault(); this.logout(); });
+      }
+      bindProfileDropdown() {
+        const btn = document.getElementById('userProfileBtn');
+        const dd = document.querySelector('.profile-dropdown');
+        if (btn && dd) {
+          btn.addEventListener('click', e => { e.stopPropagation(); dd.classList.toggle('show'); });
+          document.addEventListener('click', e => { if (!btn.contains(e.target)) dd.classList.remove('show'); });
+        }
+      }
+      async logout() {
+        try {
+          await firebase.auth().signOut();
+          localStorage.removeItem('currentUser');
+          localStorage.removeItem('user');
+          window.location.href = 'login.html';
+        } catch (error) {
+          console.error('Logout error:', error);
+          localStorage.removeItem('currentUser');
+          localStorage.removeItem('user');
+          window.location.href = 'login.html';
+        }
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      window.authManager = new AuthManager();
+      if (typeof initializeMenuAuthorization === 'function') {
+        initializeMenuAuthorization();
+      }
+      document.getElementById('sidebarToggle').addEventListener('click', () => {
+        document.getElementById('sidebar').classList.toggle('collapsed');
+        document.getElementById('mainContent').classList.toggle('sidebar-collapsed');
+      });
+      document.getElementById('notificationBtn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        document.querySelector('.notification-dropdown').classList.toggle('show');
+      });
+      document.getElementById('searchBox').addEventListener('input', renderReservations);
+      document.getElementById('statusFilter').addEventListener('change', renderReservations);
+      document.getElementById('closeIssueModal').addEventListener('click', closeIssueModal);
+      document.getElementById('cancelIssue').addEventListener('click', closeIssueModal);
+      document.getElementById('confirmIssue').addEventListener('click', confirmIssue);
+    });
+
+    async function preloadReferenceData() {
+      // Warehouses
+      const wSnap = await db.ref(`companies/${companyId}/inventory/warehouses`).once('value');
+      warehousesCache = wSnap.val() || {};
+
+      // Items
+      const iSnap = await db.ref(`companies/${companyId}/inventory/items`).once('value');
+      itemsCache = iSnap.val() || {};
+    }
+
+    async function loadReservations() {
+      const snap = await db.ref(`companies/${companyId}/inventory/reservations`).once('value');
+      reservationsCache = snap.val() || {};
+      renderReservations();
+    }
+
+    function reservationStatusBadge(status) {
+      if (status === 'approved') return '<span class="status approved"><i class="fas fa-check"></i> Approved</span>';
+      if (status === 'partially_issued') return '<span class="status partial"><i class="fas fa-hourglass-half"></i> Partially Issued</span>';
+      if (status === 'issued') return '<span class="status issued"><i class="fas fa-truck"></i> Issued</span>';
+      return `<span class="chip">${status || 'pending'}</span>`;
+    }
+
+    function renderReservations() {
+      const tbody = document.getElementById('reservationsBody');
+      const q = (document.getElementById('searchBox').value || '').toLowerCase();
+      const statusFilter = document.getElementById('statusFilter').value;
+
+      // filter approved and partially_issued by default for visibility
+      let list = Object.entries(reservationsCache)
+        .map(([id, r]) => ({ id, ...r }))
+        .filter(r => ['approved', 'partially_issued', 'issued'].includes(r.status));
+
+      if (statusFilter !== 'all') list = list.filter(r => (r.status || '') === statusFilter);
+      if (q) list = list.filter(r =>
+        (r.reservationNumber || '').toLowerCase().includes(q) ||
+        (r.requesterName || '').toLowerCase().includes(q)
+      );
+
+      if (!list.length) {
+        tbody.innerHTML = '<tr><td colspan="7" class="empty">No reservations found</td></tr>';
+        return;
+      }
+
+      list.sort((a,b) => (b.createdAt || 0) - (a.createdAt || 0));
+
+      tbody.innerHTML = list.map(r => {
+        const itemsCount = r.items ? Object.keys(r.items).length : 0;
+        const date = r.createdAt ? new Date(r.createdAt).toLocaleString() : '-';
+        const canIssue = r.status === 'approved' || r.status === 'partially_issued';
+        return `
+          <tr>
+            <td><strong>${r.reservationNumber || r.id || r.reservationId || '—'}</strong></td>
+            <td>${r.requesterName || r.requester || '—'}</td>
+            <td class="right">${itemsCount}</td>
+            <td><span class="chip">${(r.priority || 'normal').toString().toUpperCase()}</span></td>
+            <td>${reservationStatusBadge(r.status)}</td>
+            <td>${date}</td>
+            <td class="right">${canIssue ? `<button class="btn btn-success" onclick="openIssueModal('${r.id}')"><i class='fas fa-boxes'></i> Issue</button>` : '-'}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function closeIssueModal() {
+      document.getElementById('issueModal').style.display = 'none';
+      document.getElementById('modalAlertError').style.display = 'none';
+      document.getElementById('modalAlertOk').style.display = 'none';
+      activeReservation = null;
+    }
+
+    function openIssueModal(resId) {
+      const r = Object.values(reservationsCache).find(x => x.id === resId) || reservationsCache[resId];
+      if (!r) return;
+      // Normalize id
+      r.id = r.id || resId;
+      activeReservation = r;
+
+      document.getElementById('modalResNo').textContent = r.reservationNumber || r.id;
+
+      const container = document.getElementById('issueItems');
+      container.innerHTML = '';
+
+      const whOptions = ['<option value="">Select warehouse</option>']
+        .concat(Object.entries(warehousesCache).map(([wid, w]) => `<option value="${wid}">${w.name || w.title || ('Warehouse ' + wid)}</option>`))
+        .join('');
+
+      if (!r.items || !Object.keys(r.items).length) {
+        container.innerHTML = '<div class="empty">No items in this reservation.</div>';
+      } else {
+        Object.entries(r.items).forEach(([itemId, line]) => {
+          const item = itemsCache[itemId] || {};
+          const reserved = Number(line.quantity || line.qty || 0);
+          const issued = Number(line.issuedQty || line.issued || 0);
+          const remaining = Math.max(0, reserved - issued);
+          const available = Number(item.currentStock || 0);
+
+          const row = document.createElement('div');
+          row.className = 'item-row';
+          row.dataset.itemId = itemId;
+          row.innerHTML = `
+            <div>
+              <div><strong>${item.name || line.name || ('Item ' + itemId)}</strong></div>
+              <div class="muted">SKU: ${item.sku || item.code || itemId}</div>
+            </div>
+            <div class="right">${reserved.toLocaleString()}</div>
+            <div class="right">${issued.toLocaleString()}</div>
+            <div><input type="number" min="0" max="${remaining}" step="1" value="${remaining}" class="issue-qty" /></div>
+            <div><select class="issue-warehouse">${whOptions}</select></div>
+          `;
+          container.appendChild(row);
+
+          const note = document.getElementById('stockNote');
+          note.textContent = 'Note: Available stock is validated during confirmation. Current item stock is maintained at item level.';
+        });
+      }
+
+      document.getElementById('issueModal').style.display = 'flex';
+    }
+
+    async function confirmIssue() {
+      if (!activeReservation) return;
+      const r = activeReservation;
+
+      const errorBox = document.getElementById('modalAlertError');
+      const okBox = document.getElementById('modalAlertOk');
+      errorBox.style.display = 'none';
+      okBox.style.display = 'none';
+
+      // Collect quantities
+      const rows = Array.from(document.querySelectorAll('#issueItems .item-row'));
+      const issueMap = {};
+      for (const row of rows) {
+        const itemId = row.dataset.itemId;
+        const qty = Number(row.querySelector('.issue-qty').value || 0);
+        const wid = row.querySelector('.issue-warehouse').value || null;
+        if (qty > 0) issueMap[itemId] = { qty, warehouseId: wid };
+      }
+
+      if (Object.keys(issueMap).length === 0) {
+        errorBox.textContent = 'Please enter at least one quantity to issue.';
+        errorBox.style.display = 'block';
+        return;
+      }
+
+      try {
+        // Pre-validate stock availability for all items
+        for (const [itemId, { qty }] of Object.entries(issueMap)) {
+          const item = itemsCache[itemId];
+          if (!item) throw new Error(`Item ${itemId} not found.`);
+
+          const reserved = Number((r.items[itemId]?.quantity) || 0);
+          const issued = Number((r.items[itemId]?.issuedQty) || 0);
+          const remaining = Math.max(0, reserved - issued);
+          if (qty > remaining) throw new Error(`Issue qty exceeds remaining for ${item.name || itemId}. Remaining: ${remaining}`);
+
+          const freshSnap = await db.ref(`companies/${companyId}/inventory/items/${itemId}/currentStock`).once('value');
+          const available = Number(freshSnap.val() || 0);
+          if (qty > available) throw new Error(`Insufficient stock for ${item.name || itemId}. Available: ${available}`);
+        }
+
+        // Build multi updates for reservation; use transactions for item stock
+        const updates = {};
+        const txId = db.ref().push().key;
+        const now = Date.now();
+
+        // Update issued quantities on reservation
+        for (const [itemId, { qty }] of Object.entries(issueMap)) {
+          const currentIssued = Number((r.items[itemId]?.issuedQty) || 0);
+          updates[`companies/${companyId}/inventory/reservations/${r.id}/items/${itemId}/issuedQty`] = currentIssued + qty;
+        }
+
+        // Determine new status
+        let allIssued = true;
+        for (const [itemId, line] of Object.entries(r.items || {})) {
+          const reserved = Number(line.quantity || 0);
+          const issued = Number(line.issuedQty || 0) + Number(issueMap[itemId]?.qty || 0);
+          if (issued < reserved) { allIssued = false; break; }
+        }
+        updates[`companies/${companyId}/inventory/reservations/${r.id}/status`] = allIssued ? 'issued' : 'partially_issued';
+        updates[`companies/${companyId}/inventory/reservations/${r.id}/lastIssuedAt`] = now;
+        updates[`companies/${companyId}/inventory/reservations/${r.id}/issuedBy`] = { uid: currentUser.uid, email: currentUser.email };
+
+        // Transaction record
+        const txRecord = {
+          id: txId,
+          type: 'issue',
+          reservationId: r.id,
+          reservationNumber: r.reservationNumber || r.id,
+          items: Object.fromEntries(Object.entries(issueMap).map(([k,v]) => [k, { quantity: v.qty, warehouseId: v.warehouseId || null }])),
+          performedBy: { uid: currentUser.uid, email: currentUser.email },
+          createdAt: now
+        };
+        updates[`companies/${companyId}/inventory/transactions/${txId}`] = txRecord;
+
+        // Apply reservation + transactions updates first (atomic multi-path)
+        await db.ref().update(updates);
+
+        // Then decrement stock per item using transaction to avoid race
+        for (const [itemId, { qty }] of Object.entries(issueMap)) {
+          await db.ref(`companies/${companyId}/inventory/items/${itemId}/currentStock`).transaction(current => {
+            const cur = Number(current || 0);
+            if (cur < qty) return cur; // abort change; we validated earlier, but double safety
+            return cur - qty;
+          });
+        }
+
+        // Refresh local caches
+        await preloadReferenceData();
+        await loadReservations();
+        await loadRecentIssues();
+
+        okBox.textContent = 'Material issue recorded successfully.';
+        okBox.style.display = 'block';
+        setTimeout(() => { closeIssueModal(); }, 900);
+      } catch (err) {
+        console.error(err);
+        const msg = (err && err.message) ? err.message : 'Issue failed. Please try again.';
+        errorBox.textContent = msg;
+        errorBox.style.display = 'block';
+      }
+    }
+
+    async function loadRecentIssues() {
+      const snap = await db.ref(`companies/${companyId}/inventory/transactions`).orderByChild('createdAt').limitToLast(6).once('value');
+      const data = snap.val() || {};
+      const list = Object.values(data).filter(x => x.type === 'issue').sort((a,b) => (b.createdAt||0)-(a.createdAt||0));
+      const el = document.getElementById('recentIssues');
+      if (!list.length) { el.textContent = 'No recent issues to show.'; return; }
+      el.innerHTML = list.map(t => {
+        const when = t.createdAt ? new Date(t.createdAt).toLocaleString() : '';
+        const itemsCount = t.items ? Object.keys(t.items).length : 0;
+        return `<div style="padding:0.4rem 0; border-bottom:1px solid #f1f5f9; display:flex; justify-content:space-between; align-items:center;">
+          <div>
+            <div><strong>Goods Issue</strong> for <span class="chip">${t.reservationNumber || t.reservationId}</span></div>
+            <div class="muted">${itemsCount} item(s) • ${when}</div>
+          </div>
+          <div class="status issued"><i class="fas fa-truck"></i> Issued</div>
+        </div>`;
+      }).join('');
+    }
+  </script>
+</body>
+</html>
