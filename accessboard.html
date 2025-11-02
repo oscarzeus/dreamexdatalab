@@ -171,6 +171,7 @@
 			margin-bottom: 1rem;
 		}
 
+
 		.approval-flow-title {
 			color: #007bff;
 			font-weight: 700;
@@ -536,9 +537,20 @@
 						<li data-feature="tank_transfer" data-requires-permission="tank_transfer"><a href="fueltrans.html">Tank-to-Tank Transfer</a></li>
 						<li data-feature="truck_loading" data-requires-permission="truck_loading"><a href="fuel-truck-loading.html">Fuel Truck Loading</a></li>
 						<li data-feature="quality_analysis" data-requires-permission="quality_analysis"><a href="fuel-quality-analysis.html">Fuel Quality Analysis</a></li>
-						<li data-feature="fuel_distribution" data-requires-permission="fuel_distribution"><a href="fueldistrib.html">Fuel Distribution</a></li>
+							<li data-feature="fuel_distribution" data-requires-permission="fuel_distribution"><a href="fueldist.html">Fuel Distribution</a></li>
 						<li data-feature="fuel_consumption_analysis" data-requires-permission="fuel_consumption_analysis"><a href="fuelanalys.html">Consumption Analysis</a></li>
 						<li data-feature="fuel_daily_report" data-requires-permission="fuel_daily_report"><a href="fueldaily.html">Daily Fuel Report</a></li>
+					</ul>
+				</li>
+				<!-- Workspaces: Catering -->
+				<li class="menu-dropdown" data-feature="catering_view" data-requires-permission="catering_view">
+					<a href="#"><i class="fas fa-utensils"></i> Workspaces — Catering</a>
+					<ul class="submenu">
+						<li data-feature="catering_manage_types" data-requires-permission="catering_manage_types"><a href="catering-meal-types.html"><i class="fas fa-list"></i> Meal Types</a></li>
+						<li data-feature="catering_assign" data-requires-permission="catering_assign"><a href="catering-eligibility.html"><i class="fas fa-user-check"></i> Eligibility & Assign</a></li>
+						<li data-feature="catering_consumption_manual" data-requires-permission="catering_consumption_manual"><a href="catering-consumption.html"><i class="fas fa-keyboard"></i> Consumption (Manual)</a></li>
+						<li data-feature="catering_consumption_nfc" data-requires-permission="catering_consumption_nfc"><a href="catering-consumption.html#nfc"><i class="fas fa-id-card"></i> Consumption (NFC)</a></li>
+						<li data-feature="catering_reports" data-requires-permission="catering_reports"><a href="catering-reports.html"><i class="fas fa-chart-line"></i> Reports</a></li>
 					</ul>
 				</li>
 				<li class="menu-dropdown" data-feature="environment_view" data-requires-permission="environment_view">
@@ -945,6 +957,7 @@
 				console.log('⚠️ STEP 2: Skipping role-based filtering (no role found or no authorized pages)');
 				sidebar?.classList.remove('menu-loading');
 			}
+			// Note: Global approver visibility is handled in AccessBoardManager.load().
 		}
 		async applyFeatureBasedMenuVisibility(companyId){ 
 			try{ 
@@ -1467,10 +1480,10 @@
 			       // Determine if user is an approver (by role or config)
 			       const currentUser = window.authManager?.currentUser;
 			       let isApprover = false;
-			       if (currentUser) {
+				   if (currentUser) {
 				       const userId = currentUser.uid;
 				       const userRole = (currentUser.role || '').toLowerCase();
-				       const userEmail = (currentUser.email || '').toLowerCase();
+					   const userEmail = (currentUser.email || '').toLowerCase().trim();
 				       // Check if user has an approver role (customize as needed)
 				       const approverRoles = ['approver','admin','administrator','superadmin','company_admin','companyadmin','manager','supervisor','hr_manager','security','hse'];
 				       if (approverRoles.some(r => userRole.includes(r))) {
@@ -1488,14 +1501,14 @@
 						       }
 					       } catch (e) { /* ignore permission lookup errors */ }
 					       // Check if user is listed as an approver in any selectedRoles config
-					       isApprover = this.allRequests.some(r => {
+						   isApprover = this.allRequests.some(r => {
 						       if (r.selectedRoles && typeof r.selectedRoles === 'object') {
 							       for (const levelKey of Object.keys(r.selectedRoles)) {
 								       const levelArr = r.selectedRoles[levelKey];
 								       if (Array.isArray(levelArr)) {
 									       for (const approver of levelArr) {
 										       const aVal = (approver && (approver.value || approver.uid || approver.id || approver.userId)) || '';
-										       const aEmail = (approver && (approver.email || approver.userEmail)) ? String(approver.email || approver.userEmail).toLowerCase() : '';
+												   const aEmail = (approver && (approver.email || approver.userEmail)) ? String(approver.email || approver.userEmail).toLowerCase().trim() : '';
 										       if (aVal === userId || (aEmail && aEmail === userEmail)) return true;
 									       }
 								       }
@@ -1503,6 +1516,15 @@
 						       }
 						       return false;
 					       });
+							   // Global approver check using approval settings
+							   if (!isApprover) {
+								   try {
+									   const globalAccessApprover = await this.isUserGlobalAccessApprover(companyId, currentUser);
+									   if (globalAccessApprover) {
+										   isApprover = true;
+									   }
+								   } catch(e) { console.warn('Global approver check failed', e); }
+							   }
 				       }
 				       // URL override to show all (e.g., accessboard.html?all=1)
 				       try { const qp = new URLSearchParams(location.search); if (qp.get('all')==='1' || qp.get('showAll')==='1') { isApprover = true; } } catch(_e) {}
@@ -1533,9 +1555,9 @@
 							       (typeof r.requester === 'string' && r.requester.toLowerCase() === email)
 						       );
 					       });
-					       let assignedToUser = this.allRequests.filter(r => {
+						   let assignedToUser = this.allRequests.filter(r => {
 						       if (Array.isArray(r.approvalHistory)) {
-							       if (r.approvalHistory.some(h => h && (h.approverId === userId || h.approvedBy === userId || (h.approverEmail && String(h.approverEmail).toLowerCase() === userEmail)))) return true;
+									   if (r.approvalHistory.some(h => h && (h.approverId === userId || h.approvedBy === userId || (h.approverEmail && String(h.approverEmail).toLowerCase().trim() === userEmail)))) return true;
 						       }
 						       if (r.selectedRoles && typeof r.selectedRoles === 'object') {
 							       for (const levelKey of Object.keys(r.selectedRoles)) {
@@ -1543,7 +1565,7 @@
 								       if (Array.isArray(levelArr)) {
 									       for (const approver of levelArr) {
 										       const aVal = (approver && (approver.value || approver.uid || approver.id || approver.userId)) || '';
-										       const aEmail = (approver && (approver.email || approver.userEmail)) ? String(approver.email || approver.userEmail).toLowerCase() : '';
+												   const aEmail = (approver && (approver.email || approver.userEmail)) ? String(approver.email || approver.userEmail).toLowerCase().trim() : '';
 										       if (aVal === userId || (aEmail && aEmail === userEmail)) return true;
 									       }
 								       }
@@ -1551,6 +1573,60 @@
 						       }
 						       return false;
 					       });
+					       
+					       // CRITICAL FIX: Check if user is eligible to approve any request based on approval flow configuration
+					       let approvalFlowAssignedRequests = [];
+					       console.log('🔍 Checking approval flow assignments for user:', userId);
+					       try {
+						       const approvalFlowRef = firebase.database().ref(`companies/${companyId}/approvalFlows/access`);
+						       const approvalSnapshot = await approvalFlowRef.once('value');
+						       const approvalConfig = approvalSnapshot.val();
+						       
+						       console.log('📋 Approval flow config loaded:', approvalConfig);
+						       
+						       if (approvalConfig && approvalConfig.enabled && Array.isArray(approvalConfig.levels)) {
+							       console.log('✅ Approval flow is enabled with', approvalConfig.levels.length, 'levels');
+							       
+							       for (const request of this.allRequests) {
+								       let canApproveThisRequest = false;
+								       
+								       try {
+									       for (const level of approvalConfig.levels) {
+										       console.log(`🔍 Checking level ${level.level} (${level.approverType}=${level.value}) for request ${request.id}`);
+										       const canApproveAtLevel = await this.checkApprovalPermissionForLevel(level, currentUser, request);
+										       console.log(`📊 Can approve level ${level.level}:`, canApproveAtLevel);
+										       
+										       if (canApproveAtLevel) {
+											       console.log(`✅ User can approve request ${request.id} at level ${level.level}`);
+											       approvalFlowAssignedRequests.push(request);
+											       canApproveThisRequest = true;
+											       break; // Found at least one level they can approve, no need to check others for this request
+										       }
+									       }
+									       
+									       if (!canApproveThisRequest) {
+										       console.log(`❌ User cannot approve request ${request.id} at any level`);
+									       }
+									       
+								       } catch (e) {
+									       console.warn('Error checking approval permission for request', request.id, e);
+								       }
+							       }
+							       
+							       console.log('📊 Total requests assigned via approval flow:', approvalFlowAssignedRequests.length);
+							       
+						       } else {
+							       console.log('❌ Approval flow not configured or disabled');
+						       }
+					       } catch (e) {
+						       console.error('❌ Error loading approval flow for visibility check:', e);
+					       }
+					       
+					       // Combine all assigned requests (remove duplicates)
+					       const allAssignedMap = {};
+					       [...assignedToUser, ...approvalFlowAssignedRequests].forEach(r => { allAssignedMap[r.id] = r; });
+					       assignedToUser = Object.values(allAssignedMap);
+					       
 					       const userReqMap = {};
 					       [...createdByUser, ...assignedToUser].forEach(r => { userReqMap[r.id] = r; });
 					       this.userFilteredRequests = Object.values(userReqMap);
@@ -1558,6 +1634,7 @@
 						       all: this.allRequests.length,
 						       createdBy: createdByUser.length,
 						       assignedTo: assignedToUser.length,
+						       approvalFlowAssigned: approvalFlowAssignedRequests.length,
 						       final: this.userFilteredRequests.length
 					       });
 				       }
@@ -1669,6 +1746,54 @@
 				return code;
 			}catch(e){ return rec?.employeeId || rec?.requesterEmployeeId || ''; }
 		}
+
+		// Determine if a user is a global approver for Access requests based on approval settings
+		async isUserGlobalAccessApprover(companyId, user){
+			try{
+				if(!companyId || !user) return false;
+				const uid = user.uid;
+				const email = String(user.email||'').toLowerCase().trim();
+				const role = String(user.role||'').toLowerCase();
+				// Load approval flow config
+				const ref = firebase.database().ref(`companies/${companyId}/approvalFlows/access`);
+				const snap = await ref.once('value');
+				if(!snap.exists()) return false;
+				const cfg = snap.val()||{};
+				if(cfg.enabled===false) return false;
+				// Build a list of approver entries from selectedRoles and/or levels
+				const entries = [];
+				const pushArr = (arr)=>{ if(Array.isArray(arr)){ for(const a of arr){ if(a) entries.push(a); } } };
+				if(cfg.selectedRoles && typeof cfg.selectedRoles==='object'){
+					for(const k of Object.keys(cfg.selectedRoles)) pushArr(cfg.selectedRoles[k]);
+				}
+				if(Array.isArray(cfg.levels)) pushArr(cfg.levels);
+				if(entries.length===0) return false;
+				// Prepare company users for role/function resolution
+				let companyUsers = await this.ensureCompanyUsersLoaded(); companyUsers = companyUsers||{};
+				const matchesUser = (entry)=>{
+					try{
+						const v = String(entry.value || entry.uid || entry.userId || entry.id || '').trim();
+						const e = String(entry.email || entry.userEmail || '').toLowerCase().trim();
+						if(v && (v===uid)) return true;
+						if(e && email && e===email) return true;
+						// function_* role tokens mapping
+						const valLower = v.toLowerCase();
+						if(valLower.startsWith('function_')){
+							const token = valLower.replace(/^function_/, ''); // e.g., 'manager'
+							// match user's role contains token
+							if(role && role.includes(token)) return true;
+							// or any company user record with this uid has role containing token
+							const uRec = companyUsers[uid];
+							const uRole = String(uRec?.role || uRec?.userRole || '').toLowerCase();
+							if(uRole && uRole.includes(token)) return true;
+						}
+						return false;
+					}catch(_e){ return false; }
+				};
+				for(const entry of entries){ if(matchesUser(entry)) return true; }
+				return false;
+			}catch(e){ console.warn('isUserGlobalAccessApprover error', e); return false; }
+		}
 	       applyFilters(){
 		       // Use all requests when Show All is enabled (for authorized users); otherwise userFilteredRequests
 		       const showAll = document.getElementById('showAllToggle')?.checked === true;
@@ -1706,7 +1831,7 @@
 			}
 			const startDisp = pStartTs? this.fmtDate(pStartTs) : this.fmtDate(r.startDateTime || r.startDate || r.start);
 			const endDisp = pEndTs? this.fmtDate(pEndTs) : this.fmtDate(r.endDateTime || r.endDate || r.end);
-			return `<tr data-id="${r.id}" class="clickable-row"><td><a href="#" class="ref-link" data-id="${r.id}" onclick="event.stopPropagation();" style="text-decoration:none;color:#1d6fd8;font-weight:600;">${r.referenceNumber||r.id}</a></td><td>${r.requesterName||''}</td><td>${r.departmentName||''}</td><td>${r.companyName||''}</td><td>${r.area||''}</td><td>${startDisp||''}</td><td>${endDisp||''}</td><td>${this.statusBadge(r.status)}</td><td>${this.escape?.(r.propertyRemoval||'')|| (r.propertyRemoval||'')}</td><td>${toBeRet}</td><td class="actions"><button class="btn btn-view" title="View" onclick="event.stopPropagation(); location.href='access.html?id=${r.id}'"><i class="fas fa-eye"></i></button>${ editAllowed? `<button class="btn btn-edit" title="Edit" onclick="event.stopPropagation(); location.href='access.html?id=${r.id}'"><i class="fas fa-edit"></i></button>`:''}</td></tr>`; }).join(''); tb.innerHTML=rows; this.bindRowClicks();
+			return `<tr data-id="${r.id}" class="clickable-row"><td><a href="#" class="ref-link" data-id="${r.id}" onclick="event.stopPropagation();" style="text-decoration:none;color:#1d6fbf;font-weight:600;">${r.referenceNumber||r.id}</a></td><td>${r.requesterName||''}</td><td>${r.departmentName||''}</td><td>${r.companyName||''}</td><td>${r.area||''}</td><td>${startDisp||''}</td><td>${endDisp||''}</td><td>${this.statusBadge(r.status)}</td><td>${this.escape?.(r.propertyRemoval||'')|| (r.propertyRemoval||'')}</td><td>${toBeRet}</td><td class="actions"><button class="btn btn-view" title="View" onclick="event.stopPropagation(); location.href='access.html?id=${r.id}'"><i class="fas fa-eye"></i></button>${ editAllowed? `<button class="btn btn-edit" title="Edit" onclick="event.stopPropagation(); location.href='access.html?id=${r.id}'"><i class="fas fa-edit"></i></button>`:''}</td></tr>`; }).join(''); tb.innerHTML=rows; this.bindRowClicks();
 			// Bind reference link to preview
 			tb.querySelectorAll('.ref-link').forEach(a=>{
 				a.addEventListener('click',(e)=>{ e.preventDefault(); const id=a.getAttribute('data-id'); this.showPreviewFor(id); });
@@ -1939,7 +2064,7 @@
 				alert('Failed to export preview as PDF: ' + (err.message||err));
 			}
 		}
-	buildModalContent(rec){ const esc=s=>this.escape(s); const visitors=Array.isArray(rec.visitors)? rec.visitors:[]; const equipment=Array.isArray(rec.equipment)? rec.equipment:[]; const attList=arr=>{ if(!arr||arr.length===0) return '<span style="opacity:.6;">None</span>'; const iconFor=(nameOrUrl)=>{ const n=String(nameOrUrl||''); const m=n.match(/\.([a-zA-Z0-9]+)(?:\?|#|$)/); const ext=(m&&m[1]||'').toLowerCase(); let cls='fa-file', color='#6b7280'; if(['png','jpg','jpeg','gif','bmp','webp','svg'].includes(ext)){ cls='fa-file-image'; color='#3b82f6'; } else if(['pdf'].includes(ext)){ cls='fa-file-pdf'; color='#ef4444'; } else if(['doc','docx'].includes(ext)){ cls='fa-file-word'; color='#2563eb'; } else if(['xls','xlsx','csv'].includes(ext)){ cls='fa-file-excel'; color='#16a34a'; } else if(['ppt','pptx'].includes(ext)){ cls='fa-file-powerpoint'; color='#f97316'; } else if(['zip','rar','7z','tar','gz','bz2'].includes(ext)){ cls='fa-file-archive'; color='#a16207'; } else if(['txt','md','log','rtf'].includes(ext)){ cls='fa-file-alt'; color='#6b7280'; } return { cls, color }; }; return `<div class="attachments">${arr.map(a=>{ const nm = a.name||'file'; const sz = (typeof a.size==='number'?a.size:parseInt(a.size)||0); const hint = `${esc(nm)}${ sz? ` (${this.humanSize(sz)})`:''}`; const {cls,color}=iconFor(a.name||a.url||''); return `<a class=\"attachment-chip\" href=\"${a.url||'#'}\" target=\"_blank\" rel=\"noopener\" title=\"${hint}\" style=\"display:inline-block;margin-right:6px;\"><i class=\"fas ${cls}\" style=\"color:${color};font-size:16px;\"></i></a>`; }).join('')}</div>`; }; const visitorRows= visitors.map((v,i)=>{ const vatts= Array.isArray(v.attachments)? v.attachments : (v.attachment? [v.attachment]: []); const s = this.fmtDate(v.startDateTime||v.startDate||v.start) || '-'; const e = this.fmtDate(v.endDateTime||v.endDate||v.end) || '-'; const rng = (s==='-'&&e==='-')? '-' : `${s} — ${e}`; return `<tr><td>${i+1}</td><td>${esc(v.name||'')}</td><td>${esc(v.identification||v.idNumber||v.visitorId||v.id||'')}</td><td>${esc(v.company||'')}</td><td>${esc(v.area||'')}</td><td>${esc(rng)}</td><td>${vatts.length? attList(vatts):'<span style=\"opacity:.5;\">-</span>'}</td></tr>`; }).join(''); const equipRows= equipment.map((e,i)=>{ return `<tr><td>${i+1}</td><td>${esc(e.name||e.item||'')}</td><td>${esc(e.description||'')}</td></tr>`; }).join(''); const toBeRetDisp = (rec.toBeReturned===true||String(rec.toBeReturned).toLowerCase()==='yes')?'Yes':((rec.toBeReturned===false||String(rec.toBeReturned).toLowerCase()==='no')?'No':''); return `
+		buildModalContent(rec){ const esc=s=>this.escape(s); const visitors=Array.isArray(rec.visitors)? rec.visitors:[]; const equipment=Array.isArray(rec.equipment)? rec.equipment:[]; const attList=arr=>{ if(!arr||arr.length===0) return '<span style="opacity:.6;">None</span>'; const iconFor=(nameOrUrl)=>{ const n=String(nameOrUrl||''); const m=n.match(/\.([a-zA-Z0-9]+)(?:\?|#|$)/); const ext=(m&&m[1]||'').toLowerCase(); let cls='fa-file', color='#6b7280'; if(['png','jpg','jpeg','gif','bmp','webp','svg'].includes(ext)){ cls='fa-file-image'; color='#3b82f6'; } else if(['pdf'].includes(ext)){ cls='fa-file-pdf'; color='#ef4444'; } else if(['doc','docx'].includes(ext)){ cls='fa-file-word'; color='#2563eb'; } else if(['xls','xlsx','csv'].includes(ext)){ cls='fa-file-excel'; color='#16a34a'; } else if(['ppt','pptx'].includes(ext)){ cls='fa-file-powerpoint'; color='#f97316'; } else if(['zip','rar','7z','tar','gz','bz2'].includes(ext)){ cls='fa-file-archive'; color='#a16207'; } else if(['txt','md','log','rtf'].includes(ext)){ cls='fa-file-alt'; color='#6b7280'; } return { cls, color }; }; return `<div class="attachments">${arr.map(a=>{ const nm = a.name||'file'; const sz = (typeof a.size==='number'?a.size:parseInt(a.size)||0); const hint = `${esc(nm)}${ sz? ` (${this.humanSize(sz)})`:''}`; const {cls,color}=iconFor(a.name||a.url||''); return `<a class=\"attachment-chip\" href=\"${a.url||'#'}\" target=\"_blank\" rel=\"noopener\" title=\"${hint}\" style=\"display:inline-block;margin-right:6px;\"><i class=\"fas ${cls}\" style=\"color:${color};font-size:16px;\"></i></a>`; }).join('')}</div>`; }; const visitorRows= visitors.map((v,i)=>{ const vatts= Array.isArray(v.attachments)? v.attachments : (v.attachment? [v.attachment]: []); const s = this.fmtDate(v.startDateTime||v.startDate||v.start) || '-'; const e = this.fmtDate(v.endDateTime||v.endDate||v.end) || '-'; const rng = (s==='-'&&e==='-')? '-' : `${s} — ${e}`; return `<tr><td>${i+1}</td><td>${esc(v.name||'')}</td><td>${esc(v.identification||v.idNumber||v.visitorId||v.id||'')}</td><td>${esc(v.company||'')}</td><td>${esc(v.area||'')}</td><td>${esc(rng)}</td><td>${vatts.length? attList(vatts):'<span style=\"opacity:.5;\">-</span>'}</td></tr>`; }).join(''); const equipRows= equipment.map((e,i)=>{ return `<tr><td>${i+1}</td><td>${esc(e.name||e.item||'')}</td><td>${esc(e.description||'')}</td></tr>`; }).join(''); const toBeRetDisp = (rec.toBeReturned===true||String(rec.toBeReturned).toLowerCase()==='yes')?'Yes':((rec.toBeReturned===false||String(rec.toBeReturned).toLowerCase()==='no')?'No':''); return `
 <div class="detail-grid">
 	<div class="detail-item"><div class="label">Reference</div><div class="value mono">${esc(rec.referenceNumber||rec.id)}</div></div>
 	<div class="detail-item"><div class="label">Requester</div><div class="value">${esc(rec.requesterName||'')}</div></div>
@@ -2478,8 +2603,8 @@ ${this.buildApprovalFlowSection(rec)}
 							}
 						} else {
 							// For parallel approval, user can approve if they have permission and level hasn't been approved yet
-							const hasAlreadyApproved = this.hasLevelBeenApproved(level.level, approvalHistory);
-							if (!hasAlreadyApproved) {
+							const hasBeenApproved = this.hasLevelBeenApproved(level.level, approvalHistory);
+							if (!hasBeenApproved) {
 								console.log(`✅ User can approve at level ${level.level} (parallel approval)`);
 								return true;
 							} else {
@@ -2565,14 +2690,117 @@ ${this.buildApprovalFlowSection(rec)}
 					return isNamedApprover;
 				
 				case 'level':
-					// Check if user is at the required level (L+1, L+2, etc.)
-					// This would require organizational hierarchy data
-					// For now, fall back to admin roles
-					const adminRoles = ['admin', 'superadmin', 'company_admin', 'manager', 'supervisor'];
-					const hasLevelPermission = adminRoles.some(r => userRole.includes(r));
-					
-					console.log(`📊 Level check - Required: ${approverValue}, Has permission: ${hasLevelPermission}`);
-					return hasLevelPermission;
+					// Enforce organizational hierarchy rules (e.g., L+1)
+					try {
+						const levelToken = String(approverValue || '').trim().toUpperCase();
+						console.log(`🏗️ Level approval check - Token: ${levelToken}, Request ID: ${rec?.id}, Submitter: ${rec?.userId}`);
+						
+						// Strict L+1 rule: only the submitter's direct line manager can approve
+						if (levelToken === 'L+1' || levelToken === 'L1') {
+							const companyId = window.authManager?.currentUser?.companyId;
+							if (!companyId) { 
+								console.warn('⚠️ No company context for L+1 check'); 
+								return false; 
+							}
+							
+							console.log('📊 L+1 Check - Company ID:', companyId);
+							
+							// Load company users cache
+							const companyUsers = await this.ensureCompanyUsersLoaded();
+							console.log('👥 Company users loaded:', Object.keys(companyUsers).length, 'users');
+							
+							// Resolve the submitter (requester) UID
+							const submitterUid = rec?.userId || rec?.requesterUserId || rec?.requesterUid || rec?.employeeUserId || null;
+							console.log('🔍 Looking for submitter UID:', submitterUid);
+							
+							let submitter = (submitterUid && companyUsers[submitterUid]) ? companyUsers[submitterUid] : null;
+							console.log('👤 Found submitter by UID:', submitter ? 'YES' : 'NO');
+							
+							if (!submitter) {
+								// Fallback by email if available
+								const requesterEmail = String(rec?.requesterEmail || rec?.createdByEmail || rec?.createdBy || '').toLowerCase().trim();
+								console.log('📧 Trying email fallback for:', requesterEmail);
+								
+								if (requesterEmail) {
+									for (const uid in companyUsers) {
+										const u = companyUsers[uid] || {};
+										if (String(u.email || '').toLowerCase().trim() === requesterEmail) { 
+											submitter = u; 
+											console.log('✅ Found submitter by email:', uid);
+											break; 
+										}
+									}
+								}
+							}
+							
+							if (!submitter) { 
+								console.warn('⚠️ Could not resolve submitter for L+1 check - submitterUid:', submitterUid, 'emails checked'); 
+								return false; 
+							}
+							
+							console.log('👤 Submitter found:', {
+								uid: submitterUid,
+								email: submitter.email,
+								lineManagerId: submitter.lineManagerId,
+								lineManager: submitter.lineManager,
+								lineManagerName: submitter.lineManagerName
+							});
+							
+							// Determine submitter's line manager UID
+							let managerUid = submitter.lineManagerId || null;
+							console.log('🔍 Line manager ID from lineManagerId:', managerUid);
+							
+							if (!managerUid) {
+								const lmRaw = submitter.lineManager || submitter.lineManagerName || '';
+								console.log('🔍 Trying line manager name/fallback:', lmRaw);
+								
+								if (lmRaw) {
+									// If lmRaw directly matches a UID in companyUsers, use it
+									if (companyUsers[lmRaw]) {
+										managerUid = lmRaw;
+										console.log('✅ Found manager by direct UID match:', managerUid);
+									} else {
+										// Try to resolve by matching name or email
+										const lmText = String(lmRaw).trim().toLowerCase();
+										console.log('🔍 Searching for manager by name/email:', lmText);
+										
+										for (const uid in companyUsers) {
+											const u = companyUsers[uid] || {};
+											const fullName = String(u.fullName || '').toLowerCase();
+											const displayName = String(u.displayName || '').toLowerCase();
+											const name = String(u.name || '').toLowerCase();
+											const email = String(u.email || '').toLowerCase();
+											
+											if (lmText && (fullName === lmText || displayName === lmText || name === lmText || email === lmText)) {
+												managerUid = uid; 
+												console.log('✅ Found manager by name/email match:', uid, 'matched:', lmText);
+												break;
+											}
+										}
+										
+										if (!managerUid) {
+											console.log('❌ Could not resolve manager name/email:', lmText);
+										}
+									}
+								}
+							}
+							
+							if (!managerUid) { 
+								console.warn('⚠️ No line manager found for submitter (L+1) - submitter:', submitterUid, 'lineManagerId:', submitter.lineManagerId, 'lineManager:', submitter.lineManager); 
+								return false; 
+							}
+							
+							const isLineManager = currentUser.uid === managerUid;
+							console.log(`📊 L+1 FINAL CHECK - Submitter: ${submitterUid}, Manager UID: ${managerUid}, Current User: ${currentUser.uid}, Is Line Manager: ${isLineManager}`);
+							return isLineManager; // Strict: only the direct line manager can approve
+						}
+						// For other level tokens (e.g., L+2), no generic fallback implemented yet
+						console.warn(`⚠️ Level token '${approverValue}' not explicitly handled; denying by default.`);
+						return false;
+					} catch (e) {
+						console.error('❌ Level-based permission check failed:', e);
+						return false;
+					}
 				
 				default:
 					console.log(`❓ Unknown approver type: ${approverType}`);
@@ -2916,15 +3144,14 @@ ${this.buildApprovalFlowSection(rec)}
 			}
 			
 			const levels = approvalConfig.levels || [];
-			const sortedLevels = levels.sort((a, b) => (a.level || 0) - (b.level || 0));
 			
 			// Find which level the current user can approve at
-			for (const level of sortedLevels) {
+			for (const level of levels) {
 				const canApproveAtLevel = await this.checkApprovalPermissionForLevel(level, currentUser, rec);
 				if (canApproveAtLevel) {
 					// For sequential approval, make sure this is the correct level
 					if (approvalConfig.approvalOrder === 'sequential') {
-						const canApproveSequentially = await this.canApproveAtLevelSequentially(level, sortedLevels, rec.approvalHistory || [], rec);
+						const canApproveSequentially = await this.canApproveAtLevelSequentially(level, levels, rec.approvalHistory || [], rec);
 						if (canApproveSequentially) {
 							return level.level || 1;
 						}
@@ -3093,7 +3320,7 @@ ${this.buildApprovalFlowSection(rec)}
 					addLine(`End: ${formatDate(rec.endDateTime)}`);
 					
 					// New fields
-					const toBeRetDisp = (rec.toBeReturned===true||String(rec.toBeReturned).toLowerCase()==='yes')?'Yes':((rec.toBeReturned===false||String(rec.toBeReturned).toLowerCase()==='no')?'No':'');
+					const toBeRetDisp = (rec.toBeReturned===true||String(rec.toBeReturned).toLowerCase()==='yes')?'Yes':((rec.toBeReturned===false||String(rec.toBeReturned).toLowerCase()==='no')?'No':''); 
 					addLine(`Property Removal: ${rec.propertyRemoval || ''}`);
 					addLine(`To be Returned: ${toBeRetDisp}`);
 					
@@ -3107,7 +3334,7 @@ ${this.buildApprovalFlowSection(rec)}
 						rec.visitors.forEach((v,i)=>{
 							const area = v.area || '';
 							const vStart = formatDate(v.startDateTime || v.startDate || v.start);
-							const vEnd = formatDate(v.endDateTime || v.endDate || v.end);
+							const vEnd = formatDate(v.endDateTime || v.endDate || v.end) || '-';
 							addLine(`${i+1}. ${v.name||''}` , {bold:true});
 							addLine(`   ID: ${v.identification||v.idNumber||v.visitorId||v.id||''}`);
 							addLine(`   Company: ${v.company||''}`);

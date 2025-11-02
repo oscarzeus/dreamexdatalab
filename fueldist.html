@@ -2385,12 +2385,17 @@
                     <a href="#"><i class="fas fa-shield-alt"></i> Safety</a>
                     <ul class="submenu">
                         <li data-feature="training_view" data-requires-permission="training_view"><a href="trainingboard.html">Training</a></li>
-                        <li data-feature="risk_view" data-requires-permission="risk_view"><a href="riskboard.html">Risk Management</a></li>
                         <li data-feature="jsa_view" data-requires-permission="jsa_view"><a href="jsaboard.html">Job Safety Analysis</a></li>
                         <li data-feature="ptw_view" data-requires-permission="ptw_view"><a href="ptwboard.html">Permit to Work</a></li>
                         <li data-feature="incident_view" data-requires-permission="incident_view"><a href="incidentboard.html">Incident Reports</a></li>
                         <li data-feature="inspection_view" data-requires-permission="inspection_view"><a href="inspectionboard.html">Inspection</a></li>
                         <li data-feature="audit_view" data-requires-permission="audit_view"><a href="auditboard.html">Audit</a></li>
+                    </ul>
+                </li>
+                <li class="menu-dropdown" data-feature="risk_view" data-requires-permission="risk_view">
+                    <a href="#"><i class="fas fa-exclamation-triangle"></i> Risk Management</a>
+                    <ul class="submenu">
+                        <li data-feature="risk_view" data-requires-permission="risk_view"><a href="riskboard.html">Risk Management</a></li>
                     </ul>
                 </li>
                 <li class="menu-dropdown" data-feature="fuel_management" data-requires-permission="fuel_management">
@@ -2732,10 +2737,8 @@
                                     <thead>
                                         <tr>
                                             <th>Title</th>
-                                            <th>Type</th>
                                             <th>Category</th>
                                             <th>Date Range</th>
-                                            <th>Rows</th>
                                             <th>Created</th>
                                             <th>File</th>
                                             <th>Actions</th>
@@ -4412,7 +4415,7 @@
                     // Primary time grouping
                     case 'day': {
                         const d = new Date(r.schedule?.date || r.timestamp);
-                        key = d.toLocaleDateString();
+                        key = d.toLocaleDateString(undefined,{ day:'2-digit', month:'short' });
                         sortVal = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
                         break;
                     }
@@ -4454,7 +4457,7 @@
                     case 'status': key = r.status || 'Unknown Status'; break;
                     default: {
                         const d = new Date(r.schedule?.date || r.timestamp);
-                        key = d.toLocaleDateString();
+                        key = d.toLocaleDateString(undefined,{ day:'2-digit', month:'short' });
                     }
                 }
                 if (hasValueFilter && !selectedValues.includes(String(key))) return; // filter by chosen values
@@ -4478,6 +4481,118 @@
             }
             const totals = rows.reduce((acc,r)=>{acc.quantity+=r.quantity;acc.records+=r.records;return acc;},{quantity:0,records:0});
             return { rows, totals, rangeCount: inRange.length };
+        }
+
+        // --- NEW: Two-dimensional pivot aggregation (primary + secondary dimension) ---
+        function computeFuelPivot(primary, secondary, opts){
+            // Fallback to 1D if no secondary or same as primary
+            if(!secondary || secondary === primary){
+                const one = computeFuelAggregates(primary, opts);
+                return { mode:'1d', rows: one.rows, totals: one.totals, rangeCount: one.rangeCount };
+            }
+            const now = new Date();
+            let start=null,end=null;
+            if(opts){
+                if(opts.start){ const s=new Date(opts.start); if(!isNaN(s)) start=new Date(s.getFullYear(), s.getMonth(), s.getDate()); }
+                if(opts.end){ const e=new Date(opts.end); if(!isNaN(e)) end=new Date(e.getFullYear(), e.getMonth(), e.getDate(),23,59,59,999); }
+            }
+            if(start && !end) end=new Date(start.getFullYear(), start.getMonth(), start.getDate(),23,59,59,999);
+            if(end && !start) start=new Date(end.getFullYear(), end.getMonth(), end.getDate());
+            if(!start || !end){ start=new Date(0); end=now; }
+
+            const sourceAll = (opts && Array.isArray(opts.dataset)) ? opts.dataset : distributionData;
+            const inRange = sourceAll.filter(r=>{ const d=new Date(r.schedule?.date || r.timestamp || now); return d>=start && d<=end; });
+
+            const selRows = Array.isArray(opts?.selectedValues) ? opts.selectedValues : [];
+            const selCols = Array.isArray(opts?.selectedValues2) ? opts.selectedValues2 : [];
+            const filterRows = selRows.length>0;
+            const filterCols = selCols.length>0;
+
+            function dimKey(r, dim){
+                let key; let sortVal; // reuse logic from computeFuelAggregates
+                switch(dim){
+                    case 'day': { const d=new Date(r.schedule?.date || r.timestamp); key=d.toLocaleDateString(undefined,{ day:'2-digit', month:'short' }); sortVal=new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime(); break; }
+                    case 'consumptionDate': { const d=new Date(r.schedule?.date || r.timestamp); key=d.toISOString().slice(0,10); sortVal=new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime(); break; }
+                    case 'id': key = r.id || 'Unknown ID'; break;
+                    case 'equipment':
+                    case 'equipmentId': key = r.equipment?.id || 'Unknown Equipment'; break;
+                    case 'type':
+                    case 'equipmentType': key = r.equipment?.type || 'Unknown Type'; break;
+                    case 'location': key = r.equipment?.location || 'Unknown Location'; break;
+                    case 'operator': key = r.equipment?.operator || r.authorization?.requestedBy || 'Unknown Operator'; break;
+                    case 'site': key = (r.site?.name || r.site?.value || '').trim() || 'Unknown Site'; break;
+                    case 'quantity': { const q=Number(r.fuel?.requestedQuantity)||0; const bucket=Math.floor(q/50)*50; key=`${bucket}-${bucket+49} L`; break; }
+                    case 'index': { const idx=(typeof r.fuel?.indexReading === 'number') ? r.fuel.indexReading : null; key=(idx===null)?'No Index':`Index ${Math.floor(idx/100)*100}-${Math.floor(idx/100)*100+99}`; break; }
+                    case 'department': key = r.authorization?.department || 'Unknown Department'; break;
+                    case 'costcenter': key = r.authorization?.costCenter || 'Unknown Cost Center'; break;
+                    case 'securityAgent': key = r.authorization?.securityAgent || 'Unknown Security'; break;
+                    case 'supervisor': key = r.authorization?.supervisor || 'Unknown Supervisor'; break;
+                    case 'status': key = r.status || 'Unknown Status'; break;
+                    case 'fuelType': key = r.fuel?.type || 'Unknown Fuel Type'; break;
+                    default: { const d=new Date(r.schedule?.date || r.timestamp); key=d.toLocaleDateString(undefined,{ day:'2-digit', month:'short' }); }
+                }
+                return { key, sortVal };
+            }
+
+            const matrix = {}; // rowKey -> colKey -> {records, quantity}
+            const rowMeta = {}; // rowKey -> { sortVal }
+            const colSet = new Set();
+
+            inRange.forEach(r=>{
+                const { key: rKey, sortVal: rSort } = dimKey(r, primary);
+                const { key: cKey } = dimKey(r, secondary);
+                if(filterRows && !selRows.includes(String(rKey))) return;
+                if(filterCols && !selCols.includes(String(cKey))) return;
+                if(!matrix[rKey]) matrix[rKey] = {};
+                if(!matrix[rKey][cKey]) matrix[rKey][cKey] = { records:0, quantity:0 };
+                matrix[rKey][cKey].records += 1;
+                matrix[rKey][cKey].quantity += Number(r.fuel?.requestedQuantity)||0;
+                colSet.add(cKey);
+                if(!rowMeta[rKey]) rowMeta[rKey] = { sortVal: rSort };
+                else if(typeof rSort === 'number' && (typeof rowMeta[rKey].sortVal !== 'number' || rSort < rowMeta[rKey].sortVal)) rowMeta[rKey].sortVal = rSort;
+            });
+
+            let rowKeys = Object.keys(matrix);
+            // Sort rows similarly to 1D logic
+            if(primary==='day' || primary==='consumptionDate'){
+                rowKeys.sort((a,b)=> (rowMeta[a].sortVal||0)-(rowMeta[b].sortVal||0));
+            } else {
+                // sort by total quantity desc
+                rowKeys.sort((a,b)=>{
+                    const qa = Object.values(matrix[a]).reduce((s,c)=>s+c.quantity,0);
+                    const qb = Object.values(matrix[b]).reduce((s,c)=>s+c.quantity,0);
+                    return qb-qa;
+                });
+            }
+            const colKeys = Array.from(colSet);
+            // Optionally limit extreme wide tables (keep first 25)
+            if(colKeys.length>50) colKeys.splice(50);
+
+            // Compute totals
+            const rowTotals = {}; // rowKey -> {records, quantity}
+            const colTotals = {}; // colKey -> {records, quantity}
+            let grand = { records:0, quantity:0 };
+            rowKeys.forEach(rk=>{
+                rowTotals[rk] = { records:0, quantity:0 };
+                colKeys.forEach(ck=>{
+                    const cell = matrix[rk][ck];
+                    if(!cell) return;
+                    rowTotals[rk].records += cell.records;
+                    rowTotals[rk].quantity += cell.quantity;
+                    if(!colTotals[ck]) colTotals[ck] = { records:0, quantity:0 };
+                    colTotals[ck].records += cell.records;
+                    colTotals[ck].quantity += cell.quantity;
+                    grand.records += cell.records;
+                    grand.quantity += cell.quantity;
+                });
+            });
+
+            return { mode:'2d', primary, secondary, rowKeys, colKeys, matrix, rowTotals, colTotals, grand };
+        }
+
+        // Helper for analysis set specific aggregation (decides 1D vs 2D)
+        function computeAnalysisAggregation(cfg, selectedValues, selectedValues2){
+            return computeFuelPivot(cfg.groupBy, cfg.groupBy2, { start: cfg.start, end: cfg.end, selectedValues, selectedValues2 });
         }
 
         function renderFuelAnalytics(){
@@ -4558,21 +4673,95 @@
             secondaryChartInstance = new Chart(secondaryCtx, {
                 type:'bar',
                 data:{ labels, datasets:[
-                    { label:'Quantity (L)', data:quantities, backgroundColor:'rgba(243,156,18,0.4)', borderColor:'#f39c12', borderWidth:1, barPercentage:0.6, categoryPercentage:0.7 },
-                    { label:'Records', data:records, backgroundColor:'rgba(51,65,85,0.7)', barPercentage:0.6, categoryPercentage:0.7 }
+                    { 
+                        label:'Quantity (L)', 
+                        data:quantities, 
+                        backgroundColor:'rgba(37, 99, 235, 0.75)',
+                        borderColor:'#2563eb', 
+                        borderWidth:2, 
+                        borderRadius:6,
+                        barPercentage:0.7, 
+                        categoryPercentage:0.8,
+                        hoverBackgroundColor:'rgba(37, 99, 235, 0.9)',
+                        hoverBorderColor:'#1e40af',
+                        hoverBorderWidth:3
+                    },
+                    { 
+                        label:'Records', 
+                        data:records, 
+                        backgroundColor:'rgba(14, 165, 233, 0.65)',
+                        borderColor:'#0ea5e9',
+                        borderWidth:2,
+                        borderRadius:6,
+                        barPercentage:0.7, 
+                        categoryPercentage:0.8,
+                        hoverBackgroundColor:'rgba(14, 165, 233, 0.85)',
+                        hoverBorderColor:'#0284c7',
+                        hoverBorderWidth:3
+                    }
                 ]},
                 options: (function(){
                     const opt = {
-                        layout:{ padding: { left: 2, right: 2, top: 0, bottom: 0 }},
-                        plugins:{ legend:{ display:true, labels:{ boxWidth:6, font:{ size:7 }, padding:4 } }},
+                        layout:{ padding: { left: 10, right: 10, top: 15, bottom: 5 }},
+                        plugins:{ 
+                            legend:{ 
+                                display:true, 
+                                position:'top',
+                                labels:{ 
+                                    boxWidth:12, 
+                                    font:{ size:11, weight:'600', family:"'Inter', 'Segoe UI', sans-serif" }, 
+                                    padding:12,
+                                    color:'#334155',
+                                    usePointStyle:true,
+                                    pointStyle:'rectRounded'
+                                } 
+                            },
+                            tooltip:{
+                                backgroundColor:'rgba(15, 23, 42, 0.95)',
+                                titleColor:'#fff',
+                                bodyColor:'#e2e8f0',
+                                titleFont:{ size:13, weight:'700' },
+                                bodyFont:{ size:12 },
+                                padding:12,
+                                cornerRadius:8,
+                                displayColors:true,
+                                borderColor:'rgba(148, 163, 184, 0.3)',
+                                borderWidth:1
+                            }
+                        },
                         scales:{
-                            x:{ ticks:{ font:{size:7}, maxRotation:0, autoSkip:true, autoSkipPadding:4 }},
-                            y:{ ticks:{ font:{size:7} }, beginAtZero:true }
+                            x:{ 
+                                ticks:{ 
+                                    font:{size:10, weight:'500'}, 
+                                    maxRotation:45, 
+                                    minRotation:0,
+                                    autoSkip:true, 
+                                    autoSkipPadding:8,
+                                    color:'#475569'
+                                },
+                                grid:{ display:false },
+                                border:{ color:'#cbd5e1', width:1 }
+                            },
+                            y:{ 
+                                ticks:{ 
+                                    font:{size:10, weight:'500'},
+                                    color:'#475569',
+                                    padding:8
+                                }, 
+                                beginAtZero:true,
+                                grid:{ color:'rgba(203, 213, 225, 0.4)', lineWidth:1 },
+                                border:{ color:'#cbd5e1', width:1 }
+                            }
                         },
                         responsive:true,
-                        maintainAspectRatio:false
+                        maintainAspectRatio:false,
+                        interaction:{ mode:'index', intersect:false }
                     };
-                    opt.animation = { onComplete: ()=>{ if (typeof done==='function') done(); } };
+                    opt.animation = { 
+                        duration: 800,
+                        easing: 'easeInOutQuart',
+                        onComplete: ()=>{ if (typeof done==='function') done(); } 
+                    };
                     return opt;
                 })()
             });
@@ -4842,7 +5031,7 @@
             const operator = record.equipment?.operator || record.authorization?.requestedBy || '';
             const qty = record.fuel?.requestedQuantity || 0;
             const idx = (typeof record.fuel?.indexReading === 'number') ? record.fuel.indexReading : '-';
-            const schedDate = record.schedule?.date ? new Date(`${record.schedule.date}T00:00:00`).toLocaleDateString() : '';
+            const schedDate = record.schedule?.date ? new Date(`${record.schedule.date}T00:00:00`).toLocaleDateString(undefined,{ day:'2-digit', month:'short' }) : '';
             const schedTime = record.schedule?.time || '';
             const recordedAt = record.timestamp ? new Date(record.timestamp).toLocaleString() : '';
             const status = record.status || '';
@@ -4911,7 +5100,7 @@
             const statusClass = `status-${record.status.toLowerCase().replace('_', '-')}`;
             
             // Format dates
-            const requestedDate = new Date(record.timestamp).toLocaleDateString();
+            const requestedDate = new Date(record.timestamp).toLocaleDateString(undefined,{ day:'2-digit', month:'short' });
             const scheduledDate = record.schedule?.date ? new Date(`${record.schedule.date}T${record.schedule.time || '00:00'}`).toLocaleString() : 'TBD';
             
             // Format fuel info
@@ -4919,7 +5108,7 @@
             
             const consumpDate = requestedDate; // original timestamp as request; schedule.date is consumption
             const consumpTime = record.schedule?.time || '';
-            const schedDateDisplay = record.schedule?.date ? new Date(`${record.schedule.date}T00:00:00`).toLocaleDateString() : '';
+            const schedDateDisplay = record.schedule?.date ? new Date(`${record.schedule.date}T00:00:00`).toLocaleDateString(undefined,{ day:'2-digit', month:'short' }) : '';
             const operator = record.equipment?.operator || record.authorization?.requestedBy || '';
             const currentUserId = window.authManager?.getCurrentUser()?.uid || '';
             const canEdit = record.createdBy && record.createdBy === currentUserId;
@@ -5725,9 +5914,67 @@
                 try {
                     const labels = (agg.rows||[]).map(r=>String(r.key)).slice(0,30);
                     const qty = (agg.rows||[]).map(r=> +(+r.quantity).toFixed(2)).slice(0,30);
-                    const off = createOffscreenCanvas(640,240);
+                    const off = createOffscreenCanvas(800,350);
                     const ctx = off.getContext('2d');
-                    const chart = new Chart(ctx, { type:'bar', data:{ labels, datasets:[{ label:'Quantity (L)', data:qty, backgroundColor:'rgba(243,156,18,0.55)', borderColor:'#f39c12', borderWidth:1 }] }, options:{ responsive:false, plugins:{ legend:{ display:false } }, scales:{ y:{ beginAtZero:true } } } });
+                    const chart = new Chart(ctx, { 
+                        type:'bar', 
+                        data:{ 
+                            labels, 
+                            datasets:[{ 
+                                label:'Quantity (L)', 
+                                data:qty, 
+                                backgroundColor:'rgba(37, 99, 235, 0.8)', 
+                                borderColor:'#2563eb', 
+                                borderWidth:2,
+                                borderRadius:8,
+                                hoverBackgroundColor:'rgba(37, 99, 235, 0.95)'
+                            }] 
+                        }, 
+                        options:{ 
+                            responsive:false, 
+                            plugins:{ 
+                                legend:{ 
+                                    display:true,
+                                    position:'top',
+                                    labels:{
+                                        font:{ size:14, weight:'700', family:"'Inter', 'Segoe UI', sans-serif" },
+                                        color:'#1e293b',
+                                        padding:12,
+                                        usePointStyle:true
+                                    }
+                                },
+                                title:{
+                                    display:true,
+                                    text:'Fuel Distribution Analysis',
+                                    font:{ size:18, weight:'700', family:"'Inter', 'Segoe UI', sans-serif" },
+                                    color:'#0f172a',
+                                    padding:{ top:10, bottom:20 }
+                                }
+                            }, 
+                            scales:{ 
+                                x:{
+                                    ticks:{ 
+                                        font:{ size:12, weight:'500' },
+                                        color:'#475569',
+                                        maxRotation:45,
+                                        minRotation:0
+                                    },
+                                    grid:{ display:false },
+                                    border:{ color:'#cbd5e1', width:2 }
+                                },
+                                y:{ 
+                                    beginAtZero:true,
+                                    ticks:{ 
+                                        font:{ size:12, weight:'500' },
+                                        color:'#475569'
+                                    },
+                                    grid:{ color:'rgba(203, 213, 225, 0.5)', lineWidth:1 },
+                                    border:{ color:'#cbd5e1', width:2 }
+                                } 
+                            },
+                            layout:{ padding:{ left:15, right:15, top:10, bottom:10 }}
+                        } 
+                    });
                     dataUrl = off.toDataURL('image/png');
                     try{ chart.destroy(); }catch(_){ }
                 } catch(e){ console.warn('Offscreen chart failed', e); }
@@ -6339,16 +6586,17 @@
                                 tableHtml += '<tbody>' + rows.slice(0,100).map(r=>'<tr>'+r.map(c=>`<td style="padding:4px 6px;border:1px solid #e2e8f0;">${c}</td>`).join('')+'</tr>').join('') + '</tbody>';
                                 tableHtml += '</table>';
                                 
-                                // Build chart meta
+                                // Build chart meta with enhanced colors
                                 const chartMeta = {
                                     type: s.cfg.chartType || 'bar',
                                     labels: (agg.rows||[]).map(r=>r.key).slice(0,50),
                                     datasets: [{ 
                                         label: 'Quantity (L)', 
                                         data: (agg.rows||[]).map(r=> +(+r.quantity).toFixed(2)).slice(0,50), 
-                                        backgroundColor: 'rgba(243, 156, 18, 0.6)', 
-                                        borderColor: 'rgba(243, 156, 18, 1)', 
-                                        borderWidth: 1 
+                                        backgroundColor: 'rgba(37, 99, 235, 0.75)', 
+                                        borderColor: '#2563eb', 
+                                        borderWidth: 2,
+                                        borderRadius: 6
                                     }]
                                 };
                                 
@@ -6407,10 +6655,79 @@
                                     const canvas = document.getElementById(`reportPrevChart_${idx}`);
                                     if (canvas && s.chart) {
                                         const ctx = canvas.getContext('2d');
+                                        // Enhanced chart configuration with modern colors
+                                        const enhancedDatasets = (s.chart.datasets || []).map((ds, dsIdx) => ({
+                                            ...ds,
+                                            backgroundColor: ds.backgroundColor || (dsIdx === 0 ? 'rgba(37, 99, 235, 0.75)' : 'rgba(14, 165, 233, 0.65)'),
+                                            borderColor: ds.borderColor || (dsIdx === 0 ? '#2563eb' : '#0ea5e9'),
+                                            borderWidth: 2,
+                                            borderRadius: 6,
+                                            hoverBackgroundColor: dsIdx === 0 ? 'rgba(37, 99, 235, 0.9)' : 'rgba(14, 165, 233, 0.85)',
+                                            hoverBorderColor: dsIdx === 0 ? '#1e40af' : '#0284c7',
+                                            hoverBorderWidth: 3
+                                        }));
+                                        
                                         const chartCfg = {
                                             type: s.chart.type || 'bar',
-                                            data: { labels: s.chart.labels || [], datasets: s.chart.datasets || [] },
-                                            options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{ labels:{ font:{ size:10 } } }, title:{ display:false } } }
+                                            data: { labels: s.chart.labels || [], datasets: enhancedDatasets },
+                                            options: { 
+                                                responsive:true, 
+                                                maintainAspectRatio:false,
+                                                layout:{ padding:{ left:10, right:10, top:15, bottom:5 }},
+                                                plugins:{ 
+                                                    legend:{ 
+                                                        display:true,
+                                                        position:'top',
+                                                        labels:{ 
+                                                            font:{ size:11, weight:'600', family:"'Inter', 'Segoe UI', sans-serif" },
+                                                            color:'#334155',
+                                                            padding:10,
+                                                            usePointStyle:true,
+                                                            pointStyle:'rectRounded',
+                                                            boxWidth:12
+                                                        } 
+                                                    }, 
+                                                    title:{ display:false },
+                                                    tooltip:{
+                                                        backgroundColor:'rgba(15, 23, 42, 0.95)',
+                                                        titleColor:'#fff',
+                                                        bodyColor:'#e2e8f0',
+                                                        titleFont:{ size:12, weight:'700' },
+                                                        bodyFont:{ size:11 },
+                                                        padding:10,
+                                                        cornerRadius:8,
+                                                        displayColors:true,
+                                                        borderColor:'rgba(148, 163, 184, 0.3)',
+                                                        borderWidth:1
+                                                    }
+                                                },
+                                                scales:{
+                                                    x:{
+                                                        ticks:{ 
+                                                            font:{size:10, weight:'500'},
+                                                            color:'#475569',
+                                                            maxRotation:45,
+                                                            minRotation:0
+                                                        },
+                                                        grid:{ display:false },
+                                                        border:{ color:'#cbd5e1', width:1 }
+                                                    },
+                                                    y:{
+                                                        ticks:{ 
+                                                            font:{size:10, weight:'500'},
+                                                            color:'#475569'
+                                                        },
+                                                        grid:{ color:'rgba(203, 213, 225, 0.4)', lineWidth:1 },
+                                                        border:{ color:'#cbd5e1', width:1 },
+                                                        beginAtZero:true
+                                                    }
+                                                },
+                                                animation:{ 
+                                                    duration:700,
+                                                    easing:'easeInOutQuart'
+                                                },
+                                                interaction:{ mode:'index', intersect:false }
+                                            }
                                         };
                                         if (typeof Chart !== 'undefined') new Chart(ctx, chartCfg);
                                     }
@@ -6989,10 +7306,8 @@
             const link = r.url ? `<a href="${r.url}" target="_blank" rel="noopener">Download</a>` : r.file || '-';
             return `<tr>
                 <td>${escapeHtml(r.title||'')}</td>
-                <td>${escapeHtml(r.type||'')}</td>
                 <td>${escapeHtml(r.category||'')}</td>
                 <td>${escapeHtml(range)}</td>
-                <td>${r.rows||0}</td>
                 <td>${escapeHtml(created)}</td>
                 <td>${link}</td>
                 <td>
@@ -7298,6 +7613,27 @@
                                                                                      <option value='fuelType' ${groupBy==='fuelType'?'selected':''}>Fuel Type</option>
                                                                                 </select>
                                                                             </label>
+                                                                            <label class='flex flex-col gap-0.5'>Group 2
+                                                                                <select data-filt='groupBy2' class='border rounded px-1 py-0.5 bg-white'>
+                                                                                     <option value=''>-- None --</option>
+                                                                                     <option value='day'>Day</option>
+                                                                                     <option value='consumptionDate'>Consumption Date</option>
+                                                                                     <option value='id'>Record ID</option>
+                                                                                     <option value='equipmentType'>Equipment Type</option>
+                                                                                     <option value='equipmentId'>Equipment ID</option>
+                                                                                     <option value='location'>Location</option>
+                                                                                     <option value='operator'>Operator</option>
+                                                                                     <option value='quantity'>Quantity (Bucket)</option>
+                                                                                     <option value='index'>Index (Bucket)</option>
+                                                                                     <option value='department'>Department</option>
+                                                                                     <option value='costcenter'>Cost Center</option>
+                                                                                     <option value='securityAgent'>Security Agent</option>
+                                                                                     <option value='supervisor'>Supervisor</option>
+                                                                                     <option value='status'>Status</option>
+                                                                                     <option value='site'>Site</option>
+                                                                                     <option value='fuelType'>Fuel Type</option>
+                                                                                </select>
+                                                                            </label>
                                                                             <label class='flex flex-col gap-0.5'>Chart
                                                                                 <select data-filt='chartType' class='border rounded px-1 py-0.5 bg-white'>
                                                                                      <option value='bar' ${chartType==='bar'?'selected':''}>Bar</option>
@@ -7306,6 +7642,34 @@
                                                                                      <option value='doughnut' ${chartType==='doughnut'?'selected':''}>Doughnut</option>
                                                                                 </select>
                                                                             </label>
+                                                                            <div class='flex flex-col gap-0.5 relative' data-role='valueFilter'>
+                                                                                <label class='text-[10px]'>Filter Values</label>
+                                                                                <button type='button' data-act='toggle-value-dropdown' class='border rounded px-1 py-0.5 bg-white text-left text-[10px] hover:bg-slate-50 flex items-center justify-between gap-1' style='min-width:140px;'>
+                                                                                    <span data-role='valueFilterLabel'>All</span>
+                                                                                    <i class='fa fa-chevron-down' style='font-size:8px;'></i>
+                                                                                </button>
+                                                                                <div data-role='valueDropdown' class='hidden absolute top-full left-0 mt-1 bg-white border border-slate-300 rounded shadow-lg z-50 max-h-[200px] overflow-auto' style='min-width:180px;'>
+                                                                                    <div class='p-1 text-[9px] text-slate-500 border-b flex items-center justify-between'>
+                                                                                        <span>Select values to show:</span>
+                                                                                        <button type='button' data-act='toggle-all-values' class='text-[9px] px-1 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-600'>All/None</button>
+                                                                                    </div>
+                                                                                    <div data-role='valueCheckboxes' class='p-1'></div>
+                                                                                </div>
+                                                                            </div>
+                                                                            <div class='flex flex-col gap-0.5 relative' data-role='valueFilter2'>
+                                                                                <label class='text-[10px]'>Filter Values 2</label>
+                                                                                <button type='button' data-act='toggle-value2-dropdown' class='border rounded px-1 py-0.5 bg-white text-left text-[10px] hover:bg-slate-50 flex items-center justify-between gap-1' style='min-width:140px;'>
+                                                                                    <span data-role='valueFilter2Label'>All</span>
+                                                                                    <i class='fa fa-chevron-down' style='font-size:8px;'></i>
+                                                                                </button>
+                                                                                <div data-role='valueDropdown2' class='hidden absolute top-full left-0 mt-1 bg-white border border-slate-300 rounded shadow-lg z-50 max-h-[200px] overflow-auto' style='min-width:180px;'>
+                                                                                    <div class='p-1 text-[9px] text-slate-500 border-b flex items-center justify-between'>
+                                                                                        <span>Select values to show:</span>
+                                                                                        <button type='button' data-act='toggle-all-values2' class='text-[9px] px-1 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-600'>All/None</button>
+                                                                                    </div>
+                                                                                    <div data-role='valueCheckboxes2' class='p-1'></div>
+                                                                                </div>
+                                                                            </div>
                                                                             <label class='flex flex-col gap-0.5'>Start
                                                                                 <input data-filt='start' type='date' value='${start||''}' class='border rounded px-1 py-0.5 bg-white'/>
                                                                             </label>
@@ -7341,7 +7705,7 @@
                 primaryContainer.appendChild(setWrap);
                 // Fill table
                 const tbody = setWrap.querySelector('tbody');
-                tbody.innerHTML = agg.rows.map(r=>`<tr class='odd:bg-slate-50'><td class='px-1 py-0.5'>${r.key}</td><td class='text-right px-1 py-0.5'>${r.records}</td><td class='text-right px-1 py-0.5'>${r.quantity.toFixed(2)}</td><td class='text-right px-1 py-0.5'>${(r.quantity/r.records).toFixed(2)}</td></tr>`).join('');
+                tbody.innerHTML = agg.rows.map(r=>`<tr class='odd:bg-slate-50' data-group="${r.key}"><td class='px-1 py-0.5'>${r.key}</td><td class='text-right px-1 py-0.5'>${r.records}</td><td class='text-right px-1 py-0.5'>${r.quantity.toFixed(2)}</td><td class='text-right px-1 py-0.5' data-field='avg'>${(r.quantity/r.records).toFixed(2)}</td></tr>`).join('');
                 setWrap.querySelector('[data-ft-rec]').textContent = agg.rows.reduce((a,r)=>a+r.records,0);
                 setWrap.querySelector('[data-ft-qty]').textContent = agg.rows.reduce((a,r)=>a+r.quantity,0).toFixed(2);
                 // Chart
@@ -7349,13 +7713,26 @@
                 const labels = agg.rows.map(r=>String(r.key)).slice(0,30);
                 const quantities = agg.rows.map(r=>r.quantity).slice(0,30);
                 const records = agg.rows.map(r=>r.records).slice(0,30);
-                const chart = new Chart(ctx,{ type: chartType==='pie'||chartType==='doughnut'? chartType : 'bar', data:{ labels, datasets:[{ label:'Quantity (L)', data:quantities, backgroundColor:'rgba(243,156,18,0.55)', borderColor:'#f39c12', borderWidth:1 }, ...(chartType==='bar'||chartType==='line'? [{ label:'Records', data:records, backgroundColor:'rgba(51,65,85,0.5)', borderColor:'#334155', borderWidth:1 }] : []) ] }, options:{ responsive:true, maintainAspectRatio:false, scales: (chartType==='pie'||chartType==='doughnut') ? {} : { y:{ beginAtZero:true, ticks:{ font:{ size:8 }, color:'#334155' } }, x:{ ticks:{ font:{ size:8 }, color:'#334155' } } }, plugins:{ legend:{ labels:{ font:{ size:8 }, color:'#334155' } } } }});
-                analysisSets.set(id,{ cfg:{ groupBy, chartType, start, end }, chart, wrap:setWrap });
+                const chart = new Chart(ctx,{ type: chartType==='pie'||chartType==='doughnut'? chartType : 'bar', data:{ labels, datasets:[{ label:'Quantity (L)', data:quantities, backgroundColor:'#f39c12', borderColor:'#d97706', borderWidth:1 }, ...(chartType==='bar'||chartType==='line'? [{ label:'Records', data:records, backgroundColor:'#334155', borderColor:'#1e293b', borderWidth:1 }] : []) ] }, options:{ responsive:true, maintainAspectRatio:false, scales: (chartType==='pie'||chartType==='doughnut') ? {} : { y:{ beginAtZero:true, ticks:{ font:{ size:8 }, color:'#334155' } }, x:{ ticks:{ font:{ size:8 }, color:'#334155' } } }, plugins:{ legend:{ labels:{ font:{ size:8 }, color:'#334155' } } } }});
+                // Initialize analysis set (no manual edit overrides now)
+                analysisSets.set(id,{ cfg:{ groupBy, groupBy2:'', chartType, start, end }, chart, wrap:setWrap, overrides:null, selectedValues:[], selectedValues2:[] });
+                // Inject editable styles once
+                if (!document.getElementById('analysis-edit-style')){
+                    const st = document.createElement('style');
+                    st.id='analysis-edit-style';
+                    st.textContent = `.editable-cell{cursor:text;display:inline-block;min-width:22px;padding:0 2px;border-bottom:1px dashed transparent;} .editable-cell:focus{outline:none;border-bottom-color:#2563eb;background:#eff6ff;border-radius:2px;} .edited-cell{background:#fef3c7 !important;}`;
+                    document.head.appendChild(st);
+                }
                 setWrap.addEventListener('click', e=>{
                     const b=e.target.closest('button[data-act]'); if(!b) return;
                     const act=b.getAttribute('data-act');
                     if (act==='refresh-set'){ refreshAnalysisSet(id); return; }
                     if (act==='remove-set'){ removeAnalysisSet(id); return; }
+                    if (act==='reset-edits'){ const entry=analysisSets.get(id); if(entry){ entry.overrides={}; } refreshAnalysisSet(id); return; }
+                    if (act==='toggle-value-dropdown'){ toggleValueFilterDropdown(id); return; }
+                    if (act==='toggle-value2-dropdown'){ toggleValueFilterDropdown2(id); return; }
+                    if (act==='toggle-all-values'){ toggleAllValueSelections(id); return; }
+                    if (act==='toggle-all-values2'){ toggleAllValueSelections2(id); return; }
                     if (act==='apply-filters'){
                         applyFiltersToAnalysisSet(id);
                         return;
@@ -7366,6 +7743,25 @@
                         return;
                     }
                 });
+                // Handle groupBy & groupBy2 change
+                const groupBySelect = setWrap.querySelector('select[data-filt="groupBy"]');
+                const groupBy2Select = setWrap.querySelector('select[data-filt="groupBy2"]');
+                if(groupBySelect){
+                    groupBySelect.addEventListener('change', ()=>{
+                        const entry = analysisSets.get(id); if(entry){ entry.selectedValues = []; entry.cfg.groupBy = groupBySelect.value; }
+                        populateValueFilterOptions(id);
+                        populateValueFilterOptions2(id);
+                    });
+                }
+                if(groupBy2Select){
+                    groupBy2Select.addEventListener('change', ()=>{
+                        const entry = analysisSets.get(id); if(entry){ entry.selectedValues2 = []; entry.cfg.groupBy2 = groupBy2Select.value; }
+                        populateValueFilterOptions2(id);
+                    });
+                }
+                populateValueFilterOptions(id);
+                populateValueFilterOptions2(id);
+                // Editing disabled: no inline edit handlers bound.
             }
             function _addAnalysisSetInternalFromCfg(groupBy, chartType, start, end){
                 const agg = aggregate(groupBy,start,end);
@@ -7382,6 +7778,8 @@
                          <h3 class='text-[11px] font-semibold text-slate-700'>Analysis Set</h3>
                          <div class='flex gap-1'>
                              <button data-act='refresh-set' class='text-[10px] px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-600' title='Refresh'><i class="fa fa-rotate"></i></button>
+                                                                             <button data-act='reset-edits' class='text-[10px] px-2 py-0.5 rounded bg-amber-100 hover:bg-amber-200 text-amber-700' title='Reset Manual Edits'><i class="fa fa-eraser"></i></button>
+                             <button data-act='reset-edits' class='text-[10px] px-2 py-0.5 rounded bg-amber-100 hover:bg-amber-200 text-amber-700' title='Reset Manual Edits'><i class="fa fa-eraser"></i></button>
                              <button data-act='remove-set' class='text-[10px] px-2 py-0.5 rounded bg-red-100 hover:bg-red-200 text-red-600' title='Remove'><i class="fa fa-times"></i></button>
                          </div>
                      </div>
@@ -7406,6 +7804,27 @@
                                      <option value='fuelType' ${groupBy==='fuelType'?'selected':''}>Fuel Type</option>
                                 </select>
                             </label>
+                            <label class='flex flex-col gap-0.5'>Group 2
+                                <select data-filt='groupBy2' class='border rounded px-1 py-0.5 bg-white'>
+                                     <option value=''>-- None --</option>
+                                     <option value='day'>Day</option>
+                                     <option value='consumptionDate'>Consumption Date</option>
+                                     <option value='id'>Record ID</option>
+                                     <option value='equipmentType'>Equipment Type</option>
+                                     <option value='equipmentId'>Equipment ID</option>
+                                     <option value='location'>Location</option>
+                                     <option value='operator'>Operator</option>
+                                     <option value='quantity'>Quantity (Bucket)</option>
+                                     <option value='index'>Index (Bucket)</option>
+                                     <option value='department'>Department</option>
+                                     <option value='costcenter'>Cost Center</option>
+                                     <option value='securityAgent'>Security Agent</option>
+                                     <option value='supervisor'>Supervisor</option>
+                                     <option value='status'>Status</option>
+                                     <option value='site'>Site</option>
+                                     <option value='fuelType'>Fuel Type</option>
+                                </select>
+                            </label>
                             <label class='flex flex-col gap-0.5'>Chart
                                 <select data-filt='chartType' class='border rounded px-1 py-0.5 bg-white'>
                                      <option value='bar' ${chartType==='bar'?'selected':''}>Bar</option>
@@ -7414,6 +7833,34 @@
                                      <option value='doughnut' ${chartType==='doughnut'?'selected':''}>Doughnut</option>
                                 </select>
                             </label>
+                            <div class='flex flex-col gap-0.5 relative' data-role='valueFilter'>
+                                <label class='text-[10px]'>Filter Values</label>
+                                <button type='button' data-act='toggle-value-dropdown' class='border rounded px-1 py-0.5 bg-white text-left text-[10px] hover:bg-slate-50 flex items-center justify-between gap-1' style='min-width:140px;'>
+                                    <span data-role='valueFilterLabel'>All</span>
+                                    <i class='fa fa-chevron-down' style='font-size:8px;'></i>
+                                </button>
+                                <div data-role='valueDropdown' class='hidden absolute top-full left-0 mt-1 bg-white border border-slate-300 rounded shadow-lg z-50 max-h-[200px] overflow-auto' style='min-width:180px;'>
+                                    <div class='p-1 text-[9px] text-slate-500 border-b flex items-center justify-between'>
+                                        <span>Select values to show:</span>
+                                        <button type='button' data-act='toggle-all-values' class='text-[9px] px-1 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-600'>All/None</button>
+                                    </div>
+                                    <div data-role='valueCheckboxes' class='p-1'></div>
+                                </div>
+                            </div>
+                            <div class='flex flex-col gap-0.5 relative' data-role='valueFilter2'>
+                                <label class='text-[10px]'>Filter Values 2</label>
+                                <button type='button' data-act='toggle-value2-dropdown' class='border rounded px-1 py-0.5 bg-white text-left text-[10px] hover:bg-slate-50 flex items-center justify-between gap-1' style='min-width:140px;'>
+                                    <span data-role='valueFilter2Label'>All</span>
+                                    <i class='fa fa-chevron-down' style='font-size:8px;'></i>
+                                </button>
+                                <div data-role='valueDropdown2' class='hidden absolute top-full left-0 mt-1 bg-white border border-slate-300 rounded shadow-lg z-50 max-h-[200px] overflow-auto' style='min-width:180px;'>
+                                    <div class='p-1 text-[9px] text-slate-500 border-b flex items-center justify-between'>
+                                        <span>Select values to show:</span>
+                                        <button type='button' data-act='toggle-all-values2' class='text-[9px] px-1 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-600'>All/None</button>
+                                    </div>
+                                    <div data-role='valueCheckboxes2' class='p-1'></div>
+                                </div>
+                            </div>
                             <label class='flex flex-col gap-0.5'>Start
                                 <input data-filt='start' type='date' value='${start||''}' class='border rounded px-1 py-0.5 bg-white'/>
                             </label>
@@ -7449,20 +7896,31 @@
                 primaryContainer.appendChild(setWrap);
                 // Fill table
                 const tbody = setWrap.querySelector('tbody');
-                tbody.innerHTML = agg.rows.map(r=>`<tr class='odd:bg-slate-50'><td class='px-1 py-0.5'>${r.key}</td><td class='text-right px-1 py-0.5'>${r.records}</td><td class='text-right px-1 py-0.5'>${r.quantity.toFixed(2)}</td><td class='text-right px-1 py-0.5'>${(r.quantity/r.records).toFixed(2)}</td></tr>`).join('');
+                tbody.innerHTML = agg.rows.map(r=>`<tr class='odd:bg-slate-50' data-group="${r.key}"><td class='px-1 py-0.5'>${r.key}</td><td class='text-right px-1 py-0.5'>${r.records}</td><td class='text-right px-1 py-0.5'>${r.quantity.toFixed(2)}</td><td class='text-right px-1 py-0.5' data-field='avg'>${(r.quantity/r.records).toFixed(2)}</td></tr>`).join('');
                 setWrap.querySelector('[data-ft-rec]').textContent = agg.rows.reduce((a,r)=>a+r.records,0);
                 setWrap.querySelector('[data-ft-qty]').textContent = agg.rows.reduce((a,r)=>a+r.quantity,0).toFixed(2);
                 const ctx = setWrap.querySelector('canvas').getContext('2d');
                 const labels = agg.rows.map(r=>String(r.key)).slice(0,30);
                 const quantities = agg.rows.map(r=>r.quantity).slice(0,30);
                 const records = agg.rows.map(r=>r.records).slice(0,30);
-                const chart = new Chart(ctx,{ type: chartType==='pie'||chartType==='doughnut'? chartType : 'bar', data:{ labels, datasets:[{ label:'Quantity (L)', data:quantities, backgroundColor:'rgba(243,156,18,0.55)', borderColor:'#f39c12', borderWidth:1 }, ...(chartType==='bar'||chartType==='line'? [{ label:'Records', data:records, backgroundColor:'rgba(51,65,85,0.5)', borderColor:'#334155', borderWidth:1 }] : []) ] }, options:{ responsive:true, maintainAspectRatio:false, scales: (chartType==='pie'||chartType==='doughnut') ? {} : { y:{ beginAtZero:true, ticks:{ font:{ size:8 }, color:'#334155' } }, x:{ ticks:{ font:{ size:8 }, color:'#334155' } } }, plugins:{ legend:{ labels:{ font:{ size:8 }, color:'#334155' } } } }});
-                analysisSets.set(id,{ cfg:{ groupBy, chartType, start, end }, chart, wrap:setWrap });
+                const chart = new Chart(ctx,{ type: chartType==='pie'||chartType==='doughnut'? chartType : 'bar', data:{ labels, datasets:[{ label:'Quantity (L)', data:quantities, backgroundColor:'#f39c12', borderColor:'#d97706', borderWidth:1 }, ...(chartType==='bar'||chartType==='line'? [{ label:'Records', data:records, backgroundColor:'#334155', borderColor:'#1e293b', borderWidth:1 }] : []) ] }, options:{ responsive:true, maintainAspectRatio:false, scales: (chartType==='pie'||chartType==='doughnut') ? {} : { y:{ beginAtZero:true, ticks:{ font:{ size:8 }, color:'#334155' } }, x:{ ticks:{ font:{ size:8 }, color:'#334155' } } }, plugins:{ legend:{ labels:{ font:{ size:8 }, color:'#334155' } } } }});
+                analysisSets.set(id,{ cfg:{ groupBy, groupBy2:'', chartType, start, end }, chart, wrap:setWrap, overrides:{}, selectedValues:[], selectedValues2:[] });
+                if (!document.getElementById('analysis-edit-style')){
+                    const st = document.createElement('style');
+                    st.id='analysis-edit-style';
+                    st.textContent = `.editable-cell{cursor:text;display:inline-block;min-width:22px;padding:0 2px;border-bottom:1px dashed transparent;} .editable-cell:focus{outline:none;border-bottom-color:#2563eb;background:#eff6ff;border-radius:2px;} .edited-cell{background:#fef3c7 !important;}`;
+                    document.head.appendChild(st);
+                }
                 setWrap.addEventListener('click', e=>{
                     const b=e.target.closest('button[data-act]'); if(!b) return;
                     const act=b.getAttribute('data-act');
                     if (act==='refresh-set'){ refreshAnalysisSet(id); return; }
                     if (act==='remove-set'){ removeAnalysisSet(id); return; }
+                    if (act==='reset-edits'){ const entry=analysisSets.get(id); if(entry){ entry.overrides={}; } refreshAnalysisSet(id); return; }
+                    if (act==='toggle-value-dropdown'){ toggleValueFilterDropdown(id); return; }
+                    if (act==='toggle-value2-dropdown'){ toggleValueFilterDropdown2(id); return; }
+                    if (act==='toggle-all-values'){ toggleAllValueSelections(id); return; }
+                    if (act==='toggle-all-values2'){ toggleAllValueSelections2(id); return; }
                     if (act==='apply-filters'){
                         applyFiltersToAnalysisSet(id);
                         return;
@@ -7473,55 +7931,228 @@
                         return;
                     }
                 });
+                // Handle groupBy change to repopulate value filter
+                const groupBySelect = setWrap.querySelector('select[data-filt="groupBy"]');
+                if(groupBySelect){
+                    groupBySelect.addEventListener('change', ()=>{
+                        const entry = analysisSets.get(id); if(entry){ entry.selectedValues = []; }
+                        populateValueFilterOptions(id);
+                    });
+                }
+                // Initialize value filter with current data
+                populateValueFilterOptions(id);
+                const tbodyEl = setWrap.querySelector('tbody');
+                tbodyEl.addEventListener('keydown', ev=>{ if(ev.key==='Enter'){ ev.preventDefault(); ev.target.blur(); }});
+                tbodyEl.addEventListener('blur', ev=>{
+                    const span = ev.target.closest('.editable-cell');
+                    if(!span) return;
+                    const row = span.closest('tr');
+                    const groupKey = row?.getAttribute('data-group');
+                    if(!groupKey) return;
+                    const field = span.getAttribute('data-field');
+                    let raw = span.textContent.trim();
+                    if(raw===''){ span.textContent = span.dataset.prev || '0'; return; }
+                    let val = parseFloat(raw);
+                    if(!isFinite(val)){ span.textContent = span.dataset.prev || '0'; return; }
+                    const entry = analysisSets.get(id); if(!entry) return;
+                    entry.overrides = entry.overrides || {};
+                    entry.overrides[groupKey] = entry.overrides[groupKey] || {};
+                    entry.overrides[groupKey][field] = val;
+                    span.dataset.prev = String(val);
+                    span.classList.add('edited-cell');
+                    applyOverridesAndRecompute(entry);
+                }, true);
             }
             function refreshAnalysisSet(id){
                 const entry = analysisSets.get(id); if(!entry) return;
                 const { cfg, chart, wrap } = entry;
-                const agg = aggregate(cfg.groupBy, cfg.start, cfg.end);
-                const tbody = wrap.querySelector('tbody');
-                if (tbody){
-                    tbody.innerHTML = agg.rows.map(r=>`<tr class='odd:bg-slate-50'><td class='px-1 py-0.5'>${r.key}</td><td class='text-right px-1 py-0.5'>${r.records}</td><td class='text-right px-1 py-0.5'>${r.quantity.toFixed(2)}</td><td class='text-right px-1 py-0.5'>${(r.quantity/r.records).toFixed(2)}</td></tr>`).join('');
+                const agg = computeAnalysisAggregation(cfg, entry.selectedValues, entry.selectedValues2);
+                entry._lastAgg = agg; // store raw agg / pivot
+                buildAnalysisSetTableBody(entry);
+                applyOverridesAndRecompute(entry, false); // false: don't rebuild overrides, just apply
+            }
+            function buildAnalysisSetTableBody(entry){
+                const { wrap, overrides, selectedValues, selectedValues2, cfg } = entry;
+                const agg = entry._lastAgg; if(!agg) return;
+                const tbody = wrap.querySelector('tbody'); if(!tbody) return;
+                const thead = wrap.querySelector('thead');
+
+                if(agg.mode === '2d'){
+                    // Build pivot header
+                    if(thead){
+                        thead.innerHTML = `<tr data-row='hdr1'><th data-col='groupHdr' class='px-1 py-0.5 text-left sticky left-0 bg-white z-10'>${(cfg.groupBy||'ROW').toUpperCase()}</th>${agg.colKeys.map(ck=>`<th class='px-1 py-0.5 text-right'>${ck}</th>`).join('')}<th class='px-1 py-0.5 text-right'>TOTAL</th></tr>`;
+                    }
+                    tbody.innerHTML = agg.rowKeys.map(rk=>{
+                        const rowTotal = agg.rowTotals[rk];
+                        return `<tr class='odd:bg-slate-50' data-group='${rk}' data-row-key='${rk}'>
+                            <td class='px-1 py-0.5 sticky left-0 bg-white z-10'>${rk}</td>
+                            ${agg.colKeys.map(ck=>{
+                                const cell = agg.matrix[rk][ck];
+                                if(!cell) return `<td data-row-key='${rk}' data-col-key='${ck}' class='text-right px-1 py-0.5 text-slate-300'>-</td>`;
+                                const ov = overrides?.[rk]?.[ck] || {};
+                                const rec = (typeof ov.records==='number')? ov.records : cell.records;
+                                const qty = (typeof ov.quantity==='number')? ov.quantity : cell.quantity;
+                                const editedQty = (typeof ov.quantity==='number');
+                                return `<td data-row-key='${rk}' data-col-key='${ck}' class='text-right px-1 py-0.5'>${qty.toFixed(2)}</td>`;
+                            }).join('')}
+                            <td class='text-right px-1 py-0.5 font-semibold'>${rowTotal.quantity.toFixed(2)}</td>
+                        </tr>`;
+                    }).join('');
+                    // Build footer with per-column distribution (record) counts + grand total of records
+                    const tfoot = wrap.querySelector('tfoot');
+                    if(tfoot){
+                        const qtyTotalsRow = `<tr data-row='qtyTotals'><td class='px-1 py-0.5 font-semibold'>Totals (Qty L)</td>${agg.colKeys.map(ck=>`<td class='text-right px-1 py-0.5 font-semibold'>${(agg.colTotals[ck]?.quantity||0).toFixed(2)}</td>`).join('')}<td class='text-right px-1 py-0.5 font-semibold'>${agg.grand.quantity.toFixed(2)}</td></tr>`;
+                        tfoot.innerHTML = qtyTotalsRow;
+                    }
+                } else {
+                    // Original 1D rendering
+                    // Filter rows by selectedValues (already applied inside agg if 2D not used) – keep as safety.
+                    let filteredRows = (agg.rows||[]).filter(r=>{
+                        if(!selectedValues || selectedValues.length === 0) return true;
+                        return selectedValues.includes(String(r.key));
+                    });
+                    tbody.innerHTML = filteredRows.map(r=>{
+                        let displayKey = r.key;
+                        if(typeof displayKey === 'object' && displayKey){
+                            const candidate = displayKey.name || displayKey.title || displayKey.code || displayKey.id || displayKey.uid;
+                            if(candidate) displayKey = candidate; else { try{ displayKey = JSON.stringify(displayKey);}catch{ displayKey = '[object]'; } }
+                        }
+                        const ov = overrides && overrides[r.key] || {};
+                        const rec = (typeof ov.records==='number') ? ov.records : r.records;
+                        const qty = (typeof ov.quantity==='number') ? ov.quantity : r.quantity;
+                        const editedRec = (typeof ov.records==='number');
+                        const editedQty = (typeof ov.quantity==='number');
+                        const avg = rec ? (qty/rec) : 0;
+                        return `<tr class='odd:bg-slate-50' data-group="${String(displayKey)}">
+                            <td class='px-1 py-0.5'>${displayKey}</td>
+                            <td class='text-right px-1 py-0.5'>${rec}</td>
+                            <td class='text-right px-1 py-0.5'>${qty.toFixed(2)}</td>
+                            <td class='text-right px-1 py-0.5' data-field='avg'>${avg.toFixed(2)}</td>
+                        </tr>`;
+                    }).join('');
                 }
-                wrap.querySelector('[data-ft-rec]').textContent = agg.rows.reduce((a,r)=>a+r.records,0);
-                wrap.querySelector('[data-ft-qty]').textContent = agg.rows.reduce((a,r)=>a+r.quantity,0).toFixed(2);
-                chart.data.labels = agg.rows.map(r=>String(r.key)).slice(0,30);
-                chart.data.datasets[0].data = agg.rows.map(r=>r.quantity).slice(0,30);
-                if (chart.data.datasets[1]) chart.data.datasets[1].data = agg.rows.map(r=>r.records).slice(0,30);
-                chart.update();
+            }
+            function applyOverridesAndRecompute(entry, animateChart=true){
+                const { overrides, chart, wrap, _lastAgg, selectedValues, selectedValues2, cfg } = entry;
+                if(!_lastAgg) return;
+                if(_lastAgg.mode === '2d'){
+                    // Multi-series: each secondary column becomes a dataset (Quantity)
+                    const rowKeys = _lastAgg.rowKeys.slice(0,30); // cap rows for chart
+                    const colKeys = _lastAgg.colKeys;
+                    // Update footer totals (sum of all quantities & records)
+                    let totalQty=0, totalRec=0;
+                    rowKeys.forEach(rk=>{
+                        colKeys.forEach(ck=>{
+                            const cell=_lastAgg.matrix[rk][ck]; if(!cell) return;
+                            totalQty += cell.quantity; totalRec += cell.records;
+                        });
+                    });
+                    const ftQtyEl = wrap.querySelector('[data-ft-qty]'); if(ftQtyEl) ftQtyEl.textContent = totalQty.toFixed(2);
+                    const ftRecEl = wrap.querySelector('[data-ft-rec]'); if(ftRecEl) ftRecEl.textContent = totalRec;
+                    // Rebuild record totals footer row to reflect any override (even though editing disabled, keep logic consistent)
+                    const tfoot = wrap.querySelector('tfoot');
+                    if(tfoot && _lastAgg.colTotals){
+                        const qtyTotals = `<tr data-row='qtyTotals'><td class='px-1 py-0.5 font-semibold'>Totals (Qty L)</td>${colKeys.map(ck=>`<td class='text-right px-1 py-0.5 font-semibold'>${(_lastAgg.colTotals[ck]?.quantity||0).toFixed(2)}</td>`).join('')}<td class='text-right px-1 py-0.5 font-semibold'>${_lastAgg.grand.quantity.toFixed(2)}</td></tr>`;
+                        tfoot.innerHTML = qtyTotals;
+                    }
+                    chart.data.labels = rowKeys;
+                    // Generate color palette
+                    const palette = [
+                        '#2563eb','#f59e0b','#10b981','#ef4444','#6366f1','#0d9488','#d946ef','#f97316','#059669','#dc2626',
+                        '#4f46e5','#0891b2','#c026d3','#fb7185','#7c3aed','#65a30d','#9333ea','#ea580c','#15803d','#be123c'
+                    ];
+                    function colorFor(i){ return palette[i % palette.length]; }
+                    // Build datasets
+                    const datasets = colKeys.map((ck,ci)=>{
+                        const data = rowKeys.map(rk=>{
+                            const cell=_lastAgg.matrix[rk][ck]; return cell? cell.quantity : 0;
+                        });
+                        return {
+                            label: ck,
+                            data,
+                            backgroundColor: colorFor(ci),
+                            borderColor: colorFor(ci),
+                            borderWidth: 1,
+                            fill: cfg.chartType==='line'? false : true,
+                            tension: 0.25
+                        };
+                    });
+                    // Replace datasets entirely
+                    chart.data.datasets = datasets;
+                    // Adjust chart type (if pie/doughnut, fallback to bar for multi-series)
+                    if(['pie','doughnut'].includes(chart.config.type)){
+                        try{ chart.config.type = 'bar'; }catch(e){}
+                    }
+                    chart.update(animateChart? undefined : 'none');
+                } else {
+                    // Existing 1D path
+                    let rowsToProcess = _lastAgg.rows;
+                    if(selectedValues && selectedValues.length > 0){
+                        rowsToProcess = rowsToProcess.filter(r=> selectedValues.includes(String(r.key)));
+                    }
+                    const rows = rowsToProcess.map(r=>{
+                        const ov = overrides && overrides[r.key] || {};
+                        const records = (typeof ov.records==='number') ? ov.records : r.records;
+                        const quantity = (typeof ov.quantity==='number') ? ov.quantity : r.quantity;
+                        return { key:r.key, records, quantity };
+                    });
+                    chart.data.labels = rows.map(r=>String(r.key)).slice(0,30);
+                    wrap.querySelector('[data-ft-qty]').textContent = rows.reduce((a,r)=>a + (r.quantity||0),0).toFixed(2);
+                    wrap.querySelector('[data-ft-rec]').textContent = rows.reduce((a,r)=>a + (r.records||0),0);
+                    // Averages already correct in static cells; no inline update needed.
+                    chart.data.datasets[0].data = rows.map(r=>r.quantity).slice(0,30);
+                    if (chart.data.datasets[1]) chart.data.datasets[1].data = rows.map(r=>r.records).slice(0,30);
+                    chart.update(animateChart? undefined : 'none');
+                }
             }
             function applyFiltersToAnalysisSet(id){
                 const entry = analysisSets.get(id); if(!entry) return;
                 const { wrap } = entry;
                 const groupSelect = wrap.querySelector('select[data-filt="groupBy"]');
+                const group2Select = wrap.querySelector('select[data-filt="groupBy2"]');
                 const chartSelect = wrap.querySelector('select[data-filt="chartType"]');
                 const startInput = wrap.querySelector('input[data-filt="start"]');
                 const endInput = wrap.querySelector('input[data-filt="end"]');
                 const groupBy = groupSelect?.value || entry.cfg.groupBy;
+                const groupBy2 = group2Select?.value || entry.cfg.groupBy2;
                 const chartType = chartSelect?.value || entry.cfg.chartType;
                 const start = startInput?.value || '';
                 const end = endInput?.value || '';
                 // Update cfg
                 entry.cfg.groupBy = groupBy;
+                const prevGroup2 = entry.cfg.groupBy2;
+                entry.cfg.groupBy2 = groupBy2;
                 entry.cfg.chartType = chartType;
                 entry.cfg.start = start || null;
                 entry.cfg.end = end || null;
+                if(prevGroup2 !== groupBy2){
+                    entry.selectedValues2 = [];
+                    populateValueFilterOptions2(id);
+                }
                 // Replace chart if type changed
                 let chart = entry.chart;
                 if (chart.config.type !== chartType && !( (chartType==='doughnut'||chartType==='pie') && (chart.config.type==='pie'||chart.config.type==='doughnut') )){
                     try { chart.destroy(); } catch(_){ }
                     const ctx = wrap.querySelector('canvas').getContext('2d');
-                    chart = new Chart(ctx,{ type: chartType, data:{ labels:[], datasets:[{ label:'Quantity (L)', data:[], backgroundColor:'rgba(243,156,18,0.55)', borderColor:'#f39c12', borderWidth:1 }] }, options:{ responsive:true, maintainAspectRatio:false, scales: (chartType==='pie'||chartType==='doughnut') ? {} : { y:{ beginAtZero:true, ticks:{ font:{ size:8 }, color:'#334155' } }, x:{ ticks:{ font:{ size:8 }, color:'#334155' } } }, plugins:{ legend:{ labels:{ font:{ size:8 }, color:'#334155' } } } }});
+                    chart = new Chart(ctx,{ type: chartType, data:{ labels:[], datasets:[{ label:'Quantity (L)', data:[], backgroundColor:'#f39c12', borderColor:'#d97706', borderWidth:1 }] }, options:{ responsive:true, maintainAspectRatio:false, scales: (chartType==='pie'||chartType==='doughnut') ? {} : { y:{ beginAtZero:true, ticks:{ font:{ size:8 }, color:'#334155' } }, x:{ ticks:{ font:{ size:8 }, color:'#334155' } } }, plugins:{ legend:{ labels:{ font:{ size:8 }, color:'#334155' } } } }});
                     entry.chart = chart;
                 }
                 // Adjust datasets for non-pie types to include records
                 if (!(chartType==='pie'||chartType==='doughnut')){
                     if (!chart.data.datasets[1]){
-                        chart.data.datasets.push({ label:'Records', data:[], backgroundColor:'rgba(51,65,85,0.5)', borderColor:'#334155', borderWidth:1 });
+                        chart.data.datasets.push({ label:'Records', data:[], backgroundColor:'#334155', borderColor:'#1e293b', borderWidth:1 });
                     }
                 } else {
                     if (chart.data.datasets[1]) chart.data.datasets.splice(1,1);
                 }
                 wrap.querySelector('[data-col="groupHdr"]').textContent = groupBy.toUpperCase();
+                
+                // Reset selectedValues when groupBy changes, and repopulate (avoid clearing if unchanged)
+                if(entry.cfg.groupBy !== groupBy){
+                    entry.selectedValues = [];
+                    populateValueFilterOptions(id);
+                }
+                
                 refreshAnalysisSet(id);
                 const summary = wrap.querySelector('[data-role="summary"]');
                 if (summary){
@@ -7553,6 +8184,269 @@
                 if (entry.wrap && entry.wrap.parentNode) entry.wrap.parentNode.removeChild(entry.wrap);
                 analysisSets.delete(id);
             }
+            
+            // ===== Value Filter (Multi-Select Checkboxes) =====
+            function populateValueFilterOptions(id){
+                const entry = analysisSets.get(id); if(!entry) return;
+                const { wrap, cfg } = entry;
+                // Use the live select value (so user can preview options before applying filters)
+                const groupBySelect = wrap.querySelector('select[data-filt="groupBy"]');
+                const liveGroupBy = groupBySelect?.value || cfg.groupBy || 'day';
+                const start = cfg.start || '';
+                const end = cfg.end || '';
+                
+                // Get all unique values for current groupBy from data
+                const dataset = (Array.isArray(filteredData) && filteredData.length) ? filteredData : distributionData;
+                const filtered = dataset.filter(r=>{
+                    if(start && r.consumptionDate < start) return false;
+                    if(end && r.consumptionDate > end) return false;
+                    return true;
+                });
+                
+                const uniqueValues = new Set();
+                const normalizeVal = (v)=>{
+                    if(v === undefined || v === null) return '';
+                    if(typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') return String(v);
+                    if(v instanceof Date) return v.toISOString().slice(0,10);
+                    // Try common identifier fields if object
+                    if(typeof v === 'object'){
+                        const candidate = v.name || v.title || v.code || v.id || v.uid || null;
+                        if(candidate) return String(candidate);
+                        try { return JSON.stringify(v); } catch { return '[object]'; }
+                    }
+                    return String(v);
+                };
+                filtered.forEach(r=>{
+                    let raw = r[liveGroupBy];
+                    if(liveGroupBy==='day' && r.consumptionDate) raw = r.consumptionDate;
+                    const val = normalizeVal(raw);
+                    if(val) uniqueValues.add(val);
+                });
+                
+                const sortedValues = Array.from(uniqueValues).sort();
+                
+                // Populate checkboxes
+                const container = wrap.querySelector('[data-role="valueCheckboxes"]');
+                if(!container) return;
+                
+                // If the currently stored selectedValues don't intersect new values (e.g., group changed but filters not applied yet), reset to all
+                if(entry.selectedValues && entry.selectedValues.length){
+                    entry.selectedValues = entry.selectedValues.filter(v=>sortedValues.includes(v));
+                }
+                if(!entry.selectedValues || entry.selectedValues.length === 0){
+                    // Default select-all for the new group context
+                    entry.selectedValues = [...sortedValues];
+                }
+                
+                container.innerHTML = sortedValues.map(val=>{
+                    const checked = entry.selectedValues.includes(val);
+                    const escapedVal = val.replace(/"/g, '&quot;');
+                    return `<label class='flex items-center gap-1 px-1 py-0.5 hover:bg-slate-50 cursor-pointer text-[10px]'>
+                        <input type='checkbox' value="${escapedVal}" ${checked?'checked':''} class='cursor-pointer' style='width:12px;height:12px;' data-value-check />
+                        <span class='truncate'>${val}</span>
+                    </label>`;
+                }).join('');
+                
+                // Add event listeners to checkboxes
+                container.querySelectorAll('input[data-value-check]').forEach(cb=>{
+                    cb.addEventListener('change', ()=>{
+                        const val = cb.value;
+                        if(cb.checked){
+                            if(!entry.selectedValues.includes(val)) entry.selectedValues.push(val);
+                        } else {
+                            entry.selectedValues = entry.selectedValues.filter(v=>v!==val);
+                        }
+                        updateValueFilterLabel(id);
+                        refreshAnalysisSet(id);
+                    });
+                });
+                
+                updateValueFilterLabel(id);
+            }
+            
+            function toggleValueFilterDropdown(id){
+                const entry = analysisSets.get(id); if(!entry) return;
+                const { wrap } = entry;
+                const dropdown = wrap.querySelector('[data-role="valueDropdown"]');
+                if(!dropdown) return;
+                
+                // Close all other dropdowns first
+                document.querySelectorAll('[data-role="valueDropdown"]').forEach(d=>{
+                    if(d !== dropdown) d.classList.add('hidden');
+                });
+                
+                dropdown.classList.toggle('hidden');
+                
+                // Close on outside click
+                if(!dropdown.classList.contains('hidden')){
+                    const closeHandler = (e)=>{
+                        if(!dropdown.contains(e.target) && !e.target.closest('[data-act="toggle-value-dropdown"]')){
+                            dropdown.classList.add('hidden');
+                            document.removeEventListener('click', closeHandler);
+                        }
+                    };
+                    setTimeout(()=>document.addEventListener('click', closeHandler), 10);
+                }
+            }
+            
+            function toggleAllValueSelections(id){
+                const entry = analysisSets.get(id); if(!entry) return;
+                const { wrap } = entry;
+                const container = wrap.querySelector('[data-role="valueCheckboxes"]');
+                if(!container) return;
+                
+                const checkboxes = Array.from(container.querySelectorAll('input[data-value-check]'));
+                if(!checkboxes.length) return;
+                
+                // Check current state
+                const allChecked = checkboxes.every(cb => cb.checked);
+                
+                // Toggle: if all checked, uncheck all; otherwise check all
+                checkboxes.forEach(cb => {
+                    cb.checked = !allChecked;
+                });
+                
+                // Update selectedValues array
+                if(allChecked){
+                    entry.selectedValues = [];
+                } else {
+                    entry.selectedValues = checkboxes.map(cb => cb.getAttribute('data-value-check'));
+                }
+                
+                // Update label and refresh table/chart
+                updateValueFilterLabel(id);
+                refreshAnalysisSet(id);
+            }
+
+            // ===== Secondary Value Filter (Group 2) =====
+            function populateValueFilterOptions2(id){
+                const entry = analysisSets.get(id); if(!entry) return;
+                const { wrap, cfg } = entry;
+                const groupBy2 = cfg.groupBy2 || '';
+                if(!groupBy2){
+                    // Clear UI if no secondary group
+                    const c = wrap.querySelector('[data-role="valueCheckboxes2"]'); if(c) c.innerHTML='';
+                    const l = wrap.querySelector('[data-role="valueFilter2Label"]'); if(l) l.textContent='--';
+                    return;
+                }
+                const start = cfg.start || '';
+                const end = cfg.end || '';
+                const dataset = (Array.isArray(filteredData) && filteredData.length) ? filteredData : distributionData;
+                const filtered = dataset.filter(r=>{
+                    if(start && r.consumptionDate < start) return false;
+                    if(end && r.consumptionDate > end) return false;
+                    return true;
+                });
+                const normalizeVal = (v)=>{
+                    if(v === undefined || v === null) return '';
+                    if(typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') return String(v);
+                    if(v instanceof Date) return v.toISOString().slice(0,10);
+                    if(typeof v === 'object'){
+                        const candidate = v.name || v.title || v.code || v.id || v.uid || null;
+                        if(candidate) return String(candidate);
+                        try { return JSON.stringify(v); } catch { return '[object]'; }
+                    }
+                    return String(v);
+                };
+                const uniqueValues = new Set();
+                filtered.forEach(r=>{
+                    let raw = r[groupBy2];
+                    if(groupBy2==='day' && r.consumptionDate) raw = r.consumptionDate;
+                    const val = normalizeVal(raw);
+                    if(val) uniqueValues.add(val);
+                });
+                const sortedValues = Array.from(uniqueValues).sort();
+                if(entry.selectedValues2 && entry.selectedValues2.length){
+                    entry.selectedValues2 = entry.selectedValues2.filter(v=>sortedValues.includes(v));
+                }
+                if(!entry.selectedValues2 || entry.selectedValues2.length===0){
+                    entry.selectedValues2 = [...sortedValues];
+                }
+                const container = wrap.querySelector('[data-role="valueCheckboxes2"]'); if(!container) return;
+                container.innerHTML = sortedValues.map(val=>{
+                    const checked = entry.selectedValues2.includes(val);
+                    const escapedVal = val.replace(/"/g, '&quot;');
+                    return `<label class='flex items-center gap-1 px-1 py-0.5 hover:bg-slate-50 cursor-pointer text-[10px]'>
+                        <input type='checkbox' value="${escapedVal}" ${checked?'checked':''} class='cursor-pointer' style='width:12px;height:12px;' data-value2-check />
+                        <span class='truncate'>${val}</span>
+                    </label>`;
+                }).join('');
+                container.querySelectorAll('input[data-value2-check]').forEach(cb=>{
+                    cb.addEventListener('change', ()=>{
+                        const val = cb.value;
+                        if(cb.checked){ if(!entry.selectedValues2.includes(val)) entry.selectedValues2.push(val); }
+                        else { entry.selectedValues2 = entry.selectedValues2.filter(v=>v!==val); }
+                        updateValueFilter2Label(id);
+                        refreshAnalysisSet(id);
+                    });
+                });
+                updateValueFilter2Label(id);
+            }
+            function toggleValueFilterDropdown2(id){
+                const entry = analysisSets.get(id); if(!entry) return;
+                const { wrap } = entry;
+                const dropdown = wrap.querySelector('[data-role="valueDropdown2"]'); if(!dropdown) return;
+                document.querySelectorAll('[data-role="valueDropdown2"]').forEach(d=>{ if(d!==dropdown) d.classList.add('hidden'); });
+                dropdown.classList.toggle('hidden');
+                if(!dropdown.classList.contains('hidden')){
+                    const closeHandler = (e)=>{
+                        if(!dropdown.contains(e.target) && !e.target.closest('[data-act="toggle-value2-dropdown"]')){
+                            dropdown.classList.add('hidden');
+                            document.removeEventListener('click', closeHandler);
+                        }
+                    };
+                    setTimeout(()=>document.addEventListener('click', closeHandler),10);
+                }
+            }
+            function toggleAllValueSelections2(id){
+                const entry = analysisSets.get(id); if(!entry) return;
+                const { wrap } = entry;
+                const container = wrap.querySelector('[data-role="valueCheckboxes2"]'); if(!container) return;
+                const checkboxes = Array.from(container.querySelectorAll('input[data-value2-check]'));
+                if(!checkboxes.length) return;
+                const allChecked = checkboxes.every(cb=>cb.checked);
+                checkboxes.forEach(cb=> cb.checked = !allChecked);
+                entry.selectedValues2 = allChecked ? [] : checkboxes.map(cb=>cb.getAttribute('value'));
+                updateValueFilter2Label(id);
+                refreshAnalysisSet(id);
+            }
+            function updateValueFilter2Label(id){
+                const entry = analysisSets.get(id); if(!entry) return;
+                const { wrap, selectedValues2 } = entry;
+                const label = wrap.querySelector('[data-role="valueFilter2Label"]'); if(!label) return;
+                const container = wrap.querySelector('[data-role="valueCheckboxes2"]');
+                const total = container? container.querySelectorAll('input[data-value2-check]').length : 0;
+                const count = selectedValues2? selectedValues2.length : 0;
+                if(!total) { label.textContent='--'; return; }
+                if(count===0) label.textContent='None';
+                else if(count===total) label.textContent='All';
+                else if(count===1) label.textContent = selectedValues2[0].length>15? selectedValues2[0].slice(0,12)+'...' : selectedValues2[0];
+                else label.textContent = `${count} selected`;
+            }
+            // ===== End Secondary Value Filter =====
+            
+            function updateValueFilterLabel(id){
+                const entry = analysisSets.get(id); if(!entry) return;
+                const { wrap, selectedValues } = entry;
+                const label = wrap.querySelector('[data-role="valueFilterLabel"]');
+                if(!label) return;
+                
+                const container = wrap.querySelector('[data-role="valueCheckboxes"]');
+                const totalCount = container?.querySelectorAll('input[data-value-check]').length || 0;
+                const selectedCount = selectedValues?.length || 0;
+                
+                if(selectedCount === 0){
+                    label.textContent = 'None';
+                } else if(selectedCount === totalCount){
+                    label.textContent = 'All';
+                } else if(selectedCount === 1){
+                    label.textContent = selectedValues[0].length > 15 ? selectedValues[0].substring(0,12)+'...' : selectedValues[0];
+                } else {
+                    label.textContent = `${selectedCount} selected`;
+                }
+            }
+            // ===== End Value Filter =====
+            
             // ===== End Multiple Analysis Sets =====
             // ===== End Primary Analytics Integration =====
 
@@ -7653,9 +8547,9 @@
                 <textarea id="mpReportEmailMessage" rows="2" placeholder="Optional note..." style="font-size:0.6rem;padding:0.35rem 0.45rem;border:1px solid #cbd5e1;border-radius:4px;resize:vertical;"></textarea>
             </div>
             <div style="display:flex;gap:0.5rem;margin-left:auto;flex-wrap:wrap;align-items:center;">
-                <button type="button" onclick="mpScheduleReport()" style="font-size:0.55rem;padding:0.35rem 0.6rem;background:#64748b;color:#fff;border:none;border-radius:4px;font-weight:600;letter-spacing:0.5px;">SAVE SCHEDULE</button>
-                <button type="button" onclick="mpGeneratePdf()" style="font-size:0.55rem;padding:0.35rem 0.6rem;background:#0ea5e9;color:#fff;border:none;border-radius:4px;font-weight:600;letter-spacing:0.5px;">GENERATE PDF</button>
-                <button type="button" onclick="mpSendReport()" style="font-size:0.55rem;padding:0.35rem 0.6rem;background:#16a34a;color:#fff;border:none;border-radius:4px;font-weight:600;letter-spacing:0.5px;">SEND REPORT</button>
+                <button type="button" onclick="mpScheduleAndSendReport()" style="font-size:0.55rem;padding:0.35rem 0.6rem;background:#16a34a;color:#fff;border:none;border-radius:4px;font-weight:600;letter-spacing:0.5px;display:inline-flex;align-items:center;gap:0.3rem;"><i class="fas fa-paper-plane"></i> SEND NOW</button>
+                <button type="button" onclick="mpScheduleReport()" style="font-size:0.55rem;padding:0.35rem 0.6rem;background:#64748b;color:#fff;border:none;border-radius:4px;font-weight:600;letter-spacing:0.5px;display:inline-flex;align-items:center;gap:0.3rem;"><i class="fas fa-clock"></i> SAVE SCHEDULE</button>
+                <button type="button" onclick="mpGeneratePdf()" style="font-size:0.55rem;padding:0.35rem 0.6rem;background:#0ea5e9;color:#fff;border:none;border-radius:4px;font-weight:600;letter-spacing:0.5px;display:inline-flex;align-items:center;gap:0.3rem;"><i class="fas fa-file-pdf"></i> PDF ONLY</button>
             </div>
         </div>
         <div id="mpReportStatus" style="font-size:0.55rem;color:#475569;margin-top:0.1rem;"></div>
@@ -7756,20 +8650,79 @@ function showModelPreviewModal(title, snapshotSets){
                         const canvas = container.querySelector(`#modelPrevChart_${id}`);
                         if (!canvas) return;
                         const ctx = canvas.getContext('2d');
+                        
+                        // Enhanced datasets with modern colors
+                        const enhancedDatasets = ((chart?.datasets)||[]).map((ds, dsIdx) => ({
+                            ...ds,
+                            backgroundColor: ds.backgroundColor || (dsIdx === 0 ? 'rgba(37, 99, 235, 0.75)' : 'rgba(14, 165, 233, 0.65)'),
+                            borderColor: ds.borderColor || (dsIdx === 0 ? '#2563eb' : '#0ea5e9'),
+                            borderWidth: 2,
+                            borderRadius: 6,
+                            hoverBackgroundColor: dsIdx === 0 ? 'rgba(37, 99, 235, 0.9)' : 'rgba(14, 165, 233, 0.85)',
+                            hoverBorderColor: dsIdx === 0 ? '#1e40af' : '#0284c7',
+                            hoverBorderWidth: 3
+                        }));
+                        
                         const chartCfg = {
                             type: chart?.type || chartType,
-                            data: { labels: (chart?.labels)||[], datasets: (chart?.datasets)||[] },
+                            data: { labels: (chart?.labels)||[], datasets: enhancedDatasets },
                             options: { 
                                 responsive: true, 
-                                maintainAspectRatio: false, 
+                                maintainAspectRatio: false,
+                                layout:{ padding:{ left:10, right:10, top:15, bottom:5 }},
                                 plugins: { 
-                                    legend: { labels: { font: { size: 10 } } }, 
-                                    title: { display: false } 
+                                    legend: { 
+                                        display: true,
+                                        position: 'top',
+                                        labels: { 
+                                            font: { size: 11, weight: '600', family: "'Inter', 'Segoe UI', sans-serif" },
+                                            color: '#334155',
+                                            padding: 10,
+                                            usePointStyle: true,
+                                            pointStyle: 'rectRounded',
+                                            boxWidth: 12
+                                        } 
+                                    }, 
+                                    title: { display: false },
+                                    tooltip:{
+                                        backgroundColor:'rgba(15, 23, 42, 0.95)',
+                                        titleColor:'#fff',
+                                        bodyColor:'#e2e8f0',
+                                        titleFont:{ size:12, weight:'700' },
+                                        bodyFont:{ size:11 },
+                                        padding:10,
+                                        cornerRadius:8,
+                                        displayColors:true,
+                                        borderColor:'rgba(148, 163, 184, 0.3)',
+                                        borderWidth:1
+                                    }
                                 },
                                 scales: {
-                                    x: { ticks: { font: { size: 9 } } },
-                                    y: { ticks: { font: { size: 9 } } }
-                                }
+                                    x: { 
+                                        ticks: { 
+                                            font: { size: 10, weight: '500' },
+                                            color: '#475569',
+                                            maxRotation: 45,
+                                            minRotation: 0
+                                        },
+                                        grid: { display: false },
+                                        border: { color: '#cbd5e1', width: 1 }
+                                    },
+                                    y: { 
+                                        ticks: { 
+                                            font: { size: 10, weight: '500' },
+                                            color: '#475569'
+                                        },
+                                        grid: { color: 'rgba(203, 213, 225, 0.4)', lineWidth: 1 },
+                                        border: { color: '#cbd5e1', width: 1 },
+                                        beginAtZero: true
+                                    }
+                                },
+                                animation: {
+                                    duration: 700,
+                                    easing: 'easeInOutQuart'
+                                },
+                                interaction: { mode: 'index', intersect: false }
                             }
                         };
                         if (typeof Chart !== 'undefined') new Chart(ctx, chartCfg);
@@ -8014,27 +8967,265 @@ function collectMpRecipients(){
     const wrap = document.getElementById('mpRecipientsSelected'); if(!wrap) return [];
     return [...wrap.querySelectorAll('span[data-email]')].map(s=>s.getAttribute('data-email'));
 }
-function mpScheduleReport(){
-    try{
+async function mpScheduleReport(){
+    try {
         const status = document.getElementById('mpReportStatus');
+        if (status){ status.textContent='Validating schedule...'; status.style.color='#475569'; }
+        // Gather inputs
         const recipients = collectMpRecipients();
         const extra = (document.getElementById('mpReportEmails')?.value || '').split(',').map(s=>s.trim()).filter(Boolean);
-        if (!recipients.length && !extra.length){ if(status){ status.textContent='Add at least one recipient.'; status.style.color='#b91c1c'; } return; }
-        status.textContent='(Scheduling not fully implemented for preview modal - use main summary modal)';
-        status.style.color='#475569';
-    }catch(e){ console.warn('mpScheduleReport failed', e); }
+        const allRecipients = Array.from(new Set([...recipients, ...extra])).filter(Boolean);
+        if (!allRecipients.length){ if(status){ status.textContent='Add at least one recipient.'; status.style.color='#b91c1c'; } return; }
+        const freq = (document.getElementById('mpReportFrequency')?.value || 'one-time').trim();
+        const startOnRaw = document.getElementById('mpReportStartOn')?.value || '';
+        const startDate = startOnRaw ? new Date(startOnRaw) : new Date(Date.now()+ 60_000); // default +1 min
+        if (isNaN(startDate.getTime())) { if(status){ status.textContent='Invalid start date-time.'; status.style.color='#b91c1c'; } return; }
+        // Basic guard: start must be future (>= now - 5s tolerance)
+        if (startDate.getTime() < Date.now() - 5000){ if(status){ status.textContent='Start time must be in the future.'; status.style.color='#b91c1c'; } return; }
+        const dateStart = document.getElementById('mpReportDateStart')?.value || '';
+        const dateEnd = document.getElementById('mpReportDateEnd')?.value || '';
+        const subject = document.getElementById('mpReportEmailSubject')?.value || 'Fuel Distribution Report';
+        const message = document.getElementById('mpReportEmailMessage')?.value || '';
+        // Use last preview model for context
+        const model = window.__reportPreviewLastModel || {};
+        const title = model.title || 'Fuel Distribution Analytics';
+        const category = model.category || model.groupBy || 'day';
+        const type = model.type || 'summary';
+        // Build schedule payload
+        const schedule = {
+            title,
+            type,
+            category,
+            dateRange: { start: dateStart, end: dateEnd },
+            frequency: freq,
+            startOn: startDate.toISOString(),
+            recipients: allRecipients,
+            subject,
+            message,
+            createdAt: Date.now(),
+            status: 'scheduled',
+            source: 'preview-modal'
+        };
+        // Persist to Firebase under a company-specific path if company id known
+        const companyId = (window.companyDataService && window.companyDataService.currentCompany && (window.companyDataService.currentCompany.id || window.companyDataService.currentCompany.companyId)) || 'default';
+        if (!window.firebase || !firebase.database){ if(status){ status.textContent='Firebase not available.'; status.style.color='#b91c1c'; } return; }
+        const refPath = `scheduledReports/fueldist/${companyId}`;
+        const ref = firebase.database().ref(refPath).push();
+        schedule.id = ref.key;
+        await ref.set(schedule);
+        if (status){ status.textContent = `✓ Schedule saved (${freq}) for ${startDate.toLocaleString()}. Note: Requires backend service to execute automatically.`; status.style.color='#16a34a'; }
+    } catch(e){ console.warn('mpScheduleReport failed', e); const status = document.getElementById('mpReportStatus'); if(status){ status.textContent='Schedule error: '+e.message; status.style.color='#b91c1c'; } }
+}
+async function mpScheduleAndSendReport(){
+    try {
+        const status = document.getElementById('mpReportStatus');
+        if (status){ status.textContent='Sending report now...'; status.style.color='#475569'; }
+        // Validate recipients
+        const recipients = collectMpRecipients();
+        const extra = (document.getElementById('mpReportEmails')?.value || '').split(',').map(s=>s.trim()).filter(Boolean);
+        const allRecipients = Array.from(new Set([...recipients, ...extra])).filter(Boolean);
+        if (!allRecipients.length){ if(status){ status.textContent='Add at least one recipient.'; status.style.color='#b91c1c'; } return; }
+        
+        // Send immediately using mpSendReport logic
+        await mpSendReport();
+        
+    } catch(e){ console.warn('mpScheduleAndSendReport failed', e); const status = document.getElementById('mpReportStatus'); if(status){ status.textContent='Send error: '+e.message; status.style.color='#b91c1c'; } }
 }
 function mpGeneratePdf(){
     try {
         const status = document.getElementById('mpReportStatus');
-        if(status){ status.textContent='Preparing PDF from preview modal...'; status.style.color='#475569'; }
-        
-        // Generate PDF from actual modal content instead of regenerating data
-        generatePdfFromPreviewModal().then(()=>{
-            if(status){ status.textContent='PDF generated from preview modal content.'; status.style.color='#16a34a'; }
-        }).catch(err=>{ if(status){ status.textContent='PDF generation failed: '+err.message; status.style.color='#b91c1c'; } });
+        if(status){ status.textContent='Opening print preview...'; status.style.color='#475569'; }
+        openPrintPreviewFromModel();
     } catch(e){ console.warn('mpGeneratePdf failed', e); const status = document.getElementById('mpReportStatus'); if(status){ status.textContent='PDF generation error: '+e.message; status.style.color='#b91c1c'; } }
 }
+
+// Print Preview Modal (lightweight) similar to payroll payslip print
+function openPrintPreviewFromModel(){
+    // Ensure model preview is open so we have fresh, rendered content
+    const previewModal = document.getElementById('modelPreviewModal');
+    if(!previewModal || previewModal.style.display==='none'){
+        alert('Open the Model Preview first (Preview Model) so content is prepared for printing.');
+        return;
+    }
+    const existing = document.getElementById('printPreviewModal');
+    if(existing) existing.remove();
+
+    // Extract pieces
+    const title = (document.getElementById('modelPreviewTitle')?.textContent || 'Fuel Distribution Report').trim();
+    const meta = (document.getElementById('modelPreviewMeta')?.textContent || '').trim();
+    const setsHtmlRaw = document.getElementById('modelPreviewContainer')?.innerHTML || '';
+    const reportCfgClone = document.getElementById('modelPreviewReportConfig')?.cloneNode(true);
+
+    if(reportCfgClone){
+        // Replace interactive inputs with static spans for clean print
+        reportCfgClone.querySelectorAll('input,select,textarea,button').forEach(el=>{
+            const span = document.createElement('span');
+            span.className = 'pp-field-value';
+            const val = (el.value || el.textContent || '').trim();
+            span.textContent = val;
+            el.replaceWith(span);
+        });
+    }
+
+    // Build modal container (screen overlay) – inside we simulate A4 pages
+    const modal = document.createElement('div');
+    modal.id='printPreviewModal';
+    modal.setAttribute('role','dialog');
+    modal.style.cssText='position:fixed;inset:0;z-index:2400;background:rgba(15,23,42,0.60);backdrop-filter:blur(3px);display:flex;flex-direction:column;';
+
+    // Company name (attempt to derive; fallback generic)
+    let companyName = 'Company Name';
+    try {
+        if (window.companyDataService){
+            const c = window.companyDataService.currentCompany || (window.companyDataService.getCurrentCompany?.());
+            if(c && (c.name||c.legalName)) companyName = c.name || c.legalName;
+        }
+    } catch(_){ }
+
+    const generatedOn = new Date();
+    const genStr = generatedOn.toLocaleString(undefined,{ day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'});
+
+    // Wrap analysis sets in print blocks so we can apply page-break control.
+    // We'll lightly transform each top-level .analysis-set (if that class is used) else fallback to generic wrappers.
+    const tempWrapper = document.createElement('div');
+    tempWrapper.innerHTML = setsHtmlRaw;
+    const setBlocks = Array.from(tempWrapper.querySelectorAll('.analysis-set')); // adapt if actual class name differs
+    if(!setBlocks.length){
+        // If not found, treat direct children as blocks
+        Array.from(tempWrapper.children).forEach(ch=>{ ch.classList.add('analysis-print-block'); });
+    } else {
+        setBlocks.forEach(ch=> ch.classList.add('analysis-print-block'));
+    }
+
+    const processedSetsHtml = tempWrapper.innerHTML;
+
+    modal.innerHTML = `
+    <div class="pp-toolbar" style="display:flex;align-items:center;gap:.5rem;padding:.55rem .85rem;background:#0f172a;color:#fff;box-shadow:0 2px 6px -2px rgba(0,0,0,0.3);">
+        <strong style="font-size:.7rem;letter-spacing:.5px;">PRINT PREVIEW</strong>
+        <span style="font-size:.55rem;opacity:.85;">${title}</span>
+        <div style="margin-left:auto;display:flex;gap:.4rem;">
+            <button type="button" onclick="window.print()" class="pp-btn pp-btn-primary"><i class='fas fa-print'></i><span>Print</span></button>
+            <button type="button" onclick="closePrintPreview()" class="pp-btn pp-btn-secondary">Close</button>
+        </div>
+    </div>
+    <div class="pp-scroll" style="flex:1;overflow:auto;padding:1rem;background:linear-gradient(135deg,#1e293b 0%,#0f172a 100%);">
+        <div class="pp-sheet a4" data-page="1">
+            <header class="pp-header">
+                <div class="pp-header-left">
+                    <div class="pp-company">${companyName}</div>
+                    <div class="pp-report-title">${title}</div>
+                    ${meta ? `<div class='pp-meta-line'>${meta}</div>` : ''}
+                </div>
+                <div class="pp-header-right">
+                    <div class="pp-stamp-label">Generated</div>
+                    <div class="pp-stamp-value">${genStr}</div>
+                </div>
+            </header>
+            <main class="pp-body">
+                <section class="pp-section">
+                    <h4 class="pp-section-title">Report Configuration</h4>
+                    <div class="pp-config">${reportCfgClone ? reportCfgClone.outerHTML : '<em style="font-size:.6rem;color:#64748b;">No configuration snapshot</em>'}</div>
+                </section>
+                <section class="pp-section">
+                    <h4 class="pp-section-title">Analysis Sets</h4>
+                    <div class="pp-sets-container">${processedSetsHtml}</div>
+                </section>
+            </main>
+            <footer class="pp-footer">
+                <div class="pp-footer-left">${companyName} • Confidential</div>
+                <div class="pp-footer-right">Page <span class="pp-page-num"></span></div>
+            </footer>
+        </div>
+    </div>`;
+
+    document.body.appendChild(modal);
+
+    // Add styles (scoped within modal for screen + print). We avoid global leakage by prefixing .pp-
+    const style = document.createElement('style');
+    style.textContent = `
+    /* SCREEN TOOLBAR BUTTONS */
+    #printPreviewModal .pp-btn { cursor:pointer;border:none;border-radius:4px;display:inline-flex;align-items:center;gap:.35rem;font-size:.55rem;font-weight:600;padding:.45rem .7rem;font-family:inherit; }
+    #printPreviewModal .pp-btn-primary{ background:#0ea5e9;color:#fff; }
+    #printPreviewModal .pp-btn-primary:hover{ background:#0284c7; }
+    #printPreviewModal .pp-btn-secondary{ background:#334155;color:#fff; }
+    #printPreviewModal .pp-btn-secondary:hover{ background:#1e293b; }
+    #printPreviewModal .pp-scroll{ scrollbar-width:thin; }
+    #printPreviewModal .pp-scroll::-webkit-scrollbar{ width:8px; }
+    #printPreviewModal .pp-scroll::-webkit-scrollbar-thumb{ background:#334155;border-radius:4px; }
+
+    /* A4 SHEET LAYOUT */
+    #printPreviewModal .pp-sheet{ background:#fff; width:210mm; min-height:297mm; margin:0 auto 1rem; box-shadow:0 4px 18px -4px rgba(0,0,0,0.35); border:1px solid #cbd5e1; border-radius:6px; display:flex; flex-direction:column; position:relative; overflow:hidden; }
+    #printPreviewModal .pp-header{ display:flex; justify-content:space-between; align-items:flex-start; padding:12mm 14mm 6mm; background:linear-gradient(90deg,#1e293b 0%,#0f172a 100%); color:#f1f5f9; }
+    #printPreviewModal .pp-company{ font-size:14px; font-weight:700; letter-spacing:.5px; }
+    #printPreviewModal .pp-report-title{ font-size:11px; font-weight:600; margin-top:2px; }
+    #printPreviewModal .pp-meta-line{ font-size:9px; opacity:.75; margin-top:2px; }
+    #printPreviewModal .pp-header-right{ text-align:right; font-size:9px; }
+    #printPreviewModal .pp-stamp-label{ font-weight:600; letter-spacing:.5px; text-transform:uppercase; font-size:8px; opacity:.8; }
+    #printPreviewModal .pp-stamp-value{ font-weight:600; margin-top:2px; }
+    #printPreviewModal .pp-body{ flex:1; padding:4mm 12mm 10mm; display:flex; flex-direction:column; gap:10mm; font-family:inherit; }
+    #printPreviewModal .pp-section-title{ margin:0 0 4mm; font-size:10px; letter-spacing:.5px; font-weight:700; color:#0f172a; text-transform:uppercase; border-bottom:1px solid #e2e8f0; padding-bottom:2mm; }
+    #printPreviewModal .pp-config{ font-size:9px; display:grid; gap:2mm 6mm; grid-template-columns:repeat(auto-fill,minmax(110px,1fr)); }
+    #printPreviewModal .pp-field-value{ display:inline-block; font-size:9px; padding:2px 4px; background:#f1f5f9; border:1px solid #e2e8f0; border-radius:3px; color:#0f172a; min-width:40px; }
+    #printPreviewModal .pp-sets-container{ display:flex; flex-direction:column; gap:8mm; }
+    #printPreviewModal .analysis-print-block, #printPreviewModal .analysis-set{ border:1px solid #e2e8f0; border-radius:4px; padding:4mm 4mm 6mm; page-break-inside:avoid; background:#fff; box-shadow:0 1px 2px rgba(0,0,0,0.05); }
+    #printPreviewModal .analysis-print-block h4, #printPreviewModal .analysis-set h4{ margin:0 0 3mm; font-size:10px; font-weight:600; color:#0f172a; }
+    #printPreviewModal table{ width:100% !important; border-collapse:collapse; font-size:8.5px; } 
+    #printPreviewModal table thead th{ background:#1e293b; color:#fff; padding:3px 4px; font-weight:600; border:1px solid #334155; } 
+    #printPreviewModal table tbody td, #printPreviewModal table tfoot td{ padding:2px 4px; border:1px solid #cbd5e1; background:#fff; } 
+    #printPreviewModal table tfoot td{ background:#f1f5f9; font-weight:600; }
+    #printPreviewModal canvas{ max-width:100% !important; height:auto !important; display:block; margin:4mm auto 0; }
+    #printPreviewModal .pp-footer{ margin-top:auto; background:#f8fafc; font-size:8px; color:#475569; display:flex; justify-content:space-between; align-items:center; padding:3mm 8mm; border-top:1px solid #e2e8f0; }
+    #printPreviewModal .pp-footer-right{ font-weight:600; }
+    #printPreviewModal .pp-footer-left{ font-weight:500; }
+    #printPreviewModal .pp-page-num::after{ content: counter(ppage); }
+
+    /* PRINT RULES */
+    @media print {
+        body * { visibility:hidden !important; }
+        #printPreviewModal, #printPreviewModal * { visibility:visible !important; }
+        #printPreviewModal { position:static !important; inset:auto !important; background:#fff !important; padding:0 !important; }
+        #printPreviewModal .pp-toolbar { display:none !important; }
+        #printPreviewModal .pp-scroll { background:#fff !important; padding:0 !important; }
+        #printPreviewModal .pp-sheet { box-shadow:none !important; margin:0 auto !important; border: none !important; }
+        .pp-footer { position:relative; }
+    }
+    @page { size:A4; margin:10mm 10mm 12mm; }
+    `;
+    modal.appendChild(style);
+
+    // Optional: simple page counter (single sheet now). If future splitting needed we can extend.
+    // Use a manual counter for dynamic multi-sheet scenarios (not implemented yet).
+
+    // Replace cloned (blank) canvases with images captured from original canvases so charts appear.
+    // Cloning via innerHTML drops the pixel buffer content of <canvas> elements.
+    setTimeout(()=>{
+        try {
+            const originalCanvases = document.querySelectorAll('#modelPreviewContainer canvas');
+            const clonedCanvases = modal.querySelectorAll('.pp-sets-container canvas');
+            originalCanvases.forEach((srcCanvas, idx)=>{
+                const target = clonedCanvases[idx];
+                if(!srcCanvas || !target) return;
+                try {
+                    // Ensure the source chart is fully rendered
+                    const dataUrl = srcCanvas.toDataURL('image/png');
+                    if(!dataUrl || dataUrl === 'data:,') return;
+                    const img = document.createElement('img');
+                    img.src = dataUrl;
+                    img.alt = srcCanvas.getAttribute('data-chart-title') || 'Chart';
+                    img.style.maxWidth = '100%';
+                    img.style.height = 'auto';
+                    img.style.display = 'block';
+                    img.style.margin = '4mm auto 0';
+                    // Carry width/height hints
+                    if(srcCanvas.width) img.width = srcCanvas.width;
+                    if(srcCanvas.height) img.height = srcCanvas.height;
+                    target.replaceWith(img);
+                } catch(inner){ console.warn('Chart image conversion failed', inner); }
+            });
+        } catch(e){ console.warn('Canvas replication for print preview failed', e); }
+    }, 30); // slight delay lets any late chart animations finish
+}
+function closePrintPreview(){ const m=document.getElementById('printPreviewModal'); if(m) m.remove(); }
 
 // New function to generate PDF from the actual preview modal content
 async function generatePdfFromPreviewModal(){
@@ -8118,21 +9309,19 @@ async function generatePdfFromPreviewModal(){
                 if (c && (c.name || c.legalName)) companyName = c.name || c.legalName;
             }
         } catch(_){ }
+    // Left-align company name and title at left margin
+    const leftMargin = 20;
     doc.setFontSize(15);
     doc.setFont('helvetica', 'bold');
-    doc.text(companyName, 46, 18);
+    doc.text(companyName, leftMargin, 18);
     doc.setFontSize(12);
     doc.setFont('helvetica', 'normal');
-    doc.text(title, 46, 25);
+    doc.text(title, leftMargin, 25);
     yPos = 34; // space after header block
         
-        // Metadata (kept minimal)
+        // Metadata (date range only, skip set count)
         doc.setFontSize(10);
         doc.setFont('helvetica', 'normal');
-        if (meta) {
-            doc.text(meta, 20, yPos);
-            yPos += 10;
-        }
         if (start || end) {
             doc.text(`Date Range: ${start || '...'} to ${end || '...'}`, 20, yPos);
             yPos += 10;
@@ -8217,15 +9406,15 @@ async function generatePdfFromPreviewModal(){
                             body: rows,
                             startY: yPos,
                             styles: { 
-                                fontSize: 6,
-                                cellPadding: 1,
+                                fontSize: 8,
+                                cellPadding: 2,
                                 overflow: 'linebreak',
                                 halign: 'left'
                             },
                             headStyles: { 
                                 fillColor: [51, 65, 85],
                                 textColor: [255, 255, 255],
-                                fontSize: 7,
+                                fontSize: 9,
                                 fontStyle: 'bold'
                             },
                             margin: { left: 14, right: 14 },
@@ -8271,7 +9460,7 @@ async function generatePdfFromPreviewModal(){
                             const origCfg = chartInstance.config;
                             const logicalW = canvas.width;
                             const logicalH = canvas.height;
-                            const scale = 3; // increase scale for sharper text
+                            const scale = 4; // increase scale for sharper text and better quality
                             const off = document.createElement('canvas');
                             off.width = logicalW * scale;
                             off.height = logicalH * scale;
@@ -8287,14 +9476,14 @@ async function generatePdfFromPreviewModal(){
                             if (!cloned.options.plugins) cloned.options.plugins = {};
                             cloned.options.plugins.legend = cloned.options.plugins.legend || {};
                             cloned.options.plugins.legend.labels = cloned.options.plugins.legend.labels || {};
-                            cloned.options.plugins.legend.labels.font = { size: 11 * scale };
+                            cloned.options.plugins.legend.labels.font = { size: 14 * scale };
                             cloned.options.scales = cloned.options.scales || {};
                             Object.keys(cloned.options.scales).forEach(k=>{
                                 const sc = cloned.options.scales[k];
                                 sc.ticks = sc.ticks || {};
-                                sc.ticks.font = { size: 10 * scale };
+                                sc.ticks.font = { size: 12 * scale };
                                 if (sc.title) {
-                                    sc.title.font = { size: 11 * scale };
+                                    sc.title.font = { size: 14 * scale };
                                 }
                             });
 
@@ -8308,8 +9497,8 @@ async function generatePdfFromPreviewModal(){
                     } catch (highDpiErr) {
                         console.warn('High-DPI redraw failed, falling back:', highDpiErr);
                         try {
-                            // Fallback simple 2x scale draw
-                            const scale = 2;
+                            // Fallback simple 3x scale draw for better quality
+                            const scale = 3;
                             const off = document.createElement('canvas');
                             off.width = canvas.width * scale;
                             off.height = canvas.height * scale;
@@ -8331,10 +9520,10 @@ async function generatePdfFromPreviewModal(){
 
                     if (chartDataUrl && chartDataUrl.length > 50) {
                         if (yPos > 250) break; // not enough space; skip chart
-                        const displayWidth = 120; // narrower to save space
+                        const displayWidth = 160; // wider for better visibility
                         const aspect = targetCanvas.height / targetCanvas.width;
                         let displayHeight = Math.round(displayWidth * aspect);
-                        if (displayHeight > 60) displayHeight = 60;
+                        if (displayHeight > 90) displayHeight = 90;
                         doc.addImage(chartDataUrl, 'PNG', 20, yPos, displayWidth, displayHeight);
                         yPos += displayHeight + 4;
                         hasChart = true;
@@ -8491,63 +9680,23 @@ async function mpSendReport(){
             return;
         }
         
-        // Get email details
-        const subject = document.getElementById('mpReportEmailSubject')?.value || 'Model Preview Report';
-        const baseMessage = document.getElementById('mpReportEmailMessage')?.value || 'Attached is the requested model preview report.';
-        
-        // Get modal content details for email body
-        const title = document.getElementById('modelPreviewTitle')?.textContent || 'Model Preview';
-        const meta = document.getElementById('modelPreviewMeta')?.textContent || '';
+        // Get email details (simplified template)
+        const subject = document.getElementById('mpReportEmailSubject')?.value || 'Fuel Distribution Report';
+        const userMessageRaw = document.getElementById('mpReportEmailMessage')?.value?.trim() || '';
+        const title = document.getElementById('modelPreviewTitle')?.textContent?.trim() || 'Fuel Distribution Report';
+        const meta = document.getElementById('modelPreviewMeta')?.textContent?.trim() || '';
         const start = document.getElementById('mpReportDateStart')?.value || '';
         const end = document.getElementById('mpReportDateEnd')?.value || '';
-        const container = document.getElementById('modelPreviewContainer');
-        
-        // Build enhanced email message with modal content summary
-        let enhancedMessage = baseMessage + '\n\n';
-        enhancedMessage += `Report Details:\n`;
-        enhancedMessage += `- Title: ${title}\n`;
-        if (meta) enhancedMessage += `- ${meta}\n`;
-        if (start || end) enhancedMessage += `- Date Range: ${start || '...'} to ${end || '...'}\n`;
-        enhancedMessage += `- Generated: ${new Date().toLocaleString()}\n`;
-        
-        // Add summary of modal content
-        if (container && container.children.length > 0) {
-            enhancedMessage += `\nContent Summary:\n`;
-            for (let i = 0; i < container.children.length; i++) {
-                const block = container.children[i];
-                const setTitleEl = block.querySelector('span[style*="font-weight:600"]');
-                const setTitle = setTitleEl ? setTitleEl.textContent.trim() : `Analysis Set ${i + 1}`;
-                
-                // Count tables and charts in this set
-                const tables = block.querySelectorAll('table, .data-table');
-                const charts = block.querySelectorAll('canvas');
-                
-                let tableCount = 0;
-                let chartCount = 0;
-                let rowCount = 0;
-                
-                // Count visible tables with data
-                tables.forEach(table => {
-                    if (table.offsetParent && table.rows.length > 1) {
-                        tableCount++;
-                        rowCount += table.rows.length - 1; // Exclude header
-                    }
-                });
-                
-                // Count visible charts with content
-                charts.forEach(canvas => {
-                    if (canvas.offsetParent && canvas.width > 0 && canvas.height > 0) {
-                        chartCount++;
-                    }
-                });
-                
-                enhancedMessage += `- ${setTitle}: ${tableCount} table(s) with ${rowCount} rows, ${chartCount} chart(s)\n`;
-            }
-        }
-        
-        enhancedMessage += `\nThis report contains the exact data and visualizations as displayed in the preview modal.\n`;
-    const dynCompany = (window.companyDataService && window.companyDataService.currentCompany && (window.companyDataService.currentCompany.name || window.companyDataService.currentCompany.legalName)) || 'Company';
-    enhancedMessage += `\nBest regards,\n${dynCompany} System`;
+        const dynCompany = (window.companyDataService && window.companyDataService.currentCompany && (window.companyDataService.currentCompany.name || window.companyDataService.currentCompany.legalName)) || 'Company';
+
+        // Compose concise lines
+        const lines = [];
+        if(userMessageRaw) lines.push(userMessageRaw, '');
+        lines.push(title);
+        if(meta) lines.push(meta);
+        if(start || end) lines.push(`Date Range: ${start || '...'} to ${end || '...'}`);
+        lines.push(`Generated: ${new Date().toLocaleString()}`);
+        lines.push('', 'The report is ready. Use the secure link below to view or download the PDF.', '');
         
         // Prepare recipients
         const allRecipients = [...recipients, ...extra];
@@ -8589,8 +9738,8 @@ async function mpSendReport(){
             return;
         }
         
-        // Add download link to message
-        const messageWithLink = enhancedMessage + `\n\n📎 Download Report: ${downloadURL}\n\nNote: This link will remain active and accessible.`;
+    // Final message with link (simplified)
+    const messageWithLink = lines.join('\n') + `\nDownload: ${downloadURL}\n\n-- ${dynCompany} System`;
         
         // Prepare email parameters (without large attachment)
         const emailParams = {

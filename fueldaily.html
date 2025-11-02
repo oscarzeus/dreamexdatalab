@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Daily Fuel Report - Dreamex Datalab</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
+<!-- Firebase v8 Scripts for Centralized Authentication -->
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
+<style>
+:root { --primary-color:#2c3e50; --secondary-color:#34495e; --accent-color:#e74c3c; --success-color:#27ae60; --warning-color:#f39c12; --info-color:#3498db; --light-color:#ecf0f1; --dark-color:#2c3e50; --sidebar-width:250px; --transition-speed:.25s; }
+* { box-sizing:border-box; margin:0; padding:0; }
+body { font-family: 'Segoe UI', Arial, sans-serif; background:#f5f7fa; color:#222; }
+.app-container { display:flex; min-height:100vh; }
+.sidebar { width:var(--sidebar-width); background:var(--primary-color); color:#fff; padding:1rem; position:fixed; top:0; left:0; bottom:0; overflow-y:auto; transition:transform .3s ease; z-index:1000; }
+.sidebar.collapsed { transform:translateX(-100%); }
+.main-content { flex:1; margin-left:var(--sidebar-width); padding:0.3rem; padding-top:3.2rem; transition:margin-left .3s ease; }
+.main-content.sidebar-collapsed { margin-left:0; }
+.main-content.sidebar-collapsed .top-nav { left:0.5rem; }
+.logo h2 { text-align:center; padding:1rem 0; border-bottom:1px solid rgba(255,255,255,0.1); font-size:1.05rem; letter-spacing:.5px; }
+.menu { list-style:none; margin-top:2rem; }
+.menu li { margin-bottom:0.45rem; }
+.menu a { display:flex; align-items:center; gap:10px; color:#fff; text-decoration:none; padding:0.6rem 0.75rem; border-radius:6px; font-size:0.82rem; font-weight:500; transition:background .25s; }
+.menu a:hover, .menu a.active { background:rgba(255,255,255,0.12); }
+.submenu { list-style:none; margin-left:0.75rem; display:none; margin-top:0.25rem; }
+.menu-dropdown:hover .submenu { display:block; }
+.submenu a { font-size:0.75rem; padding:0.45rem 0.65rem; }
+[data-feature]:not(.menu-visible) { display:none !important; }
+.menu-dropdown:not(.menu-visible) { display:none !important; }
+
+/* Hide ALL menu items by default during loading */
+.sidebar.menu-loading .menu-item,
+.sidebar.menu-loading .menu-dropdown,
+.sidebar.menu-loading li[data-feature],
+.sidebar.menu-loading [data-feature] {
+    display: none !important;
+}
+
+/* Allow menu-visible items to show even during loading */
+.sidebar.menu-loading .menu-visible,
+.sidebar.menu-loading li.menu-visible,
+.sidebar.menu-loading [data-feature].menu-visible {
+    display: block !important;
+}
+
+.menu-loading [data-feature] { display: none !important; }
+.menu-loading .menu-dropdown { display: none !important; }
+.menu-visible { display: block !important; }
+li.menu-visible, [data-feature].menu-visible { display: block !important; }
+.top-nav { display:flex; justify-content:space-between; align-items:center; padding:0.5rem 0.75rem; background-color:#fff; box-shadow:0 2px 5px rgba(0,0,0,0.1); margin-bottom:0.3rem; position:fixed; top:0.25rem; right:0.5rem; left:calc(var(--sidebar-width) + 0.5rem); height:50px; min-height:50px; z-index:100; transition:left 0.3s ease; }
+.sidebar-toggle-btn { background:none; border:none; cursor:pointer; font-size:1.1rem; padding:0.4rem; color:#555; }
+.top-nav-left { display:flex; align-items:center; gap:0.75rem; }
+.company-branding { display:flex; align-items:center; gap:0.5rem; }
+#headerCompanyLogo { width:32px; height:32px; object-fit:contain; display:none; }
+#headerCompanyName { font-weight:600; font-size:0.85rem; }
+.header-company-logo { height:32px; width:auto; border-radius:6px; box-shadow:0 2px 4px rgba(0,0,0,0.1); }
+.company-name-header { font-weight:700; color:var(--dark-color); font-size:1rem; letter-spacing:0.5px; white-space:nowrap; }
+.top-nav-right { display:flex; align-items:center; gap:1rem; }
+
+.page-header { background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)); color: #fff; padding: 0.55rem 0.75rem; margin: 0.35rem 0 0.5rem 0; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 10px 28px rgba(0,0,0,0.18), 0 6px 16px rgba(0,0,0,0.14); font-size: 0.9rem; }
+.page-header h1 { color: #fff; font-size: 0.9rem; display: flex; align-items: center; gap: 0.5rem; letter-spacing: 0.5px; margin: 0; font-weight: 600; }
+.page-header i { font-size: 1rem; }
+.btn-add-new { background:none; border:none; color:#fff; padding:0.4rem; font-size:1.2rem; font-weight:600; cursor:pointer; transition:all 0.2s ease; display:flex; align-items:center; justify-content:center; text-decoration:none; }
+.btn-add-new:hover { color: rgba(255,255,255,0.8); transform: scale(1.1); }
+.btn-add-new i { font-size:1.2rem; }
+.page-actions { display:flex; gap:0.4rem; flex-wrap:wrap; }
+.btn { border:none; border-radius:6px; padding:0.45rem 0.75rem; font-size:0.68rem; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:0.4rem; letter-spacing:.5px; background:#eef2f6; color:#1e293b; transition:.2s; }
+.btn:hover { background:#e2e8f0; }
+.btn-primary { background:var(--primary-color); color:#fff; }
+.btn-primary:hover { background:#1f2f3d; }
+.btn-accent { background:var(--accent-color); color:#fff; }
+.btn-accent:hover { background:#c0392b; }
+.btn-success { background:var(--success-color); color:#fff; }
+.btn-success:hover { background:#218c4f; }
+.btn-outline { background:#fff; border:1px solid #cbd5e1; }
+.btn-outline:hover { background:#f1f5f9; }
+.section { background:#fff; padding:0.7rem; border-radius:10px; box-shadow:0 2px 5px rgba(0,0,0,0.06); margin-bottom:0.3rem; }
+.section-title { font-size:0.8rem; font-weight:700; text-transform:uppercase; letter-spacing:.5px; margin-bottom:0.5rem; color:#334155; display:flex; align-items:center; justify-content:space-between; gap:0.4rem; position:relative; }
+.table-wrapper { overflow:hidden; border:1px solid #e2e8f0; border-radius:8px; background:white; box-shadow:0 4px 16px rgba(0,0,0,0.1), 0 2px 8px rgba(0,0,0,0.08); }
+.table-scrollable { max-height: 60vh; overflow:auto; }
+table { width:100%; border-collapse:collapse; }
+th, td { padding:0.55rem 0.6rem; font-size:0.62rem; text-align:left; border-bottom:1px solid #e2e8f0; }
+th { background:#f1f5f9; font-weight:600; color:#475569; font-size:0.6rem; letter-spacing:.5px; text-transform:uppercase; position:sticky; top:0; }
+
+/* Modal */
+.modal-backdrop { position:fixed; inset:0; background:rgba(0,0,0,.45); display:none; align-items:center; justify-content:center; z-index:2000; }
+.modal { background:#fff; border-radius:10px; width: 520px; max-width:95vw; padding: 14px; box-shadow:0 10px 28px rgba(0,0,0,0.18); }
+.modal-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+.modal-title { font-weight:700; font-size:0.95rem; color:#1f2937; }
+.modal-close { background:none; border:none; font-size:1.2rem; cursor:pointer; color:#6b7280; }
+.form-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.form-grid label { font-size:0.72rem; color:#475569; font-weight:600; }
+.form-grid input { padding:8px 10px; border:1px solid #e1e5ea; border-radius:6px; font-size:0.8rem; }
+.form-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:12px; }
+
+/* Notifications and profile minimal for reuse */
+.notification-btn { background:none; border:none; cursor:pointer; position:relative; font-size:1.2rem; padding:0.5rem; display:flex; align-items:center; justify-content:center; }
+.notification-badge { position:absolute; top:-5px; right:-5px; background-color:var(--accent-color); color:white; border-radius:50%; padding:0.2rem 0.5rem; font-size:0.7rem; display:none; }
+.user-profile .profile-btn { background:none; border:none; border-radius:50%; overflow:hidden; width:38px; height:38px; cursor:pointer; }
+.user-profile .profile-btn img { width:100%; height:100%; object-fit:cover; }
+</style>
+</head>
+<body>
+<div class="app-container">
+  <nav class="sidebar menu-loading" id="sidebar">
+    <div class="logo"><h2>Dreamex Datalab</h2></div>
+    <ul class="menu" id="roleBasedMenu">
+      <!-- Fuel Management section (copied pattern) -->
+      <li class="menu-dropdown" data-feature="fuel_management" data-requires-permission="fuel_management">
+        <a href="#"><i class="fas fa-gas-pump"></i> Fuel Management</a>
+        <ul class="submenu">
+          <li data-feature="vessel_offloading" data-requires-permission="vessel_offloading"><a href="vessel-offloading.html">Vessel Offloading</a></li>
+          <li data-feature="fuel_storage" data-requires-permission="fuel_storage"><a href="fuelstor.html">Fuel Storage Status</a></li>
+          <li data-feature="tank_transfer" data-requires-permission="tank_transfer"><a href="tank-transfer.html">Tank-to-Tank Transfer</a></li>
+          <li data-feature="truck_loading" data-requires-permission="truck_loading"><a href="fuel-truck-loading.html">Fuel Truck Loading</a></li>
+          <li data-feature="quality_analysis" data-requires-permission="quality_analysis"><a href="fuel-quality-analysis.html">Fuel Quality Analysis</a></li>
+          <li data-feature="fuel_distribution" data-requires-permission="fuel_distribution"><a href="fueldist.html">Fuel Distribution</a></li>
+          <li data-feature="fuel_consumption_analysis" data-requires-permission="fuel_consumption_analysis"><a href="fuelanalys.html">Consumption Analysis</a></li>
+          <li data-feature="fuel_daily_report" data-requires-permission="fuel_daily_report"><a href="fueldaily.html" class="active">Daily Fuel Report</a></li>
+        </ul>
+      </li>
+    </ul>
+  </nav>
+
+  <main class="main-content" id="mainContent">
+    <nav class="top-nav">
+      <div class="top-nav-left">
+        <button id="sidebarToggle" class="sidebar-toggle-btn" title="Toggle Menu"><i class="fas fa-bars"></i></button>
+        <div class="company-branding">
+          <img id="headerCompanyLogo" alt="Company Logo" />
+          <span id="headerCompanyName"></span>
+        </div>
+      </div>
+      <div class="top-nav-right">
+        <button id="openReportModal" class="btn btn-primary" title="Add Daily Fuel Report"><i class="fas fa-plus"></i> Add</button>
+      </div>
+    </nav>
+
+    <header class="page-header">
+      <h1><i class="fas fa-gas-pump"></i> Daily Fuel Report</h1>
+      <div class="page-actions">
+        <a id="downloadCsv" class="btn btn-outline"><i class="fas fa-file-csv"></i> Export CSV</a>
+        <button id="clearAll" class="btn btn-accent"><i class="fas fa-trash"></i> Clear All</button>
+      </div>
+    </header>
+
+    <section class="section">
+      <div class="section-title">Daily Records</div>
+      <div class="table-wrapper">
+        <div class="table-scrollable">
+          <table id="dailyTable">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Opening Stock</th>
+                <th>Fuel Received</th>
+                <th>Fuel Issued</th>
+                <th>Fuel Transfer</th>
+                <th>Closing Stock</th>
+                <th>Notes</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- Modal -->
+<div class="modal-backdrop" id="reportModal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">Add Daily Fuel Report</div>
+      <button class="modal-close" id="modalClose">&times;</button>
+    </div>
+    <div class="form-grid">
+      <div>
+        <label for="date">Date</label>
+        <input type="date" id="date" />
+      </div>
+      <div>
+        <label for="opening">Opening Stock</label>
+        <input type="number" id="opening" step="0.01" placeholder="0" />
+      </div>
+      <div>
+        <label for="received">Fuel Received</label>
+        <input type="number" id="received" step="0.01" placeholder="0" />
+      </div>
+      <div>
+        <label for="issued">Fuel Issued</label>
+        <input type="number" id="issued" step="0.01" placeholder="0" />
+      </div>
+      <div>
+        <label for="transfer">Fuel Transfer</label>
+        <input type="number" id="transfer" step="0.01" placeholder="0" />
+      </div>
+      <div>
+        <label for="closing">Closing Stock</label>
+        <input type="number" id="closing" step="0.01" placeholder="0" />
+      </div>
+      <div style="grid-column:1/3;">
+        <label for="notes">Notes</label>
+        <input type="text" id="notes" placeholder="Optional notes" />
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn" id="cancelModal">Cancel</button>
+      <button class="btn btn-success" id="saveReport">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// Role-based sidebar + header sync (mirrors other pages)
+(function(){
+  const sidebar = document.getElementById('sidebar');
+  const main = document.getElementById('mainContent');
+  const toggleBtn = document.getElementById('sidebarToggle');
+  if(toggleBtn){ toggleBtn.addEventListener('click', ()=>{
+    if(sidebar.classList.contains('collapsed')){ sidebar.classList.remove('collapsed'); main.classList.remove('sidebar-collapsed'); }
+    else { sidebar.classList.add('collapsed'); main.classList.add('sidebar-collapsed'); }
+  }); }
+})();
+
+// Storage key scoped by company when available
+function getCompanyScopedKey(base){
+  try{
+    const u = window.authManager && window.authManager.currentUser;
+    const cid = u && u.companyId ? u.companyId : 'default';
+    return `${base}:${cid}`;
+  }catch(_){ return `${base}:default`; }
+}
+
+const STORAGE_KEY = getCompanyScopedKey('fueldaily-records');
+let editIndex = null;
+
+function loadRecords(){
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]'); } catch(_) { return []; }
+}
+function saveRecords(list){
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+}
+
+function renderTable(){
+  const tbody = document.querySelector('#dailyTable tbody');
+  tbody.innerHTML = '';
+  const data = loadRecords();
+  data.sort((a,b)=> (a.date||'') > (b.date||'') ? -1 : 1);
+  data.forEach((row, idx)=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${row.date||''}</td>
+      <td>${fmt(row.opening)}</td>
+      <td>${fmt(row.received)}</td>
+      <td>${fmt(row.issued)}</td>
+      <td>${fmt(row.transfer)}</td>
+      <td>${fmt(row.closing)}</td>
+      <td>${escapeHtml(row.notes||'')}</td>
+      <td>
+        <button class="btn" data-action="edit" data-idx="${idx}"><i class="fas fa-edit"></i></button>
+        <button class="btn btn-accent" data-action="delete" data-idx="${idx}"><i class="fas fa-trash"></i></button>
+      </td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function fmt(v){ const n = Number(v||0); return isFinite(n) ? n.toFixed(2) : '0.00'; }
+function escapeHtml(s){ return (s||'').replace(/[&<>"']/g, m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m])); }
+
+function openModal(prefill){
+  document.getElementById('reportModal').style.display='flex';
+  if(prefill){
+    date.value = prefill.date||'';
+    opening.value = prefill.opening||'';
+    received.value = prefill.received||'';
+    issued.value = prefill.issued||'';
+    transfer.value = prefill.transfer||'';
+    closing.value = prefill.closing||'';
+    notes.value = prefill.notes||'';
+  } else {
+    const today = new Date().toISOString().slice(0,10);
+    date.value = today;
+    opening.value = received.value = issued.value = transfer.value = closing.value = '';
+    notes.value = '';
+  }
+}
+function closeModal(){ document.getElementById('reportModal').style.display='none'; editIndex=null; }
+
+function toRow(){
+  return {
+    date: date.value,
+    opening: Number(opening.value||0),
+    received: Number(received.value||0),
+    issued: Number(issued.value||0),
+    transfer: Number(transfer.value||0),
+    closing: Number(closing.value||0),
+    notes: notes.value||''
+  };
+}
+
+function downloadCSV(){
+  const rows = loadRecords();
+  const header = ['Date','Opening Stock','Fuel Received','Fuel Issued','Fuel Transfer','Closing Stock','Notes'];
+  const lines = [header.join(',')].concat(rows.map(r=>[
+    r.date, r.opening, r.received, r.issued, r.transfer, r.closing, '"'+(r.notes||'').replace(/"/g,'""')+'"'
+  ].join(',')));
+  const blob = new Blob([lines.join('\n')], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href=url; a.download='daily-fuel-report.csv'; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+
+// Event wiring
+document.addEventListener('DOMContentLoaded', ()=>{
+  renderTable();
+  document.getElementById('openReportModal').addEventListener('click', ()=> openModal());
+  document.getElementById('modalClose').addEventListener('click', closeModal);
+  document.getElementById('cancelModal').addEventListener('click', closeModal);
+  document.getElementById('saveReport').addEventListener('click', ()=>{
+    const list = loadRecords();
+    const row = toRow();
+    if(editIndex!=null){ list[editIndex] = row; }
+    else { list.push(row); }
+    saveRecords(list);
+    renderTable();
+    closeModal();
+  });
+  document.getElementById('downloadCsv').addEventListener('click', (e)=>{ e.preventDefault(); downloadCSV(); });
+  document.getElementById('clearAll').addEventListener('click', ()=>{
+    if(confirm('Clear all daily fuel records?')){ saveRecords([]); renderTable(); }
+  });
+  document.querySelector('#dailyTable tbody').addEventListener('click', (e)=>{
+    const btn = e.target.closest('button[data-action]'); if(!btn) return;
+    const idx = parseInt(btn.getAttribute('data-idx'),10);
+    const action = btn.getAttribute('data-action');
+    const list = loadRecords();
+    if(action==='edit'){
+      editIndex = idx; openModal(list[idx]);
+    } else if(action==='delete'){
+      if(confirm('Delete this entry?')){ list.splice(idx,1); saveRecords(list); renderTable(); }
+    }
+  });
+});
+</script>
+</body>
+</html>

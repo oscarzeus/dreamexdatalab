@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Generators - Dreamex Datalab</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <!-- Firebase v8 -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
+  <style>
+    :root { --primary-color:#2c3e50; --secondary-color:#34495e; --accent-color:#3498db; --sidebar-width:250px; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', Arial, sans-serif; background:#f5f7fa; color:#222; }
+    .app-container { display:flex; min-height:100vh; }
+    /* Sidebar + Top Nav from project-list.html (visual parity) */
+    .sidebar { width:var(--sidebar-width); background:var(--primary-color); color:#fff; padding:1rem; position:fixed; top:0; left:0; bottom:0; overflow-y:auto; transition:transform .3s ease; z-index:1000; }
+    .sidebar.collapsed { transform:translateX(-100%); }
+    .logo h2 { text-align:center; padding:1rem 0; border-bottom:1px solid rgba(255,255,255,0.1); font-size:1.05rem; letter-spacing:.5px; }
+    .menu { list-style:none; margin-top:2rem; }
+    .menu li { margin-bottom:0.45rem; }
+    .menu a { display:flex; align-items:center; gap:10px; color:#fff; text-decoration:none; padding:0.6rem 0.75rem; border-radius:6px; font-size:0.82rem; font-weight:500; transition:background .25s; }
+    .menu a:hover, .menu a.active { background:rgba(255,255,255,0.12); }
+    .submenu { list-style:none; margin-left:0.75rem; display:none; margin-top:0.25rem; }
+    .menu-dropdown:hover .submenu { display:block; }
+
+    .main-content { flex:1; margin-left:var(--sidebar-width); padding:0.3rem; padding-top:3.2rem; transition:margin-left .3s ease; }
+    .main-content.sidebar-collapsed { margin-left:0; }
+    .top-nav { display:flex; justify-content:space-between; align-items:center; padding:0.5rem 0.75rem; background:#fff; box-shadow:0 2px 5px rgba(0,0,0,0.1); margin-bottom:0.3rem; position:fixed; top:0.25rem; right:0.5rem; left:calc(var(--sidebar-width) + 0.5rem); height:50px; min-height:50px; z-index:100; transition:left 0.3s ease; }
+    .top-nav.sidebar-collapsed { left:0.5rem; }
+    .top-nav-left { display:flex; align-items:center; gap:0.75rem; }
+    .sidebar-toggle-btn { background:none; border:none; cursor:pointer; font-size:1.1rem; padding:0.4rem; color:#555; }
+    .company-branding { display:flex; align-items:center; gap:0.5rem; }
+    #headerCompanyLogo { width:32px; height:32px; object-fit:contain; display:none; }
+    #headerCompanyName { font-weight:600; font-size:0.85rem; }
+    .top-nav-right { display:flex; align-items:center; gap:1rem; }
+
+    /* Page header (project-list style) */
+    .page-header { background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)); color:#fff; padding:0.55rem 0.75rem; margin:0.35rem 0 0.5rem 0; display:flex; align-items:center; justify-content:space-between; box-shadow:0 10px 28px rgba(0,0,0,0.18), 0 6px 16px rgba(0,0,0,0.14); font-size:0.9rem; }
+    .page-header h1 { font-size:0.9rem; color:#fff; display:flex; align-items:center; gap:0.5rem; margin:0; font-weight:600; }
+
+    /* Content styling (fleet.html parity for table + modal + forms) */
+    .content { width:100%; margin:0; padding:.75rem; background:#fff; border-radius:6px; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+    .table-wrapper { overflow-x:auto; overflow-y:auto; max-width:100%; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,0.1); max-height:calc(100vh - 200px); }
+    table { width:100%; border-collapse:collapse; margin-top:.5rem; font-size:0.7rem; }
+    th, td { padding:.45rem; text-align:left; border-bottom:1px solid #e9ecef; font-size:.7rem; white-space:nowrap; }
+    thead th { position:sticky; top:0; background:#f8f9fa; color:#495057; font-weight:600; border-bottom:2px solid #e9ecef; z-index:10; }
+    tbody tr:hover { background:#f8f9fa; cursor:pointer; transition: all 0.2s ease; }
+    .actions-cell { text-align:center; padding:0.5rem; white-space:nowrap; }
+    .action-buttons { display:flex; gap:0.25rem; justify-content:center; align-items:center; }
+    .btn-action { background:none; border:none; cursor:pointer; padding:0.4rem; border-radius:4px; font-size:0.8rem; transition: all 0.2s ease; width:30px; height:30px; display:flex; align-items:center; justify-content:center; }
+    .btn-action:hover { transform: translateY(-1px); box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .btn-edit { color:#007bff; background:rgba(0,123,255,0.1); }
+    .btn-edit:hover { background:#007bff; color:#fff; }
+    .btn-delete { color:#dc3545; background:rgba(220,53,69,0.1); }
+    .btn-delete:hover { background:#dc3545; color:#fff; }
+
+    /* Modal (fleet style) */
+    .modal { position:fixed; inset:0; background-color: rgba(0,0,0,0.6); backdrop-filter: blur(4px); z-index:1000; display:none; align-items:center; justify-content:center; }
+    .modal.show { display:flex; }
+    .modal-content { background:#fff; border-radius:12px; width:95%; max-width:900px; max-height:90vh; overflow:hidden; box-shadow:0 10px 30px rgba(0,0,0,0.15); display:flex; flex-direction:column; }
+    .modal-header { padding:1rem 1.25rem; border-bottom:1px solid rgba(0,0,0,0.08); display:flex; justify-content:space-between; align-items:center; background:#fff; position:sticky; top:0; z-index:2; }
+    .modal-header h5 { font-size:1rem; font-weight:600; color:#2c3e50; margin:0; display:flex; align-items:center; gap:8px; }
+    .close-btn { background:none; border:none; font-size:1.3rem; color:#666; cursor:pointer; width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; }
+    .close-btn:hover { background:#f0f0f0; color:#333; }
+    .modal-body { padding:1rem 1.25rem; overflow:auto; }
+    .modal-footer { padding:0.8rem 1.25rem; border-top:1px solid rgba(0,0,0,0.08); display:flex; justify-content:flex-end; gap:0.5rem; background:#fff; position:sticky; bottom:0; z-index:2; }
+
+    /* Form layout (fleet parity) */
+    .form-row-5, .form-row-4, .form-row-3, .form-row { display:flex; gap:0.6rem; align-items:flex-start; flex-wrap:wrap; }
+    .form-row-5 .form-group, .form-row-4 .form-group, .form-row-3 .form-group, .form-row .form-group { flex:1 1 calc(20% - 0.3rem); min-width:160px; }
+    .form-row-4 .form-group { flex:1 1 calc(25% - 0.3rem); }
+    .form-row-3 .form-group { flex:1 1 calc(33.33% - 0.3rem); }
+    .form-group { margin-bottom:.9rem; }
+    .form-group label { display:block; margin-bottom:.45rem; font-weight:600; font-size:.65rem; text-transform:uppercase; letter-spacing:.5px; }
+    .form-group input, .form-group select, .form-group textarea { width:100%; padding:.55rem .6rem; border:1px solid #ddd; border-radius:6px; font-size:.75rem; font-family: inherit; background:#fff; }
+    .form-group textarea { resize:vertical; min-height:70px; }
+    .invalid { border-color:#e74c3c !important; }
+    .error { color:#e74c3c; font-size:.6rem; margin-top:.25rem; display:none; }
+
+    .btn { padding:.45rem .85rem; border:none; border-radius:6px; cursor:pointer; font-size:.7rem; font-weight:600; transition:.2s; }
+    .btn-primary { background:var(--primary-color); color:#fff; }
+    .btn-secondary { background:var(--accent-color); color:#fff; }
+
+    .fab { position:fixed; right:1.25rem; bottom:1.25rem; width:44px; height:44px; border-radius:50%; background:var(--accent-color); color:#fff; font-size:1.2rem; border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 10px rgba(0,0,0,.25); }
+
+    @media (max-width: 900px) {
+      .main-content { margin-left:0; }
+      .sidebar { transform: translateX(-100%); }
+      .sidebar.open { transform: translateX(0); }
+      .top-nav { left:0.5rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-container">
+    <!-- Sidebar (project-list style) -->
+    <nav class="sidebar" id="sidebar">
+      <div class="logo"><h2>Dreamex Datalab</h2></div>
+      <ul class="menu" id="roleBasedMenu">
+        <li class="menu-item" data-feature="home_view"><a href="index.html"><i class="fas fa-home"></i> Home</a></li>
+        <li class="menu-dropdown" data-feature="health_view">
+          <a href="#"><i class="fas fa-medkit"></i> Health</a>
+          <ul class="submenu">
+            <li data-feature="medical_folder_view"><a href="medical-folder.html">Medical Folder</a></li>
+          </ul>
+        </li>
+        <li class="menu-dropdown" data-feature="safety_view">
+          <a href="#"><i class="fas fa-shield-alt"></i> Safety</a>
+          <ul class="submenu">
+          </ul>
+        </li>
+        <li class="menu-dropdown" data-feature="risk_view">
+          <a href="#"><i class="fas fa-exclamation-triangle"></i> Risk Management</a>
+          <ul class="submenu">
+            <li data-feature="risk_view"><a href="riskboard.html">Risk Management</a></li>
+          </ul>
+        </li>
+        <li class="menu-dropdown" data-feature="fuel_management">
+          <a href="#"><i class="fas fa-gas-pump"></i> Fuel Management</a>
+          <ul class="submenu">
+            <li data-feature="fuel_distribution"><a href="fueldist.html">Fuel Distribution</a></li>
+            <li data-feature="fuel_daily_report"><a href="fueldaily.html">Daily Fuel Report</a></li>
+          </ul>
+        </li>
+        <li class="menu-dropdown" data-feature="logistics_view">
+          <a href="#"><i class="fas fa-truck"></i> Logistics</a>
+          <ul class="submenu">
+            <li data-feature="fleet_view"><a href="fleet.html">Fleet Management</a></li>
+            <li data-feature="travel_view"><a href="travel.html">Travel Requests</a></li>
+          </ul>
+        </li>
+        <li class="menu-dropdown" data-feature="project_management_section">
+          <a href="#"><i class="fas fa-project-diagram"></i> Project Management</a>
+          <ul class="submenu">
+            <li data-feature="project_list_view"><a href="project-list.html">Project List</a></li>
+          </ul>
+        </li>
+        <li data-feature="communication_view"><a href="info.html"><i class="fas fa-comments"></i> Communication</a></li>
+        <li class="menu-dropdown" data-feature="settings_view">
+          <a href="#"><i class="fas fa-cog"></i> Settings</a>
+          <ul class="submenu">
+            <li data-feature="account_settings_view"><a href="account.html">Account Settings</a></li>
+          </ul>
+        </li>
+      </ul>
+    </nav>
+
+    <!-- Main content -->
+    <main class="main-content" id="mainContent">
+      <header class="top-nav" id="topNav">
+        <div class="top-nav-left">
+          <button id="sidebarToggle" class="sidebar-toggle-btn" title="Toggle Menu"><i class="fas fa-bars"></i></button>
+          <div class="company-branding">
+            <img id="headerCompanyLogo" alt="Company Logo" />
+            <span id="headerCompanyName"></span>
+          </div>
+        </div>
+        <div class="top-nav-right">
+          <div class="user-profile" style="position:relative;">
+            <button id="userProfileBtn" class="profile-btn" style="background:none;border:none;border-radius:50%;overflow:hidden;width:38px;height:38px;cursor:pointer;">
+              <img src="" alt="User Avatar" style="width:100%;height:100%;object-fit:cover;display:none;" />
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <section class="content" id="generatorsContent">
+        <div class="page-header">
+          <h1><i class="fas fa-plug-circle-bolt"></i> Generators</h1>
+        </div>
+
+        <div class="table-wrapper">
+          <table id="generatorTable" class="staff-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Name</th>
+                <th>Type</th>
+                <th>Capacity (kVA)</th>
+                <th>Power (kW)</th>
+                <th>Status</th>
+                <th>Department</th>
+                <th>Site</th>
+                <th>Fuel</th>
+                <th>Serial</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="generatorTableBody"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <button class="fab" id="addGeneratorFab" aria-label="Add Generator" title="Add Generator">+</button>
+
+  <!-- Add/Edit Generator Modal -->
+  <div id="generatorModal" class="modal" aria-hidden="true">
+    <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="generatorModalTitle">
+      <div class="modal-header">
+        <h5 id="generatorModalTitle"><i class="fas fa-plus"></i> Add Generator</h5>
+        <button type="button" class="close-btn" onclick="closeGeneratorModal()" aria-label="Close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="generatorForm" novalidate>
+          <div class="form-row-5">
+            <div class="form-group">
+              <label for="genName">Name *</label>
+              <input type="text" id="genName" required>
+              <div class="error" data-error-for="genName">Required</div>
+            </div>
+            <div class="form-group">
+              <label for="genType">Type *</label>
+              <select id="genType" required>
+                <option value="">Select</option>
+                <option>Diesel</option>
+                <option>Gasoline</option>
+                <option>Natural Gas</option>
+                <option>Propane</option>
+                <option>Hybrid</option>
+                <option>Solar</option>
+                <option>Wind</option>
+                <option>Other</option>
+              </select>
+              <div class="error" data-error-for="genType">Required</div>
+            </div>
+            <div class="form-group">
+              <label for="genStatus">Status *</label>
+              <select id="genStatus" required>
+                <option value="">Select</option>
+                <option>Active</option>
+                <option>Standby</option>
+                <option>Maintenance</option>
+                <option>Inactive</option>
+              </select>
+              <div class="error" data-error-for="genStatus">Required</div>
+            </div>
+            <div class="form-group">
+              <label for="genBrand">Manufacturer</label>
+              <input type="text" id="genBrand" placeholder="e.g., Caterpillar">
+            </div>
+            <div class="form-group">
+              <label for="genModel">Model</label>
+              <input type="text" id="genModel" placeholder="e.g., C18">
+            </div>
+          </div>
+
+          <div class="form-row-5">
+            <div class="form-group">
+              <label for="genCapacity">Capacity (kVA) *</label>
+              <input type="number" id="genCapacity" min="0" step="0.1" required>
+              <div class="error" data-error-for="genCapacity">Positive number</div>
+            </div>
+            <div class="form-group">
+              <label for="genPower">Power (kW)</label>
+              <input type="number" id="genPower" min="0" step="0.1">
+            </div>
+            <div class="form-group">
+              <label for="genFuel">Fuel</label>
+              <select id="genFuel">
+                <option value="">Select</option>
+                <option>Diesel</option>
+                <option>Gasoline</option>
+                <option>Natural Gas</option>
+                <option>Propane</option>
+                <option>None</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="genDept">Department *</label>
+              <select id="genDept" required></select>
+              <div class="error" data-error-for="genDept">Required</div>
+            </div>
+            <div class="form-group">
+              <label for="genSite">Site *</label>
+              <select id="genSite" required></select>
+              <div class="error" data-error-for="genSite">Required</div>
+            </div>
+          </div>
+
+          <div class="form-row-5">
+            <div class="form-group">
+              <label for="genSerial">Serial Number</label>
+              <input type="text" id="genSerial">
+            </div>
+            <div class="form-group">
+              <label for="genYear">Year</label>
+              <input type="number" id="genYear" min="1950" max="2100">
+            </div>
+            <div class="form-group">
+              <label for="genHours">Runtime Hours</label>
+              <input type="number" id="genHours" min="0" step="1">
+            </div>
+            <div class="form-group">
+              <label for="lastService">Last Service</label>
+              <input type="date" id="lastService">
+            </div>
+            <div class="form-group">
+              <label for="nextService">Next Service Due</label>
+              <input type="date" id="nextService">
+            </div>
+          </div>
+
+          <div class="form-row-5">
+            <div class="form-group">
+              <label for="genPhase">Phase</label>
+              <select id="genPhase">
+                <option value="">Select</option>
+                <option>Single</option>
+                <option>Three</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="genLocation">Location</label>
+              <input type="text" id="genLocation" placeholder="e.g., Plant A - South Yard">
+            </div>
+            <div class="form-group">
+              <label for="genAttachment">Attachment</label>
+              <input type="file" id="genAttachment" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.gif">
+            </div>
+            <div class="form-group">
+              <label for="genOperator">Assigned To</label>
+              <input type="text" id="genOperator" placeholder="Operator/Responsible">
+            </div>
+            <div class="form-group">
+              <label for="genBackup">Backup System</label>
+              <select id="genBackup">
+                <option value="">Select</option>
+                <option>Yes</option>
+                <option>No</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="genNotes">Notes</label>
+            <textarea id="genNotes" rows="3" placeholder="Additional notes..."></textarea>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeGeneratorModal()">Cancel</button>
+        <button type="submit" class="btn btn-primary" form="generatorForm">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Firebase config (same project used across pages)
+    const firebaseConfig = { apiKey: "AIzaSyCUTmTn0rRBb0M-UkQJxnUMrWqXYU_BgIc", authDomain: "users-8be65.firebaseapp.com", databaseURL: "https://users-8be65-default-rtdb.firebaseio.com", projectId: "users-8be65", storageBucket: "users-8be65.firebasestorage.app", messagingSenderId: "909025468149", appId: "1:909025468149:web:fb4e7c4a8b4bd6d1076e4d", measurementId: "G-XHFMRCJQEZ" };
+    if (!window.firebase || !window.firebase.apps || window.firebase.apps.length===0) { window.firebase.initializeApp(firebaseConfig); }
+
+    // Simple branding from company (subset)
+    async function applyBranding() {
+      const nameEl = document.getElementById('headerCompanyName');
+      const logoEl = document.getElementById('headerCompanyLogo');
+      try {
+        const stored = localStorage.getItem('currentUser');
+        if (!stored) return;
+        const user = JSON.parse(stored);
+        if (!user || !user.companyId) return;
+        const snap = await firebase.database().ref('companies/' + user.companyId).once('value');
+        if (!snap.exists()) return;
+        const company = snap.val();
+        if (nameEl) nameEl.textContent = company.companyName || '';
+        const logo = company.logo || company.logoUrl;
+        if (logo && logoEl) { logoEl.src = logo; logoEl.style.display = 'block'; }
+        if (company.branding) {
+          const root = document.documentElement;
+          if (company.branding.primaryColor) root.style.setProperty('--primary-color', company.branding.primaryColor);
+          if (company.branding.secondaryColor) root.style.setProperty('--secondary-color', company.branding.secondaryColor);
+        }
+      } catch (e) { /* ignore */ }
+    }
+
+    // Sidebar toggle
+    (function(){
+      const toggle = document.getElementById('sidebarToggle');
+      const sidebar = document.getElementById('sidebar');
+      const main = document.getElementById('mainContent');
+      const topNav = document.getElementById('topNav');
+      if (toggle) {
+        toggle.addEventListener('click', () => {
+          const isCollapsed = sidebar.classList.toggle('collapsed');
+          main.classList.toggle('sidebar-collapsed', isCollapsed);
+          topNav.classList.toggle('sidebar-collapsed', isCollapsed);
+        });
+      }
+    })();
+
+    // Dynamic lists (departments/sites) similar to fleet.html
+    let departmentOptions = [];
+    let siteOptions = [];
+
+    async function loadDepartmentsFromSettings(companyId) {
+      try {
+        const ref = firebase.database().ref(`companies/${companyId}/fieldOptions/department`);
+        const snap = await ref.once('value');
+        if (snap.exists()) {
+          const raw = snap.val();
+          if (Array.isArray(raw)) departmentOptions = raw.filter(o=>o && o.enabled !== false).map(o=>o.label||o.value||o).filter(Boolean);
+          else departmentOptions = Object.values(raw || {}).filter(o=>o && o.enabled !== false).map(o=>o.label||o.value||o).filter(Boolean);
+          return;
+        }
+      } catch (e) {}
+      // Legacy fallback
+      try {
+        const snap = await firebase.database().ref(`companies/${companyId}/departments`).once('value');
+        if (snap.exists()) departmentOptions = Object.values(snap.val()).map(d=>d.name||d).filter(Boolean);
+      } catch(e){}
+    }
+
+    async function loadWorkAreasFromSettings(companyId) {
+      try {
+        let snap = await firebase.database().ref(`companies/${companyId}/fieldOptions/area`).once('value');
+        if (snap.exists()) {
+          const raw = snap.val();
+          if (Array.isArray(raw)) siteOptions = raw.filter(o=>o && o.enabled !== false).map(o=>o.label||o.value||o).filter(Boolean);
+          else siteOptions = Object.values(raw || {}).filter(o=>o && o.enabled !== false).map(o=>o.label||o.value||o).filter(Boolean);
+          if (siteOptions.length) return;
+        }
+      } catch (e) {}
+      try {
+        const snap = await firebase.database().ref(`companies/${companyId}/sites`).once('value');
+        if (snap.exists()) siteOptions = Object.values(snap.val()).map(s=>s.name||s).filter(Boolean);
+      } catch(e){}
+    }
+
+    async function populateSelects() {
+      try {
+        const stored = localStorage.getItem('currentUser');
+        if (!stored) return;
+        const user = JSON.parse(stored);
+        if (!user || !user.companyId) return;
+        if (!departmentOptions.length) await loadDepartmentsFromSettings(user.companyId);
+        if (!siteOptions.length) await loadWorkAreasFromSettings(user.companyId);
+        const dept = document.getElementById('genDept');
+        const site = document.getElementById('genSite');
+        if (dept) dept.innerHTML = '<option value="">Select Department</option>' + departmentOptions.map(d=>`<option value="${d}">${d}</option>`).join('');
+        if (site) site.innerHTML = '<option value="">Select Site</option>' + siteOptions.map(s=>`<option value="${s}">${s}</option>`).join('');
+      } catch (e) { /* ignore */ }
+    }
+
+    // Modal controls
+    const generatorModal = document.getElementById('generatorModal');
+    const generatorForm = document.getElementById('generatorForm');
+    document.getElementById('addGeneratorFab').addEventListener('click', () => openGeneratorModal());
+
+    function openGeneratorModal(editId = null, data = null) {
+      if (editId) {
+        generatorModal.setAttribute('data-edit-id', editId);
+        const title = document.getElementById('generatorModalTitle');
+        if (title) title.innerHTML = '<i class="fas fa-pen"></i> Edit Generator';
+        fillForm(data);
+      } else {
+        generatorModal.removeAttribute('data-edit-id');
+        const title = document.getElementById('generatorModalTitle');
+        if (title) title.innerHTML = '<i class="fas fa-plus"></i> Add Generator';
+        generatorForm.reset();
+      }
+      populateSelects();
+      generatorModal.classList.add('show');
+    }
+    function closeGeneratorModal(){ generatorModal.classList.remove('show'); }
+
+    function fillForm(d){ if(!d) return; const set=(id,v)=>{ const el=document.getElementById(id); if(el) el.value = v ?? ''; }; set('genName', d.genName); set('genType', d.genType); set('genStatus', d.genStatus); set('genBrand', d.genBrand); set('genModel', d.genModel); set('genCapacity', d.genCapacity); set('genPower', d.genPower); set('genFuel', d.genFuel); set('genDept', d.genDept); set('genSite', d.genSite); set('genSerial', d.genSerial); set('genYear', d.genYear); set('genHours', d.genHours); set('lastService', d.lastService); set('nextService', d.nextService); set('genPhase', d.genPhase); set('genLocation', d.genLocation); set('genOperator', d.genOperator); set('genBackup', d.genBackup); set('genNotes', d.genNotes); }
+
+    function showFieldError(id, show) { const el = document.querySelector(`.error[data-error-for="${id}"]`); const field = document.getElementById(id); if (field) field.classList.toggle('invalid', !!show); if (el) el.style.display = show ? 'block' : 'none'; }
+    function validateForm() {
+      let ok = true;
+      const req = ['genName','genType','genStatus','genCapacity','genDept','genSite'];
+      req.forEach(id => { const el = document.getElementById(id); const valid = el && String(el.value||'').trim() !== ''; showFieldError(id, !valid); if(!valid) ok=false; });
+      const cap = parseFloat(document.getElementById('genCapacity').value||'0'); if (!(cap>0)) { showFieldError('genCapacity', true); ok=false; }
+      return ok;
+    }
+
+    // Firebase storage helper
+    const storage = firebase.storage();
+    const storageRef = storage.ref();
+    async function uploadAttachment(file, companyId, genId) {
+      if (!file) return null;
+      const fileName = `${Date.now()}_${file.name}`;
+      const path = `companies/${companyId}/generators/${genId}/attachments/${fileName}`;
+      const ref = storageRef.child(path);
+      const snap = await ref.put(file);
+      const url = await snap.ref.getDownloadURL();
+      return { name:file.name, size:file.size, type:file.type, downloadURL:url, storagePath:path, uploadDate:new Date().toISOString() };
+    }
+
+    // Save handler
+    generatorForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!validateForm()) return;
+      const stored = localStorage.getItem('currentUser');
+      if (!stored) { alert('Not authenticated'); return; }
+      const user = JSON.parse(stored);
+      if (!user || !user.companyId) { alert('No company context'); return; }
+      const db = firebase.database();
+      const companyId = user.companyId;
+      const editId = generatorModal.getAttribute('data-edit-id');
+      const baseRef = db.ref(`companies/${companyId}/generators`);
+      const payload = collectFormData();
+
+      try {
+        let genId = editId || baseRef.push().key;
+        // attachment
+        const fileEl = document.getElementById('genAttachment');
+        if (fileEl && fileEl.files && fileEl.files[0]) {
+          try { payload.attachmentMetadata = await uploadAttachment(fileEl.files[0], companyId, genId); payload.genAttachment = payload.attachmentMetadata.downloadURL; } catch (e) { alert('Attachment upload failed'); }
+        }
+        payload.updatedAt = new Date().toISOString();
+        if (!editId) { payload.id = genId; payload.createdAt = new Date().toISOString(); payload.createdBy = user.uid || user.id || ''; }
+        await db.ref(`companies/${companyId}/generators/${genId}`).set({ ...(editId? { id: genId }:{}), ...payload });
+        closeGeneratorModal(); generatorForm.reset();
+      } catch (err) {
+        console.error(err); alert('Failed to save generator');
+      }
+    });
+
+    function collectFormData(){
+      const v = id => (document.getElementById(id)?.value || '').trim();
+      const d = { genName:v('genName'), genType:v('genType'), genStatus:v('genStatus'), genBrand:v('genBrand'), genModel:v('genModel'), genCapacity:v('genCapacity'), genPower:v('genPower'), genFuel:v('genFuel'), genDept:v('genDept'), genSite:v('genSite'), genSerial:v('genSerial'), genYear:v('genYear'), genHours:v('genHours'), lastService:v('lastService'), nextService:v('nextService'), genPhase:v('genPhase'), genLocation:v('genLocation'), genOperator:v('genOperator'), genBackup:v('genBackup'), genNotes:v('genNotes') };
+      return d;
+    }
+
+    // Realtime listeners -> table
+    function displayGeneratorRow(data) {
+      const tbody = document.getElementById('generatorTableBody');
+      let row = tbody.querySelector(`tr[data-id="${data.id}"]`);
+      const html = `
+        <td></td>
+        <td>${escapeHtml(data.genName||'')}</td>
+        <td>${escapeHtml(data.genType||'')}</td>
+        <td>${escapeHtml(data.genCapacity||'')}</td>
+        <td>${escapeHtml(data.genPower||'')}</td>
+        <td>${escapeHtml(data.genStatus||'')}</td>
+        <td>${escapeHtml(data.genDept||'')}</td>
+        <td>${escapeHtml(data.genSite||'')}</td>
+        <td>${escapeHtml(data.genFuel||'')}</td>
+        <td>${escapeHtml(data.genSerial||'')}</td>
+        <td class="actions-cell">
+          <div class="action-buttons">
+            <button class="btn-action btn-edit" title="Edit" onclick="editGenerator('${data.id}')"><i class="fas fa-edit"></i></button>
+            <button class="btn-action btn-delete" title="Delete" onclick="deleteGenerator('${data.id}')"><i class="fas fa-trash"></i></button>
+          </div>
+        </td>`;
+      if (!row) { row = document.createElement('tr'); row.setAttribute('data-id', data.id); tbody.appendChild(row); }
+      row.innerHTML = html;
+      renumberRows();
+      // Row click -> edit
+      row.onclick = (ev) => { if (ev.target.closest('.action-buttons')) return; editGenerator(data.id); };
+    }
+
+    function renumberRows(){ const rows = document.querySelectorAll('#generatorTableBody tr'); rows.forEach((r,i)=>{ const c=r.querySelector('td'); if(c) c.textContent = String(i+1); }); }
+
+    function escapeHtml(str){ return String(str||'').replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c])); }
+
+    async function initRealtime() {
+      try {
+        const stored = localStorage.getItem('currentUser');
+        if (!stored) return;
+        const user = JSON.parse(stored);
+        if (!user || !user.companyId) return;
+        const ref = firebase.database().ref(`companies/${user.companyId}/generators`);
+        ref.on('child_added', snap => { const v = snap.val(); if (v) displayGeneratorRow(v); });
+        ref.on('child_changed', snap => { const v = snap.val(); if (v) displayGeneratorRow(v); });
+        ref.on('child_removed', snap => { const id = snap.key; const row = document.querySelector(`#generatorTableBody tr[data-id="${id}"]`); if (row) row.remove(); renumberRows(); });
+      } catch (e) { /* ignore */ }
+    }
+
+    // Edit/Delete handlers
+    window.editGenerator = async function(id){
+      try {
+        const stored = localStorage.getItem('currentUser');
+        if (!stored) return;
+        const user = JSON.parse(stored);
+        const snap = await firebase.database().ref(`companies/${user.companyId}/generators/${id}`).once('value');
+        if (!snap.exists()) return;
+        const data = snap.val();
+        openGeneratorModal(id, data);
+      } catch(e){}
+    }
+    window.deleteGenerator = async function(id){
+      if (!confirm('Delete this generator?')) return;
+      try {
+        const stored = localStorage.getItem('currentUser');
+        if (!stored) return;
+        const user = JSON.parse(stored);
+        await firebase.database().ref(`companies/${user.companyId}/generators/${id}`).remove();
+      } catch(e){ alert('Failed to delete'); }
+    }
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', () => { applyBranding(); populateSelects(); initRealtime(); });
+  </script>
+</body>
+</html>
