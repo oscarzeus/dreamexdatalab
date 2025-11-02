@@ -1445,12 +1445,17 @@
                     <a href="#"><i class="fas fa-shield-alt"></i> Safety</a>
                     <ul class="submenu">
                         <li data-feature="training_view" data-requires-permission="training_view"><a href="trainingboard.html">Training</a></li>
-                        <li data-feature="risk_view" data-requires-permission="risk_view"><a href="riskboard.html">Risk Management</a></li>
                         <li data-feature="jsa_view" data-requires-permission="jsa_view"><a href="jsaboard.html">Job Safety Analysis</a></li>
                         <li data-feature="ptw_view" data-requires-permission="ptw_view"><a href="ptwboard.html">Permit to Work</a></li>
                         <li data-feature="incident_view" data-requires-permission="incident_view"><a href="incidentboard.html">Incident Reports</a></li>
                         <li data-feature="inspection_view" data-requires-permission="inspection_view"><a href="inspectionboard.html">Inspection</a></li>
                         <li data-feature="audit_view" data-requires-permission="audit_view"><a href="auditboard.html">Audit</a></li>
+                    </ul>
+                </li>
+                <li class="menu-dropdown" data-feature="risk_view" data-requires-permission="risk_view">
+                    <a href="#"><i class="fas fa-exclamation-triangle"></i> Risk Management</a>
+                    <ul class="submenu">
+                        <li data-feature="risk_view" data-requires-permission="risk_view"><a href="riskboard.html">Risk Management</a></li>
                     </ul>
                 </li>
                 <li class="menu-dropdown" data-feature="fuel_management" data-requires-permission="fuel_management">
@@ -1461,7 +1466,7 @@
                         <li data-feature="tank_transfer" data-requires-permission="tank_transfer"><a href="fueltrans.html" class="active">Tank-to-Tank Transfer</a></li>
                         <li data-feature="truck_loading" data-requires-permission="truck_loading"><a href="fuel-truck-loading.html">Fuel Truck Loading</a></li>
                         <li data-feature="quality_analysis" data-requires-permission="quality_analysis"><a href="fuel-quality-analysis.html">Fuel Quality Analysis</a></li>
-                        <li data-feature="fuel_distribution" data-requires-permission="fuel_distribution"><a href="fueldistrib.html">Fuel Distribution</a></li>
+                        <li data-feature="fuel_distribution" data-requires-permission="fuel_distribution"><a href="fueldist.html">Fuel Distribution</a></li>
                         <li data-feature="fuel_consumption_analysis" data-requires-permission="fuel_consumption_analysis"><a href="fuelanalys.html">Consumption Analysis</a></li>
                         <li data-feature="fuel_daily_report" data-requires-permission="fuel_daily_report"><a href="fueldaily.html">Daily Fuel Report</a></li>
                     </ul>
@@ -1606,6 +1611,10 @@
                     <button id="createTransferBtn" class="btn btn-create">
                         <i class="fas fa-plus"></i>
                         New Transfer Operation
+                    </button>
+                    <button id="clearTransfersBtn" class="btn" style="margin-left: 8px; background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: #fff;">
+                        <i class="fas fa-trash"></i>
+                        Clear Transfers
                     </button>
                 </div>
 
@@ -2327,8 +2336,8 @@
                     // Save to Firebase Realtime Database under company scope
                     await this.saveToFirebase(transfer);
                     
-                    // Update tank levels after successful transfer initiation
-                    await this.updateTankLevels(transfer);
+                    // Apply transfer deltas to storage status so fuelstor reflects immediately
+                    await this.applyTransferToStorageStatus(transfer, 'create');
                     
                     this.renderTransfers();
                     this.hideModal();
@@ -2562,6 +2571,7 @@
                 const form = document.getElementById('transferForm');
                 const idx = this.transfers.findIndex(t => t.id === transferId);
                 if (idx === -1) return;
+                const previous = { ...this.transfers[idx] };
                 const updated = {
                     ...this.transfers[idx],
                     transferDate: form.transferDate.value,
@@ -2586,6 +2596,9 @@
                         } else if (window.firebase) {
                             await window.firebase.database().ref(`companies/${companyId}/fuelmanagement/transfers/${transferId}`).update(updated);
                         }
+                        // Revert previous effect and apply new one to storage status
+                        await this.applyTransferToStorageStatus(previous, 'revert');
+                        await this.applyTransferToStorageStatus(updated, 'create');
                     }
                 } catch (e) { console.error('Failed to update transfer in Firebase', e); }
                 this.renderTransfers();
@@ -2610,11 +2623,120 @@
                         } else if (window.firebase) {
                             await window.firebase.database().ref(`companies/${companyId}/fuelmanagement/transfers/${transferId}`).remove();
                         }
+                        // Revert storage status change caused by this transfer
+                        await this.applyTransferToStorageStatus(removed, 'revert');
                     }
                 } catch (e) { console.error('Failed to delete transfer in Firebase', e); }
                 this.renderTransfers();
                 this.hideModal();
                 this.showNotification('success', 'Transfer deleted successfully.');
+            }
+
+            // Apply or revert a transfer to storageStatus tanks
+            async applyTransferToStorageStatus(transfer, mode) {
+                try {
+                    const companyId = window.authManager?.currentUser?.companyId;
+                    if (!companyId) return;
+                    const qty = Number(transfer.transferQuantity) || 0;
+                    if (!qty) return;
+                    const deltaSrc = mode === 'revert' ? qty : -qty;
+                    const deltaDst = mode === 'revert' ? -qty : qty;
+
+                    let db;
+                    if (window.getDatabase && window.ref && window.get && window.update) {
+                        db = window.getDatabase();
+                        // Helper to update a single tank row (by tankId or tankIdDisplay)
+                        const updateTank = async (tankKey, delta) => {
+                            if (!tankKey) return;
+                            const baseRef = window.ref(db, `companies/${companyId}/fuelmanagement/storageStatus`);
+                            const snap = await window.get(baseRef);
+                            if (!snap.exists()) return;
+                            const all = snap.val();
+                            // Find the concrete record key whose tankId or tankIdDisplay matches
+                            const entryKey = Object.keys(all).find(k => {
+                                const t = all[k];
+                                return t?.tankId === tankKey || t?.tankIdDisplay === tankKey;
+                            });
+                            if (!entryKey) return;
+                            const record = all[entryKey] || {};
+                            const current = Number(record.currentVolume) || 0;
+                            const maxV = Number(record.maxVolume) || Infinity;
+                            let next = current + delta;
+                            if (next < 0) next = 0;
+                            if (isFinite(maxV) && next > maxV) next = maxV;
+                            const rowRef = window.ref(db, `companies/${companyId}/fuelmanagement/storageStatus/${entryKey}`);
+                            await window.update(rowRef, {
+                                currentVolume: Math.round(next * 100) / 100,
+                                lastUpdated: new Date().toISOString(),
+                                lastUpdateSource: 'fueltrans.html'
+                            });
+                        };
+                        await updateTank(transfer.sourceTank, deltaSrc);
+                        await updateTank(transfer.destinationTank, deltaDst);
+                    } else if (window.firebase) {
+                        const rtdb = window.firebase.database();
+                        const baseRef = rtdb.ref(`companies/${companyId}/fuelmanagement/storageStatus`);
+                        const snap = await baseRef.once('value');
+                        if (!snap.exists()) return;
+                        const all = snap.val();
+                        const updateTankLegacy = async (tankKey, delta) => {
+                            if (!tankKey) return;
+                            const entryKey = Object.keys(all).find(k => {
+                                const t = all[k];
+                                return t?.tankId === tankKey || t?.tankIdDisplay === tankKey;
+                            });
+                            if (!entryKey) return;
+                            const recordRef = rtdb.ref(`companies/${companyId}/fuelmanagement/storageStatus/${entryKey}`);
+                            const recSnap = await recordRef.once('value');
+                            const record = recSnap.val() || {};
+                            const current = Number(record.currentVolume) || 0;
+                            const maxV = Number(record.maxVolume) || Infinity;
+                            let next = current + delta;
+                            if (next < 0) next = 0;
+                            if (isFinite(maxV) && next > maxV) next = maxV;
+                            await recordRef.update({
+                                currentVolume: Math.round(next * 100) / 100,
+                                lastUpdated: new Date().toISOString(),
+                                lastUpdateSource: 'fueltrans.html'
+                            });
+                        };
+                        await updateTankLegacy(transfer.sourceTank, deltaSrc);
+                        await updateTankLegacy(transfer.destinationTank, deltaDst);
+                    }
+                } catch (e) {
+                    console.error('Failed to apply transfer to storage status:', e);
+                }
+            }
+
+            async clearAllTransfers() {
+                try {
+                    const currentUser = window.authManager?.currentUser;
+                    const companyId = currentUser?.companyId;
+                    if (!companyId) {
+                        // Clear only local if no company scope
+                        this.transfers = [];
+                        this.saveTransfers();
+                        this.renderTransfers();
+                        this.showNotification('success', 'Local transfer table cleared.');
+                        return;
+                    }
+                    // Delete in Firebase
+                    if (window.getDatabase && window.ref && window.remove) {
+                        const db = window.getDatabase();
+                        const path = window.ref(db, `companies/${companyId}/fuelmanagement/transfers`);
+                        await window.remove(path);
+                    } else if (window.firebase) {
+                        await window.firebase.database().ref(`companies/${companyId}/fuelmanagement/transfers`).remove();
+                    }
+                    // Clear local cache
+                    this.transfers = [];
+                    this.saveTransfers();
+                    this.renderTransfers();
+                    this.showNotification('success', 'All transfers cleared successfully.');
+                } catch (e) {
+                    console.error('Error clearing transfers:', e);
+                    this.showNotification('error', 'Failed to clear transfers.');
+                }
             }
 
             showNotification(type, message) {
@@ -2757,6 +2879,42 @@
         let fuelTransferManager;
         document.addEventListener('DOMContentLoaded', () => {
             fuelTransferManager = new FuelTransferManager();
+            // Hook up clear button
+            const clearBtn = document.getElementById('clearTransfersBtn');
+            if (clearBtn) {
+                clearBtn.addEventListener('click', async () => {
+                    try {
+                        const ok = confirm('This will delete all transfer records. Continue?');
+                        if (!ok) return;
+                        await fuelTransferManager.clearAllTransfers();
+                    } catch (e) {
+                        console.error('Failed to clear transfers:', e);
+                    }
+                });
+            }
+
+            // Auto-clear once on next load with confirmation
+            const AUTO_CLEAR_KEY = 'fueltrans_auto_clear_done';
+            try {
+                if (!localStorage.getItem(AUTO_CLEAR_KEY)) {
+                    // Slight delay to ensure auth and manager are ready
+                    setTimeout(async () => {
+                        try {
+                            const ok = confirm('Do you want to clear all existing fuel transfer records now? This action cannot be undone.');
+                            if (ok) {
+                                await fuelTransferManager.clearAllTransfers();
+                            }
+                        } catch (err) {
+                            console.error('Auto-clear failed:', err);
+                        } finally {
+                            // Mark as done to avoid prompting again
+                            localStorage.setItem(AUTO_CLEAR_KEY, '1');
+                        }
+                    }, 300);
+                }
+            } catch (err) {
+                console.warn('Failed to set/read auto-clear flag:', err);
+            }
         });
 
         // ===== ROLE-BASED MENU AUTHORIZATION SYSTEM (Canonical) =====

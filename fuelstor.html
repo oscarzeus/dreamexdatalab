@@ -1252,12 +1252,17 @@
                     <a href="#"><i class="fas fa-shield-alt"></i> Safety</a>
                     <ul class="submenu">
                         <li data-feature="training_view" data-requires-permission="training_view"><a href="trainingboard.html">Training</a></li>
-                        <li data-feature="risk_view" data-requires-permission="risk_view"><a href="riskboard.html">Risk Management</a></li>
                         <li data-feature="jsa_view" data-requires-permission="jsa_view"><a href="jsaboard.html">Job Safety Analysis</a></li>
                         <li data-feature="ptw_view" data-requires-permission="ptw_view"><a href="ptwboard.html">Permit to Work</a></li>
                         <li data-feature="incident_view" data-requires-permission="incident_view"><a href="incidentboard.html">Incident Reports</a></li>
                         <li data-feature="inspection_view" data-requires-permission="inspection_view"><a href="inspectionboard.html">Inspection</a></li>
                         <li data-feature="audit_view" data-requires-permission="audit_view"><a href="auditboard.html">Audit</a></li>
+                    </ul>
+                </li>
+                <li class="menu-dropdown" data-feature="risk_view" data-requires-permission="risk_view">
+                    <a href="#"><i class="fas fa-exclamation-triangle"></i> Risk Management</a>
+                    <ul class="submenu">
+                        <li data-feature="risk_view" data-requires-permission="risk_view"><a href="riskboard.html">Risk Management</a></li>
                     </ul>
                 </li>
                 <li class="menu-dropdown" data-feature="investigation_view" data-requires-permission="investigation_view">
@@ -1841,6 +1846,17 @@
 
                     <!-- Empty state (used by charts when no data) -->
                     <div class="empty-state" id="analyticsEmptyState" style="display:none;"></div>
+                </div>
+                <!-- Visualization Tab (New) -->
+                <div id="visualizationTab" class="tab-content" style="display:none; padding:12px;">
+                    <div class="table-header" style="border-bottom:none; display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap;">
+                        <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+                            <button type="button" id="vzAddSetBtn" class="tab-btn" style="background:#2563eb;color:#fff;">Add Analysis Set</button>
+                            <button type="button" id="vzClearSetsBtn" class="tab-btn" style="background:#e2e8f0;color:#334155;">Clear</button>
+                        </div>
+                        <div id="vzInlineStatus" style="font-size:0.65rem; color:#64748b;">Design custom analysis sets for storage movements.</div>
+                    </div>
+                    <div id="vzSetsContainer" class="flex flex-col gap-3 mt-3"></div>
                 </div>
 
                 <!-- Pivot Drilldown Modal -->
@@ -4235,6 +4251,9 @@
             if (tabName === 'analytics') {
                 initAnalyticsTab();
             }
+            if (tabName === 'visualization') {
+                initVisualizationTab();
+            }
         }
 
         // Load distribution details grouped by tank
@@ -5096,6 +5115,384 @@
                 });
             }
         }
+
+        // ================= Visualization Tab (Pivot-style Analysis Sets) =================
+        let _vzInitialized = false;
+        const _vzSets = new Map(); // id -> { cfg, chart, wrap, selectedValues, selectedValues2, _lastAgg }
+        let _vzSeq = 0;
+
+        async function initVisualizationTab(){
+            if (_vzInitialized) return; // run once
+            try {
+                await ensureAnalyticsDataLoaded();
+            } catch(e){ console.warn('Visualization init: ensureAnalyticsDataLoaded failed', e); }
+            const addBtn = document.getElementById('vzAddSetBtn');
+            const clearBtn = document.getElementById('vzClearSetsBtn');
+            if (addBtn) addBtn.onclick = () => addVizAnalysisSet();
+            if (clearBtn) clearBtn.onclick = () => { if (confirm('Remove all analysis sets?')){ _vzSets.forEach((v)=>{ try{ v.chart?.destroy(); }catch(_){ } }); _vzSets.clear(); document.getElementById('vzSetsContainer').innerHTML=''; } };
+            // Create first set automatically for convenience
+            addVizAnalysisSet();
+            _vzInitialized = true;
+        }
+
+        function addVizAnalysisSet(){
+            const container = document.getElementById('vzSetsContainer'); if(!container) return;
+            const id = 'vz'+(++_vzSeq);
+            const cfg = { groupBy:'day', groupBy2:'', chartType:'bar', start:'', end:'' };
+            const wrap = document.createElement('div');
+            wrap.className = 'analysis-set border border-slate-300 rounded-md p-2 bg-white shadow-sm flex flex-col gap-2 w-full';
+            wrap.dataset.vzSet = id;
+            wrap.innerHTML = `
+                <div class='flex items-center justify-between'>
+                    <h3 class='text-[11px] font-semibold text-slate-700'>Visualization Set</h3>
+                    <div class='flex gap-1'>
+                        <button data-act='refresh' class='text-[10px] px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-600'><i class="fa fa-rotate"></i></button>
+                        <button data-act='remove' class='text-[10px] px-2 py-0.5 rounded bg-red-100 hover:bg-red-200 text-red-600'><i class="fa fa-times"></i></button>
+                    </div>
+                </div>
+                <div class='flex flex-wrap gap-2 items-end text-[10px] bg-slate-50/60 rounded-md p-2 border border-slate-200'>
+                    <label class='flex flex-col gap-0.5'>Group
+                        <select data-filt='groupBy' class='border rounded px-1 py-0.5 bg-white'>
+                            <option value='day'>Day</option>
+                            <option value='tank'>Tank</option>
+                            <option value='location'>Location</option>
+                            <option value='fuelType'>Fuel Type</option>
+                            <option value='equipmentType'>Equipment Type</option>
+                            <option value='equipment'>Equipment</option>
+                            <option value='operator'>Operator</option>
+                            <option value='department'>Department</option>
+                            <option value='source'>Source</option>
+                            <option value='distributionStatus'>Status</option>
+                            <option value='updatedBy'>Updated By</option>
+                        </select>
+                    </label>
+                    <label class='flex flex-col gap-0.5'>Group 2
+                        <select data-filt='groupBy2' class='border rounded px-1 py-0.5 bg-white'>
+                            <option value=''>-- None --</option>
+                            <option value='day'>Day</option>
+                            <option value='tank'>Tank</option>
+                            <option value='location'>Location</option>
+                            <option value='fuelType'>Fuel Type</option>
+                            <option value='equipmentType'>Equipment Type</option>
+                            <option value='equipment'>Equipment</option>
+                            <option value='operator'>Operator</option>
+                            <option value='department'>Department</option>
+                            <option value='source'>Source</option>
+                            <option value='distributionStatus'>Status</option>
+                            <option value='updatedBy'>Updated By</option>
+                        </select>
+                    </label>
+                    <label class='flex flex-col gap-0.5'>Chart
+                        <select data-filt='chartType' class='border rounded px-1 py-0.5 bg-white'>
+                            <option value='bar'>Bar</option>
+                            <option value='line'>Line</option>
+                            <option value='pie'>Pie</option>
+                            <option value='doughnut'>Doughnut</option>
+                        </select>
+                    </label>
+                    <div class='flex flex-col gap-0.5 relative' data-role='valueFilter'>
+                        <label class='text-[10px]'>Filter Values</label>
+                        <button type='button' data-act='toggle-value-dropdown' class='border rounded px-1 py-0.5 bg-white text-left text-[10px] hover:bg-slate-50 flex items-center justify-between gap-1' style='min-width:140px;'>
+                            <span data-role='valueFilterLabel'>All</span>
+                            <i class='fa fa-chevron-down' style='font-size:8px;'></i>
+                        </button>
+                        <div data-role='valueDropdown' class='hidden absolute top-full left-0 mt-1 bg-white border border-slate-300 rounded shadow-lg z-50 max-h-[200px] overflow-auto' style='min-width:180px;'>
+                            <div class='p-1 text-[9px] text-slate-500 border-b flex items-center justify-between'>
+                                <span>Select values to show:</span>
+                                <button type='button' data-act='toggle-all-values' class='text-[9px] px-1 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-600'>All/None</button>
+                            </div>
+                            <div data-role='valueCheckboxes' class='p-1'></div>
+                        </div>
+                    </div>
+                    <div class='flex flex-col gap-0.5 relative' data-role='valueFilter2'>
+                        <label class='text-[10px]'>Filter Values 2</label>
+                        <button type='button' data-act='toggle-value2-dropdown' class='border rounded px-1 py-0.5 bg-white text-left text-[10px] hover:bg-slate-50 flex items-center justify-between gap-1' style='min-width:140px;'>
+                            <span data-role='valueFilter2Label'>All</span>
+                            <i class='fa fa-chevron-down' style='font-size:8px;'></i>
+                        </button>
+                        <div data-role='valueDropdown2' class='hidden absolute top-full left-0 mt-1 bg-white border border-slate-300 rounded shadow-lg z-50 max-h-[200px] overflow-auto' style='min-width:180px;'>
+                            <div class='p-1 text-[9px] text-slate-500 border-b flex items-center justify-between'>
+                                <span>Select values to show:</span>
+                                <button type='button' data-act='toggle-all-values2' class='text-[9px] px-1 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-600'>All/None</button>
+                            </div>
+                            <div data-role='valueCheckboxes2' class='p-1'></div>
+                        </div>
+                    </div>
+                    <label class='flex flex-col gap-0.5'>Start
+                        <input data-filt='start' type='date' class='border rounded px-1 py-0.5 bg-white'/>
+                    </label>
+                    <label class='flex flex-col gap-0.5'>End
+                        <input data-filt='end' type='date' class='border rounded px-1 py-0.5 bg-white'/>
+                    </label>
+                    <div class='flex items-center gap-1 ml-auto'>
+                        <button data-act='preset' data-range='7d' class='px-2 py-0.5 rounded bg-slate-200 hover:bg-slate-300 text-slate-700'>7d</button>
+                        <button data-act='preset' data-range='30d' class='px-2 py-0.5 rounded bg-slate-200 hover:bg-slate-300 text-slate-700'>30d</button>
+                        <button data-act='preset' data-range='clear' class='px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-600'>Clear</button>
+                        <button data-act='apply' class='px-3 py-0.5 rounded bg-indigo-500 hover:bg-indigo-600 text-white font-semibold'>Apply</button>
+                    </div>
+                </div>
+                <div class='text-[10px] text-slate-500 italic -mt-1 mb-1' data-role='summary'>day</div>
+                <div class='flex flex-wrap gap-2 items-stretch'>
+                    <div class='flex flex-col border border-slate-200 rounded-md p-2 flex-1 min-w-[340px]' data-role='tableBox'>
+                        <h4 class='text-[10px] font-semibold text-slate-600 mb-1'>TABLE</h4>
+                        <div class='overflow-auto'>
+                            <table class='w-full text-[10px] border-collapse'>
+                                <thead><tr><th class='text-left px-1 py-0.5' data-col='groupHdr'>DAY</th><th class='text-right px-1 py-0.5'>Records</th><th class='text-right px-1 py-0.5'>Qty (L)</th><th class='text-right px-1 py-0.5'>Avg (L)</th></tr></thead>
+                                <tbody></tbody>
+                                <tfoot><tr><td class='px-1 py-0.5 font-semibold'>Totals</td><td class='text-right px-1 py-0.5 font-semibold' data-ft-rec></td><td class='text-right px-1 py-0.5 font-semibold' data-ft-qty></td><td></td></tr></tfoot>
+                            </table>
+                        </div>
+                    </div>
+                    <div class='flex flex-col border border-slate-200 rounded-md p-2 flex-1 min-w-[320px]' data-role='chartBox'>
+                        <h4 class='text-[10px] font-semibold text-slate-600 mb-1'>CHART</h4>
+                        <div style='flex:1;min-height:160px;display:flex;'>
+                            <canvas></canvas>
+                        </div>
+                    </div>
+                </div>`;
+            container.appendChild(wrap);
+
+            const ctx = wrap.querySelector('canvas').getContext('2d');
+            const chart = new Chart(ctx,{ type:'bar', data:{ labels:[], datasets:[{ label:'Quantity (L)', data:[], backgroundColor:'#f39c12', borderColor:'#d97706', borderWidth:1 }] }, options:{ responsive:true, maintainAspectRatio:false, scales:{ y:{ beginAtZero:true, ticks:{ font:{ size:8 }, color:'#334155' } }, x:{ ticks:{ font:{ size:8 }, color:'#334155' } } }, plugins:{ legend:{ labels:{ font:{ size:8 }, color:'#334155' } } } }});
+            const entry = { id, cfg, chart, wrap, selectedValues:[], selectedValues2:[], overrides:null, _lastAgg:null };
+            _vzSets.set(id, entry);
+
+            // Event delegation for this set
+            wrap.addEventListener('click', e=>{
+                const b = e.target.closest('button[data-act]'); if(!b) return;
+                const act = b.getAttribute('data-act');
+                if (act==='remove'){ try{ entry.chart.destroy(); }catch(_){ } _vzSets.delete(id); wrap.remove(); return; }
+                if (act==='refresh'){ refreshVizSet(id); return; }
+                if (act==='apply'){ applyVizFilters(id); return; }
+                if (act==='preset'){ applyVizPresetRange(id, b.getAttribute('data-range')); return; }
+                if (act==='toggle-value-dropdown'){ toggleVizValueDropdown(id); return; }
+                if (act==='toggle-value2-dropdown'){ toggleVizValue2Dropdown(id); return; }
+                if (act==='toggle-all-values'){ toggleVizAllValues(id); return; }
+                if (act==='toggle-all-values2'){ toggleVizAllValues2(id); return; }
+            });
+            // Change handlers for group selects to reset value selections
+            wrap.querySelector('select[data-filt="groupBy"]').addEventListener('change', ()=>{ entry.selectedValues=[]; populateVizValueFilterOptions(id); applyVizFilters(id); });
+            wrap.querySelector('select[data-filt="groupBy2"]').addEventListener('change', ()=>{ entry.selectedValues2=[]; populateVizValueFilterOptions2(id); applyVizFilters(id); });
+
+            populateVizValueFilterOptions(id);
+            populateVizValueFilterOptions2(id);
+            refreshVizSet(id);
+        }
+
+        function getVizDataset(start, end){
+            const all = getAnalyticsRawRecords();
+            let s=null,e=null;
+            if(start){ const d=new Date(start); if(!isNaN(d)) s=new Date(d.getFullYear(),d.getMonth(),d.getDate()); }
+            if(end){ const d=new Date(end); if(!isNaN(d)) e=new Date(d.getFullYear(),d.getMonth(),d.getDate(),23,59,59,999); }
+            return all.filter(r=>{
+                if(!r.date) return false;
+                if(s && r.date < s) return false;
+                if(e && r.date > e) return false;
+                // Only count rows with a measurable quantity or stock metric
+                const q = Number(r.quantity != null ? r.quantity : (r.currentStock!=null ? r.currentStock : r.currentVolume));
+                return q > 0;
+            });
+        }
+
+        function computeVizPivot(primary, secondary, opts){
+            // Reuse logic pattern from distribution pivot; dataset is derived from analytics raw records
+            const dataset = getVizDataset(opts?.start, opts?.end);
+            const selRows = Array.isArray(opts?.selectedValues)? opts.selectedValues:[];
+            const selCols = Array.isArray(opts?.selectedValues2)? opts.selectedValues2:[];
+            const filterRows = selRows.length>0;
+            const filterCols = selCols.length>0;
+            if(!secondary || secondary===primary){
+                // 1D aggregate
+                const groups = {};
+                dataset.forEach(r=>{
+                    const { key } = vizDimKey(r, primary);
+                    if(filterRows && !selRows.includes(String(key))) return;
+                    if(!groups[key]) groups[key]={ key, records:0, quantity:0 };
+                    groups[key].records += 1;
+                    groups[key].quantity += valueForRecord(r);
+                });
+                let rows = Object.values(groups);
+                if(primary==='day'){ rows.sort((a,b)=> new Date(a.key)-new Date(b.key)); }
+                else rows.sort((a,b)=> b.quantity-a.quantity);
+                const totals = rows.reduce((acc,r)=>{acc.records+=r.records;acc.quantity+=r.quantity;return acc;},{records:0,quantity:0});
+                return { mode:'1d', rows, totals };
+            }
+            // 2D
+            const matrix = {}; const colSet = new Set(); const rowMeta={};
+            dataset.forEach(r=>{
+                const { key:rKey, sortVal:rSort } = vizDimKey(r, primary);
+                const { key:cKey } = vizDimKey(r, secondary);
+                if(filterRows && !selRows.includes(String(rKey))) return;
+                if(filterCols && !selCols.includes(String(cKey))) return;
+                if(!matrix[rKey]) matrix[rKey] = {};
+                if(!matrix[rKey][cKey]) matrix[rKey][cKey] = { records:0, quantity:0 };
+                matrix[rKey][cKey].records += 1;
+                matrix[rKey][cKey].quantity += valueForRecord(r);
+                colSet.add(cKey);
+                if(!rowMeta[rKey]) rowMeta[rKey]={ sortVal:rSort };
+                else if(typeof rSort==='number' && (typeof rowMeta[rKey].sortVal!=='number' || rSort < rowMeta[rKey].sortVal)) rowMeta[rKey].sortVal = rSort;
+            });
+            let rowKeys = Object.keys(matrix);
+            if(primary==='day'){ rowKeys.sort((a,b)=> (rowMeta[a].sortVal||0)-(rowMeta[b].sortVal||0)); }
+            else {
+                rowKeys.sort((a,b)=>{
+                    const qa = Object.values(matrix[a]).reduce((s,c)=>s+c.quantity,0);
+                    const qb = Object.values(matrix[b]).reduce((s,c)=>s+c.quantity,0);
+                    return qb-qa;
+                });
+            }
+            const colKeys = Array.from(colSet);
+            if(colKeys.length>50) colKeys.splice(50);
+            const rowTotals = {}; const colTotals = {}; let grand={records:0,quantity:0};
+            rowKeys.forEach(rk=>{
+                rowTotals[rk]={records:0,quantity:0};
+                colKeys.forEach(ck=>{ const cell = matrix[rk][ck]; if(!cell) return; rowTotals[rk].records+=cell.records; rowTotals[rk].quantity+=cell.quantity; if(!colTotals[ck]) colTotals[ck]={records:0,quantity:0}; colTotals[ck].records+=cell.records; colTotals[ck].quantity+=cell.quantity; grand.records+=cell.records; grand.quantity+=cell.quantity; });
+            });
+            return { mode:'2d', primary, secondary, rowKeys, colKeys, matrix, rowTotals, colTotals, grand };
+        }
+
+        function valueForRecord(r){
+            // Prefer distribution quantity else currentStock/currentVolume/openingStock
+            if (typeof r.quantity === 'number') return Number(r.quantity)||0;
+            if (typeof r.currentStock === 'number') return Number(r.currentStock)||0;
+            if (typeof r.currentVolume === 'number') return Number(r.currentVolume)||0;
+            if (typeof r.openingStock === 'number') return Number(r.openingStock)||0;
+            return 0;
+        }
+
+        function vizDimKey(r, dim){
+            let key; let sortVal;
+            switch(dim){
+                case 'day': { const d=r.date; key = d.toISOString().slice(0,10); sortVal = new Date(d.getFullYear(),d.getMonth(),d.getDate()).getTime(); break; }
+                case 'tank': key = r.tank || 'Unknown Tank'; break;
+                case 'location': key = r.location || 'Unknown Location'; break;
+                case 'fuelType': key = r.fuelType || 'Unknown Fuel'; break;
+                case 'equipmentType': key = r.equipmentType || 'Unknown Type'; break;
+                case 'equipment': key = r.equipment || 'Unknown Equipment'; break;
+                case 'operator': key = r.operator || 'Unknown Operator'; break;
+                case 'department': key = r.department || 'Unknown Department'; break;
+                case 'source': key = r.source || 'Unknown Source'; break;
+                case 'distributionStatus': key = r.distributionStatus || 'Unknown Status'; break;
+                case 'updatedBy': key = r.updatedBy || 'Unknown'; break;
+                default: key = 'Other';
+            }
+            return { key, sortVal };
+        }
+
+        function refreshVizSet(id){
+            const entry = _vzSets.get(id); if(!entry) return;
+            entry._lastAgg = computeVizPivot(entry.cfg.groupBy, entry.cfg.groupBy2, { start: entry.cfg.start, end: entry.cfg.end, selectedValues: entry.selectedValues, selectedValues2: entry.selectedValues2 });
+            buildVizTable(entry);
+            applyVizChart(entry);
+        }
+
+        function buildVizTable(entry){
+            const { wrap, _lastAgg, cfg } = entry; if(!_lastAgg) return;
+            const tbody = wrap.querySelector('tbody'); const thead = wrap.querySelector('thead');
+            if(_lastAgg.mode==='2d'){
+                if(thead){ thead.innerHTML = `<tr><th data-col='groupHdr' class='px-1 py-0.5 text-left sticky left-0 bg-white z-10'>${(cfg.groupBy||'ROW').toUpperCase()}</th>${_lastAgg.colKeys.map(ck=>`<th class='px-1 py-0.5 text-right'>${ck}</th>`).join('')}<th class='px-1 py-0.5 text-right'>TOTAL</th></tr>`; }
+                tbody.innerHTML = _lastAgg.rowKeys.map(rk=>{
+                    const rowTotal = _lastAgg.rowTotals[rk];
+                    return `<tr class='odd:bg-slate-50' data-row-key='${rk}'><td class='px-1 py-0.5 sticky left-0 bg-white z-10'>${rk}</td>${_lastAgg.colKeys.map(ck=>{ const cell=_lastAgg.matrix[rk][ck]; if(!cell) return `<td class='text-right px-1 py-0.5 text-slate-300'>-</td>`; return `<td class='text-right px-1 py-0.5'>${cell.quantity.toFixed(2)}</td>`; }).join('')}<td class='text-right px-1 py-0.5 font-semibold'>${rowTotal.quantity.toFixed(2)}</td></tr>`;
+                }).join('');
+                // footer
+                const ftQty = wrap.querySelector('[data-ft-qty]'); if(ftQty) ftQty.textContent = (_lastAgg.grand.quantity||0).toFixed(2);
+                const ftRec = wrap.querySelector('[data-ft-rec]'); if(ftRec) ftRec.textContent = (_lastAgg.grand.records||0);
+            } else {
+                const rows = _lastAgg.rows || [];
+                tbody.innerHTML = rows.map(r=>{
+                    const avg = r.records ? (r.quantity/r.records) : 0;
+                    return `<tr class='odd:bg-slate-50'><td class='px-1 py-0.5'>${r.key}</td><td class='text-right px-1 py-0.5'>${r.records}</td><td class='text-right px-1 py-0.5'>${r.quantity.toFixed(2)}</td><td class='text-right px-1 py-0.5'>${avg.toFixed(2)}</td></tr>`;
+                }).join('');
+                const ftQty = wrap.querySelector('[data-ft-qty]'); if(ftQty) ftQty.textContent = rows.reduce((a,r)=>a+r.quantity,0).toFixed(2);
+                const ftRec = wrap.querySelector('[data-ft-rec]'); if(ftRec) ftRec.textContent = rows.reduce((a,r)=>a+r.records,0);
+            }
+        }
+
+        function applyVizChart(entry){
+            const { chart, _lastAgg, cfg, wrap } = entry; if(!_lastAgg || !chart) return;
+            if(_lastAgg.mode==='2d'){
+                const rowKeys = _lastAgg.rowKeys.slice(0,30);
+                const colKeys = _lastAgg.colKeys;
+                chart.data.labels = rowKeys;
+                const palette = [ '#2563eb','#f59e0b','#10b981','#ef4444','#6366f1','#0d9488','#d946ef','#f97316','#059669','#dc2626','#4f46e5','#0891b2','#c026d3','#fb7185','#7c3aed','#65a30d','#9333ea','#ea580c','#15803d','#be123c' ];
+                chart.data.datasets = colKeys.map((ck,i)=>({ label: ck, data: rowKeys.map(rk=>{ const cell=_lastAgg.matrix[rk][ck]; return cell? cell.quantity:0; }), backgroundColor: palette[i % palette.length], borderColor: palette[i % palette.length], borderWidth:1, tension:0.25, fill: cfg.chartType==='line'? false:true }));
+                if(['pie','doughnut'].includes(chart.config.type)) chart.config.type='bar';
+                chart.update();
+            } else {
+                const rows = _lastAgg.rows.slice(0,30);
+                chart.data.labels = rows.map(r=>String(r.key));
+                chart.data.datasets[0].data = rows.map(r=>r.quantity);
+                // If non pie/doughnut include records dataset
+                if(!(cfg.chartType==='pie'||cfg.chartType==='doughnut')){
+                    if(!chart.data.datasets[1]) chart.data.datasets.push({ label:'Records', data: rows.map(r=>r.records), backgroundColor:'#334155', borderColor:'#1e293b', borderWidth:1 });
+                    else chart.data.datasets[1].data = rows.map(r=>r.records);
+                } else if(chart.data.datasets[1]) chart.data.datasets.splice(1,1);
+                // Adjust chart type if needed
+                if(chart.config.type !== cfg.chartType && !(['pie','doughnut'].includes(cfg.chartType) && ['pie','doughnut'].includes(chart.config.type))){
+                    try { chart.config.type = cfg.chartType; } catch(_){ }
+                }
+                chart.update();
+            }
+            // Update table header group label
+            const hdr = wrap.querySelector('[data-col="groupHdr"]'); if(hdr) hdr.textContent = (entry.cfg.groupBy||'GROUP').toUpperCase();
+        }
+
+        function applyVizFilters(id){
+            const entry=_vzSets.get(id); if(!entry) return;
+            const wrap=entry.wrap;
+            entry.cfg.groupBy = wrap.querySelector('select[data-filt="groupBy"]').value || 'day';
+            const prev2 = entry.cfg.groupBy2;
+            entry.cfg.groupBy2 = wrap.querySelector('select[data-filt="groupBy2"]').value || '';
+            entry.cfg.chartType = wrap.querySelector('select[data-filt="chartType"]').value || 'bar';
+            entry.cfg.start = wrap.querySelector('input[data-filt="start"]').value || '';
+            entry.cfg.end = wrap.querySelector('input[data-filt="end"]').value || '';
+            if(prev2 !== entry.cfg.groupBy2){ entry.selectedValues2=[]; populateVizValueFilterOptions2(id); }
+            refreshVizSet(id);
+            const summary = wrap.querySelector('[data-role="summary"]'); if(summary) summary.textContent = `${entry.cfg.groupBy}${(entry.cfg.start||entry.cfg.end)?` (${entry.cfg.start||'...'} to ${entry.cfg.end||'...'})`:''}`;
+        }
+
+        function applyVizPresetRange(id, range){
+            const entry=_vzSets.get(id); if(!entry) return; const wrap=entry.wrap;
+            const s=wrap.querySelector('input[data-filt="start"]'); const e=wrap.querySelector('input[data-filt="end"]'); if(!s||!e) return;
+            if(range==='clear'){ s.value=''; e.value=''; }
+            else {
+                const today=new Date(); const endStr=today.toISOString().slice(0,10); let past=new Date(); if(range==='7d') past.setDate(today.getDate()-6); if(range==='30d') past.setDate(today.getDate()-29); const startStr=past.toISOString().slice(0,10); s.value=startStr; e.value=endStr; }
+            applyVizFilters(id);
+        }
+
+        // ----- Value filter controls -----
+        function populateVizValueFilterOptions(id){
+            const entry=_vzSets.get(id); if(!entry) return;
+            const agg = computeVizPivot(entry.cfg.groupBy, '', { start: entry.cfg.start, end: entry.cfg.end });
+            const values = (agg.rows||[]).map(r=>String(r.key));
+            const wrap=entry.wrap; const box=wrap.querySelector('[data-role="valueCheckboxes"]'); if(!box) return;
+            box.innerHTML = values.map(v=>`<label class='flex items-center gap-1 px-1 py-0.5 hover:bg-slate-50'><input type='checkbox' value="${v.replace(/"/g,'&quot;')}" ${entry.selectedValues.length===0||entry.selectedValues.includes(v)?'checked':''}/> <span>${v}</span></label>`).join('');
+            updateVizValueFilterLabel(entry);
+            box.querySelectorAll('input[type=checkbox]').forEach(cb=> cb.addEventListener('change', ()=>{ entry.selectedValues = Array.from(box.querySelectorAll('input:checked')).map(i=>i.value); refreshVizSet(id); updateVizValueFilterLabel(entry); }));
+        }
+        function populateVizValueFilterOptions2(id){
+            const entry=_vzSets.get(id); if(!entry) return; if(!entry.cfg.groupBy2) { entry.selectedValues2=[]; updateVizValueFilter2Label(entry); return; }
+            const agg = computeVizPivot(entry.cfg.groupBy, entry.cfg.groupBy2, { start: entry.cfg.start, end: entry.cfg.end, selectedValues: entry.selectedValues });
+            const values = agg.colKeys || [];
+            const wrap=entry.wrap; const box=wrap.querySelector('[data-role="valueCheckboxes2"]'); if(!box) return;
+            box.innerHTML = values.map(v=>`<label class='flex items-center gap-1 px-1 py-0.5 hover:bg-slate-50'><input type='checkbox' value="${v.replace(/"/g,'&quot;')}" ${entry.selectedValues2.length===0||entry.selectedValues2.includes(v)?'checked':''}/> <span>${v}</span></label>`).join('');
+            updateVizValueFilter2Label(entry);
+            box.querySelectorAll('input[type=checkbox]').forEach(cb=> cb.addEventListener('change', ()=>{ entry.selectedValues2 = Array.from(box.querySelectorAll('input:checked')).map(i=>i.value); refreshVizSet(id); updateVizValueFilter2Label(entry); }));
+        }
+        function updateVizValueFilterLabel(entry){
+            const lab = entry.wrap.querySelector('[data-role="valueFilterLabel"]'); if(!lab) return;
+            lab.textContent = entry.selectedValues.length===0 ? 'All' : `${entry.selectedValues.length} selected`;
+        }
+        function updateVizValueFilter2Label(entry){
+            const lab = entry.wrap.querySelector('[data-role="valueFilter2Label"]'); if(!lab) return;
+            lab.textContent = (!entry.cfg.groupBy2 || entry.selectedValues2.length===0) ? 'All' : `${entry.selectedValues2.length} selected`;
+        }
+        function toggleVizValueDropdown(id){ const entry=_vzSets.get(id); if(!entry)return; const dd=entry.wrap.querySelector('[data-role="valueDropdown"]'); if(dd) dd.classList.toggle('hidden'); }
+        function toggleVizValue2Dropdown(id){ const entry=_vzSets.get(id); if(!entry)return; const dd=entry.wrap.querySelector('[data-role="valueDropdown2"]'); if(dd) dd.classList.toggle('hidden'); }
+        function toggleVizAllValues(id){ const entry=_vzSets.get(id); if(!entry)return; const box=entry.wrap.querySelector('[data-role="valueCheckboxes"]'); if(!box) return; const inputs=[...box.querySelectorAll('input[type=checkbox]')]; const allChecked=inputs.every(i=>i.checked); inputs.forEach(i=> i.checked=!allChecked); entry.selectedValues = allChecked? [] : inputs.map(i=>i.value); refreshVizSet(id); updateVizValueFilterLabel(entry); }
+        function toggleVizAllValues2(id){ const entry=_vzSets.get(id); if(!entry)return; const box=entry.wrap.querySelector('[data-role="valueCheckboxes2"]'); if(!box) return; const inputs=[...box.querySelectorAll('input[type=checkbox]')]; const allChecked=inputs.every(i=>i.checked); inputs.forEach(i=> i.checked=!allChecked); entry.selectedValues2 = allChecked? [] : inputs.map(i=>i.value); refreshVizSet(id); updateVizValueFilter2Label(entry); }
+
 
         // ---------- Analytics: Saved Reports and Export for Charts ----------
         async function getReportsRef() {

@@ -1139,11 +1139,11 @@
                 <a href="#"><i class="fas fa-gas-pump"></i> Fuel Management</a>
                 <ul class="submenu">
                     <li data-feature="vessel_offloading"><a href="vessel-offloading.html">Vessel Offloading</a></li>
-                    <li data-feature="fuel_storage"><a href="fuel-storage-status.html">Fuel Storage Status</a></li>
+                    <li data-feature="fuel_storage" data-requires-permission="fuel_storage"><a href="fuelstor.html">Fuel Storage Status</a></li>
                     <li data-feature="tank_transfer"><a href="tank-transfer.html">Tank-to-Tank Transfer</a></li>
                     <li data-feature="truck_loading"><a href="fuel-truck-loading.html">Fuel Truck Loading</a></li>
                     <li data-feature="quality_analysis"><a href="fuel-quality-analysis.html">Fuel Quality Analysis</a></li>
-                    <li data-feature="fuel_distribution"><a href="fueldistrib.html">Fuel Distribution</a></li>
+                    <li data-feature="fuel_distribution"><a href="fueldist.html">Fuel Distribution</a></li>
                     <li data-feature="fuel_consumption_analysis"><a href="fuelanalys.html">Consumption Analysis</a></li>
                     <li data-feature="fuel_daily_report"><a href="fueldaily.html">Daily Fuel Report</a></li>
                 </ul>
@@ -1939,6 +1939,17 @@ function createAddVehicleModal(){
                         </div>
                     </div>
                     
+                    <!-- Company Row: Company selector -->
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="companySelect">Company *</label>
+                            <select id="companySelect" required>
+                                <option value="">Select Company</option>
+                            </select>
+                            <div class="error" data-error-for="companySelect">Required</div>
+                        </div>
+                    </div>
+
                     <!-- Row 2: Department, Site, Fuel Type, Securing Status, and Tank Capacity -->
                     <div class="form-row-5">
                         <div class="form-group">
@@ -2176,6 +2187,15 @@ async function populateVehicleSelects() {
     }
 
     try {
+        // Populate company dropdown with current company (extendable later)
+        const compSel = document.getElementById('companySelect');
+        if (compSel) {
+            const currCompanyId = user.companyId;
+            const currCompanyName = window.authManager?.currentCompany?.companyName || 'Current Company';
+            compSel.innerHTML = `<option value="">Select Company</option>` +
+                `<option value="${currCompanyId}" selected>${currCompanyName}</option>`;
+        }
+
         // Load departments from settings if not already loaded
         if (!departmentOptions || departmentOptions.length === 0) {
             console.log('🔄 Loading departments from settings...');
@@ -2458,7 +2478,7 @@ function isValidDate(dateString) {
 
 function handleVehicleSubmit(form) {
     // All field IDs including new standard fields
-    const requiredIds = ['vehicleName', 'plateNumber', 'vehicleType', 'vehicleModel', 'vehicleStatus', 'assignmentDept', 'siteAssignment', 'fuelType', 'securingStatus', 'tankCapacity', 'vehicleMake', 'vehicleYear'];
+    const requiredIds = ['vehicleName', 'plateNumber', 'vehicleType', 'vehicleModel', 'vehicleStatus', 'assignmentDept', 'siteAssignment', 'fuelType', 'securingStatus', 'tankCapacity', 'vehicleMake', 'vehicleYear', 'companySelect'];
     const optionalIds = ['vinNumber', 'currentMileage', 'engineSize', 'averageValue', 'assignedDriver', 'insuranceExpiry', 'registrationExpiry', 'assetValue', 'vehicleAttachment', 'vehicleNotes', 'radioStatus', 'gpsStatus', 'vignetDate', 'firstAidKit', 'firstAidKitExpiry', 'extinguisherStatus', 'extinguisherExpiry'];
     
     // Validate all fields
@@ -2491,6 +2511,13 @@ function handleVehicleSubmit(form) {
     if (vehicleData.siteAssignment) {
         vehicleData.site = vehicleData.siteAssignment; // legacy/alt key
         vehicleData.workArea = vehicleData.siteAssignment; // alt naming from settings
+    }
+    // Company selection normalization (store both id and name)
+    if (vehicleData.companySelect) {
+        const compEl = document.getElementById('companySelect');
+        const selectedOption = compEl ? compEl.options[compEl.selectedIndex] : null;
+        vehicleData.selectedCompanyId = vehicleData.companySelect;
+        vehicleData.selectedCompanyName = selectedOption ? selectedOption.textContent : (window.authManager?.currentCompany?.companyName || '');
     }
     
     // Check if we're in edit mode
@@ -3260,6 +3287,10 @@ function generateVehicleDetailsHTML(vehicle) {
             <div class="detail-section">
                 <h4><i class="fas fa-building"></i> Assignment</h4>
                 <div class="detail-row">
+                    <span class="detail-label">Company:</span>
+                    <span class="detail-value">${formatValue(vehicle.selectedCompanyName)}</span>
+                </div>
+                <div class="detail-row">
                     <span class="detail-label">Department:</span>
                     <span class="detail-value">${formatValue(vehicle.assignmentDept || vehicle.assignmentDepartment || vehicle.department)}</span>
                 </div>
@@ -3524,6 +3555,13 @@ function populateEditForm(vehicleData) {
                 console.log(`✅ Set ${fieldId} = ${value}`);
             }
         });
+
+        // Set company selection if present
+        const compSel = document.getElementById('companySelect');
+        const selectedCompanyId = vehicleData.selectedCompanyId || vehicleData.companySelect || window.authManager?.currentUser?.companyId;
+        if (compSel && selectedCompanyId) {
+            compSel.value = selectedCompanyId;
+        }
         
         // Handle make/model relationship with proper timing
         if (vehicleData.vehicleMake) {

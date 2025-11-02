@@ -36,6 +36,129 @@
             }
             return window.firebase;
         }
+        // Ensure the signature labels UI matches selected count (2 or 3)
+        // Also expose a per-signature stamp toggle and uploader
+        function updateSignatureOptionsUI(sectionId) {
+            const section = document.getElementById(sectionId);
+            if (!section) return;
+            const extraOptions = document.getElementById(`extraOptions_${sectionId}`);
+            const countEl = extraOptions?.querySelector('.signature-count');
+            const labelsHost = document.getElementById(`signatureLabels_${sectionId}`);
+            if (!countEl || !labelsHost) return;
+            const count = Math.max(2, Math.min(3, parseInt(countEl.value || '2', 10)));
+            const existingValues = Array.from(labelsHost.querySelectorAll('input.signature-label')).map(i => i.value);
+            const existingEnabled = Array.from(labelsHost.querySelectorAll('input.sig-stamp-enabled')).map(i => i.checked);
+            const existingStampData = Array.from(labelsHost.querySelectorAll('input.sig-stamp-file')).map(i => i.dataset.stampDataUrl || '');
+                labelsHost.innerHTML = ''; 
+                const inlineStampEnabled = Array.from(labelsHost.querySelectorAll('input.sig-stamp-enabled')).map(i => i.checked);
+                const inlineStampData = Array.from(labelsHost.querySelectorAll('input.sig-stamp-file')).map(i => i.dataset.stampDataUrl || '');
+            const gridCols = count === 2 ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)';
+            labelsHost.style.display = 'grid';
+            labelsHost.style.gridTemplateColumns = gridCols;
+            labelsHost.style.gap = '0.5rem';
+            for (let i = 0; i < count; i++) {
+                const value = existingValues[i] || (i === 0 ? 'Employee' : i === 1 ? 'Manager' : 'Witness');
+                const wrapper = document.createElement('div');
+                const enabled = !!existingEnabled[i];
+                const dataUrl = existingStampData[i] || '';
+                wrapper.innerHTML = `
+                    <div style="display:flex; flex-direction:column; gap:.35rem;">
+                        <input type="text" class="form-control signature-label" placeholder="Label ${i+1}" value="${value}" onkeyup="updatePreview()">
+                        <label style="font-size:.85rem; color:#334155; display:flex; align-items:center; gap:.5rem;">
+                            <input type="checkbox" class="sig-stamp-enabled" onchange="toggleInlineStamp(this); updatePreview()" ${enabled ? 'checked' : ''}>
+                            Add stamp under this signature
+                        </label>
+                        <div class="sig-stamp-uploader" style="${enabled ? '' : 'display:none;'}">
+                            <input type="file" accept="image/*" class="form-control sig-stamp-file" onchange="handleInlineSigStampUpload(this); updatePreview()" ${dataUrl ? `data-stamp-data-url='${dataUrl.replace(/'/g, "&#39;")}'` : ''}>
+                            <div class="sig-stamp-preview" style="${dataUrl ? '' : 'display:none;'} margin-top:.25rem;">
+                                <img src="${dataUrl}" alt="Stamp Preview" style="max-width:120px; height:auto; opacity:.92; border:1px dashed #cbd5e1; padding:2px; background:#fff;">
+                            </div>
+                        </div>
+                    </div>`;
+                labelsHost.appendChild(wrapper);
+            }
+        }
+
+        // Toggle inline stamp uploader visibility for a given signature row
+        function toggleInlineStamp(checkboxEl) {
+            const host = checkboxEl.closest('div');
+            if (!host) return;
+            const uploader = host.parentElement?.querySelector('.sig-stamp-uploader');
+            if (uploader) uploader.style.display = checkboxEl.checked ? '' : 'none';
+        }
+
+        // Handle inline stamp image upload for a specific signature slot
+        function handleInlineSigStampUpload(inputEl) {
+            if (!inputEl || !inputEl.files || !inputEl.files[0]) return;
+            const file = inputEl.files[0];
+            const reader = new FileReader();
+            const preview = inputEl.parentElement?.querySelector('.sig-stamp-preview');
+            const img = preview?.querySelector('img');
+            reader.onload = function(e) {
+                const dataUrl = e.target.result;
+                inputEl.dataset.stampDataUrl = dataUrl;
+                if (img) img.src = dataUrl;
+                if (preview) preview.style.display = '';
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // Handle stamp image upload for a section
+        function handleStampUpload(inputEl) {
+            if (!inputEl || !inputEl.files || !inputEl.files[0]) return;
+            const file = inputEl.files[0];
+            const reader = new FileReader();
+            const sectionEl = inputEl.closest('.section-item');
+            reader.onload = function(e) {
+                const dataUrl = e.target.result;
+                // set preview
+                const preview = sectionEl.querySelector('.stamp-preview');
+                const img = preview?.querySelector('img');
+                if (img) {
+                    img.src = dataUrl;
+                    preview.style.display = 'block';
+                }
+                // store on element dataset for save
+                sectionEl.dataset.stampImage = dataUrl;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // Populate signature section dropdown for stamp positioning
+        function populateSignatureLinksForStamp(stampSectionId) {
+            const stampSection = document.getElementById(stampSectionId);
+            if (!stampSection) return;
+            const select = stampSection.querySelector('.stamp-signature-link');
+            if (!select) return;
+            
+            // Find all signature sections
+            const allSections = document.querySelectorAll('.section-item');
+            const signatures = [];
+            allSections.forEach(sec => {
+                const typeSelect = sec.querySelector('.section-type');
+                if (typeSelect && typeSelect.value === 'signature') {
+                    const titleInput = sec.querySelector('.section-title-input');
+                    const title = titleInput ? titleInput.value.trim() : '';
+                    const label = title || `Signature Section (${sec.id})`;
+                    signatures.push({ id: sec.id, label });
+                }
+            });
+            
+            // Clear and rebuild options
+            const currentValue = select.value;
+            select.innerHTML = '<option value="">None (standalone)</option>';
+            signatures.forEach(sig => {
+                const opt = document.createElement('option');
+                opt.value = sig.id;
+                opt.textContent = sig.label;
+                select.appendChild(opt);
+            });
+            
+            // Restore previous selection if still valid
+            if (currentValue && signatures.some(s => s.id === currentValue)) {
+                select.value = currentValue;
+            }
+        }
 
         // Initialize Firebase immediately
         try {
@@ -327,17 +450,30 @@
             transition: margin-left 0.3s ease;
         }
 
-        .main-content.expanded {
+        /* Match project-list.html behavior */
+        .main-content.sidebar-collapsed {
             margin-left: 0;
         }
 
+        /* Feature/permission-based menu visibility (opt-in gating) */
+        /* By default, show all menu items; when authorization completes, JS adds .menu-gated to the sidebar
+           and only then we hide items that are not marked .menu-visible. This prevents an empty sidebar if
+           auth fails or runs slowly. */
+        .sidebar.menu-gated [data-feature]:not(.menu-visible) { display: none !important; }
+        .sidebar.menu-gated .menu-dropdown:not(.menu-visible) { display: none !important; }
+        /* Ensure menu-visible items are always shown when gating is active */
+        .sidebar.menu-gated .menu-visible { display: block !important; }
+        .sidebar.menu-gated li.menu-visible,
+        .sidebar.menu-gated [data-feature].menu-visible { display: block !important; }
+
         /* Company Header */
         .header-company-logo {
-            width: 40px;
-            height: 40px;
-            border-radius: 8px;
-            object-fit: cover;
-            border: 2px solid #e9ecef;
+            width: 32px;
+            height: 32px;
+            border-radius: 0;
+            object-fit: contain;
+            background: transparent;
+            border: none;
             display: none;
         }
 
@@ -346,16 +482,16 @@
         }
 
         .header-logo-placeholder {
-            width: 40px;
-            height: 40px;
-            border-radius: 8px;
-            background: #f8f9fa;
-            border: 2px dashed #ced4da;
+            width: 32px;
+            height: 32px;
+            border-radius: 0;
+            background: transparent;
+            border: none;
             display: none;
             align-items: center;
             justify-content: center;
             color: #6c757d;
-            font-size: 1.2rem;
+            font-size: 1rem;
         }
 
         .company-name-header {
@@ -543,10 +679,10 @@
 
         .main-content {
             flex: 1;
-            margin-left: 250px;
+            margin-left: 0;
             background: #f8f9fa;
             min-height: 100vh;
-            width: calc(100vw - 250px);
+            width: 100vw;
         }
 
         .content {
@@ -709,10 +845,23 @@
         .preview-area {
             border: 2px solid #e9ecef;
             border-radius: 10px;
-            padding: 2rem;
-            background: #f8f9fa;
+            padding: 1rem; /* outer padding around the page */
+            background: #ffffff; /* white background as requested */
             min-height: 400px;
             font-family: 'Times New Roman', serif;
+            overflow: auto;
+        }
+
+        /* A4 page wrapper for preview */
+        .a4-page {
+            width: 210mm;           /* A4 width */
+            min-height: 297mm;      /* A4 height */
+            background: #ffffff;    /* ensure page is white */
+            margin: 0 auto;         /* center horizontally */
+            padding: 15mm;          /* typical document margins */
+            box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+            border: 1px solid #e0e0e0;
+            box-sizing: border-box;
         }
 
         .template-actions {
@@ -725,9 +874,8 @@
         }
 
         .saved-templates {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-            gap: 1rem;
+            display: block; /* switched from grid to block for table layout */
+            width: 100%;
             margin-top: 1rem;
         }
 
@@ -1090,8 +1238,9 @@
             gap: 1rem;
         }        /* Template Library Styles */
         .template-library-container {
-            padding: 2rem;
+            padding: 0; /* remove internal padding */
             max-width: 100%;
+            width: 100%;
         }
 
         .template-library-container .page-header {
@@ -1515,92 +1664,19 @@
     </div>
     
     <div class="app-container">
-        <!-- Sidebar Menu -->
-        <nav class="sidebar">
-            <div class="logo">
-                <h2>Dreamex Datalab</h2>
-            </div>
-            <ul class="menu">
-                <li><a href="index.html"><i class="fas fa-home"></i> Home</a></li>
-                <li><a href="dashboard.html"><i class="fas fa-chart-line"></i> Dashboard</a></li>
-                <li class="menu-dropdown" data-feature="health_view">
-                    <a href="#"><i class="fas fa-medkit"></i> Health</a>
-                    <ul class="submenu">
-                        <li data-feature="health_assessment_view"><a href="health-assessment.html">Assessment</a></li>
-                        <li data-feature="health_consultation_view"><a href="health-consultation.html">Consultation</a></li>
-                        <li data-feature="medical_folder_view"><a href="medical-folder.html">Medical Folder</a></li>
-                    </ul>
-                </li>
-                <li class="menu-dropdown" data-feature="safety_view">
-                    <a href="#"><i class="fas fa-shield-alt"></i> Safety</a>
-                    <ul class="submenu">
-                        <li data-feature="training_view"><a href="trainingboard.html">Training</a></li>
-                        <li data-feature="risk_view"><a href="riskboard.html">Risk Management</a></li>
-                        <li data-feature="jsa_view"><a href="jsaboard.html">Job Safety Analysis</a></li>
-                        <li data-feature="ptw_view"><a href="ptwboard.html">Permit to Work</a></li>
-                        <li data-feature="incident_view"><a href="incidentboard.html">Incident Reports</a></li>
-                        <li data-feature="inspection_view"><a href="inspectionboard.html">Inspection</a></li>
-                        <li data-feature="audit_view"><a href="auditboard.html">Audit</a></li>
-                    </ul>
-                </li>
-                <li class="menu-dropdown" data-feature="environment_view">
-                    <a href="#"><i class="fas fa-leaf"></i> Environment</a>
-                    <ul class="submenu">
-                        <li data-feature="water_view"><a href="waterboard.html">Water Quality</a></li>
-                        <li data-feature="emissions_view"><a href="emissions.html">Emissions</a></li>
-                        <li data-feature="waste_view"><a href="wasteboard.html">Waste Management</a></li>
-                        <li data-feature="fleet_view"><a href="fleetboard.html">Fleet Management</a></li>
-                    </ul>
-                </li>
-                <li class="menu-dropdown" data-feature="security_view">
-                    <a href="#"><i class="fas fa-lock"></i> Security</a>
-                    <ul class="submenu">
-                        <li data-feature="access_view"><a href="accessboard.html">Access Request</a></li>
-                        <li data-feature="access_daily_view"><a href="accessdaily.html">Daily Access Control</a></li>
-                        <li data-feature="removal_view"><a href="removalboard.html">Property Removal</a></li>
-                    </ul>
-                </li>
-                <li><a href="#"><i class="fas fa-truck"></i> Logistics</a></li>
-                <li class="menu-dropdown" data-feature="hr_view">
-                    <a href="#"><i class="fas fa-users"></i> HR</a>
-                    <ul class="submenu">
-                        <li data-feature="staff_management_view"><a href="staff.html">Staffing</a></li>
-                        <li data-feature="recruitment_view"><a href="jobscreen.html">Recruitment</a></li>
-                        <li data-feature="interview_view"><a href="interview.html">Interview Applicants</a></li>
-                        <li data-feature="contract_view"><a href="contract.html">Employee Contracts</a></li>
-                        <li data-feature="document_templates_view"><a href="dochtml.html">Document Templates</a></li>
-                    </ul>
-                </li>
-                <li class="menu-dropdown" data-feature="settings_view">
-                    <a href="#"><i class="fas fa-cog"></i> Settings</a>
-                    <ul class="submenu">
-                        <li data-feature="account_settings_view"><a href="account.html">Account Settings</a></li>
-                        <li data-feature="company_management_view"><a href="companyboard.html">Company Management</a></li>
-                        <li data-feature="approval_settings_view"><a href="approval-settings.html">Approval Flow Settings</a></li>
-                        <li data-feature="field_setup_view"><a href="fieldsetup.html">Field Setup</a></li>
-                        <li data-feature="preferences_view"><a href="preferences.html">Preferences</a></li>
-                        <li data-feature="notification_settings_view"><a href="notification-settings.html">Notification Settings</a></li>
-                        <li data-feature="audit_log_view"><a href="auditlog.html">Audit Log</a></li>
-                        <li data-feature="user_management_view"><a href="users.html">User & Role Management</a></li>
-                        <li data-feature="role_permissions_view"><a href="roles.html">Role Permissions</a></li>
-                    </ul>
-                </li>
-            </ul>
-        </nav>
+        <!-- Sidebar removed intentionally for full-width layout -->
 
-        <!-- Main Content -->
-        <main class="main-content">
+    <!-- Main Content -->
+    <main class="main-content" id="mainContent">
             <!-- Top Navigation -->
             <header class="top-nav">
                 <div class="top-nav-left">
-                    <button class="sidebar-toggle-btn" id="sidebarToggle">
-                        <i class="fas fa-bars"></i>
-                    </button>
+                    <!-- Sidebar toggle removed -->
                     <img id="headerCompanyLogo" class="header-company-logo" src="" alt="Company Logo">
                     <div id="headerLogoPlaceholder" class="header-logo-placeholder">
                         <i class="fas fa-building"></i>
                     </div>
-                    <span id="headerCompanyName" class="company-name-header">Document Creator</span>
+                    <span id="headerCompanyName" class="company-name-header"></span>
                 </div>
                 <div class="top-nav-right">
                     <div class="notifications">
@@ -1641,7 +1717,6 @@
                                 <i class="fas fa-file-alt"></i>
                                 Document Template Creator
                             </h1>
-                            <p class="page-subtitle">Create reusable document templates for your entire organization</p>
                         </div>
                     </div>
                 </div>
@@ -1671,6 +1746,9 @@
                     <button class="tab active" onclick="switchTab('builder')">
                         <i class="fas fa-hammer"></i> Template Builder
                     </button>
+                    <button class="tab" onclick="switchTab('preview')">
+                        <i class="fas fa-eye"></i> Template Preview
+                    </button>
                     <button class="tab" onclick="switchTab('library')">
                         <i class="fas fa-folder"></i> Template Library
                     </button>
@@ -1683,49 +1761,125 @@
                                     <i class="fas fa-info-circle"></i>
                                     Basic Information
                                 </div>
-                                <div class="form-group">
-                                    <label class="form-label">Template Name</label>
-                                    <input type="text" id="templateName" class="form-control" placeholder="Enter template name">
-                                </div>
-                                <div class="form-group">
-                                    <label class="form-label">Description</label>
-                                    <textarea id="templateDescription" class="form-control" rows="3" placeholder="Describe this template"></textarea>
-                                </div>
-                                <div class="form-group">
-                                    <label class="form-label">Category</label>
-                                    <select id="templateCategory" class="form-control">
-                                        <option value="">Select category</option>
-                                        <option value="contract">Contract Templates</option>
-                                        <option value="letter">Letter Templates</option>
-                                        <option value="report">Report Templates</option>
-                                        <option value="form">Form Templates</option>
-                                        <option value="invoice">Invoice Templates</option>
-                                        <option value="other">Other</option>
-                                    </select>
-                                </div>
-                                <div class="form-group">
-                                    <label class="form-label">
-                                        <i class="fas fa-image"></i>
-                                        Template Logo
-                                    </label>
-                                    <div style="border: 2px dashed #e9ecef; border-radius: 8px; padding: 1.5rem; text-align: center; transition: all 0.3s ease;" id="logoUploadArea">
-                                        <div id="logoPreview" style="display: none; margin-bottom: 1rem;">
-                                            <img id="logoImage" src="" alt="Logo Preview" style="max-height: 80px; max-width: 200px; object-fit: contain; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                                <div class="basic-info-grid" style="display:flex; gap: 1.5rem; align-items: flex-start; flex-wrap: wrap;">
+                                    <div class="basic-info-left" style="flex: 1 1 520px; min-width: 320px;">
+                                        <div class="form-row" style="display:flex; gap: 1rem; align-items: flex-start; flex-wrap: wrap;">
+                                            <div class="form-group" style="flex: 1 1 280px; min-width: 240px;">
+                                                <label class="form-label">Template Name</label>
+                                                <input type="text" id="templateName" class="form-control" placeholder="Enter template name">
+                                            </div>
+                                            <div class="form-group" style="flex: 0 0 260px; min-width: 220px;">
+                                                <label class="form-label">Category</label>
+                                                <select id="templateCategory" class="form-control">
+                                                    <option value="">Select category</option>
+                                                    <option value="contract">Contract Templates</option>
+                                                    <option value="letter">Letter Templates</option>
+                                                    <option value="report">Report Templates</option>
+                                                    <option value="form">Form Templates</option>
+                                                    <option value="invoice">Invoice Templates</option>
+                                                    <option value="other">Other</option>
+                                                </select>
+                                            </div>
+                                            <div class="form-group" style="flex: 1 1 280px; min-width: 240px;">
+                                                <label class="form-label">Company Name</label>
+                                                <input type="text" id="templateCompanyName" class="form-control" placeholder="Enter company name (auto-fills)">
+                                            </div>
                                         </div>
-                                        <div id="logoUploadPrompt">
-                                            <i class="fas fa-cloud-upload-alt" style="font-size: 2rem; color: #6c757d; margin-bottom: 0.5rem;"></i>
-                                            <p style="color: #6c757d; margin-bottom: 1rem;">Click to upload logo or drag and drop</p>
-                                            <p style="color: #6c757d; font-size: 0.8rem; margin: 0;">Supported formats: PNG, JPG, SVG (Max 2MB)</p>
+                                        <div class="form-group">
+                                            <label class="form-label">Title</label>
+                                            <input type="text" id="templateTitle" class="form-control" placeholder="Enter document title (optional)">
                                         </div>
-                                        <input type="file" id="logoInput" accept="image/*" style="display: none;" onchange="handleLogoUpload(event)">
-                                        <div style="margin-top: 1rem;">
-                                            <button type="button" class="btn btn-primary btn-sm" onclick="document.getElementById('logoInput').click()">
-                                                <i class="fas fa-upload"></i> Choose Logo
-                                            </button>
-                                            <button type="button" class="btn btn-secondary btn-sm" onclick="removeLogo()" id="removeLogoBtn" style="display: none; margin-left: 0.5rem;">
-                                                <i class="fas fa-trash"></i> Remove
-                                            </button>
+                                        
+                                    </div>
+                                    <div class="basic-info-right" style="flex: 0 0 320px; min-width: 260px; align-self: flex-start;">
+                                        <div class="form-group">
+                                            <label class="form-label" style="margin-bottom: 0.25rem; font-size: 0.9rem;">
+                                                <i class="fas fa-image"></i>
+                                                Template Logo
+                                            </label>
+                                            <div style="display:flex; align-items: center; gap: 0.5rem;">
+                                                <div style="border: 1px solid #e9ecef; border-radius: 8px; padding: 0.5rem; text-align: center; transition: all 0.3s ease; width: 100%; min-width: 220px; max-height: 130px; overflow: hidden;" id="logoUploadArea">
+                                                    <div id="logoPreview" style="display: none; margin-bottom: 0.4rem;">
+                                                        <img id="logoImage" src="" alt="Logo Preview" style="max-height: 60px; max-width: 180px; object-fit: contain; border-radius: 4px;">
+                                                    </div>
+                                                    <div id="logoUploadPrompt" style="margin: 0;">
+                                                        <div style="color:#6c757d; font-size: 0.75rem; line-height: 1.2;">Click to upload or drag & drop (PNG/JPG/SVG, max 2MB)</div>
+                                                    </div>
+                                                    <input type="file" id="logoInput" accept="image/*" style="display: none;" onchange="handleLogoUpload(event)">
+                                                    <div style="margin-top: 0.25rem;">
+                                                        <button type="button" class="btn btn-primary btn-sm" onclick="document.getElementById('logoInput').click()" title="Choose Logo" aria-label="Choose Logo" style="padding: 0.2rem 0.35rem; line-height: 1; background: transparent !important; border: none !important; box-shadow: none !important; color: #6c757d;">
+                                                            <i class="fas fa-upload"></i>
+                                                        </button>
+                                                        <button type="button" class="btn btn-secondary btn-sm" onclick="removeLogo()" id="removeLogoBtn" title="Remove Logo" aria-label="Remove Logo" style="display: none; margin-left: 0.25rem; padding: 0.2rem 0.35rem; line-height: 1; background: transparent !important; border: none !important; box-shadow: none !important; color: #dc3545;">
+                                                            <i class="fas fa-trash"></i>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                                <div class="logo-position-side" style="display:flex; flex-direction: column; align-items: flex-start; gap: 0.25rem; min-width: 120px;">
+                                                    <div class="form-label" style="margin: 0 0 0.25rem 0; font-size: 0.85rem;">
+                                                        <i class="fas fa-arrows-alt"></i>
+                                                        Logo Position
+                                                    </div>
+                                                    <div id="logoPositionControls" style="display: flex; flex-direction: column; gap: 0.25rem;">
+                                                        <label style="display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.8rem; line-height: 1.1;">
+                                                            <input type="checkbox" id="logoPosTop" checked> Top
+                                                        </label>
+                                                        <label style="display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.8rem; line-height: 1.1;">
+                                                            <input type="checkbox" id="logoPosBottom"> Bottom
+                                                        </label>
+                                                        <label style="display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.8rem; line-height: 1.1;">
+                                                            <input type="checkbox" id="logoPosLeft"> Left
+                                                        </label>
+                                                        <label style="display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.8rem; line-height: 1.1;">
+                                                            <input type="checkbox" id="logoPosRight"> Right
+                                                        </label>
+                                                    </div>
+                                                    <div style="color:#6c757d; font-size:0.7rem;">
+                                                        Select one or more positions.
+                                                    </div>
+                                                </div>
+                                            </div>
                                         </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Header & Footer Controls (Full Width) -->
+                            <div class="section">
+                                <div class="section-title">
+                                    <i class="fas fa-border-all"></i>
+                                    Header & Footer
+                                </div>
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; align-items: start; width: 100%;">
+                                    <div style="background:#f8f9fa; padding:.75rem; border:1px solid #e9ecef; border-radius:6px;">
+                                        <label style="display:flex; align-items:center; gap:.5rem; font-weight:500; margin-bottom:.5rem;">
+                                            <input type="checkbox" id="enableHeader" onchange="updatePreview()"> Show custom header
+                                        </label>
+                                        <div style="display:flex; gap:.5rem; align-items:center; margin-bottom:.5rem;">
+                                            <label style="min-width:70px; color:#495057;">Align</label>
+                                            <select id="headerAlign" class="form-control" style="max-width: 160px;" onchange="updatePreview()">
+                                                <option value="left">Left</option>
+                                                <option value="center" selected>Center</option>
+                                                <option value="right">Right</option>
+                                            </select>
+                                        </div>
+                                        <textarea id="headerContent" class="form-control" rows="3" placeholder="Enter header content (e.g., address, tagline)" onkeyup="updatePreview()"></textarea>
+                                        <small style="color:#6c757d;">Header shows above the document content. Company logo/name/title still apply.</small>
+                                    </div>
+                                    <div style="background:#f8f9fa; padding:.75rem; border:1px solid #e9ecef; border-radius:6px;">
+                                        <label style="display:flex; align-items:center; gap:.5rem; font-weight:500; margin-bottom:.5rem;">
+                                            <input type="checkbox" id="enableFooter" onchange="updatePreview()"> Show footer
+                                        </label>
+                                        <div style="display:flex; gap:.5rem; align-items:center; margin-bottom:.5rem;">
+                                            <label style="min-width:70px; color:#495057;">Align</label>
+                                            <select id="footerAlign" class="form-control" style="max-width: 160px;" onchange="updatePreview()">
+                                                <option value="left">Left</option>
+                                                <option value="center" selected>Center</option>
+                                                <option value="right">Right</option>
+                                            </select>
+                                        </div>
+                                        <textarea id="footerContent" class="form-control" rows="3" placeholder="Enter footer content (e.g., address, contacts, disclaimer)" onkeyup="updatePreview()"></textarea>
+                                        <small style="color:#6c757d;">Footer sticks to the bottom of the A4 page preview.</small>
                                     </div>
                                 </div>
                             </div>
@@ -1734,28 +1888,19 @@
                                 <div class="section-title">
                                     <i class="fas fa-puzzle-piece"></i>
                                     Template Sections
-                                    <button class="btn btn-success" onclick="addSection()" style="margin-left: auto;">
-                                        <i class="fas fa-plus"></i> Add Section
-                                    </button>
                                 </div>
                                 <div id="sectionsContainer">
                                     <!-- Sections will be added here -->
                                 </div>
+                                <div class="add-section-footer" style="margin-top: 1rem; display: flex; justify-content: flex-start;">
+                                    <button class="btn btn-success" onclick="addSection()">
+                                        <i class="fas fa-plus"></i> Add Section
+                                    </button>
+                                </div>
                             </div>
                         </div>
 
-                        <!-- Template Preview -->
-                        <div class="template-preview">
-                            <div class="section-title">
-                                <i class="fas fa-eye"></i>
-                                Live Preview
-                            </div>
-                            <div id="previewArea" class="preview-area">
-                                <p style="color: #6c757d; text-align: center; font-style: italic;">
-                                    Add sections to see the template preview
-                                </p>
-                            </div>
-                        </div>
+                        
                     </div>
 
             <!-- Template Actions -->
@@ -1780,14 +1925,21 @@
                 </div>
             </div>
         </div>        <!-- Template Library Tab -->
-        <div id="libraryTab" class="tab-content">
+    <div id="previewTab" class="tab-content">
             <div class="template-library-container">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                    <h3 style="margin: 0;">Your Templates</h3>
-                    <button class="btn btn-info" onclick="migrateTemplatesToDualStorage()" title="Migrate templates to ensure they appear in contract creation">
-                        <i class="fas fa-sync-alt"></i> Sync Templates
-                    </button>
+                <div class="section-title" style="margin: 0 0 1rem 0;">
+                    <i class="fas fa-eye"></i>
+                    Live Preview
                 </div>
+                <div id="previewArea" class="preview-area">
+                    <p style="color: #6c757d; text-align: center; font-style: italic;">
+                        Add sections to see the template preview
+                    </p>
+                </div>
+            </div>
+        </div>
+    <div id="libraryTab" class="tab-content">
+            <div class="template-library-container">
                 <div id="savedTemplates" class="saved-templates">
                     <!-- Saved templates will be displayed here -->
                 </div>
@@ -1827,7 +1979,10 @@
             console.log('DOM Content Loaded - starting template builder initialization');
             loadCompanyTemplates(); // Load company-scoped templates
             updatePreview();
-            setupSidebarToggle();
+            // Initialize sidebar toggle only if a toggle and sidebar exist (sidebar has been removed on this page)
+            if (document.getElementById('sidebarToggle') && document.querySelector('.sidebar')) {
+                setupSidebarToggle();
+            }
             
             // Initialize auth with a slight delay to ensure all elements are ready
             setTimeout(() => {
@@ -1844,23 +1999,23 @@
         function setupSidebarToggle() {
             const toggleBtn = document.getElementById('sidebarToggle');
             const sidebar = document.querySelector('.sidebar');
-            const mainContent = document.querySelector('.main-content');
-            
+            const mainContent = document.getElementById('mainContent');
+
             if (toggleBtn && sidebar && mainContent) {
                 toggleBtn.addEventListener('click', function() {
                     sidebar.classList.toggle('collapsed');
-                    mainContent.classList.toggle('expanded');
-                    
+                    mainContent.classList.toggle('sidebar-collapsed');
+
                     // Save sidebar state
                     const isCollapsed = sidebar.classList.contains('collapsed');
                     localStorage.setItem('sidebarCollapsed', isCollapsed);
                 });
-                
+
                 // Restore sidebar state
                 const savedState = localStorage.getItem('sidebarCollapsed');
                 if (savedState === 'true') {
                     sidebar.classList.add('collapsed');
-                    mainContent.classList.add('expanded');
+                    mainContent.classList.add('sidebar-collapsed');
                 }
             }
         }
@@ -1884,6 +2039,13 @@
                 });
             }            // Initialize Firebase authentication
             initializeAuth();
+            
+            // Initialize menu authorization after auth kicks in
+            if (typeof initializeMenuAuthorization === 'function') {
+                initializeMenuAuthorization();
+            } else if (typeof updateMenuWithFeatureAuthorization === 'function') {
+                updateMenuWithFeatureAuthorization();
+            }
         });
 
         // Initialize Firebase authentication
@@ -1958,19 +2120,26 @@
             });
             
             // Remove active class from all tabs
-            document.querySelectorAll('.tab').forEach(tab => {
-                tab.classList.remove('active');
-            });
+            document.querySelectorAll('.tab').forEach(tab => { tab.classList.remove('active'); });
             
             // Show selected tab content
             document.getElementById(tabName + 'Tab').classList.add('active');
             
             // Add active class to selected tab
-            event.target.classList.add('active');
+            const tabs = document.querySelectorAll('.tabs .tab');
+            // Map tabs to indices: 0=builder,1=preview,2=library
+            const indexMap = { builder: 0, preview: 1, library: 2 };
+            const idx = indexMap[tabName];
+            if (typeof idx === 'number' && tabs[idx]) {
+                tabs[idx].classList.add('active');
+            }
             
             // Load saved templates when switching to library tab
             if (tabName === 'library') {
                 loadCompanyTemplates(); // Reload company-scoped templates
+            } else if (tabName === 'preview') {
+                // Ensure the preview is up to date
+                if (typeof updatePreview === 'function') updatePreview();
             }
         }
 
@@ -1996,6 +2165,8 @@
                         <option value="textarea" ${type === 'textarea' ? 'selected' : ''}>Large Text Area</option>
                         <option value="table" ${type === 'table' ? 'selected' : ''}>Table</option>
                         <option value="placeholder" ${type === 'placeholder' ? 'selected' : ''}>Placeholder Field</option>
+                        <option value="signature" ${type === 'signature' ? 'selected' : ''}>Signature Row</option>
+                        <option value="stamp" ${type === 'stamp' ? 'selected' : ''}>Stamp (Image)</option>
                     </select>
                 </div>
                 
@@ -2003,6 +2174,21 @@
                     <label class="form-label">Section Title</label>
                     <input type="text" class="form-control section-title-input" value="${title}" 
                            placeholder="Enter section title" onkeyup="updatePreview()">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Alignment</label>
+                    <div style="display:flex; gap: 1rem; align-items: center;">
+                        <label style="display:inline-flex; align-items:center; gap:0.4rem;">
+                            <input type="radio" name="align_${sectionId}" class="section-align" value="left" checked onchange="updatePreview()"> Left
+                        </label>
+                        <label style="display:inline-flex; align-items:center; gap:0.4rem;">
+                            <input type="radio" name="align_${sectionId}" class="section-align" value="center" onchange="updatePreview()"> Center
+                        </label>
+                        <label style="display:inline-flex; align-items:center; gap:0.4rem;">
+                            <input type="radio" name="align_${sectionId}" class="section-align" value="right" onchange="updatePreview()"> Right
+                        </label>
+                    </div>
                 </div>
                 
                 <div class="form-group">
@@ -2074,6 +2260,104 @@
                                        onchange="updatePreview(); updateTextareaCounter('${sectionId}')">
                                 <small style="color: #6c757d;">Leave empty for no limit</small>
                             </div>
+                            <div style="margin-top:.75rem; padding:.5rem; border:1px dashed #cbd5e1; border-radius:6px; background:#f8fafc;">
+                                <label class="form-label" style="display:block; margin-bottom:.5rem;">
+                                    <i class="fas fa-magic-wand-sparkles"></i> Insert Placeholder
+                                </label>
+                                <div style="display:flex; gap:.5rem; align-items:center; flex-wrap:wrap;">
+                                    <select class="form-control" style="max-width:260px;" id="ph_${sectionId}">
+                                        <option value="">Select a placeholder...</option>
+                                        <option value="{{employeeName}}">Employee Name</option>
+                                        <option value="{{employeeId}}">Employee ID</option>
+                                        <option value="{{employeeEmail}}">Employee Email</option>
+                                        <option value="{{employeePhone}}">Employee Phone</option>
+                                        <option value="{{positionTitle}}">Position Title</option>
+                                        <option value="{{department}}">Department</option>
+                                        <option value="{{reportingManager}}">Reporting Manager</option>
+                                        <option value="{{workLocation}}">Work Location</option>
+                                        <option value="{{nationality}}">Nationality</option>
+                                        <option value="{{gender}}">Gender</option>
+                                        <option value="{{fatherName}}">Father Name</option>
+                                        <option value="{{motherName}}">Mother Name</option>
+                                        <option value="{{birthDate|date}}">Birth Date</option>
+                                        <option value="{{birthCountry}}">Birth Country</option>
+                                        <option value="{{maritalStatus}}">Marital Status</option>
+                                        <option value="{{address}}">Address</option>
+                                        <option value="{{accommodationAllowance|currency}}">Accommodation Allowance</option>
+                                        <option value="{{housingAllowance|currency}}">Transportation Allowance</option>
+                                        <option value="{{salaryAmount|currency}}">Salary Amount (Currency)</option>
+                                        <option value="{{grossSalary|currency}}">Gross Salary (Currency)</option>
+                                        <option value="{{workingHours}}">Working Hours</option>
+                                        <option value="{{currency}}">Currency Code</option>
+                                        <option value="{{employmentType}}">Employment Type</option>
+                                        <option value="{{contractType}}">Contract Type</option>
+                                        <option value="{{startDate|date}}">Start Date</option>
+                                        <option value="{{endDate|date}}">End Date</option>
+                                        <option value="{{probationPeriod}}">Probation Period</option>
+                                        <option value="{{workingHours}}">Working Hours</option>
+                                        <option value="{{annualLeave}}">Annual Leave</option>
+                                        <option value="{{companyName}}">Company Name</option>
+                                        <option value="{{today|date}}">Today's Date</option>
+                                    </select>
+                                    <button type="button" class="btn btn-secondary" onclick="insertPlaceholderIntoSection('${sectionId}')" title="Insert placeholder at cursor">
+                                        <i class="fas fa-plus"></i>
+                                    </button>
+                                    <small style="color:#6c757d;">Tip: Placeholders use double curly braces, e.g. {{employeeName}}</small>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    extraOptions.style.display = 'block';
+                    break;
+                case 'text':
+                    contentTextarea.placeholder = 'Enter section content (supports placeholders like {{employeeName}})';
+                    extraOptions.innerHTML = `
+                        <div style="margin-top:.25rem; padding:.5rem; border:1px dashed #cbd5e1; border-radius:6px; background:#f8fafc;">
+                            <label class="form-label" style="display:block; margin-bottom:.5rem;">
+                                <i class="fas fa-magic-wand-sparkles"></i> Insert Placeholder
+                            </label>
+                            <div style="display:flex; gap:.5rem; align-items:center; flex-wrap:wrap;">
+                                <select class="form-control" style="max-width:260px;" id="ph_${sectionId}">
+                                    <option value="">Select a placeholder...</option>
+                                    <option value="{{employeeName}}">Employee Name</option>
+                                    <option value="{{employeeId}}">Employee ID</option>
+                                    <option value="{{employeeEmail}}">Employee Email</option>
+                                    <option value="{{employeePhone}}">Employee Phone</option>
+                                    <option value="{{positionTitle}}">Position Title</option>
+                                    <option value="{{department}}">Department</option>
+                                    <option value="{{reportingManager}}">Reporting Manager</option>
+                                    <option value="{{workLocation}}">Work Location</option>
+                                    <option value="{{nationality}}">Nationality</option>
+                                    <option value="{{gender}}">Gender</option>
+                                    <option value="{{fatherName}}">Father Name</option>
+                                    <option value="{{motherName}}">Mother Name</option>
+                                    <option value="{{birthDate|date}}">Birth Date</option>
+                                    <option value="{{birthCountry}}">Birth Country</option>
+                                    <option value="{{maritalStatus}}">Marital Status</option>
+                                    <option value="{{address}}">Address</option>
+                                    <option value="{{accommodationAllowance|currency}}">Accommodation Allowance</option>
+                                    <option value="{{housingAllowance|currency}}">Transportation Allowance</option>
+                                    <option value="{{salaryAmount|currency}}">Salary Amount (Currency)</option>
+                                    <option value="{{grossSalary|currency}}">Gross Salary (Currency)</option>
+                                    <option value="{{workingHours}}">Working Hours</option>
+                                    <option value="{{grossSalary|currency}}">Gross Salary (Currency)</option>
+                                    <option value="{{workingHours}}">Working Hours</option>
+                                    <option value="{{currency}}">Currency Code</option>
+                                    <option value="{{employmentType}}">Employment Type</option>
+                                    <option value="{{contractType}}">Contract Type</option>
+                                    <option value="{{startDate|date}}">Start Date</option>
+                                    <option value="{{endDate|date}}">End Date</option>
+                                    <option value="{{probationPeriod}}">Probation Period</option>
+                                    <option value="{{workingHours}}">Working Hours</option>
+                                    <option value="{{annualLeave}}">Annual Leave</option>
+                                    <option value="{{companyName}}">Company Name</option>
+                                    <option value="{{today|date}}">Today's Date</option>
+                                </select>
+                                <button type="button" class="btn btn-secondary" onclick="insertPlaceholderIntoSection('${sectionId}')" title="Insert placeholder at cursor">
+                                    <i class="fas fa-plus"></i>
+                                </button>
+                                <small style="color:#6c757d;">Tip: Placeholders use double curly braces, e.g. {{employeeName}}</small>
+                            </div>
                         </div>
                     `;
                     extraOptions.style.display = 'block';
@@ -2103,73 +2387,191 @@
                                placeholder="Default value (optional)" onkeyup="updatePreview()">
                     `;
                     extraOptions.style.display = 'block';
-                    break;                default:
+                    break;
+                case 'signature':
+                    contentTextarea.placeholder = 'Optional instructions to display above signatures';
+                    contentTextarea.rows = 2;
+                    extraOptions.innerHTML = `
+                        <div class="form-group" style="margin-top: .5rem;">
+                            <label class="form-label"><i class="fas fa-pen-fancy"></i> Signature Options</label>
+                            <div style="display:flex; gap:1rem; align-items:center; margin-bottom:.5rem;">
+                                <label style="display:inline-flex; align-items:center; gap:.5rem;">
+                                    Count:
+                                    <select class="form-control signature-count" style="width:100px;" onchange="updateSignatureOptionsUI('${sectionId}'); updatePreview();">
+                                        <option value="2">2</option>
+                                        <option value="3">3</option>
+                                    </select>
+                                </label>
+                            </div>
+                            <div class="signature-labels" id="signatureLabels_${sectionId}"></div>
+                            <small style="color:#6c757d;">Labels appear under each signature line (e.g., Employee, Manager, Witness).</small>
+                        </div>
+                    `;
+                    extraOptions.style.display = 'block';
+                    // Initialize labels inputs
+                    setTimeout(() => { updateSignatureOptionsUI(sectionId); }, 0);
+                    break;
+                case 'stamp':
+                    contentTextarea.placeholder = 'Optional caption under the stamp';
+                    contentTextarea.rows = 2;
+                    extraOptions.innerHTML = `
+                        <div class="form-group" style="margin-top:.5rem;">
+                            <label class="form-label"><i class="fas fa-stamp"></i> Stamp Options</label>
+                            <div style="display:grid; grid-template-columns: 1fr; gap:.75rem;">
+                                <div>
+                                    <input type="file" accept="image/*" class="form-control stamp-file" onchange="handleStampUpload(this); updatePreview()">
+                                    <small style="color:#6c757d;">Upload a PNG with transparency for best results.</small>
+                                </div>
+                                <div>
+                                    <label class="form-label">Position Under Signature</label>
+                                    <select class="form-control stamp-signature-link" onchange="updatePreview()">
+                                        <option value="">None (standalone)</option>
+                                    </select>
+                                    <small style="color:#6c757d;">Select which signature this stamp should appear under.</small>
+                                </div>
+                                <div style="display:flex; align-items:center; gap:.75rem;">
+                                    <label style="min-width:80px;">Size</label>
+                                    <input type="range" min="40" max="240" step="4" value="120" class="stamp-size" oninput="this.nextElementSibling.value=this.value; updatePreview()">
+                                    <output>120</output>
+                                    <small style="color:#6c757d;">pixels (diameter/width)</small>
+                                </div>
+                                <div style="display:flex; align-items:center; gap:1rem;">
+                                    <label style="display:inline-flex; align-items:center; gap:.4rem;">
+                                        <input type="checkbox" class="stamp-circular" onchange="updatePreview()"> Circular
+                                    </label>
+                                    <label style="display:inline-flex; align-items:center; gap:.4rem;">
+                                        <input type="checkbox" class="stamp-border" checked onchange="updatePreview()"> Border
+                                    </label>
+                                </div>
+                                <div class="stamp-preview" style="display:none; text-align:center;">
+                                    <img src="" alt="Stamp Preview" style="max-width:200px; height:auto; opacity:0.9;">
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    extraOptions.style.display = 'block';
+                    // Populate signature dropdown
+                    setTimeout(() => { populateSignatureLinksForStamp(sectionId); }, 0);
+                    break;
+                default:
                     contentTextarea.placeholder = 'Enter section content';
                     contentTextarea.rows = 4; // Reset to default rows for other types
             }
             
             updatePreview();
-        }        // Update the live preview
+        }
+        // Insert selected placeholder token into the section content at the cursor position
+        function insertPlaceholderIntoSection(sectionId) {
+            const section = document.getElementById(sectionId);
+            if (!section) return;
+            const sel = section.querySelector(`#ph_${sectionId}`);
+            const ta = section.querySelector('.section-content');
+            if (!sel || !ta) return;
+            const token = sel.value;
+            if (!token) return;
+            // Insert at caret
+            const start = ta.selectionStart || 0;
+            const end = ta.selectionEnd || 0;
+            const val = ta.value || '';
+            ta.value = val.slice(0, start) + token + val.slice(end);
+            // Move caret after inserted token
+            const pos = start + token.length;
+            try { ta.setSelectionRange(pos, pos); } catch(e) { /* ignore */ }
+            ta.focus();
+            if (typeof updatePreview === 'function') updatePreview();
+        }
+        // Ensure the signature labels UI matches selected count (2 or 3)
+        function updateSignatureOptionsUI(sectionId) {
+            const section = document.getElementById(sectionId);
+            if (!section) return;
+            const extraOptions = document.getElementById(`extraOptions_${sectionId}`);
+            const countEl = extraOptions?.querySelector('.signature-count');
+            const labelsHost = document.getElementById(`signatureLabels_${sectionId}`);
+            if (!countEl || !labelsHost) return;
+            const count = Math.max(2, Math.min(3, parseInt(countEl.value || '2', 10)));
+            const existingValues = Array.from(labelsHost.querySelectorAll('input.signature-label')).map(i => i.value);
+            const existingEnabled = Array.from(labelsHost.querySelectorAll('input.sig-stamp-enabled')).map(i => i.checked);
+            const existingStampData = Array.from(labelsHost.querySelectorAll('input.sig-stamp-file')).map(i => i.dataset.stampDataUrl || '');
+            labelsHost.innerHTML = '';
+            const gridCols = count === 2 ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)';
+            labelsHost.style.display = 'grid';
+            labelsHost.style.gridTemplateColumns = gridCols;
+            labelsHost.style.gap = '0.5rem';
+            for (let i = 0; i < count; i++) {
+                const value = existingValues[i] || (i === 0 ? 'Employee' : i === 1 ? 'Manager' : 'Witness');
+                const wrapper = document.createElement('div');
+                const enabled = !!existingEnabled[i];
+                const dataUrl = existingStampData[i] || '';
+                wrapper.innerHTML = `
+                    <div style=\"display:flex; flex-direction:column; gap:.35rem;\">\n                        <input type=\"text\" class=\"form-control signature-label\" placeholder=\"Label ${i+1}\" value=\"${value}\" onkeyup=\"updatePreview()\">\n                        <label style=\"font-size:.85rem; color:#334155; display:flex; align-items:center; gap:.5rem;\">\n                            <input type=\"checkbox\" class=\"sig-stamp-enabled\" onchange=\"toggleInlineStamp(this); updatePreview()\" ${enabled ? 'checked' : ''}>\n                            Add stamp under this signature\n                        </label>\n                        <div class=\"sig-stamp-uploader\" style=\"${enabled ? '' : 'display:none;'}\">\n                            <input type=\"file\" accept=\"image/*\" class=\"form-control sig-stamp-file\" onchange=\"handleInlineSigStampUpload(this); updatePreview()\" ${dataUrl ? `data-stamp-data-url='${dataUrl.replace(/'/g, "&#39;")}'` : ''}>\n                            <div class=\"sig-stamp-preview\" style=\"${dataUrl ? '' : 'display:none;'} margin-top:.25rem;\">\n                                <img src=\"${dataUrl}\" alt=\"Stamp Preview\" style=\"max-width:120px; height:auto; opacity:.92; border:1px dashed #cbd5e1; padding:2px; background:#fff;\">\n                            </div>\n                        </div>\n                    </div>
+                `;
+                labelsHost.appendChild(wrapper);
+            }
+        }
+        // Update the live preview with support for logo positions
         function updatePreview() {
             const previewArea = document.getElementById('previewArea');
             const sections = document.querySelectorAll('.section-item');
             const logo = getCurrentLogo();
+            const positions = getSelectedLogoPositions();
+            const companyName = (document.getElementById('templateCompanyName')?.value || '').trim();
+            const docTitle = (document.getElementById('templateTitle')?.value || '').trim();
+            // Header/Footer state
+            const enableHeader = document.getElementById('enableHeader')?.checked || false;
+            const headerAlign = document.getElementById('headerAlign')?.value || 'center';
+            const headerContent = (document.getElementById('headerContent')?.value || '').trim();
+            const enableFooter = document.getElementById('enableFooter')?.checked || false;
+            const footerAlign = document.getElementById('footerAlign')?.value || 'center';
+            const footerContent = (document.getElementById('footerContent')?.value || '').trim();
+
+            // 1) Build the content HTML from sections with stamp-under-signature positioning
+            let contentHTML = '';
+            const stampsBySignature = new Map(); // Map signature section ID to array of stamp sections
             
-            let previewHTML = '';
-            
-            // Add logo at the top if available
-            if (logo && logo !== 'data:') {
-                previewHTML += `
-                    <div style="text-align: center; margin-bottom: 2rem; padding-bottom: 1rem; border-bottom: 1px solid #e9ecef;">
-                        <img src="${logo}" alt="Template Logo" style="max-height: 80px; max-width: 200px; object-fit: contain;">
-                    </div>
-                `;
-            }
-            
-            if (sections.length === 0) {
-                if (!logo || logo === 'data:') {
-                    previewArea.innerHTML = `
-                        <p style="color: #6c757d; text-align: center; font-style: italic;">
-                            Add sections to see the template preview
-                        </p>
-                    `;
-                } else {
-                    previewArea.innerHTML = previewHTML + `
-                        <p style="color: #6c757d; text-align: center; font-style: italic;">
-                            Add sections to see the template preview
-                        </p>
-                    `;
+            sections.forEach(section => {
+                const type = section.querySelector('.section-type').value;
+                if (type === 'stamp') {
+                    const linkedSigId = section.querySelector('.stamp-signature-link')?.value;
+                    if (linkedSigId) {
+                        if (!stampsBySignature.has(linkedSigId)) stampsBySignature.set(linkedSigId, []);
+                        stampsBySignature.get(linkedSigId).push(section);
+                    }
                 }
-                return;
-            }
+            });
             
             sections.forEach(section => {
                 const type = section.querySelector('.section-type').value;
                 const title = section.querySelector('.section-title-input').value;
                 const content = section.querySelector('.section-content').value;
-                
-                if (title || content) {
-                    switch(type) {
+                const align = section.querySelector('.section-align:checked')?.value || 'left';
+                const alignStyle = `text-align: ${align};`;
+
+                if (title || content || type === 'signature') {
+                    switch (type) {
                         case 'heading':
-                            previewHTML += `<h2 style="color: #2c3e50; margin-bottom: 1rem;">${title || content}</h2>`;
-                            break;case 'list':
+                            contentHTML += `<div style="${alignStyle}"><h2 style="color: #2c3e50; margin-bottom: 1rem; display: inline-block;">${title || content}</h2></div>`;
+                            break;
+                        case 'list':
                             if (content) {
                                 const items = content.split('\n').filter(item => item.trim());
-                                previewHTML += title ? `<h3>${title}</h3>` : '';
-                                previewHTML += '<ul>';
+                                contentHTML += `<div style="${alignStyle}">`;
+                                contentHTML += title ? `<h3 style="display:inline-block;">${title}</h3>` : '';
+                                contentHTML += '<ul style="display:inline-block; text-align: left;">';
                                 items.forEach(item => {
-                                    previewHTML += `<li>${item.trim()}</li>`;
+                                    contentHTML += `<li>${item.trim()}</li>`;
                                 });
-                                previewHTML += '</ul>';
+                                contentHTML += '</ul>';
+                                contentHTML += '</div>';
                             }
-                            break;                        case 'textarea':
+                            break;
+                        case 'textarea': {
                             const isReadonly = section.querySelector('.textarea-readonly')?.checked || false;
                             const isRequired = section.querySelector('.textarea-required')?.checked || false;
                             const maxLength = section.querySelector('.textarea-maxlength')?.value || '';
-                            
-                            previewHTML += title ? `<h3>${title}</h3>` : '';
-                            previewHTML += `
-                                <div class="textarea-preview" style="margin-bottom: 1rem;">
+
+                            contentHTML += title ? `<div style="${alignStyle}"><h3 style="display:inline-block;">${title}</h3></div>` : '';
+                            contentHTML += `
+                                <div class="textarea-preview" style="margin-bottom: 1rem; ${alignStyle}">
                                     <textarea 
                                         style="width: 100%; padding: 0.75rem; border: 2px solid #e9ecef; border-radius: 6px; 
                                                font-family: inherit; font-size: 0.9rem; line-height: 1.5; resize: vertical;
@@ -2186,61 +2588,205 @@
                                         </div>
                                         ${maxLength ? `<span class="textarea-maxlength-indicator">Max: ${maxLength} characters</span>` : ''}
                                     </div>
-                                </div>
-                            `;
+                                </div>`;
                             break;
-                        case 'table':
+                        }
+                        case 'table': {
                             const headers = section.querySelector('.table-headers')?.value || '';
                             if (content || headers) {
-                                previewHTML += title ? `<h3>${title}</h3>` : '';
-                                previewHTML += '<table style="width: 100%; border-collapse: collapse; margin-bottom: 1rem;">';
-                                
+                                contentHTML += title ? `<div style="${alignStyle}"><h3 style="display:inline-block;">${title}</h3></div>` : '';
+                                contentHTML += `<div style="${alignStyle}">`;
+                                contentHTML += '<table style="width: 100%; border-collapse: collapse; margin-bottom: 1rem;">';
+
                                 if (headers) {
                                     const headerCells = headers.split('|').map(h => h.trim());
-                                    previewHTML += '<thead><tr>';
+                                    contentHTML += '<thead><tr>';
                                     headerCells.forEach(header => {
-                                        previewHTML += `<th style="border: 1px solid #ddd; padding: 8px; background: #f8f9fa;">${header}</th>`;
+                                        contentHTML += `<th style=\"border: 1px solid #ddd; padding: 8px; background: #f8f9fa;\">${header}</th>`;
                                     });
-                                    previewHTML += '</tr></thead>';
+                                    contentHTML += '</tr></thead>';
                                 }
-                                
+
                                 if (content) {
                                     const rows = content.split('\n').filter(row => row.trim());
-                                    previewHTML += '<tbody>';
+                                    contentHTML += '<tbody>';
                                     rows.forEach(row => {
                                         const cells = row.split('|').map(c => c.trim());
-                                        previewHTML += '<tr>';
+                                        contentHTML += '<tr>';
                                         cells.forEach(cell => {
-                                            previewHTML += `<td style="border: 1px solid #ddd; padding: 8px;">${cell}</td>`;
+                                            contentHTML += `<td style=\"border: 1px solid #ddd; padding: 8px;\">${cell}</td>`;
                                         });
-                                        previewHTML += '</tr>';
+                                        contentHTML += '</tr>';
                                     });
-                                    previewHTML += '</tbody>';
+                                    contentHTML += '</tbody>';
                                 }
-                                
-                                previewHTML += '</table>';
+
+                                contentHTML += '</table>';
+                                contentHTML += '</div>'; // close align wrapper
                             }
                             break;
-                        case 'placeholder':
+                        }
+                        case 'placeholder': {
                             const placeholderType = section.querySelector('.placeholder-type')?.value || 'text';
                             const defaultValue = section.querySelector('.placeholder-default')?.value || '';
-                            previewHTML += title ? `<h3>${title}</h3>` : '';
-                            previewHTML += `<div style="background: #e3f2fd; padding: 0.5rem; border-radius: 4px; margin-bottom: 1rem;">
+                            contentHTML += title ? `<div style="${alignStyle}"><h3 style="display:inline-block;">${title}</h3></div>` : '';
+                            contentHTML += `<div style="${alignStyle}">
+                                <div style="display:inline-block; background: #e3f2fd; padding: 0.5rem; border-radius: 4px; margin-bottom: 1rem; text-align: left;">
                                 <strong>Placeholder:</strong> ${content} 
                                 <span style="color: #666;">(${placeholderType}${defaultValue ? ', default: ' + defaultValue : ''})</span>
+                                </div>
                             </div>`;
                             break;
+                        }
+                        case 'signature': {
+                            const count = parseInt(section.querySelector('.signature-count')?.value || '2', 10);
+                            const labels = Array.from(section.querySelectorAll('.signature-label')).map(i => i.value.trim()).filter(Boolean);
+                            const inlineStampEnabled = Array.from(section.querySelectorAll('.sig-stamp-enabled')).map(cb => cb.checked);
+                            const inlineStampData = Array.from(section.querySelectorAll('.sig-stamp-file')).map(inp => inp.dataset.stampDataUrl || '');
+                            const n = Math.max(2, Math.min(3, count || 2));
+                            const jc = (align === 'right') ? 'flex-end' : (align === 'center' ? 'center' : 'flex-start');
+                            const blockWidth = n === 2 ? '48%' : '31%';
+                            contentHTML += title ? `<div style="${alignStyle}"><h3 style="display:inline-block;">${title}</h3></div>` : '';
+                            if (content) contentHTML += `<div style="${alignStyle}; color:#475569; font-size:.9rem; margin-bottom:.25rem;">${content.replace(/\n/g, '<br>')}</div>`;
+                            contentHTML += `<div style="display:flex; gap:1rem; justify-content:${jc}; ${alignStyle}">`;
+                            for (let i = 0; i < n; i++) {
+                                const label = labels[i] || `Signature ${i+1}`;
+                                let stampHTML = '';
+                                if (inlineStampEnabled[i] && inlineStampData[i]) {
+                                    const size = 120; // default inline size
+                                    stampHTML = `<div style="margin-top:.35rem;"><img src="${inlineStampData[i]}" alt="Stamp" style="width:${size}px; height:${size}px; object-fit:contain; opacity:.92;"></div>`;
+                                }
+                                contentHTML += `
+                                    <div style="width:${blockWidth}; min-width:160px; text-align:center;">
+                                        <div style="height:56px; border-bottom:1px solid #94a3b8; margin:0 6px;"></div>
+                                        <div style="margin-top:.35rem; font-size:.85rem; color:#334155;">${label}</div>
+                                        ${stampHTML}
+                                    </div>
+                                `;
+                            }
+                            contentHTML += `</div>`;
+                            
+                            // Render stamps linked to this signature
+                            const linkedStamps = stampsBySignature.get(section.id) || [];
+                            linkedStamps.forEach(stampSec => {
+                                const stampTitle = stampSec.querySelector('.section-title-input')?.value || '';
+                                const stampContent = stampSec.querySelector('.section-content')?.value || '';
+                                const stampSize = parseInt(stampSec.querySelector('.stamp-size')?.value || '120', 10);
+                                const stampCircular = stampSec.querySelector('.stamp-circular')?.checked || false;
+                                const stampBorder = stampSec.querySelector('.stamp-border')?.checked || false;
+                                const stampData = stampSec.dataset.stampImage || '';
+                                const stampAlign = stampSec.querySelector('.section-align:checked')?.value || 'left';
+                                const stampAlignStyle = `text-align:${stampAlign};`;
+                                const radius = stampCircular ? '50%' : '0';
+                                const border = stampBorder ? '2px solid rgba(100,116,139,0.6)' : 'none';
+                                const caption = stampContent ? `<div style="margin-top:.35rem; font-size:.85rem; color:#334155;">${stampContent.replace(/\n/g, '<br>')}</div>` : '';
+                                const imgHTML = stampData
+                                    ? `<img src="${stampData}" alt="Stamp" style="width:${stampSize}px; height:${stampSize}px; object-fit:contain; border-radius:${radius}; border:${border}; opacity:.92; background:transparent;">`
+                                    : `<div style="width:${stampSize}px; height:${stampSize}px; display:flex; align-items:center; justify-content:center; color:#94a3b8; border:${border}; border-radius:${radius};">No Stamp</div>`;
+                                contentHTML += stampTitle ? `<div style="${stampAlignStyle}; margin-top:.5rem;"><h4 style="display:inline-block; font-size:.9rem;">${stampTitle}</h4></div>` : '';
+                                contentHTML += `<div style="${stampAlignStyle}; margin-top:.25rem;">
+                                    <div style="display:inline-flex; align-items:center; justify-content:center; width:${stampSize}px; height:${stampSize}px;">${imgHTML}</div>
+                                    ${caption}
+                                </div>`;
+                            });
+                            break;
+                        }
+                        case 'stamp': {
+                            // Skip stamps linked to signatures; they'll render under the signature
+                            const linkedSigId = section.querySelector('.stamp-signature-link')?.value;
+                            if (linkedSigId) break;
+                            
+                            const size = parseInt(section.querySelector('.stamp-size')?.value || '120', 10);
+                            const circular = section.querySelector('.stamp-circular')?.checked || false;
+                            const showBorder = section.querySelector('.stamp-border')?.checked || false;
+                            const dataUrl = section.dataset.stampImage || '';
+                            const radius = circular ? '50%' : '0';
+                            const border = showBorder ? '2px solid rgba(100,116,139,0.6)' : 'none';
+                            const caption = content ? `<div style="margin-top:.35rem; font-size:.85rem; color:#334155;">${content.replace(/\n/g, '<br>')}</div>` : '';
+                            const imgHTML = dataUrl
+                                ? `<img src="${dataUrl}" alt="Stamp" style="width:${size}px; height:${size}px; object-fit:contain; border-radius:${radius}; border:${border}; opacity:.92; background:transparent;">`
+                                : `<div style="width:${size}px; height:${size}px; display:flex; align-items:center; justify-content:center; color:#94a3b8; border:${border}; border-radius:${radius};">No Stamp</div>`;
+                            contentHTML += title ? `<div style="${alignStyle}"><h3 style="display:inline-block;">${title}</h3></div>` : '';
+                            contentHTML += `<div style="${alignStyle}">
+                                <div style="display:inline-flex; align-items:center; justify-content:center; width:${size}px; height:${size}px;">${imgHTML}</div>
+                                ${caption}
+                            </div>`;
+                            break;
+                        }
                         default:
-                            previewHTML += title ? `<h3>${title}</h3>` : '';
-                            previewHTML += `<p style="margin-bottom: 1rem;">${content.replace(/\n/g, '<br>')}</p>`;
+                            contentHTML += title ? `<div style="${alignStyle}"><h3 style="display:inline-block;">${title}</h3></div>` : '';
+                            contentHTML += `<div style="${alignStyle}"><p style="display:inline-block; margin-bottom: 1rem; text-align: left;">${(content || '').replace(/\n/g, '<br>')}</p></div>`;
                     }
                 }
             });
-            
-            previewArea.innerHTML = previewHTML || `
-                <p style="color: #6c757d; text-align: center; font-style: italic;">
-                    Add content to sections to see the preview
-                </p>
+
+            if (!contentHTML) {
+                contentHTML = `
+                    <p style="color: #6c757d; text-align: center; font-style: italic;">
+                        Add content to sections to see the preview
+                    </p>`;
+            }
+
+            // 2) Compose header with logo(s) positioned AROUND the company name (not the page content)
+            const hasLogo = !!(logo && logo !== 'data:');
+            const logoImg = hasLogo ? `<img src="${logo}" alt="Template Logo" style="max-height: 80px; max-width: 200px; object-fit: contain;">` : '';
+
+            let headerHTML = '';
+
+            // Determine if we have any header elements to show
+            const showLeft = hasLogo && positions.includes('left');
+            const showRight = hasLogo && positions.includes('right');
+            const showTop = hasLogo && positions.includes('top'); // logo above company name
+            const showBottom = hasLogo && positions.includes('bottom'); // logo below company name
+
+            // Build the primary header row: [Left logo] [Top inline logo + Company Name] [Right logo]
+            // If no positions selected but company name exists, still render the company name centered
+            const hasAnyHeader = !!companyName || !!docTitle || showLeft || showRight || showTop || showBottom;
+
+            if (hasAnyHeader) {
+                const leftHTML = showLeft ? `<div style="width: 120px; text-align: center;">${logoImg}</div>` : '';
+                const centerNameHTML = companyName ? `<div style=\"font-weight: 700; font-size: 1.15rem;\">${companyName}</div>` : '';
+                const rightHTML = showRight ? `<div style="width: 120px; text-align: center;">${logoImg}</div>` : '';
+                const hasRow = !!companyName || showLeft || showRight;
+
+                // Compose the header block
+                headerHTML = `
+                    <div style="margin-bottom: 1rem; padding-bottom: 0.75rem; ${hasAnyHeader ? 'border-bottom: 1px solid #e9ecef;' : ''}">
+                        ${showTop ? `<div style=\"text-align: center; margin-bottom: 0.5rem;\">${logoImg}</div>` : ''}
+                        ${hasRow ? `<div style=\"display: flex; align-items: center; justify-content: center; gap: 0.75rem;\">${leftHTML}${centerNameHTML}${rightHTML}</div>` : ''}
+                        ${docTitle ? `<div style=\"text-align: center; font-weight: 600; font-size: 1rem; margin-top: ${hasRow ? '0.25rem' : '0'};\">${docTitle}</div>` : ''}
+                        ${showBottom ? `<div style=\"text-align: center; margin-top: 0.5rem;\">${logoImg}</div>` : ''}
+                    </div>`;
+            }
+
+            // 2b) Optional custom header content (separate band)
+            let customHeaderHTML = '';
+            if (enableHeader && headerContent) {
+                const ha = headerAlign === 'right' ? 'right' : headerAlign === 'left' ? 'left' : 'center';
+                customHeaderHTML = `
+                    <div style="border-bottom:1px solid #e9ecef; padding-bottom:.5rem; margin-bottom:.75rem;">
+                        <div style="text-align:${ha}; font-size:.9rem; color:#334155; white-space:pre-wrap;">${headerContent.replace(/\n/g,'<br>')}</div>
+                    </div>`;
+            }
+
+            // Optional footer content
+            let customFooterHTML = '';
+            if (enableFooter && footerContent) {
+                const fa = footerAlign === 'right' ? 'right' : footerAlign === 'left' ? 'left' : 'center';
+                customFooterHTML = `
+                    <div style="border-top:1px solid #e9ecef; padding-top:.5rem; margin-top:1rem;">
+                        <div style="text-align:${fa}; font-size:.9rem; color:#334155; white-space:pre-wrap;">${footerContent.replace(/\n/g,'<br>')}</div>
+                    </div>`;
+            }
+
+            // Wrap with A4 page for display. Footer sits at bottom via flex layout.
+            previewArea.innerHTML = `
+                <div class="a4-page" style="display:flex; flex-direction:column;">
+                    <div>
+                        ${headerHTML}${customHeaderHTML}${contentHTML}
+                    </div>
+                    <div style="margin-top:auto;">${customFooterHTML}</div>
+                </div>
             `;
         }
 
@@ -2260,8 +2806,35 @@
                 }
                 
                 console.log('🏢 Loading templates for company:', companyId);
-                
-                // Try to load from Firebase Firestore first
+                // First, try to load from Firebase Realtime Database (authoritative for stamps)
+                if (typeof firebase !== 'undefined' && firebase.database && typeof initializeFirebase === 'function') {
+                    try {
+                        const firebaseInstance = initializeFirebase();
+                        if (firebaseInstance && firebaseInstance.apps.length > 0) {
+                            const rtdb = firebaseInstance.database();
+                            console.log('🔍 Fetching company templates from Realtime Database...');
+                            const snapshot = await rtdb.ref(`companies/${companyId}/documentTemplates`).once('value');
+                            const data = snapshot.val() || {};
+                            const list = Object.values(data);
+                            if (list.length > 0) {
+                                // Sort by lastModified desc if available
+                                list.sort((a,b) => new Date(b.lastModified||0) - new Date(a.lastModified||0));
+                                templates = list;
+                                console.log(`✅ Loaded ${templates.length} company templates from Realtime Database`);
+                                // Cache in localStorage
+                                localStorage.setItem(`documentTemplates_${companyId}`, JSON.stringify(templates));
+                                loadSavedTemplates();
+                                return;
+                            } else {
+                                console.log('ℹ️ No company templates found in Realtime Database');
+                            }
+                        }
+                    } catch (rtdbError) {
+                        console.log('Firebase Realtime Database not available:', rtdbError);
+                    }
+                }
+
+                // Next, try to load from Firebase Firestore
                 if (typeof firebase !== 'undefined' && firebase.firestore && typeof initializeFirebase === 'function') {
                     try {
                         const firebaseInstance = initializeFirebase();
@@ -2313,9 +2886,23 @@
         // Save template to company-scoped storage
         async function saveTemplate() {
             const name = document.getElementById('templateName').value.trim();
-            const description = document.getElementById('templateDescription').value.trim();
+            const description = (document.getElementById('templateDescription')?.value || '').trim();
             const category = document.getElementById('templateCategory').value;
             const logo = getCurrentLogo(); // Get logo data
+            const logoPositions = getSelectedLogoPositions();
+            const companyName = (document.getElementById('templateCompanyName')?.value || '').trim();
+            const docTitle = (document.getElementById('templateTitle')?.value || '').trim();
+            // Header/footer fields
+            const headerSettings = {
+                enabled: document.getElementById('enableHeader')?.checked || false,
+                align: document.getElementById('headerAlign')?.value || 'center',
+                content: (document.getElementById('headerContent')?.value || '').trim()
+            };
+            const footerSettings = {
+                enabled: document.getElementById('enableFooter')?.checked || false,
+                align: document.getElementById('footerAlign')?.value || 'center',
+                content: (document.getElementById('footerContent')?.value || '').trim()
+            };
             
             if (!name) {
                 alert('Please enter a template name');
@@ -2335,8 +2922,9 @@
                 const type = section.querySelector('.section-type').value;
                 const title = section.querySelector('.section-title-input').value;
                 const content = section.querySelector('.section-content').value;
+                const alignment = section.querySelector('.section-align:checked')?.value || 'left';
                 
-                const sectionData = { type, title, content };
+                const sectionData = { type, title, content, alignment };
                   // Add extra options based on type
                 if (type === 'table') {
                     sectionData.headers = section.querySelector('.table-headers')?.value || '';
@@ -2347,6 +2935,20 @@
                     sectionData.readonly = section.querySelector('.textarea-readonly')?.checked || false;
                     sectionData.required = section.querySelector('.textarea-required')?.checked || false;
                     sectionData.maxLength = section.querySelector('.textarea-maxlength')?.value || '';
+                } else if (type === 'signature') {
+                    sectionData.signatureCount = parseInt(section.querySelector('.signature-count')?.value || '2', 10);
+                    sectionData.signatureLabels = Array.from(section.querySelectorAll('.signature-label')).map(i => i.value.trim());
+                    // Persist per-signature inline stamp options
+                    sectionData.inlineStamps = Array.from(section.querySelectorAll('.sig-stamp-enabled')).map((cb, idx) => ({
+                        enabled: cb.checked,
+                        dataUrl: (section.querySelectorAll('.sig-stamp-file')[idx]?.dataset?.stampDataUrl) || ''
+                    }));
+                } else if (type === 'stamp') {
+                    sectionData.stampImage = section.closest('.section-item')?.dataset?.stampImage || '';
+                    sectionData.stampSize = parseInt(section.querySelector('.stamp-size')?.value || '120', 10);
+                    sectionData.stampCircular = section.querySelector('.stamp-circular')?.checked || false;
+                    sectionData.stampBorder = section.querySelector('.stamp-border')?.checked || false;
+                    sectionData.stampSignatureLink = section.querySelector('.stamp-signature-link')?.value || '';
                 }
                 
                 sections.push(sectionData);
@@ -2369,7 +2971,12 @@
                             description,
                             category,
                             logo, // Include logo data
+                            logoPositions,
+                            companyName,
                             sections,
+                            title: docTitle,
+                            headerSettings,
+                            footerSettings,
                             companyId, // Ensure company scope
                             lastModified: new Date().toISOString()
                         };
@@ -2391,11 +2998,11 @@
                     } else {
                         // Template not found, create new one
                         currentEditingTemplateId = null;
-                        await saveAsNewTemplate(name, description, category, logo, sections);
+                        await saveAsNewTemplate(name, description, category, logo, logoPositions, sections, companyName, docTitle);
                     }
                 } else {
                     // Create new template
-                    await saveAsNewTemplate(name, description, category, logo, sections);
+                await saveAsNewTemplate(name, description, category, logo, logoPositions, sections, companyName, docTitle);
                 }
                 
                 loadSavedTemplates();
@@ -2405,7 +3012,7 @@
             }
         }
           // Helper function to save as new template
-        async function saveAsNewTemplate(name, description, category, logo, sections) {
+    async function saveAsNewTemplate(name, description, category, logo, logoPositions, sections, companyName, docTitle) {
             const companyId = companyDataService?.getCurrentCompanyId();
             
             // Validate company context before creating template
@@ -2415,13 +3022,30 @@
                 throw new Error('Company context required for template creation');
             }
             
+            // Read header/footer again in case called directly
+            const headerSettings = {
+                enabled: document.getElementById('enableHeader')?.checked || false,
+                align: document.getElementById('headerAlign')?.value || 'center',
+                content: (document.getElementById('headerContent')?.value || '').trim()
+            };
+            const footerSettings = {
+                enabled: document.getElementById('enableFooter')?.checked || false,
+                align: document.getElementById('footerAlign')?.value || 'center',
+                content: (document.getElementById('footerContent')?.value || '').trim()
+            };
+
             const newTemplate = {
                 id: Date.now().toString(),
                 name,
                 description,
                 category,
                 logo, // Include logo data
+                logoPositions,
+                companyName,
+                title: docTitle,
                 sections,
+                headerSettings,
+                footerSettings,
                 companyId, // Add company scope
                 createdAt: new Date().toISOString(),
                 lastModified: new Date().toISOString()
@@ -2592,8 +3216,9 @@
                 const type = section.querySelector('.section-type').value;
                 const title = section.querySelector('.section-title-input').value;
                 const content = section.querySelector('.section-content').value;
+                const alignment = section.querySelector('.section-align:checked')?.value || 'left';
                 
-                const sectionData = { type, title, content };
+                const sectionData = { type, title, content, alignment };
                 
                 if (type === 'table') {
                     sectionData.headers = section.querySelector('.table-headers')?.value || '';
@@ -2607,7 +3232,9 @@
             
             const template = {
                 name,
-                description: document.getElementById('templateDescription').value.trim(),
+                companyName: (document.getElementById('templateCompanyName')?.value || '').trim(),
+                title: (document.getElementById('templateTitle')?.value || '').trim(),
+                description: (document.getElementById('templateDescription')?.value || '').trim(),
                 category: document.getElementById('templateCategory').value,
                 sections,
                 exportedAt: new Date().toISOString()
@@ -2624,7 +3251,11 @@
         function clearTemplate() {
             if (confirm('Are you sure you want to clear all template data? This action cannot be undone.')) {
                 document.getElementById('templateName').value = '';
-                document.getElementById('templateDescription').value = '';
+                if (document.getElementById('templateCompanyName')) {
+                    document.getElementById('templateCompanyName').value = '';
+                }
+                if (document.getElementById('templateTitle')) { document.getElementById('templateTitle').value = ''; }
+                if (document.getElementById('templateDescription')) { document.getElementById('templateDescription').value = ''; }
                 document.getElementById('templateCategory').value = '';
                 removeLogo(); // Clear logo
                 document.getElementById('sectionsContainer').innerHTML = '';
@@ -2660,7 +3291,7 @@
             
             if (templates.length === 0) {
                 container.innerHTML = `
-                    <div style="text-align: center; padding: 3rem; grid-column: 1 / -1;">
+                    <div style="text-align: center; padding: 3rem;">
                         <i class="fas fa-folder-open" style="font-size: 3rem; color: #dee2e6; margin-bottom: 1rem;"></i>
                         <h3>No Templates Found</h3>
                         <p>Create your first template using the Template Builder</p>
@@ -2668,42 +3299,53 @@
                 `;
                 return;
             }
-            
-            container.innerHTML = templates.map(template => {
-                const logoHtml = template.logo ? 
-                    `<div style="text-align: center; margin-bottom: 1rem;">
-                        <img src="${template.logo}" alt="Template Logo" style="max-height: 40px; max-width: 80px; object-fit: contain; border-radius: 4px;">
-                    </div>` : '';
-                
+
+            const rows = templates.map((t, idx) => {
+                const logoTd = t.logo ? `<img src="${t.logo}" alt="Logo" style=\"height:28px; max-width:60px; object-fit:contain; border-radius:4px;\">` : '<span style="color:#94a3b8;">—</span>';
+                const secCount = Array.isArray(t.sections) ? t.sections.length : 0;
+                const lm = t.lastModified || t.updatedAt || t.modifiedAt || t.updated_on;
+                const cm = t.createdAt || t.created_on;
+                const lmText = lm ? new Date(lm).toLocaleString() : '—';
+                const cmText = cm ? new Date(cm).toLocaleString() : '—';
+                const category = t.category || 'Uncategorized';
                 return `
-                    <div class="template-card">
-                        ${logoHtml}
-                        <h4>${template.name}</h4>
-                        <p>${template.description || 'No description'}</p>
-                        <div style="margin-bottom: 1rem;">
-                            <span style="background: #e3f2fd; color: #1976d2; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.8rem;">
-                                ${template.category || 'Uncategorized'}
-                            </span>
-                            <span style="color: #6c757d; font-size: 0.8rem; margin-left: 0.5rem;">
-                                ${template.sections.length} sections
-                            </span>
-                        </div>                        <div class="template-card-actions">
-                            <button class="btn btn-info" onclick="viewTemplate('${template.id}')">
-                                <i class="fas fa-eye"></i> View
-                            </button>
-                            <button class="btn btn-primary" onclick="loadTemplate('${template.id}')">
-                                <i class="fas fa-edit"></i> Edit
-                            </button>
-                            <button class="btn btn-secondary" onclick="duplicateTemplate('${template.id}')">
-                                <i class="fas fa-copy"></i> Duplicate
-                            </button>
-                            <button class="btn btn-danger" onclick="deleteTemplate('${template.id}')">
-                                <i class="fas fa-trash"></i> Delete
-                            </button>
-                        </div>
-                    </div>
-                `;
+                    <tr>
+                        <td style="text-align:center; color:#64748b; padding:.6rem; border-bottom:1px solid #e5e7eb;">${idx + 1}</td>
+                        <td style="text-align:center; padding:.6rem; border-bottom:1px solid #e5e7eb;">${logoTd}</td>
+                        <td style="padding:.6rem; border-bottom:1px solid #e5e7eb;">${t.name || ''}</td>
+                        <td style="padding:.6rem; border-bottom:1px solid #e5e7eb;"><span style="background:#e3f2fd; color:#1976d2; padding:0.15rem 0.4rem; border-radius:4px; font-size:0.8rem;">${category}</span></td>
+                        <td style="text-align:center; padding:.6rem; border-bottom:1px solid #e5e7eb;">${secCount}</td>
+                        <td style="white-space:nowrap; padding:.6rem; border-bottom:1px solid #e5e7eb;">${lmText}</td>
+                        <td style="white-space:nowrap; padding:.6rem; border-bottom:1px solid #e5e7eb;">${cmText}</td>
+                        <td style="white-space:nowrap; text-align:center; padding:.4rem .6rem; border-bottom:1px solid #e5e7eb;">
+                            <button class="btn btn-info" style="padding:.35rem .5rem;" title="View" aria-label="View" onclick="viewTemplate('${t.id}')"><i class="fas fa-eye"></i></button>
+                            <button class="btn btn-primary" style="padding:.35rem .5rem;" title="Edit" aria-label="Edit" onclick="loadTemplate('${t.id}')"><i class="fas fa-edit"></i></button>
+                            <button class="btn btn-secondary" style="padding:.35rem .5rem;" title="Duplicate" aria-label="Duplicate" onclick="duplicateTemplate('${t.id}')"><i class="fas fa-copy"></i></button>
+                            <button class="btn btn-danger" style="padding:.35rem .5rem;" title="Delete" aria-label="Delete" onclick="deleteTemplate('${t.id}')"><i class="fas fa-trash"></i></button>
+                        </td>
+                    </tr>`;
             }).join('');
+
+            container.innerHTML = `
+                <div style="overflow:auto;">
+                    <table style="width:100%; border-collapse:collapse; background:white; border:1px solid #e5e7eb;">
+                        <thead>
+                            <tr style="background:#f8fafc;">
+                                <th style="text-align:center; padding:.6rem; border-bottom:1px solid #e5e7eb; color:#334155; font-weight:600; width:60px;">#</th>
+                                <th style="text-align:center; padding:.6rem; border-bottom:1px solid #e5e7eb; color:#334155; font-weight:600; width:90px;">Logo</th>
+                                <th style="text-align:left; padding:.6rem; border-bottom:1px solid #e5e7eb; color:#334155; font-weight:600;">Template Name</th>
+                                <th style="text-align:left; padding:.6rem; border-bottom:1px solid #e5e7eb; color:#334155; font-weight:600; width:160px;">Category</th>
+                                <th style="text-align:center; padding:.6rem; border-bottom:1px solid #e5e7eb; color:#334155; font-weight:600; width:120px;">Sections</th>
+                                <th style="text-align:left; padding:.6rem; border-bottom:1px solid #e5e7eb; color:#334155; font-weight:600; width:200px;">Last Modified</th>
+                                <th style="text-align:left; padding:.6rem; border-bottom:1px solid #e5e7eb; color:#334155; font-weight:600; width:200px;">Created</th>
+                                <th style="text-align:center; padding:.6rem; border-bottom:1px solid #e5e7eb; color:#334155; font-weight:600; width:200px;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${rows}
+                        </tbody>
+                    </table>
+                </div>`;
         }// Load a template for editing
         function loadTemplate(templateId) {
             const template = templates.find(t => t.id === templateId);
@@ -2723,14 +3365,32 @@
             
             // Load template data
             document.getElementById('templateName').value = template.name;
-            document.getElementById('templateDescription').value = template.description || '';
+            if (document.getElementById('templateCompanyName')) {
+                document.getElementById('templateCompanyName').value = template.companyName || '';
+            }
+            if (document.getElementById('templateTitle')) { document.getElementById('templateTitle').value = template.title || ''; }
+            if (document.getElementById('templateDescription')) { document.getElementById('templateDescription').value = template.description || ''; }
             document.getElementById('templateCategory').value = template.category || '';
+            // Restore header/footer
+            const hs = template.headerSettings || {};
+            const fs = template.footerSettings || {};
+            if (document.getElementById('enableHeader')) document.getElementById('enableHeader').checked = !!hs.enabled;
+            if (document.getElementById('headerAlign')) document.getElementById('headerAlign').value = hs.align || 'center';
+            if (document.getElementById('headerContent')) document.getElementById('headerContent').value = hs.content || '';
+            if (document.getElementById('enableFooter')) document.getElementById('enableFooter').checked = !!fs.enabled;
+            if (document.getElementById('footerAlign')) document.getElementById('footerAlign').value = fs.align || 'center';
+            if (document.getElementById('footerContent')) document.getElementById('footerContent').value = fs.content || '';
             
             // Load sections
             template.sections.forEach(section => {
                 addSection(section.title, section.content, section.type);
                   // Load extra options
                 const sectionElement = document.getElementById(`section_${sectionCounter}`);
+                // Restore alignment
+                if (section.alignment) {
+                    const alignRadio = sectionElement.querySelector(`input.section-align[value="${section.alignment}"]`);
+                    if (alignRadio) alignRadio.checked = true;
+                }
                 if (section.type === 'table' && section.headers) {
                     const headersInput = sectionElement.querySelector('.table-headers');
                     if (headersInput) headersInput.value = section.headers;
@@ -2746,12 +3406,66 @@
                     if (readonlyCheckbox) readonlyCheckbox.checked = section.readonly || false;
                     if (requiredCheckbox) requiredCheckbox.checked = section.required || false;
                     if (maxLengthInput) maxLengthInput.value = section.maxLength || '';
+                } else if (section.type === 'signature') {
+                    const countSel = sectionElement.querySelector('.signature-count');
+                    if (countSel) countSel.value = String(section.signatureCount || 2);
+                    if (typeof updateSignatureOptionsUI === 'function') updateSignatureOptionsUI(sectionElement.id);
+                    const labelsInputs = sectionElement.querySelectorAll('.signature-label');
+                    if (labelsInputs && Array.isArray(section.signatureLabels)) {
+                        section.signatureLabels.forEach((lbl, idx) => {
+                            if (labelsInputs[idx]) labelsInputs[idx].value = lbl || '';
+                        });
+                    }
+                    // Restore per-signature inline stamps (enabled checkbox + image preview)
+                    if (Array.isArray(section.inlineStamps)) {
+                        const enabledEls = sectionElement.querySelectorAll('.sig-stamp-enabled');
+                        const fileEls = sectionElement.querySelectorAll('.sig-stamp-file');
+                        const uploaderEls = sectionElement.querySelectorAll('.sig-stamp-uploader');
+                        const previewEls = sectionElement.querySelectorAll('.sig-stamp-preview');
+                        section.inlineStamps.forEach((st, idx) => {
+                            if (!st) return;
+                            if (enabledEls[idx]) {
+                                enabledEls[idx].checked = !!st.enabled;
+                            }
+                            if (uploaderEls[idx]) {
+                                uploaderEls[idx].style.display = st.enabled ? '' : 'none';
+                            }
+                            if (fileEls[idx] && st.dataUrl) {
+                                fileEls[idx].dataset.stampDataUrl = st.dataUrl;
+                                const img = previewEls[idx]?.querySelector('img');
+                                if (img) img.src = st.dataUrl;
+                                if (previewEls[idx]) previewEls[idx].style.display = '';
+                            }
+                        });
+                    }
+                } else if (section.type === 'stamp') {
+                    const sizeEl = sectionElement.querySelector('.stamp-size');
+                    const circularEl = sectionElement.querySelector('.stamp-circular');
+                    const borderEl = sectionElement.querySelector('.stamp-border');
+                    const linkSel = sectionElement.querySelector('.stamp-signature-link');
+                    const preview = sectionElement.querySelector('.stamp-preview');
+                    const img = preview?.querySelector('img');
+                    if (sizeEl && section.stampSize) { sizeEl.value = String(section.stampSize); const output = sizeEl.nextElementSibling; if (output && output.tagName === 'OUTPUT') output.value = String(section.stampSize); }
+                    if (circularEl) circularEl.checked = !!section.stampCircular;
+                    if (borderEl) borderEl.checked = !!section.stampBorder;
+                    if (linkSel && section.stampSignatureLink) linkSel.value = section.stampSignatureLink;
+                    if (img && section.stampImage) {
+                        img.src = section.stampImage;
+                        preview.style.display = 'block';
+                        sectionElement.dataset.stampImage = section.stampImage;
+                    }
                 }
             });
             
             // Set logo if available
             setLogo(template.logo);
-
+            // Restore logo positions if present
+            if (Array.isArray(template.logoPositions)) {
+                setLogoPositions(template.logoPositions);
+            } else {
+                // Default to Top only if none saved
+                setLogoPositions(['top']);
+            }
             updatePreview();
         }        // Duplicate a template
         async function duplicateTemplate(templateId) {
@@ -2763,6 +3477,9 @@
                 ...template,
                 id: Date.now().toString(),
                 name: template.name + ' (Copy)',
+                logoPositions: Array.isArray(template.logoPositions) ? [...template.logoPositions] : ['top'],
+                companyName: template.companyName || '',
+                title: template.title || '',
                 companyId, // Ensure company scope
                 createdAt: new Date().toISOString(),
                 lastModified: new Date().toISOString()
@@ -2938,6 +3655,17 @@
             } else if (!currentEditingTemplateId) {
                 clearTemplateForm();
             }
+            // Default logo position for new template
+            if (typeof setLogoPositions === 'function') setLogoPositions(['top']);
+            // Auto-fill company name if available
+            const cnEl = document.getElementById('templateCompanyName');
+            if (cnEl && !cnEl.value && window.companyDataService && typeof window.companyDataService.getCurrentCompanyName === 'function') {
+                const inferred = window.companyDataService.getCurrentCompanyName();
+                if (inferred) {
+                    cnEl.value = inferred;
+                    if (typeof updatePreview === 'function') updatePreview();
+                }
+            }
         }
           // Clear the template form and reset editing state
         function clearTemplateForm() {
@@ -2945,11 +3673,16 @@
             
             // Clear form fields
             document.getElementById('templateName').value = '';
-            document.getElementById('templateDescription').value = '';
+            if (document.getElementById('templateCompanyName')) {
+                document.getElementById('templateCompanyName').value = '';
+            }
+            if (document.getElementById('templateDescription')) { document.getElementById('templateDescription').value = ''; }
             document.getElementById('templateCategory').value = '';
             
             // Clear logo
             removeLogo();
+            // Reset logo positions
+            if (typeof setLogoPositions === 'function') setLogoPositions(['top']);
             
             // Clear sections
             document.getElementById('sectionsContainer').innerHTML = '';
@@ -3026,6 +3759,50 @@
             if (document.querySelectorAll('.section-item').length === 0) {
                 addSection('Introduction', 'Welcome to our document template system.');
             }
+
+            // Wire company name input change to preview
+            const companyNameInput = document.getElementById('templateCompanyName');
+            if (companyNameInput) {
+                companyNameInput.addEventListener('input', () => updatePreview());
+            }
+            const titleInput = document.getElementById('templateTitle');
+            if (titleInput) {
+                titleInput.addEventListener('input', () => updatePreview());
+            }
+
+            // Try to auto-fill company name from context
+            try {
+                const inputEl = document.getElementById('templateCompanyName');
+                if (inputEl && !inputEl.value) {
+                    let inferredName = '';
+                    // Prefer companyDataService if available
+                    if (window.companyDataService) {
+                        // Attempt to pull from current company data in localStorage
+                        const companyId = window.companyDataService.getCurrentCompanyId?.();
+                        const companiesRaw = localStorage.getItem('companyData');
+                        if (companiesRaw) {
+                            const companies = JSON.parse(companiesRaw);
+                            const company = companies?.[companyId];
+                            inferredName = company?.name || company?.companyName || '';
+                        }
+                        // Fallback to helper (added below) if present
+                        if (!inferredName && typeof window.companyDataService.getCurrentCompanyName === 'function') {
+                            inferredName = window.companyDataService.getCurrentCompanyName();
+                        }
+                    }
+                    // Fallback to authManager currentCompany
+                    if (!inferredName && window.authManager && window.authManager.currentCompany) {
+                        const cc = window.authManager.currentCompany;
+                        inferredName = cc.name || cc.companyName || '';
+                    }
+                    if (inferredName) {
+                        inputEl.value = inferredName;
+                        updatePreview();
+                    }
+                }
+            } catch (e) {
+                console.warn('Company name auto-fill skipped:', e);
+            }
         }
         
         // Initialize when page loads
@@ -3074,10 +3851,12 @@
 
             logoImage.src = logoData;
             logoPreview.style.display = 'block';
-            logoUploadPrompt.style.display = 'none';
+            if (logoUploadPrompt) logoUploadPrompt.style.display = 'none';
             removeLogoBtn.style.display = 'inline-block';
             logoUploadArea.style.borderColor = '#28a745';
             logoUploadArea.style.backgroundColor = '#f8fff9';
+            // Update the preview to reflect the uploaded logo
+            if (typeof updatePreview === 'function') updatePreview();
         }
 
         // Remove logo
@@ -3091,13 +3870,13 @@
 
             logoImage.src = '';
             logoPreview.style.display = 'none';
-            logoUploadPrompt.style.display = 'block';
+            if (logoUploadPrompt) logoUploadPrompt.style.display = 'block';
             removeLogoBtn.style.display = 'none';
             logoUploadArea.style.borderColor = '#e9ecef';
             logoUploadArea.style.backgroundColor = 'transparent';
             logoInput.value = '';
-            
-            updatePreview(); // Update the template preview
+            // Update the template preview after removing the logo
+            if (typeof updatePreview === 'function') updatePreview();
         }
 
         // Get current logo data
@@ -3115,7 +3894,7 @@
             }
         }
 
-        // Drag and drop functionality for logo upload
+        // Drag and drop functionality for logo upload and logo position controls
         document.addEventListener('DOMContentLoaded', function() {
             const logoUploadArea = document.getElementById('logoUploadArea');
             
@@ -3138,6 +3917,14 @@
                 // Handle dropped files
                 logoUploadArea.addEventListener('drop', handleDrop, false);
             }
+
+            // Hook up logo position checkboxes to live update the preview
+            ['logoPosTop','logoPosBottom','logoPosLeft','logoPosRight'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.addEventListener('change', () => {
+                    if (typeof updatePreview === 'function') updatePreview();
+                });
+            });
         });
 
         function preventDefaults(e) {
@@ -3178,6 +3965,27 @@
         // ===============================
         // END LOGO HANDLING
         // ===============================
+
+        // Helpers for logo position selection
+        function getSelectedLogoPositions() {
+            const positions = [];
+            if (document.getElementById('logoPosTop')?.checked) positions.push('top');
+            if (document.getElementById('logoPosBottom')?.checked) positions.push('bottom');
+            if (document.getElementById('logoPosLeft')?.checked) positions.push('left');
+            if (document.getElementById('logoPosRight')?.checked) positions.push('right');
+            return positions;
+        }
+
+        function setLogoPositions(positions) {
+            const set = new Set(positions || []);
+            const map = {
+                top: document.getElementById('logoPosTop'),
+                bottom: document.getElementById('logoPosBottom'),
+                left: document.getElementById('logoPosLeft'),
+                right: document.getElementById('logoPosRight')
+            };
+            Object.entries(map).forEach(([pos, el]) => { if (el) el.checked = set.has(pos); });
+        }
     </script>
 
     <!-- All Firebase dependencies replaced with local storage -->
@@ -3201,6 +4009,16 @@
             
             getCurrentCompanyId() {
                 return this.currentCompanyId || localStorage.getItem('currentCompanyId');
+            },
+            getCurrentCompanyName() {
+                try {
+                    const id = this.getCurrentCompanyId();
+                    const companies = JSON.parse(localStorage.getItem('companyData') || '{}');
+                    const company = companies?.[id];
+                    return company?.name || company?.companyName || '';
+                } catch {
+                    return '';
+                }
             },
             
             setCurrentCompanyId(companyId) {
@@ -3433,32 +4251,34 @@
                         const initials = this.getUserInitials();
                         const displayName = this.getUserDisplayName();
                         const email = this.getUserEmail();
-                        
-                        // Update profile image using centralized method
+
+                        // Update header avatar image using centralized method
                         await this.updateUserAvatarDisplay('userAvatar');
-                        
-                        // Update profile dropdown with user info
-                        const userInfoHtml = `
-                            <li style="border-bottom: 1px solid #eee; padding: 12px 16px; background: #f8f9fa;">
-                                <div style="display: flex; align-items: center; gap: 12px;">
-                                    <div style="width: 32px; height: 32px; border-radius: 50%; background: #3498db; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 12px;">
-                                        ${initials}
-                                    </div>
+
+                        // Prepare avatar block for dropdown (match contractsub.html)
+                        let avatarUrl = null;
+                        try { avatarUrl = await this.getUserAvatarUrl(); } catch (e) { /* ignore */ }
+                        const avatarHtml = avatarUrl
+                            ? `<img src="${avatarUrl}" alt="${displayName} Avatar" style="width:32px;height:32px;border-radius:50%;object-fit:cover;">`
+                            : `<div style="width:32px;height:32px;border-radius:50%;background:#3498db;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:12px;">${initials}</div>`;
+
+                        // Build dropdown HTML exactly like contractsub.html (name + email header, then links)
+                        const dropdownHtml = `
+                            <li style="border-bottom:1px solid #eee;padding:12px 16px;background:#f8f9fa;">
+                                <div style="display:flex;align-items:center;gap:12px;">
+                                    ${avatarHtml}
                                     <div>
-                                        <div style="font-weight: 600; color: #333; font-size: 14px; margin-bottom: 2px;">
-                                            ${displayName}
-                                        </div>
-                                        <div style="color: #666; font-size: 12px;">
-                                            ${email}
-                                        </div>
+                                        <div style="font-weight:600;color:#333;font-size:14px;margin-bottom:2px;">${displayName}</div>
+                                        <div style="color:#666;font-size:12px;">${email}</div>
                                     </div>
                                 </div>
                             </li>
-                            <li><a href="account.html"><i class="fas fa-user"></i> Account Settings</a></li>
-                            <li><a href="#" onclick="authManager.logout()"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+                            <li><a href="profile.html"><i class="fas fa-user"></i> Profile</a></li>
+                            <li><a href="account.html"><i class="fas fa-cog"></i> Account Settings</a></li>
+                            <li><a href="#" onclick="authManager.logout()"><i class="fas fa-sign-out-alt"></i> Sign out</a></li>
                         `;
-                        
-                        profileDropdown.innerHTML = userInfoHtml;
+
+                        profileDropdown.innerHTML = dropdownHtml;
                     }
                 }
                 
@@ -3475,7 +4295,37 @@
             
             getUserDisplayName() {
                 if (!this.currentUser) return 'User';
-                return this.currentUser.displayName || this.currentUser.email?.split('@')[0] || 'User';
+
+                const u = this.currentUser;
+                const clean = (s) => {
+                    if (typeof s !== 'string') return '';
+                    const t = s.trim();
+                    if (!t) return '';
+                    const lower = t.toLowerCase();
+                    return (lower === 'null' || lower === 'undefined' || lower === 'na') ? '' : t;
+                };
+
+                // Try common full name fields first (dashboard-style)
+                const fullName = clean(u.fullName) || clean(u.name);
+                if (fullName) return fullName;
+
+                // Build from first/last across potential nesting
+                const first = clean(u.firstName) || clean(u.first_name) || clean(u.givenName) || clean(u.given_name) || clean(u.profile?.firstName) || clean(u.profile?.first_name) || clean(u.userProfile?.firstName);
+                const last  = clean(u.lastName)  || clean(u.last_name)  || clean(u.familyName) || clean(u.family_name) || clean(u.profile?.lastName)  || clean(u.profile?.last_name)  || clean(u.userProfile?.lastName);
+                const built = [first, last].filter(Boolean).join(' ').trim();
+                if (built) return built;
+
+                // Next, typical identity display fields
+                const candidate = clean(u.displayName) || clean(u.username) || clean(u.nickName) || clean(u.nickname);
+                if (candidate) return candidate;
+
+                // Fallback to email local-part
+                if (u.email && typeof u.email === 'string') {
+                    const local = clean(u.email.split('@')[0] || '');
+                    if (local) return local;
+                }
+
+                return 'User';
             }
             
             getUserEmail() {
@@ -3483,38 +4333,60 @@
                 return this.currentUser.email || '';
             }
             
-            // Centralized method to get user avatar URL (matches auth.js)
+            // Centralized method to get user avatar URL (company-scoped only)
             async getUserAvatarUrl() {
                 if (!this.currentUser) return null;
-                
+
                 try {
-                    // First check localStorage cache
-                    const cachedUrl = localStorage.getItem(`profilePicture_${this.currentUser.uid}`);
-                    if (cachedUrl && cachedUrl !== 'null' && cachedUrl !== '') {
+                    const companyId = this.currentUser.companyId || 'default';
+                    const cacheKey = `profilePicture_${this.currentUser.uid}`;
+                    const expectedEncodedPrefix = `companies%2F${companyId}%2Favatars%2F${this.currentUser.uid}%2F`;
+
+                    // 1) Local cache first, but only if pointing to company scope
+                    const cachedUrl = localStorage.getItem(cacheKey);
+                    if (cachedUrl && cachedUrl !== 'null' && cachedUrl !== '' && cachedUrl.includes(expectedEncodedPrefix)) {
                         return cachedUrl;
+                    } else if (cachedUrl) {
+                        // Remove non-company-scoped cache
+                        localStorage.removeItem(cacheKey);
                     }
-                    
-                    // Check user profile for photoURL
-                    if (this.currentUser.photoURL && this.currentUser.photoURL !== 'null') {
+
+                    // 2) Direct profile photoURL, only if company-scoped
+                    if (this.currentUser.photoURL && this.currentUser.photoURL !== 'null' && this.currentUser.photoURL.includes(expectedEncodedPrefix)) {
+                        localStorage.setItem(cacheKey, this.currentUser.photoURL);
                         return this.currentUser.photoURL;
                     }
-                    
-                    // Try Firebase Storage if available
+
+                    // 3) Try Firebase Storage company-scoped paths only (multiple extensions)
                     if (typeof firebase !== 'undefined' && typeof initializeFirebase === 'function') {
                         try {
-                            const firebaseInstance = initializeFirebase();
-                            if (firebaseInstance && firebaseInstance.storage && firebaseInstance.apps.length > 0) {
-                                const storage = firebaseInstance.storage();
-                                const avatarPath = `avatars/${this.currentUser.uid}/profile.jpg`;
-                                const avatarRef = storage.ref(avatarPath);
-                                
-                                return await avatarRef.getDownloadURL();
+                            const fb = initializeFirebase();
+                            if (fb && fb.storage && fb.apps.length > 0) {
+                                const possiblePaths = [
+                                    `companies/${companyId}/avatars/${this.currentUser.uid}/profile.jpg`,
+                                    `companies/${companyId}/avatars/${this.currentUser.uid}/profile.png`,
+                                    `companies/${companyId}/avatars/${this.currentUser.uid}/profile.jpeg`,
+                                    `companies/${companyId}/avatars/${this.currentUser.uid}/avatar.jpg`,
+                                    `companies/${companyId}/avatars/${this.currentUser.uid}/avatar.png`
+                                ];
+
+                                for (const path of possiblePaths) {
+                                    try {
+                                        const url = await fb.storage().ref(path).getDownloadURL();
+                                        // Cache and return
+                                        localStorage.setItem(cacheKey, url);
+                                        return url;
+                                    } catch (e) {
+                                        // Continue to next path
+                                        continue;
+                                    }
+                                }
                             }
                         } catch (firebaseError) {
                             console.log('Firebase Storage not available:', firebaseError);
                         }
                     }
-                    
+
                     return null;
                 } catch (error) {
                     console.log('No custom avatar found:', error);
@@ -3622,9 +4494,9 @@
                 const companyNameElement = document.getElementById('headerCompanyName');
                 
                 if (!companyId) {
-                    // Set default company name if no company is selected
+                    // No company selected - do not set a default name; keep empty like project-list
                     if (companyNameElement) {
-                        companyNameElement.textContent = 'Document Creator';
+                        companyNameElement.textContent = '';
                     }
                     // Show placeholder
                     if (placeholderElement) {
@@ -3644,9 +4516,9 @@
                 if (company) {
                     this.displayCompanyBranding(company);
                 } else {
-                    // Fallback to default if company data not found
+                    // Company data not found - keep name empty
                     if (companyNameElement) {
-                        companyNameElement.textContent = 'Document Creator';
+                        companyNameElement.textContent = '';
                     }
                     // Show placeholder
                     if (placeholderElement) {
@@ -3694,7 +4566,7 @@
                 }
                 
                 // Update company name (try multiple possible property names)
-                const companyName = company.name || company.companyName || 'Document Creator';
+                const companyName = company.name || company.companyName || '';
                 if (companyNameElement) {
                     companyNameElement.textContent = companyName;
                 }
@@ -3753,6 +4625,10 @@
                 authManager.loadUserCompany().then(() => {
                     console.log('✅ Firebase company loading completed');
                     authManager.updateCompanyBranding();
+                    // Ensure sidebar gating updates after company context resolves
+                    if (typeof window.updateMenuWithFeatureAuthorization === 'function') {
+                        setTimeout(() => window.updateMenuWithFeatureAuthorization(), 150);
+                    }
                 });
             } else {
                 console.log('ℹ️ Firebase not available - using localStorage fallback');
@@ -3764,6 +4640,361 @@
         // Make company logo test function available globally
         window.testCompanyLogo = testCompanyLogo;
     </script>
+
+        <!-- Role + Feature-based Menu Authorization (mirrors project-list.html) -->
+        <script>
+        // Prevent concurrent updates
+        let isMenuUpdateInProgress = false;
+
+        function resetMenuVisibility() {
+            document.querySelectorAll('[data-feature]').forEach(el => el.classList.remove('menu-visible'));
+            document.querySelectorAll('.menu-dropdown').forEach(el => el.classList.remove('menu-visible'));
+        }
+
+        function ensureHomeIsVisible() {
+            const home = document.querySelector('#roleBasedMenu li[data-feature="home_view"]');
+            if (home && !home.classList.contains('menu-visible')) home.classList.add('menu-visible');
+        }
+
+        function showSidebarAfterAuth() {
+            const sidebar = document.getElementById('sidebar');
+            // After we finish computing visibility, enable gating so hidden items are actually hidden
+            if (sidebar) sidebar.classList.add('menu-gated');
+        }
+
+        async function updateMenuWithFeatureAuthorization() {
+            if (isMenuUpdateInProgress) return;
+            isMenuUpdateInProgress = true;
+            console.log('🔄 Starting menu authorization...');
+            try {
+                let currentUser = null, companyId = null, userRole = null;
+                if (window.authManager && window.authManager.currentUser) {
+                    currentUser = window.authManager.currentUser;
+                    companyId = currentUser.companyId;
+                    userRole = currentUser.role;
+                } else if (firebase && firebase.auth && firebase.auth().currentUser) {
+                    currentUser = firebase.auth().currentUser;
+                }
+
+                console.log('📋 Authorization context:', { currentUser: currentUser?.email, companyId, userRole });
+
+                // Resolve company if missing
+                if (!companyId && currentUser && typeof firebase !== 'undefined' && firebase.database) {
+                    try {
+                        const companiesSnap = await firebase.database().ref('companies').once('value');
+                        if (companiesSnap.exists()) {
+                            const companies = companiesSnap.val();
+                            for (const [cId, company] of Object.entries(companies)) {
+                                if (company?.status !== 'active') continue;
+                                if (company?.users && company.users[currentUser.uid]) {
+                                    companyId = cId;
+                                    userRole = company.users[currentUser.uid].role || company.users[currentUser.uid].userRole;
+                                    console.log('🏢 Found company via Firebase:', { companyId, userRole });
+                                    break;
+                                }
+                            }
+                        }
+                    } catch (e) {
+                        console.warn('Company resolution via Firebase failed, will try local fallback:', e);
+                    }
+                }
+
+                // Local fallback company resolution (dashboard-style)
+                if (!companyId && window.companyDataService && typeof window.companyDataService.getCurrentCompanyId === 'function') {
+                    companyId = window.companyDataService.getCurrentCompanyId();
+                    console.log('🏢 Found company via companyDataService:', companyId);
+                }
+                if (!userRole && currentUser) {
+                    userRole = currentUser.role || currentUser.userRole || currentUser.position || null;
+                    console.log('👤 Found user role:', userRole);
+                }
+
+                if (!companyId) { 
+                    console.warn('❌ No company ID found - showing default menu');
+                    resetMenuVisibility(); ensureHomeIsVisible(); showSidebarAfterAuth(); return; 
+                }
+
+                const authorizedPages = await applyFeatureBasedMenuVisibility(companyId);
+                if (userRole) {
+                    await applyRoleBasedFiltering(companyId, userRole, authorizedPages);
+                } else {
+                    // No role found: keep company feature visibility as-is
+                    console.warn('⚠️ No user role found - applying feature-only filtering');
+                    showSidebarAfterAuth();
+                }
+            } catch (e) {
+                console.error('Menu authorization error:', e);
+                resetMenuVisibility();
+                ensureHomeIsVisible();
+                showSidebarAfterAuth();
+            } finally {
+                isMenuUpdateInProgress = false;
+            }
+        }
+
+        async function applyFeatureBasedMenuVisibility(companyId) {
+            console.log('🎯 Applying feature-based menu visibility for company:', companyId);
+            try {
+                let featuresData = null;
+                let company = null;
+                let selected = [];
+                let authorizedPages = [];
+
+                const firebaseAvailable = (typeof firebase !== 'undefined') && firebase.database;
+                if (firebaseAvailable) {
+                    try {
+                        const [featuresSnap, companySnap] = await Promise.all([
+                            firebase.database().ref('/platformFeatures').once('value'),
+                            firebase.database().ref(`/companies/${companyId}`).once('value')
+                        ]);
+                        if (featuresSnap.exists()) featuresData = featuresSnap.val();
+                        if (companySnap.exists()) company = companySnap.val();
+                        console.log('📊 Firebase data loaded:', { 
+                            featuresCount: featuresData ? Object.keys(featuresData).length : 0, 
+                            companyFound: !!company 
+                        });
+                    } catch (dbErr) {
+                        console.warn('Firebase feature/company fetch failed, will use local fallback:', dbErr);
+                    }
+                }
+
+                // Local fallback (dashboard-style)
+                if (!company) {
+                    const companyData = JSON.parse(localStorage.getItem('companyData') || '{}');
+                    company = companyData[companyId] || null;
+                    console.log('💾 Local company data:', company ? 'found' : 'not found');
+                }
+                if (!featuresData) {
+                    // Try local cache of platformFeatures if present
+                    featuresData = JSON.parse(localStorage.getItem('platformFeatures') || 'null');
+                    console.log('💾 Local platform features:', featuresData ? Object.keys(featuresData).length : 'none');
+                }
+
+                // Determine selected features
+                selected = Array.isArray(company?.selectedFeatures) ? company.selectedFeatures : (company?.selectedFeatures || []);
+                console.log('✅ Company selected features:', selected);
+
+                // If featuresData + authorizedPages mapping is available, use it, otherwise treat selected as feature keys
+                if (featuresData && selected.length > 0) {
+                    selected.forEach(fid => {
+                        const f = featuresData[fid];
+                        if (f && (f.status === 'active' || typeof f.status === 'undefined') && Array.isArray(f.authorizedPages)) {
+                            authorizedPages.push(...f.authorizedPages);
+                        }
+                    });
+                    console.log('📄 Authorized pages from features:', authorizedPages.length);
+                }
+
+                resetMenuVisibility();
+                const authorizedFeatures = new Set();
+
+                if (authorizedPages.length > 0) {
+                    authorizedPages.forEach(p => { if (p && p.feature) authorizedFeatures.add(p.feature); });
+                } else if (selected.length > 0) {
+                    // Fallback: assume selected values are feature keys
+                    selected.forEach(k => { if (typeof k === 'string') authorizedFeatures.add(k); });
+                }
+
+                console.log('🔑 Authorized features:', Array.from(authorizedFeatures));
+
+                if (authorizedFeatures.size > 0) {
+                    // Show individual items whose feature is authorized
+                    document.querySelectorAll('#roleBasedMenu li[data-feature]').forEach(li => {
+                        const feature = li.getAttribute('data-feature');
+                        const isDropdown = li.classList.contains('menu-dropdown');
+                        if (isDropdown) return; // handle dropdown later
+                        if (authorizedFeatures.has(feature)) {
+                            li.classList.add('menu-visible');
+                            console.log(`✅ Showing feature: ${feature}`);
+                        } else {
+                            console.log(`❌ Hiding feature: ${feature}`);
+                        }
+                    });
+
+                    // Show dropdowns if they have visible children or are directly authorized
+                    document.querySelectorAll('#roleBasedMenu li.menu-dropdown').forEach(drop => {
+                        const dropFeature = drop.getAttribute('data-feature');
+                        const hasChildren = drop.querySelectorAll('.submenu li.menu-visible').length > 0;
+                        if (hasChildren || authorizedFeatures.has(dropFeature)) {
+                            drop.classList.add('menu-visible');
+                            console.log(`✅ Showing dropdown: ${dropFeature} (children: ${hasChildren})`);
+                        } else {
+                            console.log(`❌ Hiding dropdown: ${dropFeature} (no children or not authorized)`);
+                        }
+                    });
+                } else {
+                    console.log('⚠️ No authorized features found - using permissive fallback');
+                    // Permissive fallback: if we don't know company-selected features, start with all features visible
+                    // and let the role-permission filter remove disallowed items.
+                    document.querySelectorAll('#roleBasedMenu li[data-feature]').forEach(li => {
+                        const isDropdown = li.classList.contains('menu-dropdown');
+                        if (!isDropdown) li.classList.add('menu-visible');
+                    });
+                    document.querySelectorAll('#roleBasedMenu li.menu-dropdown').forEach(drop => {
+                        const hasChildren = drop.querySelectorAll('.submenu li.menu-visible').length > 0;
+                        if (hasChildren) drop.classList.add('menu-visible');
+                    });
+                }
+
+                return authorizedPages;
+            } catch (e) {
+                console.error('Feature visibility error:', e);
+                resetMenuVisibility();
+                ensureHomeIsVisible();
+                showSidebarAfterAuth();
+                return [];
+            }
+        }
+
+        async function applyRoleBasedFiltering(companyId, userRole, authorizedPages) {
+            console.log('👮 Applying role-based filtering:', { companyId, userRole });
+            try {
+                let permissions = null;
+                const firebaseAvailable = (typeof firebase !== 'undefined') && firebase.database;
+                if (firebaseAvailable) {
+                    try {
+                        const permSnap = await firebase.database().ref(`companies/${companyId}/roles/${userRole}/permissions`).once('value');
+                        if (permSnap.exists()) {
+                            permissions = permSnap.val();
+                            console.log('🔐 Firebase permissions loaded:', permissions);
+                        }
+                    } catch (dbErr) {
+                        console.warn('Firebase role permissions fetch failed, using local fallback:', dbErr);
+                    }
+                }
+
+                if (!permissions) {
+                    const companyData = JSON.parse(localStorage.getItem('companyData') || '{}');
+                    const company = companyData[companyId];
+                    permissions = company?.roles?.[userRole]?.permissions || null;
+                    console.log('💾 Local permissions loaded:', permissions);
+                }
+
+                if (!permissions) {
+                    if (String(userRole || '').toLowerCase() === 'administrator') { 
+                        console.log('👑 Administrator bypass - showing all features');
+                        showSidebarAfterAuth(); 
+                        return; 
+                    }
+                    console.warn('⚠️ No permissions found - hiding items requiring permissions');
+                    hideItemsRequiringPermissions();
+                    showSidebarAfterAuth();
+                    return;
+                }
+
+                filterMenuByPermissions(permissions);
+            } catch (e) {
+                console.error('Role filtering error:', e);
+                showSidebarAfterAuth();
+            }
+        }
+
+        // Helper: support both object- and array-shaped permission models
+        function hasPermission(permissions, key) {
+            if (!permissions || !key) return false;
+            const k = String(key).trim();
+            if (!k) return false;
+            // Object map: { perm: true } or { perm: { view: true } }
+            if (typeof permissions === 'object' && !Array.isArray(permissions)) {
+                const val = permissions[k] ?? permissions[k.toLowerCase()] ?? permissions[k.toUpperCase()];
+                if (val === true) return true;
+                if (val && typeof val === 'object') return !!(val.view === true || val.read === true || val.access === true);
+                return false;
+            }
+            // Array list: ["perm1", "perm2"]
+            if (Array.isArray(permissions)) {
+                const lowered = permissions.map(p => String(p).trim());
+                return lowered.includes(k) || lowered.includes(k.toLowerCase()) || lowered.includes(k.toUpperCase());
+            }
+            return false;
+        }
+
+        function filterMenuByPermissions(permissions) {
+            console.log('🔒 Filtering menu by permissions:', permissions);
+            let hiddenCount = 0;
+            
+            // Hide items that require permissions the user lacks
+            document.querySelectorAll('#roleBasedMenu li.menu-visible[data-requires-permission]')
+                .forEach(li => {
+                    const req = li.getAttribute('data-requires-permission');
+                    const has = hasPermission(permissions, req);
+                    if (!has) {
+                        li.classList.remove('menu-visible');
+                        hiddenCount++;
+                        console.log(`❌ Hiding item requiring permission: ${req}`);
+                    } else {
+                        console.log(`✅ Keeping item with permission: ${req}`);
+                    }
+                });
+
+            // Hide dropdowns with no visible children or lacking required permission themselves
+            document.querySelectorAll('#roleBasedMenu li.menu-dropdown').forEach(drop => {
+                const visibleChildren = drop.querySelectorAll('.submenu li.menu-visible').length;
+                const req = drop.getAttribute('data-requires-permission');
+                const dropFeature = drop.getAttribute('data-feature');
+                
+                if (visibleChildren === 0) {
+                    if (req) {
+                        const hasDrop = hasPermission(permissions, req);
+                        if (!hasDrop) {
+                            drop.classList.remove('menu-visible');
+                            console.log(`❌ Hiding dropdown ${dropFeature}: no permission ${req}`);
+                        } else {
+                            drop.classList.remove('menu-visible'); // no children => hide anyway
+                            console.log(`❌ Hiding dropdown ${dropFeature}: has permission but no children`);
+                        }
+                    } else {
+                        drop.classList.remove('menu-visible');
+                        console.log(`❌ Hiding dropdown ${dropFeature}: no children and no permission required`);
+                    }
+                } else if (req) {
+                    // If dropdown has children but the dropdown itself requires a permission, ensure it's allowed
+                    const hasDrop = hasPermission(permissions, req);
+                    if (!hasDrop) {
+                        drop.classList.remove('menu-visible');
+                        console.log(`❌ Hiding dropdown ${dropFeature}: missing permission ${req} despite having children`);
+                    } else {
+                        console.log(`✅ Keeping dropdown ${dropFeature}: has permission ${req} and ${visibleChildren} children`);
+                    }
+                } else {
+                    console.log(`✅ Keeping dropdown ${dropFeature}: no permission required, ${visibleChildren} children`);
+                }
+            });
+
+            console.log(`🎯 Permission filtering complete: ${hiddenCount} items hidden`);
+            ensureHomeIsVisible();
+            showSidebarAfterAuth();
+        }
+
+        function hideItemsRequiringPermissions() {
+            document.querySelectorAll('#roleBasedMenu li.menu-visible[data-requires-permission]')
+                .forEach(li => li.classList.remove('menu-visible'));
+            document.querySelectorAll('#roleBasedMenu li.menu-dropdown').forEach(drop => {
+                const visibleChildren = drop.querySelectorAll('.submenu li.menu-visible').length;
+                if (visibleChildren === 0) drop.classList.remove('menu-visible');
+            });
+            ensureHomeIsVisible();
+        }
+
+        function initializeMenuAuthorization() {
+            // Do not hide anything up-front; compute visibility first, then enable gating
+            setTimeout(() => updateMenuWithFeatureAuthorization(), 150);
+        }
+
+        // Optional: quick debugger
+        window.debugMenuState = function() {
+            const items = document.querySelectorAll('#roleBasedMenu [data-feature]');
+            console.table(Array.from(items).map(el => ({
+                feature: el.getAttribute('data-feature'),
+                requires: el.getAttribute('data-requires-permission') || '',
+                visible: el.classList.contains('menu-visible')
+            })));
+        };
+
+        // Expose init fn
+        window.initializeMenuAuthorization = initializeMenuAuthorization;
+        window.updateMenuWithFeatureAuthorization = updateMenuWithFeatureAuthorization;
+        </script>
 
 <script>
 // Error handling for missing resources
@@ -3818,14 +5049,23 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log('🔄 Force updating company branding...');
         authManager.updateCompanyBranding();
       }, 100);
+
+      // Apply menu visibility logic after profile is loaded and auth is complete
+      setTimeout(() => {
+        console.log('🔒 Applying menu visibility based on company features + user roles...');
+        if (typeof initializeMenuAuthorization === 'function') {
+          initializeMenuAuthorization();
+        } else if (typeof updateMenuWithFeatureAuthorization === 'function') {
+          updateMenuWithFeatureAuthorization();
+        }
+      }, 200);
     }).catch(error => {
       console.error('Error loading user profile:', error);
     });
   });
   
-  // Initialize page functionality
-  setupSidebarToggle();
-  initializeAuth();
+    // Initialize page functionality
+        initializeAuth();
   
   // Initialize stats display
   updateStats();
