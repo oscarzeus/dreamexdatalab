@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en" translate="no">
 <head>
   <meta charset="UTF-8" />
@@ -745,6 +745,44 @@
       75% { transform: translateX(5px); }
     }
   </style>
+  <!-- Block unauthorized.html redirects for identified users -->
+  <script>
+    (function(){
+      function isIdentified(){
+        try{
+          const u = JSON.parse(localStorage.getItem('currentUser')||'null');
+          if (u && (u.uid || u.email)) return true;
+        }catch(e){}
+        try{
+          if (window.firebase && window.firebase.auth && window.firebase.auth().currentUser) return true;
+        }catch(e){}
+        return false;
+      }
+      function shouldBlock(url){
+        const target = String(url||'');
+        return isIdentified() && target.includes('unauthorized.html');
+      }
+      const loc = window.location;
+      if (loc && loc.assign){
+        const _assign = loc.assign.bind(loc);
+        loc.assign = function(url){ if(shouldBlock(url)) { console.warn('Blocked navigation to unauthorized.html for identified user'); return; } return _assign(url); };
+      }
+      if (loc && loc.replace){
+        const _replace = loc.replace.bind(loc);
+        loc.replace = function(url){ if(shouldBlock(url)) { console.warn('Blocked navigation to unauthorized.html for identified user'); return; } return _replace(url); };
+      }
+      const _open = window.open;
+      window.open = function(url, name, specs){ if(shouldBlock(url)) { console.warn('Blocked window.open to unauthorized.html for identified user'); return null; } return _open ? _open(url, name, specs) : null; };
+      document.addEventListener('click', function(e){
+        const a = e.target && e.target.closest ? e.target.closest('a[href]') : null;
+        if(!a) return;
+        const href = a.getAttribute('href');
+        if(shouldBlock(href)){
+          e.preventDefault(); e.stopPropagation();
+        }
+      }, true);
+    })();
+  </script>
   <script>
     // EARLY application view detection - inject critical CSS immediately
     (function(){
@@ -1130,14 +1168,14 @@
             <i class="fas fa-map-marker-alt text-3xl"></i>
           </div>
           <h4 class="text-xl font-semibold mb-2">Address</h4>
-          <p class="text-gray-600">Kamsar cite, Boke, Guinée</p>
+          <p class="text-gray-600">77 High Street, Anytown, United Kingdom</p>
         </div>
         <div>
           <div class="text-primary-500 mb-4">
             <i class="fas fa-phone text-3xl"></i>
           </div>
           <h4 class="text-xl font-semibold mb-2">Phone</h4>
-          <p class="text-gray-600">(+224) 62825767</p>
+          <p class="text-gray-600">(+44) 7700 900427</p>
         </div>
         <div>
           <div class="text-primary-500 mb-4">
@@ -1203,7 +1241,7 @@
         </div>
       </div>
       <div class="pt-8 mt-8 border-t border-gray-800 text-center text-gray-400">
-        <p>&copy; 2025 Dreamex DataLab. All rights reserved.</p>
+  <p>&copy; 2025 Dreamex DataLab.</p>
       </div>
     </div>
   </footer>
