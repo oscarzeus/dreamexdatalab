@@ -356,8 +356,9 @@
                     
                     this.checkPageAccess().then(hasAccess => {
                         if (!hasAccess) {
-                            console.warn('Page access denied, redirecting to unauthorized.html');
-                            window.location.href = 'unauthorized.html';
+                            console.warn('Page access denied; staying on page and disabling restricted actions');
+                            // Do not redirect when logged in; optionally disable or hide restricted UI here
+                            // e.g., document.body.classList.add('restricted');
                             return;
                         }
                         
@@ -366,7 +367,7 @@
                         this.updateUIForAuthenticatedUser();
                     }).catch(error => {
                         console.error('Error checking page access:', error);
-                        window.location.href = 'unauthorized.html';
+                        // Stay on page on error; do not redirect to unauthorized
                     });
 
                     // User profile dropdown functionality
@@ -2372,10 +2373,31 @@
                 const tableBody = document.getElementById('usersTableBody');
                 if (!tableBody) return;
 
-                // Include all users (no filtering out administrators)
-                console.log(`🔍 Displaying all ${users.length} users in the table`);
+                // Enforce company name visibility for current viewer
+                const viewerUid = this.currentUser?.uid || this.currentUser?.id;
+                const companyId = this.companyId;
+                let allowedIdsSet = null;
+                try {
+                    if (viewerUid && companyId) {
+                        const visSnap = await db.ref(`companies/${companyId}/accessControl/companyVisibility/${viewerUid}/allowedIds`).once('value');
+                        const allowed = visSnap.val() || null;
+                        if (allowed) {
+                            allowedIdsSet = new Set(Object.keys(allowed).filter(k => allowed[k]));
+                        }
+                    }
+                } catch (e) { console.warn('Company visibility load failed, defaulting to main company only', e); }
+                if (!allowedIdsSet || allowedIdsSet.size === 0) {
+                    allowedIdsSet = new Set([companyId]);
+                }
 
-                if (users.length === 0) {
+                const filteredUsers = users.filter(u => {
+                    const employerId = (u && typeof u.employerCompanyId === 'string' && u.employerCompanyId) ? u.employerCompanyId : companyId;
+                    return allowedIdsSet.has(employerId);
+                });
+
+                // Include all visible users (no filtering out administrators)
+                console.log(`🔍 Displaying ${filteredUsers.length} visible users (of ${users.length}) in the table`);
+                if (filteredUsers.length === 0) {
                     tableBody.innerHTML = '<tr><td colspan="6" class="text-center">No users found</td></tr>';
                     return;
                 }
@@ -2384,7 +2406,7 @@
                 if (!this.companyNameCache) this.companyNameCache = {};
 
                 // Resolve role names and company names for all users
-                const usersWithResolvedInfo = await Promise.all(users.map(async (user) => {
+                const usersWithResolvedInfo = await Promise.all(filteredUsers.map(async (user) => {
                     let roleName = user.role || 'User';
                     let companyName = '-';
                     
@@ -5451,6 +5473,7 @@
         // Access Control: manage who can see User Management and Subscription/Quota tabs
         (function () {
             const PATH = (companyId) => `companies/${companyId}/accessControl/tabVisibility`;
+            const VIS_PATH = (companyId) => `companies/${companyId}/accessControl/companyVisibility`;
 
             async function loadAccessControlData(companyId) {
                 const [usersSnap, permsSnap] = await Promise.all([
@@ -5469,7 +5492,7 @@
                 const permUserIds = Object.keys(perms || {});
                 if (permUserIds.length === 0) {
                     const tr = document.createElement('tr');
-                    tr.innerHTML = `<td colspan="6" style="text-align:center; color:#64748b;">No users found</td>`;
+                    tr.innerHTML = `<td colspan="10" style="text-align:center; color:#64748b;">No users found</td>`;
                     tbody.appendChild(tr);
                 } else {
                     permUserIds.forEach((uid) => {
@@ -5490,6 +5513,7 @@
                             <td style="text-align:center;"><input type="checkbox" data-perm="seeAdd" data-uid="${uid}" ${p.canSeeAddButton ? 'checked' : ''}></td>
                             <td style="text-align:center;"><input type="checkbox" data-perm="createWith" data-uid="${uid}" ${p.canCreateWithAccount ? 'checked' : ''}></td>
                             <td style="text-align:center;"><input type="checkbox" data-perm="createWithout" data-uid="${uid}" ${p.canCreateWithoutAccount !== false ? 'checked' : ''}></td>
+                            <td style="text-align:center;"><button class="btn btn-secondary" type="button" title="Manage company name visibility" onclick="window.openCompanyVisibilityModal('${uid}')"><i class="fas fa-eye"></i> Manage</button></td>
                         `;
                         tbody.appendChild(tr);
                     });
@@ -5694,6 +5718,70 @@
                 } catch (err) {
                     console.error('Failed to save access control:', err);
                     window.notificationManager?.addNotification({ type:'error', message:'Failed to add user' });
+                }
+            };
+
+            // Company Name Visibility Management
+            let __ac_company_visibility_uid = null;
+
+            window.openCompanyVisibilityModal = async function(uid){
+                try {
+                    const companyId = window.companyManagement?.companyId || window.companyManagement?.getCurrentCompanyId?.();
+                    if (!companyId || !uid) return;
+                    __ac_company_visibility_uid = uid;
+                    // Load subcontractors to build options
+                    let subs = {};
+                    try {
+                        const subsSnap = await db.ref(`companies/${companyId}/subcontractors`).once('value');
+                        subs = subsSnap.val() || {};
+                    } catch(e) { console.warn('Could not load subcontractors for visibility modal', e); }
+                    // Load current visibility
+                    const visSnap = await db.ref(`${VIS_PATH(companyId)}/${uid}/allowedIds`).once('value');
+                    const allowed = visSnap.val() || null;
+                    const allowedSet = new Set(allowed ? Object.keys(allowed).filter(k => allowed[k]) : []);
+
+                    // Build list
+                    const container = document.getElementById('companyVisibilityOptions');
+                    if (container) {
+                        container.innerHTML = '';
+                        // Main company
+                        const mainId = companyId;
+                        const mainName = window.companyManagement?.companyData?.companyName || 'Main Company';
+                        const mainRow = document.createElement('label');
+                        mainRow.className = 'checkbox-row';
+                        mainRow.innerHTML = `<input type="checkbox" class="cv-checkbox" value="${mainId}" ${allowedSet.size === 0 || allowedSet.has(mainId) ? 'checked' : ''}> <span>${mainName}</span>`;
+                        container.appendChild(mainRow);
+                        // Subcontractors
+                        Object.entries(subs).forEach(([id, sub]) => {
+                            const name = sub?.name || sub?.companyName || 'Subcontractor';
+                            const row = document.createElement('label');
+                            row.className = 'checkbox-row';
+                            row.innerHTML = `<input type="checkbox" class="cv-checkbox" value="${id}" ${allowedSet.has(id) ? 'checked' : ''}> <span>${name}</span>`;
+                            container.appendChild(row);
+                        });
+                    }
+
+                    const modal = document.getElementById('companyVisibilityModal');
+                    if (modal) { modal.style.display = 'flex'; modal.classList.add('show'); }
+                } catch(e) { console.warn('Failed to open company visibility modal', e); }
+            };
+
+            window.saveCompanyVisibility = async function(){
+                try {
+                    const companyId = window.companyManagement?.companyId || window.companyManagement?.getCurrentCompanyId?.();
+                    const uid = __ac_company_visibility_uid;
+                    if (!companyId || !uid) return;
+                    const checks = Array.from(document.querySelectorAll('#companyVisibilityOptions .cv-checkbox'));
+                    const allowedIds = {};
+                    checks.forEach(chk => { if (chk.checked) allowedIds[chk.value] = true; });
+                    // If nothing selected, default to main company only
+                    if (Object.keys(allowedIds).length === 0) allowedIds[companyId] = true;
+                    await db.ref(`${VIS_PATH(companyId)}/${uid}/allowedIds`).set(allowedIds);
+                    window.notificationManager?.addNotification({ type:'success', message:'Company visibility updated' });
+                    closeModal('companyVisibilityModal');
+                } catch(e) {
+                    console.error('Failed to save company visibility', e);
+                    window.notificationManager?.addNotification({ type:'error', message:'Failed to save company visibility' });
                 }
             };
         })();
@@ -10383,6 +10471,7 @@
                                             <th style="white-space:nowrap;">See + Button</th>
                                             <th style="white-space:nowrap;">Create With Account</th>
                                             <th style="white-space:nowrap;">Create Without Account</th>
+                                            <th style="white-space:nowrap;">Company Name Visibility</th>
                                         </tr>
                                     </thead>
                                     <tbody id="accessControlTableBody">
@@ -17116,6 +17205,24 @@
             <div class="modal-footer">
                 <button class="btn" type="button" onclick="closeModal('accessControlModal')">Cancel</button>
                 <button class="btn btn-primary" type="button" onclick="window.saveAccessControlFromModal()">Add</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Company Name Visibility Modal -->
+    <div id="companyVisibilityModal" class="modal" style="display:none;">
+        <div class="modal-dialog">
+            <div class="modal-header">
+                <h3><i class="fas fa-eye"></i> Company Name Visibility</h3>
+                <button class="modal-close" onclick="closeModal('companyVisibilityModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p style="margin-bottom:0.75rem;color:#64748b;">Choose which company names this user is allowed to see in the Users table.</p>
+                <div id="companyVisibilityOptions" style="display:flex;flex-direction:column;gap:0.5rem;max-height:300px;overflow:auto;"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn" type="button" onclick="closeModal('companyVisibilityModal')">Cancel</button>
+                <button class="btn btn-primary" type="button" onclick="window.saveCompanyVisibility()">Save</button>
             </div>
         </div>
     </div>
