@@ -10,6 +10,7 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-functions.js"></script>
     
     <!-- Demo mode: Add ?demo=true to URL or set window.DEMO_MODE = true for testing -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
@@ -1590,6 +1591,25 @@
                     console.log('🔍 Debug: Company ID:', this.companyId);
                     console.log('🔍 Debug: Current user:', this.currentUser);
                 };
+
+                // Users search handlers (User Management tab)
+                const searchInput = document.getElementById('userSearchInput');
+                const searchBtn = document.getElementById('userSearchBtn');
+                const clearBtn = document.getElementById('userSearchClearBtn');
+                if (searchBtn) {
+                    searchBtn.addEventListener('click', () => this.searchUsers());
+                }
+                if (clearBtn) {
+                    clearBtn.addEventListener('click', () => this.clearUserSearch());
+                }
+                if (searchInput) {
+                    searchInput.addEventListener('keypress', (e) => {
+                        if (e.key === 'Enter') {
+                            e.preventDefault();
+                            this.searchUsers();
+                        }
+                    });
+                }
             }
 
             async loadCompanyData() {
@@ -2502,6 +2522,48 @@
                         <td>${user.lastLogin ? this.formatDate(user.lastLogin) : 'Never'}</td>
                     </tr>`;
                 }).join('');
+            }
+
+            // Search users in the users table (by name, email, employee ID, company, role)
+            searchUsers() {
+                try {
+                    const input = document.getElementById('userSearchInput');
+                    const q = (input && input.value ? input.value : '').trim().toLowerCase();
+                    if (!q) {
+                        // Empty query -> show all
+                        this.displayUsers(this.users || []);
+                        return;
+                    }
+
+                    const list = Array.isArray(this.users) ? this.users : [];
+                    const filtered = list.filter(u => {
+                        const name = ((u.name) || `${u.firstName || ''} ${u.lastName || ''}` || '').toLowerCase();
+                        const email = (u.email || '').toLowerCase();
+                        const employeeId = (u.employeeId || '').toLowerCase();
+                        const dept = (u.department || '').toLowerCase();
+                        const role = (u.role || '').toLowerCase();
+                        const company = ((u.displayCompanyName) || (u.employerCompanyName) || '').toLowerCase();
+                        return (
+                            name.includes(q) ||
+                            email.includes(q) ||
+                            employeeId.includes(q) ||
+                            dept.includes(q) ||
+                            role.includes(q) ||
+                            company.includes(q)
+                        );
+                    });
+
+                    this.displayUsers(filtered);
+                } catch (err) {
+                    console.error('User search failed:', err);
+                }
+            }
+
+            // Clear search and show all users
+            clearUserSearch() {
+                const input = document.getElementById('userSearchInput');
+                if (input) input.value = '';
+                this.displayUsers(this.users || []);
             }
 
             getInitials(name, fallbackFirstName = '', fallbackLastName = '') {
@@ -3761,6 +3823,7 @@
                     }
                     
                     const jobTitlesSet = new Set();
+                    let isSettingsFormat = false;
                     
                     // Load job titles from field options first
                     const fieldOptionsRef = db.ref(`companies/${companyId}/fieldOptions/job-title`);
@@ -3770,12 +3833,36 @@
                         const jobTitlesData = snapshot.val();
                         console.log('✅ Job titles loaded from field options:', jobTitlesData);
                         
-                        // Handle both object format and array format
+                        // Handle settings.html object format with label/value/enabled properties
                         if (Array.isArray(jobTitlesData)) {
-                            jobTitlesData.forEach(title => jobTitlesSet.add(title));
+                            if (jobTitlesData.length > 0 && typeof jobTitlesData[0] === 'object' && jobTitlesData[0].label) {
+                                // Settings.html format with label/value properties
+                                isSettingsFormat = true;
+                                return jobTitlesData
+                                    .filter(title => title.enabled !== false)
+                                    .sort((a, b) => a.label.localeCompare(b.label));
+                            } else {
+                                // Legacy array format
+                                jobTitlesData.forEach(title => jobTitlesSet.add(title));
+                            }
                         } else if (typeof jobTitlesData === 'object') {
-                            Object.values(jobTitlesData).forEach(title => jobTitlesSet.add(title));
+                            const titleArray = Object.values(jobTitlesData);
+                            if (titleArray.length > 0 && typeof titleArray[0] === 'object' && titleArray[0].label) {
+                                // Settings.html format with label/value properties
+                                isSettingsFormat = true;
+                                return titleArray
+                                    .filter(title => title.enabled !== false)
+                                    .sort((a, b) => a.label.localeCompare(b.label));
+                            } else {
+                                // Legacy object format
+                                Object.values(jobTitlesData).forEach(title => jobTitlesSet.add(title));
+                            }
                         }
+                    }
+                    
+                    // If we already found settings format, return early
+                    if (isSettingsFormat) {
+                        return [];
                     }
                     
                     // Load job titles from organizational chart (chart.html data)
@@ -3796,9 +3883,15 @@
                         }
                     }
                     
-                    // If we have job titles from either source, return them sorted
+                    // If we have job titles from either source, return them in legacy format converted to settings format
                     if (jobTitlesSet.size > 0) {
-                        const allJobTitles = Array.from(jobTitlesSet).sort();
+                        const allJobTitles = Array.from(jobTitlesSet)
+                            .map(title => ({
+                                label: title,
+                                value: title.toLowerCase().replace(/\s+/g, '-'),
+                                enabled: true
+                            }))
+                            .sort((a, b) => a.label.localeCompare(b.label));
                         console.log('✅ Combined job titles from field options and org chart:', allJobTitles);
                         return allJobTitles;
                     }
@@ -3812,7 +3905,13 @@
                                 jobTitlesSet.add(user.jobTitle.trim());
                             }
                         });
-                        const extractedTitles = Array.from(jobTitlesSet).sort();
+                        const extractedTitles = Array.from(jobTitlesSet)
+                            .map(title => ({
+                                label: title,
+                                value: title.toLowerCase().replace(/\s+/g, '-'),
+                                enabled: true
+                            }))
+                            .sort((a, b) => a.label.localeCompare(b.label));
                         if (extractedTitles.length > 0) {
                             console.log('✅ Job titles extracted from existing users:', extractedTitles);
                             return extractedTitles;
@@ -3827,25 +3926,28 @@
                 }
             }
 
-            // Get default job titles as fallback
+            // Get default job titles as fallback (matching settings.html format)
             getDefaultJobTitles() {
                 const defaultTitles = [
-                    'Manager',
-                    'Senior Manager',
-                    'Team Lead',
-                    'Senior Developer',
-                    'Developer',
-                    'Junior Developer',
-                    'Business Analyst',
-                    'Project Manager',
-                    'HR Specialist',
-                    'Safety Officer',
-                    'Finance Manager',
-                    'Operations Manager',
-                    'Quality Assurance',
-                    'Technical Lead',
-                    'Consultant'
-                ].sort();
+                    { label: 'Software Engineer', value: 'software-engineer', enabled: true },
+                    { label: 'Project Manager', value: 'project-manager', enabled: true },
+                    { label: 'Business Analyst', value: 'business-analyst', enabled: true },
+                    { label: 'Data Analyst', value: 'data-analyst', enabled: true },
+                    { label: 'HR Specialist', value: 'hr-specialist', enabled: true },
+                    { label: 'Financial Analyst', value: 'financial-analyst', enabled: true },
+                    { label: 'Manager', value: 'manager', enabled: true },
+                    { label: 'Senior Manager', value: 'senior-manager', enabled: true },
+                    { label: 'Team Lead', value: 'team-lead', enabled: true },
+                    { label: 'Senior Developer', value: 'senior-developer', enabled: true },
+                    { label: 'Developer', value: 'developer', enabled: true },
+                    { label: 'Junior Developer', value: 'junior-developer', enabled: true },
+                    { label: 'Safety Officer', value: 'safety-officer', enabled: true },
+                    { label: 'Finance Manager', value: 'finance-manager', enabled: true },
+                    { label: 'Operations Manager', value: 'operations-manager', enabled: true },
+                    { label: 'Quality Assurance', value: 'quality-assurance', enabled: true },
+                    { label: 'Technical Lead', value: 'technical-lead', enabled: true },
+                    { label: 'Consultant', value: 'consultant', enabled: true }
+                ].sort((a, b) => a.label.localeCompare(b.label));
                 
                 console.log('⚠️ Using default job titles:', defaultTitles);
                 return defaultTitles;
@@ -3925,11 +4027,28 @@
                         const departmentsData = snapshot.val();
                         console.log('✅ Departments loaded from Firebase:', departmentsData);
                         
-                        // Handle both object format and array format
+                        // Handle settings.html object format with label/value/enabled properties
                         if (Array.isArray(departmentsData)) {
-                            return departmentsData.sort();
+                            // If it's an array of objects (settings.html format), return as-is
+                            return departmentsData
+                                .filter(dept => dept.enabled !== false) // Only return enabled departments
+                                .sort((a, b) => (a.label || a.name || a.value || '').localeCompare(b.label || b.name || b.value || ''));
                         } else if (typeof departmentsData === 'object') {
-                            return Object.values(departmentsData).sort();
+                            // If it's an object, convert values to array (settings.html format)
+                            const deptArray = Object.values(departmentsData);
+                            if (deptArray.length > 0 && typeof deptArray[0] === 'object' && deptArray[0].label) {
+                                // Settings.html format with label/value properties
+                                return deptArray
+                                    .filter(dept => dept.enabled !== false)
+                                    .sort((a, b) => a.label.localeCompare(b.label));
+                            } else {
+                                // Legacy string format - convert to settings.html format
+                                return deptArray.map(dept => ({
+                                    label: dept,
+                                    value: dept.toLowerCase().replace(/\s+/g, '-'),
+                                    enabled: true
+                                })).sort((a, b) => a.label.localeCompare(b.label));
+                            }
                         } else {
                             console.warn('⚠️ Unexpected departments data format:', departmentsData);
                             return [];
@@ -3946,31 +4065,37 @@
                                 departments.add(user.department.trim());
                             }
                         });
-                        const extractedDepartments = Array.from(departments).sort();
+                        const extractedDepartments = Array.from(departments)
+                            .map(dept => ({
+                                label: dept,
+                                value: dept.toLowerCase().replace(/\s+/g, '-'),
+                                enabled: true
+                            }))
+                            .sort((a, b) => a.label.localeCompare(b.label));
                         if (extractedDepartments.length > 0) {
                             console.log('✅ Departments extracted from existing users:', extractedDepartments);
                             return extractedDepartments;
                         }
                     }
 
-                    // Default departments if no data available
+                    // Default departments if no data available (matching settings.html format)
                     const defaultDepartments = [
-                        'Human Resources',
-                        'Information Technology',
-                        'Finance',
-                        'Operations',
-                        'Marketing',
-                        'Sales',
-                        'Customer Service',
-                        'Quality Assurance',
-                        'Research & Development',
-                        'Health & Safety',
-                        'Legal',
-                        'Administration',
-                        'Project Management',
-                        'Business Development',
-                        'Consulting Services'
-                    ].sort();
+                        { label: 'Information Technology', value: 'it', enabled: true },
+                        { label: 'Human Resources', value: 'hr', enabled: true },
+                        { label: 'Finance', value: 'finance', enabled: true },
+                        { label: 'Operations', value: 'operations', enabled: true },
+                        { label: 'Marketing', value: 'marketing', enabled: true },
+                        { label: 'Sales', value: 'sales', enabled: true },
+                        { label: 'Customer Service', value: 'customer-service', enabled: true },
+                        { label: 'Quality Assurance', value: 'qa', enabled: true },
+                        { label: 'Research & Development', value: 'rd', enabled: true },
+                        { label: 'Health & Safety', value: 'health-safety', enabled: true },
+                        { label: 'Legal', value: 'legal', enabled: true },
+                        { label: 'Administration', value: 'admin', enabled: true },
+                        { label: 'Project Management', value: 'project-management', enabled: true },
+                        { label: 'Business Development', value: 'business-dev', enabled: true },
+                        { label: 'Consulting Services', value: 'consulting', enabled: true }
+                    ].sort((a, b) => a.label.localeCompare(b.label));
                     
                     console.log('⚠️ Using default departments:', defaultDepartments);
                     return defaultDepartments;
@@ -4098,8 +4223,9 @@
                         optionElement.value = option;
                         optionElement.textContent = option;
                     } else if (typeof option === 'object' && option !== null) {
-                        const value = valueField ? option[valueField] : (option.id || option.value || option.name);
-                        const text = textField ? option[textField] : (option.name || option.text || value);
+                        // Handle settings.html format (label/value) and other formats
+                        const value = valueField ? option[valueField] : (option.value || option.id || option.name);
+                        const text = textField ? option[textField] : (option.label || option.name || option.text || value);
                         
                         optionElement.value = value;
                         optionElement.textContent = text;
@@ -4107,6 +4233,11 @@
                         // Add description as title attribute if available
                         if (option.description) {
                             optionElement.title = option.description;
+                        }
+                        
+                        // Skip disabled options from settings.html
+                        if (option.enabled === false) {
+                            return;
                         }
                     }
                     
@@ -10488,6 +10619,17 @@
                     <div class="card">
                         <div class="card-body">
 
+                            <!-- Search users toolbar -->
+                            <div id="usersSearchBar" style="display:flex; gap:0.5rem; justify-content:flex-end; align-items:center; margin-bottom:0.75rem; flex-wrap:wrap;">
+                                <input type="text" id="userSearchInput" class="form-control" placeholder="Search users (name, email, employee ID, company, role)" style="max-width: 360px;">
+                                <button type="button" id="userSearchBtn" class="btn btn-primary" title="Search">
+                                    <i class="fas fa-search"></i>
+                                </button>
+                                <button type="button" id="userSearchClearBtn" class="btn btn-secondary" title="Clear search">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+
                             <div class="table-wrapper">
                                 <table class="users-table">
                                     <thead>
@@ -11038,36 +11180,7 @@
             </div>
             <div class="modal-body">
                 <form id="editUserForm" autocomplete="off" onsubmit="return false;">
-                    <!-- Account Settings -->
-                    <div class="form-section">
-                        <div class="section-title">
-                            <i class="fas fa-cog"></i> Account Settings
-                        </div>
-                        
-                        <div class="form-grid">
-                            <div class="form-group">
-                                <label for="editUserRole" class="form-label">Role <span class="required">*</span></label>
-                                <select class="form-control" id="editUserRole" name="editUserRole" required>
-                                    <option value="">Select Role</option>
-                                    <!-- Roles will be populated dynamically from company-scoped roles -->
-                                </select>
-                                <div class="form-error"></div>
-                                <small class="form-text text-muted">Determines access level and permissions based on company-defined roles</small>
-                            </div>
-
-                            <div class="form-group">
-                                <label for="editUserStatus" class="form-label">Account Status</label>
-                                <select class="form-control" id="editUserStatus" name="editUserStatus">
-                                    <option value="active">Active</option>
-                                    <option value="inactive">Inactive</option>
-                                    <option value="suspended">Suspended</option>
-                                </select>
-                                <div class="form-error"></div>
-                                <small class="form-text text-muted">Controls whether the user can access the system</small>
-                            </div>
-                        </div>
-
-                    </div>
+                    
 
                     <!-- Personal Information Section -->
                     <div class="form-section">
