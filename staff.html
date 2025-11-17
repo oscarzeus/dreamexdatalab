@@ -13334,30 +13334,42 @@ Processing Time: ${templateData.processingTime}
                 console.warn(`⚠️ Filtered out ${data.length - companyFilteredData.length} positions that don't belong to current company`);
             }
             
-            // Filter data based on user permissions
-            const filteredData = [];
+            // Filter data based on user permissions (concurrent to avoid long waits)
             const currentUserId = getCurrentUserId();
             const currentUserEmail = getCurrentUserEmail();
-            
             console.log(`👤 Current user: ${currentUserId} (${currentUserEmail}) in company: ${currentCompanyId}`);
-            
+
+            // Pre-include items submitted by the current user without extra checks
+            const preVisible = [];
+            const toCheck = [];
             for (const staff of companyFilteredData) {
-                const canView = await canUserViewPosition(staff);
-                
-                // Log detailed visibility information for debugging
-                const isSubmitter = staff.submittedBy === currentUserId || staff.submittedBy === currentUserEmail;
-                console.log(`🔍 Position ${staff.id} (${staff.jobTitle}):`, {
-                    canView: canView,
-                    isSubmitter: isSubmitter,
-                    submittedBy: staff.submittedBy,
-                    approvalStatus: staff.approvalStatus || 'pending',
-                    companyId: staff.companyId || 'none'
-                });
-                
-                if (canView) {
-                    filteredData.push(staff);
+                if (staff.submittedBy === currentUserId || staff.submittedBy === currentUserEmail) {
+                    preVisible.push({ staff, canView: true });
+                } else {
+                    toCheck.push(staff);
                 }
             }
+
+            // Run visibility checks concurrently with a safe Promise.all for the remaining items
+            let visibilityResults = [];
+            try {
+                visibilityResults = await Promise.all(
+                    toCheck.map(async (staff) => {
+                        try {
+                            const canView = await canUserViewPosition(staff);
+                            return { staff, canView };
+                        } catch (e) {
+                            console.warn('canUserViewPosition failed for', staff.id, e);
+                            return { staff, canView: false };
+                        }
+                    })
+                );
+            } catch (e) {
+                console.warn('Batch permission evaluation failed, falling back to submitter-only view');
+                visibilityResults = [];
+            }
+
+            const filteredData = [...preVisible, ...visibilityResults.filter(x => x.canView)].map(x => x.staff);
             
             // Summary logging
             const submittedByUser = filteredData.filter(p => 
