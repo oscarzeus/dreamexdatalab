@@ -10998,9 +10998,9 @@ Dreamex Datalab HSE System
                                     stageStatus = 'completed';
                                     stageClass = 'completed';
                                     
-                                    if (approverRecord && approverRecord.status === 'approved') {
+                                        if (approverRecord && approverRecord.status === 'approved') {
                                         stageTimestamp = new Date(approverRecord.approvedAt).toLocaleString();
-                                        stageStatusText = `Approved by ${approverRecord.approverName}`;
+                                        stageStatusText = 'Approved';
                                         console.log(`✅ Displaying historical approval for ${levelKey}: ${approverRecord.approverName} at ${stageTimestamp}`);
                                     } else {
                                         // Fallback if no specific approval record found
@@ -11033,7 +11033,7 @@ Dreamex Datalab HSE System
                                         
                                         if (approverRecord && approverRecord.status === 'approved') {
                                             stageTimestamp = new Date(approverRecord.approvedAt).toLocaleString();
-                                            stageStatusText = `Approved by ${approverRecord.approverName}`;
+                                            stageStatusText = 'Approved';
                                             console.log(`✅ Displaying current stage approval for ${levelKey}: ${approverRecord.approverName} at ${stageTimestamp}`);
                                         } else {
                                             stageStatusText = 'Completed';
@@ -11054,7 +11054,7 @@ Dreamex Datalab HSE System
                                     if (approverRecord.status === 'approved') {
                                         stageStatus = 'completed';
                                         stageClass = 'completed';
-                                        stageStatusText = `Approved by ${approverRecord.approverName}`;
+                                        stageStatusText = 'Approved';
                                         stageTimestamp = new Date(approverRecord.approvedAt).toLocaleString();
                                         console.log(`✅ Displaying parallel approval for ${levelKey}: ${approverRecord.approverName} at ${stageTimestamp}`);
                                     } else if (approverRecord.status === 'rejected') {
@@ -11112,7 +11112,6 @@ Dreamex Datalab HSE System
                                                 <div style="font-size: 0.85rem; color: #666; margin-top: 0.25rem;">
                                                     <i class="fas fa-clock"></i> ${new Date(approverRecord.approvedAt || approverRecord.rejectedAt).toLocaleString()}
                                                 </div>
-                                                ${approverRecord.approvedBy ? `<div style="font-size: 0.8rem; color: #999; margin-top: 0.25rem;">ID: ${approverRecord.approvedBy}</div>` : ''}
                                             </div>` : ''}
                                         ${stageComments ? `<div class="stage-comments"><strong>Comments:</strong> ${stageComments}</div>` : ''}
                                     </div>
@@ -13468,14 +13467,14 @@ Processing Time: ${templateData.processingTime}
                     if (!event.target.closest('input') && 
                         !event.target.closest('.action-buttons') && 
                         !event.target.closest('button')) {
-                        viewDetails(staff.id);
+                        viewDetails(staff.firebaseKey || staff.id);
                     }
                 });
                 
                 // Add double-click for additional feedback
                 row.addEventListener('dblclick', function(event) {
                     event.preventDefault();
-                    viewDetails(staff.id);
+                    viewDetails(staff.firebaseKey || staff.id);
                 });
                 
                 tbody.appendChild(row);
@@ -15196,7 +15195,7 @@ Processing Time: ${templateData.processingTime}
                     // Export PDF button - always show if user has export permission (not restricted to submitters/approvers)
                     if (hasExportPermission) {
                         allButtons += `
-                            <button type="button" class="btn btn-info" onclick="exportPositionToPDF('${staff.id}')" title="Export as PDF">
+                            <button type="button" class="btn btn-info" onclick="exportPositionToPDF('${staff.firebaseKey || staff.id}')" title="Export as PDF">
                                 <i class="fas fa-file-pdf"></i>
                             </button>
                         `;
@@ -15218,17 +15217,29 @@ Processing Time: ${templateData.processingTime}
         }
 
         // View details function
-        async function viewDetails(id) {
-            const staff = staffData.find(s => s.id === id);
-            if (!staff) return;
+        async function viewDetails(rawId) {
+            const id = (rawId || '').toString().trim();
+            // Robust lookup across multiple possible identifiers
+            let staff = Array.isArray(staffData) ? staffData.find(s => s.id === id || s.firebaseKey === id) : null;
+            if (!staff && Array.isArray(staffData)) {
+                staff = staffData.find(s => s.positionCode === id || s.jobCode === id || s.positionId === id);
+            }
+            if (!staff && Array.isArray(staffData) && id.length > 0) {
+                // Last-resort partial match similar to exportPositionToPDF
+                staff = staffData.find(s => (s.firebaseKey && s.firebaseKey.startsWith(id)) || (s.id && s.id.startsWith(id)));
+            }
+            if (!staff) {
+                console.warn('viewDetails: position not found for id', id);
+                return;
+            }
 
             // Set the global variable for modal action buttons
-            currentViewingStaffId = staff.firebaseKey || id;
+            currentViewingStaffId = staff.firebaseKey || staff.id;
 
             // Set the staffId input field for the release button
             const staffIdInput = document.getElementById('staffId');
             if (staffIdInput) {
-                staffIdInput.value = staff.firebaseKey || id;
+                staffIdInput.value = staff.firebaseKey || staff.id;
             }
 
             const content = document.getElementById('viewDetailsContent');
@@ -15249,183 +15260,322 @@ Processing Time: ${templateData.processingTime}
             }) : 'Not specified';
             const formatCurrency = (amount) => amount ? `$${parseInt(amount).toLocaleString()}` : 'Not specified';
             
-            // Immediately show modal with basic position details (synchronous data)
-            content.innerHTML = `
-                <div class="details-grid">
-                    <!-- Basic Position Information (loads immediately) -->
-                    <div class="detail-section">
-                        <h4><i class="fas fa-briefcase"></i> Position Information</h4>
-                        <div class="detail-row">
-                            <span class="detail-label">Job Title:</span>
-                            <span class="detail-value">${formatValue(staff.jobTitle)}</span>
-                        </div>
-                        <div class="detail-row">
-                            <span class="detail-label">Position Code:</span>
-                            <span class="detail-value">${formatValue(staff.positionCode || staff.jobCode)}</span>
-                        </div>
-                        <div class="detail-row">
-                            <span class="detail-label">Department:</span>
-                            <span class="detail-value">${formatValue(staff.department)}</span>
-                        </div>
-                        <div class="detail-row">
-                            <span class="detail-label">Line Manager:</span>
-                            <span class="detail-value" id="lineManagerValue">
-                                <i class="fas fa-spinner fa-spin"></i> Loading...
-                            </span>
-                        </div>
-                        <div class="detail-row">
-                            <span class="detail-label">Submitted By:</span>
-                            <span class="detail-value" data-submitted-by="${staff.submittedBy}">${formatValue(formatSubmittedBy(staff.submittedBy, staff.submittedByName))}</span>
-                        </div>
-                    </div>
-
-                    <!-- Employment Details -->
-                    <div class="detail-section">
-                        <h4><i class="fas fa-calendar-alt"></i> Employment Details</h4>
-                        <div class="detail-row">
-                            <span class="detail-label">Employment Type:</span>
-                            <span class="detail-value">${formatValue(formatEmploymentType(staff.employmentType))}</span>
-                        </div>
-                        <div class="detail-row">
-                            <span class="detail-label">Employment Status:</span>
-                            <span class="detail-value">${formatValue(formatEmploymentStatus(staff.employmentStatus))}</span>
-                        </div>
-                        <div class="detail-row">
-                            <span class="detail-label">Working Hours/Week:</span>
-                            <span class="detail-value">${formatValue(staff.workingHours ? `${staff.workingHours} hours` : null)}</span>
-                        </div>
-                        <div class="detail-row">
-                            <span class="detail-label">Start Date:</span>
-                            <span class="detail-value">${formatDate(staff.startDate || staff.expectedStartDate)}</span>
-                        </div>
-                        <div class="detail-row">
-                            <span class="detail-label">End Date:</span>
-                            <span class="detail-value">${staff.endDate ? formatDate(staff.endDate) : 'Permanent position'}</span>
-                        </div>
-                        <div class="detail-row">
-                            <span class="detail-label">Work Location:</span>
-                            <span class="detail-value">${formatValue(staff.location || staff.workLocation)}</span>
-                        </div>
-                    </div>
-
-                    <!-- Status & Approval -->
-                    <div class="detail-section">
-                        <h4><i class="fas fa-check-circle"></i> Status & Approval</h4>
-                        <div class="detail-row">
-                            <span class="detail-label">Approval Status:</span>
-                            <span class="detail-value">
-                                <span class="status-badge status-${staff.approvalStatus || 'pending'}">${formatValue(staff.approvalStatus, 'Pending')}</span>
-                            </span>
-                        </div>
-                        <div class="detail-row">
-                            <span class="detail-label">Position Status:</span>
-                            <span class="detail-value">
-                                <span class="status-badge status-${staff.status || 'pending'}">${formatStatus(staff.status || 'pending')}</span>
-                            </span>
-                        </div>
-                        <div class="detail-row">
-                            <span class="detail-label">Hiring Urgency:</span>
-                            <span class="detail-value">
-                                <span class="status-badge urgency-${staff.urgency || 'medium'}">${formatValue(staff.urgency, 'Medium')}</span>
-                            </span>
-                        </div>
-                        <div class="detail-row">
-                            <span class="detail-label">Created:</span>
-                            <span class="detail-value">${formatDate(staff.createdAt || staff.submissionDate)}</span>
-                        </div>
-                        <div class="detail-row">
-                            <span class="detail-label">Last Updated:</span>
-                            <span class="detail-value">${formatDate(staff.updatedAt || staff.lastModifiedAt)}</span>
-                        </div>
-                    </div>
-
-                    <!-- Approval Flow (placeholder) -->
-                    <div id="approvalFlowSection" class="detail-section">
-                        <h4><i class="fas fa-workflow"></i> Approval Flow</h4>
-                        <div class="approval-flow-loading">
-                            <i class="fas fa-spinner fa-spin"></i> Loading approval flow...
-                        </div>
-                    </div>
-
-                    ${staff.salaryMin || staff.salaryMax || staff.salaryGrade ? `
-                    <!-- Compensation -->
-                    <div class="detail-section">
-                        <h4><i class="fas fa-dollar-sign"></i> Compensation</h4>
-                        ${staff.salaryGrade ? `
-                        <div class="detail-row">
-                            <span class="detail-label">Salary Grade:</span>
-                            <span class="detail-value">${staff.salaryGrade}</span>
-                        </div>
-                        ` : ''}
-                        <div class="detail-row">
-                            <span class="detail-label">Minimum Salary:</span>
-                            <span class="detail-value">${formatCurrency(staff.salaryMin)}</span>
-                        </div>
-                        <div class="detail-row">
-                            <span class="detail-label">Maximum Salary:</span>
-                            <span class="detail-value">${formatCurrency(staff.salaryMax)}</span>
-                        </div>
-                        <div class="detail-row">
-                            <span class="detail-label">Salary Range:</span>
-                            <span class="detail-value">${staff.salaryMin && staff.salaryMax ? formatCurrency(staff.salaryMax - staff.salaryMin) : 'Not specified'}</span>
-                        </div>
-                    </div>
-                    ` : ''}
-
-                    ${staff.jobDescription || staff.requiredEducation || staff.requiredExperience || staff.languages || staff.requiredSkills ? `
-                    <!-- Job Description & Requirements -->
-                    <div class="detail-section">
-                        <h4><i class="fas fa-clipboard-list"></i> Job Description & Requirements</h4>
-                        ${staff.jobDescription ? `
-                        <div class="description-section">
-                            <div class="description-title">Job Description</div>
-                            <div class="description-text">${staff.jobDescription}</div>
-                        </div>
-                        ` : ''}
-                        ${staff.requiredSkills || staff.requiredEducation || staff.requiredExperience || staff.languages ? `
-                        <div class="description-section">
-                            <div class="description-title">Required Skills & Qualifications</div>
-                            <div class="description-text">
-                                ${staff.requiredEducation ? `<strong>Education:</strong> ${staff.requiredEducation}<br><br>` : ''}
-                                ${staff.requiredExperience ? `<strong>Experience:</strong> ${staff.requiredExperience} years<br><br>` : ''}
-                                ${staff.languages ? `<strong>Languages:</strong> ${staff.languages}<br><br>` : ''}
-                                ${staff.requiredSkills ? `<strong>Skills:</strong> ${staff.requiredSkills}` : ''}
-                            </div>
-                        </div>
-                        ` : ''}
-                    </div>
-                    ` : ''}
-
-                    ${staff.notes || (staff.attachments && staff.attachments.length > 0) ? `
-                    <!-- Additional Information -->
-                    <div class="detail-section">
-                        <h4><i class="fas fa-info-circle"></i> Additional Information</h4>
-                        ${staff.notes ? `
-                        <div class="detail-row">
-                            <span class="detail-label">Notes:</span>
-                            <span class="detail-value">${staff.notes}</span>
-                        </div>
-                        ` : ''}
-                        ${staff.attachments && staff.attachments.length > 0 ? `
-                        <div class="detail-row">
-                            <span class="detail-label">Attachments:</span>
-                            <span class="detail-value">
-                                <div class="attachment-view-list">
-                                    ${staff.attachments.map(fileName => `
-                                        <div class="attachment-view-item clickable-attachment" onclick="downloadAttachment('${fileName}', '${staff.id}')">
-                                            <i class="fas fa-${getFileIcon(fileName)}"></i>
-                                            <span class="attachment-name">${fileName}</span>
-                                            <i class="fas fa-download attachment-download-icon" title="Click to download"></i>
+                        // Replace modal content with A4-like document layout (matching leave details modal)
+                        content.innerHTML = `
+                            <style>
+                                /* Scoped A4-like styles inside the modal */
+                                /* A4-sized document inside modal */
+                                #viewDetailsContent{ display:flex; justify-content:center; align-items:flex-start; overflow:auto; padding:12px; background:#f5f6fa; }
+                                #viewDetailsContent .leave-sheet{ position:relative; width:210mm; min-height:297mm; margin:0 auto; background:#fff; border:1px solid #e5e7eb; border-radius:10px; box-shadow:0 1px 3px rgba(0,0,0,0.04); padding:5mm 5mm 18mm; box-sizing:border-box; color:#111827; }
+                                #viewDetailsContent .leave-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
+                                #viewDetailsContent .company-block{display:flex;flex-direction:column;align-items:flex-start;gap:6px;}
+                                #viewDetailsContent .leave-logo{width:48px;height:48px;border-radius:8px;object-fit:contain;background:#fff;border:1px solid #e5e7eb;display:flex;align-items:center;justify-content:center;font-size:.8rem;font-weight:600;color:#444;}
+                                #viewDetailsContent .leave-company .doc-title{font-size:.9rem;font-weight:700;margin:4px 0 0;color:#111827;}
+                                #viewDetailsContent .divider{height:1px;background:#e5e7eb;margin:8px 0;}
+                                #viewDetailsContent .docmeta-row{display:flex;gap:6px;align-items:center;margin:6px 0 10px;}
+                                #viewDetailsContent .docmeta-label{font-size:.58rem;font-weight:700;color:#6b7280;}
+                                #viewDetailsContent .docmeta-value{font-size:.72rem;color:#111827;}
+                                #viewDetailsContent .emp-info-table{width:100%;border-collapse:collapse;font-size:.66rem;}
+                                #viewDetailsContent .emp-info-table th{background:#2c3e50;font-weight:600;text-transform:none;font-size:.58rem;letter-spacing:.01em;color:#ffffff;padding:6px;border:1px solid #2c3e50;text-align:left;}
+                                #viewDetailsContent .emp-info-table td{padding:6px;border:1px solid #e5e7eb;vertical-align:top;background:#fff;color:#111827;}
+                                #viewDetailsContent .info-grid .info-item{display:grid;grid-template-columns:max-content 1fr;column-gap:8px;row-gap:2px;margin-bottom:6px;}
+                                #viewDetailsContent .info-grid .info-item label{font-size:.58rem;font-weight:700;color:#6b7280;}
+                                #viewDetailsContent .info-grid .info-item label::after{content:':';margin-left:4px;color:#9ca3af;}
+                                #viewDetailsContent .info-grid .info-item span{font-size:.72rem;color:#111827;}
+                                #viewDetailsContent .approval-section table{width:100%;border-collapse:collapse;font-size:.66rem;}
+                                #viewDetailsContent .approval-section th{background:#2c3e50;font-weight:600;text-transform:none;font-size:.58rem;letter-spacing:.01em;color:#ffffff;padding:6px;border:1px solid #2c3e50;text-align:left;}
+                                #viewDetailsContent .approval-section td{padding:6px;border:1px solid #e5e7eb;vertical-align:top;background:#fff;color:#111827;}
+                                #viewDetailsContent .status-chip{display:inline-block;font-size:.55rem;font-weight:600;letter-spacing:.02em;color:#374151;background:transparent;border:none;padding:0;border-radius:0;}
+                                #viewDetailsContent .status-chip.approved{color:#166534;} #viewDetailsContent .status-chip.declined{color:#991b1b;} #viewDetailsContent .status-chip.pending{color:#92400e;}
+                                #viewDetailsContent .attachment-view-list{ display:flex; flex-direction:column; gap:6px; margin-top:6px; }
+                                #viewDetailsContent .attachment-view-item{ display:flex; align-items:center; gap:8px; padding:6px 8px; border:1px solid #e5e7eb; border-radius:6px; background:#fafafa; }
+                                #viewDetailsContent .attachment-download-icon{ margin-left:auto; opacity:0.7; }
+                                #viewDetailsContent .sig-img{max-width:150px;max-height:75px;object-fit:contain;display:block;}
+                            </style>
+                            <div class="leave-sheet">
+                                <div class="leave-header">
+                                    <div class="company-block">
+                                        <div id="mdCompanyLogoPH" class="leave-logo">DL</div>
+                                        <img id="mdCompanyLogo" class="leave-logo" alt="Company Logo" style="display:none;"/>
+                                        <div class="leave-company">
+                                            <h1 id="mdCompanyName" style="margin:0;font-size:1rem;">Dreamex Datalab</h1>
+                                            <h2 class="doc-title" id="mdDocTitle">Position Creation Document</h2>
                                         </div>
-                                    `).join('')}
+                                    </div>
                                 </div>
-                            </span>
-                        </div>
-                        ` : ''}
-                    </div>
-                    ` : ''}
-                </div>
-            `;
+                                <div class="divider"></div>
+                                <div class="docmeta-row"><span class="docmeta-label">Document Number:</span><span class="docmeta-value" id="mdDocNumber"></span></div>
+                                <div class="section emp-section">
+                                    <table class="emp-info-table">
+                                        <thead><tr><th colspan="2">Employee Information</th></tr></thead>
+                                        <tbody id="mdEmpInfoBody"></tbody>
+                                    </table>
+                                </div>
+                                <div class="divider"></div>
+                                <div class="section">
+                                    <h2 style="font-size:.75rem;margin:0 0 6px;display:flex;align-items:center;gap:6px;"><i class="fas fa-briefcase"></i> Position Details</h2>
+                                    <div class="info-grid" id="mdPosInfo"></div>
+                                </div>
+                                <div class="divider"></div>
+                                <div id="mdExtendedSections"></div>
+                                <div class="divider"></div>
+                                <div class="section approval-section">
+                                    <h2 style="font-size:.75rem;margin:0 0 6px;display:flex;align-items:center;gap:6px;"><i class="fas fa-route"></i> Approval Flow & History</h2>
+                                    <table>
+                                        <thead>
+                                            <tr><th>Approver(s)</th><th style="width:90px;">Status</th><th style="width:140px;">Timestamp</th><th style="width:160px;">Signature</th></tr>
+                                        </thead>
+                                        <tbody id="mdApprovalBody"></tbody>
+                                    </table>
+                                </div>
+                                ${staff.notes || (staff.attachments && staff.attachments.length > 0) ? `
+                                <div class="divider"></div>
+                                <div class="section">
+                                    <h2 style="font-size:.75rem;margin:0 0 6px;display:flex;align-items:center;gap:6px;"><i class=\"fas fa-info-circle\"></i> Additional Information</h2>
+                                    ${staff.notes ? `<div class=\"info-grid\"><div class=\"info-item\"><label>Notes</label><span>${staff.notes}</span></div></div>` : ''}
+                                    ${staff.attachments && staff.attachments.length > 0 ? `
+                                        <div class="info-grid">
+                                            <div class="info-item" style="display:block;">
+                                                <label>Attachments</label>
+                                                <div class="attachment-view-list">
+                                                    ${staff.attachments.map(fileName => `
+                                                        <div class=\"attachment-view-item clickable-attachment\" onclick=\"downloadAttachment('${fileName}', '${staff.firebaseKey || staff.id}')\">\
+                                                            <i class=\"fas fa-${getFileIcon(fileName)}\"></i>
+                                                            <span class=\"attachment-name\">${fileName}</span>
+                                                            <i class=\"fas fa-download attachment-download-icon\" title=\"Click to download\"></i>
+                                                        </div>
+                                                    `).join('')}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ` : ''}
+                                </div>` : ''}
+                            </div>
+                        `;
+
+                        // Populate the A4-like layout
+                        (function renderModalDoc(position){
+                            // Company header
+                            try {
+                                let cName = position.companyName || (position.company && (position.company.name || position.company.title)) || position.orgName || position.organizationName || position.clientName || '';
+                                let cLogo = position.companyLogoUrl || position.companyLogo || (position.company && (position.company.logoUrl || position.company.logo)) || position.logoUrl || position.companyLogoURL || '';
+
+                                // Fallback to stored company data (mirrors leave modal behavior)
+                                if (!cName || !cLogo) {
+                                    try {
+                                        const stored = JSON.parse(localStorage.getItem('currentCompanyData') || sessionStorage.getItem('currentCompanyData') || 'null');
+                                        if (stored) {
+                                            if (!cName && (stored.companyName || stored.name)) cName = stored.companyName || stored.name;
+                                            if (!cLogo && (stored.logoUrl || stored.logo || stored.companyLogoUrl)) {
+                                                cLogo = stored.logoUrl || stored.logo || stored.companyLogoUrl;
+                                            }
+                                        }
+                                    } catch(_) {}
+                                }
+
+                                // Final fallback: copy from page header elements so it matches exactly
+                                if (!cName || !cLogo) {
+                                    try {
+                                        const hdrNameEl = document.getElementById('headerCompanyName');
+                                        const hdrLogoEl = document.getElementById('headerCompanyLogo');
+                                        if (!cName && hdrNameEl && hdrNameEl.textContent) cName = hdrNameEl.textContent.trim();
+                                        if (!cLogo && hdrLogoEl && hdrLogoEl.src) cLogo = hdrLogoEl.src;
+                                    } catch(_) {}
+                                }
+
+                                const nameEl = document.getElementById('mdCompanyName');
+                                if (cName && nameEl) nameEl.textContent = cName;
+                                if (cLogo) {
+                                    const img = document.getElementById('mdCompanyLogo'); if(img){ img.src=cLogo; img.style.display='block'; }
+                                    const ph = document.getElementById('mdCompanyLogoPH'); if(ph){ ph.style.display='none'; }
+                                } else {
+                                    const ph = document.getElementById('mdCompanyLogoPH'); if(ph){ const base=(cName||'CN').split(/\s+/).map(w=>w[0]).slice(0,3).join('').toUpperCase(); ph.textContent=base; }
+                                }
+                            } catch(_) {}
+
+                            // Titles and doc meta
+                            const code = position.positionCode || position.jobCode || position.id || position.firebaseKey || '';
+                            const title = position.jobTitle ? `Position: ${position.jobTitle}` : 'Position Creation Document';
+                            const docTitleEl = document.getElementById('mdDocTitle'); if(docTitleEl) docTitleEl.textContent = title;
+                            const docNumEl = document.getElementById('mdDocNumber'); if(docNumEl) docNumEl.textContent = code || 'N/A';
+
+                            // Employee information table (Department, Line Manager)
+                            const tbody = document.getElementById('mdEmpInfoBody');
+                            if (tbody) {
+                                const rows = [
+                                    ['Department', position.department || '-'],
+                                    ['Line Manager', `<span id="lineManagerValue"><i class='fas fa-spinner fa-spin'></i> Loading...</span>`]
+                                ];
+                                tbody.innerHTML = rows.map(([k,v])=>`<tr><td style='font-weight:700;color:#374151;'>${k}</td><td>${v}</td></tr>`).join('');
+                            }
+
+                            // Position details grid
+                            const posInfo = document.getElementById('mdPosInfo');
+                            const fmt = (v, fb='-') => (v===undefined||v===null||String(v).trim()==='')?fb:String(v);
+                            const fmtDate = d => { try{return d?new Date(d).toLocaleString():('-');}catch{return('-');} };
+                            if (posInfo) {
+                                const items = [
+                                    ['Position Title', fmt(position.jobTitle)],
+                                    ['Position Code', fmt(code)],
+                                    ['Employment Type', fmt(formatEmploymentType(position.employmentType))],
+                                    ['Employment Status', fmt(formatEmploymentStatus(position.employmentStatus))],
+                                    ['Working Hours/Week', position.workingHours?`${position.workingHours} hours`:'-'],
+                                    ['Start Date', fmtDate(position.startDate || position.expectedStartDate)],
+                                    ['End Date', position.endDate?fmtDate(position.endDate):'Permanent position'],
+                                    ['Work Location', fmt(position.location || position.workLocation)],
+                                    ['Hiring Urgency', fmt(position.urgency || 'Medium')],
+                                    ['Created', fmtDate(position.createdAt || position.submissionDate)],
+                                    ['Last Updated', fmtDate(position.updatedAt || position.lastModifiedAt)]
+                                ];
+                                if (position.notes) items.push(['Notes', fmt(position.notes)]);
+                                posInfo.innerHTML = items.map(([k,v])=>`<div class='info-item'><label>${k}</label><span>${v}</span></div>`).join('');
+                            }
+
+                            // Extended sections (Specifications, Compensation, Justification, Impact, Timeline, Description)
+                            const extContainer = document.getElementById('mdExtendedSections');
+                            if (extContainer) {
+                                const norm = v => (v===undefined||v===null)?'':String(v).trim();
+                                const addSection = (title, pairs) => {
+                                    const filtered = pairs.filter(([_, val]) => norm(val) !== '' && norm(val) !== 'Not specified' && norm(val) !== '-');
+                                    if (filtered.length === 0) return '';
+                                    return `<div class="section"><h2 style="font-size:.75rem;margin:0 0 6px;display:flex;align-items:center;gap:6px;">${title}</h2><div class="info-grid">${filtered.map(([k,v])=>`<div class='info-item'><label>${k}</label><span>${v}</span></div>`).join('')}</div></div>`;
+                                };
+
+                                // Specifications
+                                const specifications = [
+                                    ['Employment Type', formatEmploymentType(position.employmentType)],
+                                    ['Contract Duration', norm(position.contractDuration) || (typeof getContractDuration==='function'?getContractDuration(position):'')],
+                                    ['Working Hours', position.workingHours?`${position.workingHours} hours/week`:''],
+                                    ['Work Location', position.workLocation || position.location || ''],
+                                    ['Reporting Manager', position.reportingManager || position.lineManager || ''],
+                                    ['Direct Reports', position.directReports || '']
+                                ];
+
+                                // Compensation Details
+                                const salaryRange = (position.salaryMin||position.salaryMax)?`${position.salaryMin?('$'+position.salaryMin):''}${(position.salaryMin&&position.salaryMax)?' - ':''}${position.salaryMax?('$'+position.salaryMax):''}`:'';
+                                const annualImpact = position.annualBudgetImpact || (typeof calculateAnnualBudgetImpact==='function'?calculateAnnualBudgetImpact(position):'');
+                                const compensation = [
+                                    ['Salary Range', salaryRange],
+                                    ['Benefits Package', position.benefitsPackage || position.benefits || ''],
+                                    ['Annual Budget Impact', annualImpact],
+                                    ['Department Budget', position.departmentBudget || ''],
+                                    ['Available Budget', position.availableBudget || ''],
+                                    ['Budget Code', position.budgetCode || '']
+                                ];
+
+                                // Position Justification
+                                // Position Justification (Business Need removed; Required Skills moved to its own block)
+                                const justification = [
+                                    ['Key Responsibilities', position.keyResponsibilities || position.responsibilities || ''],
+                                    ['Required Experience', position.requiredExperience || ''],
+                                    ['Required Education', position.requiredEducation || position.education || '']
+                                ];
+
+                                // Organizational Impact
+                                const impact = [
+                                    ['Team Size Impact', position.teamSizeImpact || ''],
+                                    ['Workflow Changes', position.workflowChanges || ''],
+                                    ['Training Required', position.trainingRequired || ''],
+                                    ['Equipment Needed', position.equipmentNeeded || ''],
+                                    ['Office Space', position.officeSpace || '']
+                                ];
+
+                                // Recruitment Timeline
+                                const timeline = [
+                                    ['Job Posting Start', position.jobPostingStartDate?fmtDate(position.jobPostingStartDate):''],
+                                    ['Application Deadline', position.applicationDeadline?fmtDate(position.applicationDeadline):''],
+                                    ['Interview Period', position.interviewPeriod || ''],
+                                    ['Expected Start Date', position.expectedStartDate?fmtDate(position.expectedStartDate):''],
+                                    ['Onboarding Duration', position.onboardingDuration || '']
+                                ];
+
+                                // Job Description
+                                const jobDesc = norm(position.jobDescription || position.description || '');
+                                // Render description content directly below title (full width block)
+                                const descriptionSection = jobDesc ? `<div class="section"><h2 style="font-size:.75rem;margin:0 0 4px;display:flex;align-items:center;gap:6px;">Job Description</h2><div class="job-desc-content" style="font-size:.72rem;line-height:1.15;white-space:pre-line;color:#111827;background:#fff;border:1px solid #e5e7eb;padding:6px 8px;border-radius:6px;">${jobDesc}</div></div>` : '';
+                                // Required Skills standalone block (full width like Job Description)
+                                const skillsText = norm(position.requiredSkills || position.skills || '');
+                                const skillsSection = skillsText ? `<div class="section"><h2 style="font-size:.75rem;margin:12px 0 4px;display:flex;align-items:center;gap:6px;">Required Skills</h2><div class="req-skills-content" style="font-size:.72rem;line-height:1.15;white-space:pre-line;color:#111827;background:#fff;border:1px solid #e5e7eb;padding:6px 8px;border-radius:6px;">${skillsText}</div></div>` : '';
+
+                                extContainer.innerHTML = [
+                                    addSection('<i class="fas fa-cogs"></i> Specifications', specifications),
+                                    addSection('<i class="fas fa-coins"></i> Compensation Details', compensation),
+                                    addSection('<i class="fas fa-balance-scale"></i> Position Justification', justification),
+                                    addSection('<i class="fas fa-project-diagram"></i> Organizational Impact', impact),
+                                    addSection('<i class="fas fa-calendar-alt"></i> Recruitment Timeline', timeline),
+                                    skillsSection,
+                                    descriptionSection
+                                ].filter(s=>s&&s.trim()!=='').join('<div class="divider"></div>');
+                            }
+
+                            // Approval Flow & History table
+                            const apBody = document.getElementById('mdApprovalBody');
+                            if (apBody) {
+                                const hist = Array.isArray(position.approvalHistory) ? position.approvalHistory : [];
+                                if (hist.length === 0) {
+                                    const status = position.approvalStatus||'Pending';
+                                    apBody.innerHTML = `<tr><td>-</td><td><span class='status-chip ${String(status).toLowerCase()}'>${String(status).charAt(0).toUpperCase()+String(status).slice(1)}</span></td><td>-</td><td></td></tr>`;
+                                } else {
+                                    apBody.innerHTML = hist.map(h=>{
+                                        const name = h.approverName || h.approvedByName || h.declinedByName || h.rejectedByName || h.approvedBy || h.declinedBy || h.rejectedBy || '-';
+                                        const raw = (h.status||'pending');
+                                        const cls = /approved/i.test(raw)?'approved':(/declined|rejected/i.test(raw)?'declined':'pending');
+                                        const text = raw.charAt(0).toUpperCase()+raw.slice(1);
+                                        const ts = fmtDate(h.approvedAt || h.rejectedAt || h.declinedAt);
+                                        return `<tr><td>${name}</td><td><span class='status-chip ${cls}'>${text}</span></td><td>${ts}</td><td></td></tr>`;
+                                    }).join('');
+
+                                    // After rendering rows, resolve and display signatures for approved entries
+                                    (async function renderApprovalSignatures(positionData){
+                                        try {
+                                            if (typeof firebase === 'undefined' || !firebase.database) return;
+                                            // Determine companyId from context or data
+                                            let companyId = null;
+                                            try { if (typeof validateCompanyContext === 'function') companyId = validateCompanyContext(); } catch(_){ }
+                                            if (!companyId) companyId = positionData.companyId || window.companyDataService?.getCurrentCompanyId?.();
+                                            if (!companyId) {
+                                                try {
+                                                    const stored = JSON.parse(localStorage.getItem('currentCompanyData') || sessionStorage.getItem('currentCompanyData') || 'null');
+                                                    if (stored && (stored.id || stored.companyId)) companyId = stored.id || stored.companyId;
+                                                } catch(_){}
+                                            }
+                                            if (!companyId) return;
+
+                                            const usersSnap = await firebase.database().ref(`companies/${companyId}/users`).once('value');
+                                            const usersVal = usersSnap.val() || {};
+                                            const signatureMapById = {}; const signatureMapByName = {};
+                                            Object.entries(usersVal).forEach(([uid,u])=>{
+                                                if (!u) return;
+                                                const nm = (u.displayName || u.name || u.fullName || u.email || '').trim();
+                                                const sig = u.signatureUrl || '';
+                                                if (uid && sig) signatureMapById[uid] = sig;
+                                                if (nm && sig) signatureMapByName[nm.toLowerCase()] = sig;
+                                            });
+
+                                            const rows = apBody.querySelectorAll('tr');
+                                            hist.forEach((h, idx) => {
+                                                const rawStatus = String(h.status||'pending');
+                                                const isApproved = /approved/i.test(rawStatus);
+                                                const cell = rows[idx]?.cells?.[3];
+                                                if (!cell) return;
+                                                if (isApproved) {
+                                                    const uid = h.approvedBy || h.userId || h.approverId || '';
+                                                    const name = (h.approverName || h.approvedByName || h.declinedByName || h.rejectedByName || '').trim();
+                                                    let sigUrl = '';
+                                                    if (uid && signatureMapById[uid]) sigUrl = signatureMapById[uid];
+                                                    else if (name && signatureMapByName[name.toLowerCase()]) sigUrl = signatureMapByName[name.toLowerCase()];
+                                                    cell.innerHTML = sigUrl ? `<img src="${sigUrl}" alt="${name||uid} signature" class="sig-img"/>` : `<div style='height:14px;'></div>`;
+                                                } else {
+                                                    cell.innerHTML = `<div style='height:14px;'></div>`;
+                                                }
+                                            });
+                                        } catch (e) {
+                                            console.warn('Signature rendering failed:', e);
+                                        }
+                                    })(position);
+                                }
+                            }
+                        })(staff);
             
             // Show the modal immediately
             modal.classList.add('show');
@@ -15442,62 +15592,52 @@ Processing Time: ${templateData.processingTime}
                 `;
             }
             
-            // Now load the async components in parallel
-            Promise.all([
-                // Load approval flow
-                generateApprovalFlowHTML(staff).catch(error => {
-                    console.error('Error loading approval flow:', error);
-                    return `<div class="approval-flow-error">
-                        <i class="fas fa-exclamation-triangle"></i>
-                        <p>Error loading approval flow: ${error.message}</p>
-                    </div>`;
-                }),
-                
-                // Load line manager name
-                formatLineManagerAsync(staff).catch(error => {
-                    console.error('Error loading line manager:', error);
-                    return 'Error loading line manager';
-                })
-            ]).then(([approvalFlowHTML, lineManagerName]) => {
-                // Update approval flow section only if it's not an archived position
-                const approvalSection = document.getElementById('approvalFlowSection');
-                const isArchivedModal = document.querySelector('.archived-position-banner');
-                
-                if (approvalSection && !isArchivedModal) {
-                    approvalSection.innerHTML = `
-                        <h4><i class="fas fa-workflow"></i> Approval Flow</h4>
-                        ${approvalFlowHTML}
-                    `;
-                }
-                
-                // Update line manager
-                const lineManagerElement = document.getElementById('lineManagerValue');
-                if (lineManagerElement) {
-                    lineManagerElement.innerHTML = lineManagerName;
-                }
-                
-                // Now perform the comprehensive approver check and update buttons accordingly
+            // Now load async line manager only, then update approver buttons
+            formatLineManagerAsync(staff)
+              .then(name => {
+                const el = document.getElementById('lineManagerValue');
+                if (el) el.innerHTML = name;
+              })
+              .catch(err => {
+                console.error('Error loading line manager:', err);
+                const el = document.getElementById('lineManagerValue');
+                if (el) el.innerHTML = 'Not available';
+              })
+              .finally(() => {
                 updateModalButtonsBasedOnApproverStatus(staff);
-            }).catch(error => {
-                console.error('Error updating modal components:', error);
-                
-                // Fallback updates
-                const approvalSection = document.getElementById('approvalFlowSection');
-                if (approvalSection) {
-                    approvalSection.innerHTML = `
-                        <h4><i class="fas fa-workflow"></i> Approval Flow</h4>
-                        <div class="approval-flow-error">
-                            <i class="fas fa-exclamation-triangle"></i>
-                            <p>Error loading approval flow components</p>
-                        </div>
-                    `;
+              });
+        }
+
+        // Open position in a dedicated A4 print/PDF page (profile-like design)
+        function exportPositionToPDF(rawId) {
+            try {
+                const all = (window.staffData && Array.isArray(window.staffData)) ? window.staffData : (typeof staffData !== 'undefined' ? staffData : []);
+                // Normalize id (remove accidental whitespace)
+                const id = (rawId || '').trim();
+
+                let position = all.find(s => s.id === id || s.firebaseKey === id);
+
+                // Fallback lookups if direct id match failed
+                if (!position) position = all.find(s => s.positionCode === id || s.jobCode === id);
+                if (!position && id.length > 0) {
+                    // Attempt partial match (rare case) - first item whose firebaseKey or id starts with the passed id
+                    position = all.find(s => (s.firebaseKey && s.firebaseKey.startsWith(id)) || (s.id && s.id.startsWith(id)));
                 }
-                
-                const lineManagerElement = document.getElementById('lineManagerValue');
-                if (lineManagerElement) {
-                    lineManagerElement.innerHTML = 'Error loading';
+
+                if (!position) {
+                    console.warn('Export PDF: position not found for id', id, 'Available count:', all.length);
+                    alert('Position data not yet loaded. Please reopen the details modal and try again.');
+                    return;
                 }
-            });
+
+                // Store full object (avoid mutation) for print page
+                sessionStorage.setItem('positionToPrint', JSON.stringify(position));
+                const url = 'position-print.html?print=1';
+                window.open(url, '_blank');
+            } catch (e) {
+                console.error('Failed to open print page:', e);
+                alert('Unable to open print preview.');
+            }
         }
         
         // Function to view archived position details
@@ -15779,7 +15919,7 @@ Processing Time: ${templateData.processingTime}
                 const { jsPDF } = window.jspdf;
                 const doc = new jsPDF();
                 
-                const staff = staffData.find(s => s.id === positionId);
+                const staff = Array.isArray(staffData) ? staffData.find(s => s.id === positionId || s.firebaseKey === positionId) : null;
                 
                 // Add content to PDF
                 doc.setFontSize(16);
@@ -15906,7 +16046,7 @@ Processing Time: ${templateData.processingTime}
         
         // Function to create sample file content (for demo purposes)
         function createSampleFileContent(fileName, positionId) {
-            const staff = staffData.find(s => s.id === positionId);
+            const staff = Array.isArray(staffData) ? staffData.find(s => s.id === positionId || s.firebaseKey === positionId) : null;
             const extension = fileName.split('.').pop().toLowerCase();
             
             if (extension === 'txt') {
@@ -20021,304 +20161,127 @@ ${positionId},"${staff ? staff.jobTitle : 'Unknown'}","${staff ? staff.departmen
             try {
                 // Get the current staff item from the modal
                 let staffId = document.getElementById('staffId').value;
-                
-                // Fallback to global variable if input is empty
-                if (!staffId) {
-                    staffId = currentViewingStaffId;
-                }
-                
+                if (!staffId) staffId = currentViewingStaffId;
+
                 console.log('Staff ID from modal:', staffId);
                 console.log('currentViewingStaffId:', currentViewingStaffId);
-                
                 if (!staffId) {
                     console.error('No staff ID found in modal or global variable');
                     showNotification('Error: No position selected for release', 'error');
                     return;
                 }
-                
+
                 console.log(`🔄 Starting release process for position: ${staffId}`);
-                
-                // Find the position in the main staffData array first
                 let positionToRelease = staffData.find(pos => pos.id === staffId || pos.firebaseKey === staffId);
-                
-                // If not found in staffData, check approvedPositions
-                if (!positionToRelease) {
-                    positionToRelease = approvedPositions.find(pos => pos.id === staffId || pos.firebaseKey === staffId);
-                }
-                
+                if (!positionToRelease) positionToRelease = approvedPositions.find(pos => pos.id === staffId || pos.firebaseKey === staffId);
                 if (!positionToRelease) {
                     console.error('Position not found in any data array');
                     showNotification('Error: Position not found', 'error');
                     return;
                 }
-                
+
                 console.log('Found position to release:', positionToRelease);
-                
-                // Check if position is actually approved
                 const status = (positionToRelease.approvalStatus || positionToRelease.status || '').toLowerCase();
                 if (status !== 'approved') {
                     console.error('Position is not approved. Status:', status);
                     showNotification('Error: Only approved positions can be released', 'error');
                     return;
                 }
-                
-                // Validate company context
+
                 const currentCompanyId = validateCompanyContext();
                 if (!currentCompanyId) {
                     showNotification('Error: Company context not available. Cannot release position.', 'error');
                     return;
                 }
-                
-                // Validate user permissions
+
                 const currentUserId = getCurrentUserId();
                 if (!currentUserId || currentUserId === 'anonymous') {
                     showNotification('Error: User authentication required to release position', 'error');
                     return;
                 }
-                
-                // Check if current user is the line manager of this position
+
                 const isLineManager = positionToRelease.lineManagerId === currentUserId || positionToRelease.lineManager === currentUserId;
-                
-                console.log('Line manager validation:', {
-                    currentUserId,
-                    positionLineManagerId: positionToRelease.lineManagerId,
-                    positionLineManager: positionToRelease.lineManager,
-                    isLineManager
-                });
-                
+                console.log('Line manager validation:', { currentUserId, positionLineManagerId: positionToRelease.lineManagerId, positionLineManager: positionToRelease.lineManager, isLineManager });
                 if (!isLineManager) {
                     console.error('User is not the line manager for this position');
                     showNotification('Error: Only the assigned line manager can release this position', 'error');
                     return;
                 }
-                
+
                 console.log('✅ Line manager validation passed - user is authorized to release this position');
-                
-                // Confirm the release action
-                const confirmMessage = `Are you sure you want to release the position "${positionToRelease.jobTitle}" from ${positionToRelease.department}?\n\nThis action will:\n• Mark the position as released in the approved tab\n• Update the position status to released\n• Save the release information to the database\n\nThe position will remain visible in the approved tab with a "Released" status.`;
-                
-                if (!confirm(confirmMessage)) {
-                    console.log('Release operation cancelled by user');
-                    return;
-                }
-                
-                // Show loading state
+
+                // Show enhanced confirmation modal instead of native confirm
+                showReleaseConfirmModal(positionToRelease, async () => {
+                    await continueRelease(positionToRelease, currentCompanyId, currentUserId);
+                });
+            } catch (error) {
+                console.error('❌ Error in releasePosition (pre-confirmation):', error);
+                showNotification('Error preparing release: ' + error.message, 'error');
+            }
+        }
+
+        async function continueRelease(positionToRelease, currentCompanyId, currentUserId) {
+            try {
                 showNotification('Releasing position...', 'info');
-                
-                // Get current user name safely
                 let currentUserName = 'Unknown User';
-                try {
-                    currentUserName = await getCurrentUserName();
-                } catch (error) {
-                    console.warn('Could not get current user name:', error);
-                }
-                
-                // Prepare the released position data
-                const releasedPosition = {
-                    ...positionToRelease,
-                    status: 'released',
-                    approvalStatus: 'released',
-                    releasedDate: new Date().toISOString(),
-                    releasedBy: currentUserId,
-                    releasedByName: currentUserName,
-                    companyId: currentCompanyId,
-                    previousStatus: positionToRelease.status || 'approved'
-                };
-                
+                try { currentUserName = await getCurrentUserName(); } catch (e) { console.warn('Could not get current user name:', e); }
+                const staffId = positionToRelease.id || positionToRelease.firebaseKey;
+                const releasedPosition = { ...positionToRelease, status: 'released', approvalStatus: 'released', releasedDate: new Date().toISOString(), releasedBy: currentUserId, releasedByName: currentUserName, companyId: currentCompanyId, previousStatus: positionToRelease.status || 'approved' };
                 console.log('📋 Prepared released position data:', releasedPosition);
-                
-                // Update Firebase - Add to released staff
+
                 if (typeof firebase !== 'undefined' && firebase.database) {
                     try {
                         console.log(`🔥 Saving released position to Firebase: companies/${currentCompanyId}/releasedStaff/${staffId}`);
-                        
-                        // Add to released staff in Firebase
                         const releasedRef = firebase.database().ref(`companies/${currentCompanyId}/releasedStaff/${staffId}`);
                         await releasedRef.set(releasedPosition);
-                        
-                        // Remove from approved staff in Firebase if it exists there
-                        try {
-                            const approvedRef = firebase.database().ref(`companies/${currentCompanyId}/approvedStaff/${staffId}`);
-                            await approvedRef.remove();
-                        } catch (approvedError) {
-                            console.warn('Position not found in approved staff Firebase path:', approvedError);
-                        }
-                        
-                        // Update status in main staff collection
-                        try {
-                            const staffRef = firebase.database().ref(`companies/${currentCompanyId}/staff/${staffId}`);
-                            await staffRef.update({
-                                status: 'released',
-                                approvalStatus: 'released',
-                                releasedDate: releasedPosition.releasedDate,
-                                releasedBy: releasedPosition.releasedBy,
-                                releasedByName: releasedPosition.releasedByName
-                            });
-                        } catch (staffError) {
-                            console.warn('Could not update main staff collection:', staffError);
-                        }
-                        
+                        try { const approvedRef = firebase.database().ref(`companies/${currentCompanyId}/approvedStaff/${staffId}`); await approvedRef.remove(); } catch (approvedError) { console.warn('Position not found in approved staff Firebase path:', approvedError); }
+                        try { const staffRef = firebase.database().ref(`companies/${currentCompanyId}/staff/${staffId}`); await staffRef.update({ status: 'released', approvalStatus: 'released', releasedDate: releasedPosition.releasedDate, releasedBy: releasedPosition.releasedBy, releasedByName: releasedPosition.releasedByName }); } catch (staffError) { console.warn('Could not update main staff collection:', staffError); }
                         console.log('✅ Firebase operations completed successfully');
-                        
                     } catch (firebaseError) {
                         console.error('❌ Firebase operation failed:', firebaseError);
                         showNotification('Warning: Database update failed. Changes saved locally only.', 'warning');
                     }
                 }
-                
-                // Update local data structures
-                // Keep the position in approved positions but mark as released
+
                 const approvedIndex = approvedPositions.findIndex(pos => pos.id === staffId || pos.firebaseKey === staffId);
-                if (approvedIndex !== -1) {
-                    // Update the position in approved positions with released status
-                    approvedPositions[approvedIndex] = { ...approvedPositions[approvedIndex], ...releasedPosition };
-                    console.log('Updated position in approved positions array with released status');
-                } else {
-                    // Add to approved positions if not already there
-                    approvedPositions.push(releasedPosition);
-                    console.log('Added released position to approved positions array');
-                }
-                
-                // Update in main staffData array
+                if (approvedIndex !== -1) { approvedPositions[approvedIndex] = { ...approvedPositions[approvedIndex], ...releasedPosition }; console.log('Updated position in approved positions array with released status'); }
+                else { approvedPositions.push(releasedPosition); console.log('Added released position to approved positions array'); }
+
                 const staffIndex = staffData.findIndex(pos => pos.id === staffId || pos.firebaseKey === staffId);
-                if (staffIndex !== -1) {
-                    staffData[staffIndex] = { ...staffData[staffIndex], ...releasedPosition };
-                    console.log('Updated main staff data array');
-                }
-                
-                // Add to released positions for backward compatibility
-                if (!Array.isArray(releasedPositions)) {
-                    releasedPositions = [];
-                }
+                if (staffIndex !== -1) { staffData[staffIndex] = { ...staffData[staffIndex], ...releasedPosition }; console.log('Updated main staff data array'); }
+                if (!Array.isArray(releasedPositions)) releasedPositions = [];
                 const releasedIndex = releasedPositions.findIndex(pos => pos.id === staffId || pos.firebaseKey === staffId);
-                if (releasedIndex === -1) {
-                    releasedPositions.push(releasedPosition);
-                }
-                
-                // Update localStorage
-                try {
-                    localStorage.setItem('dreamex_staff_data', JSON.stringify(staffData));
-                    localStorage.setItem('dreamex_approved_staff_data', JSON.stringify(approvedPositions));
-                    localStorage.setItem('dreamex_released_staff_data', JSON.stringify(releasedPositions));
-                    console.log('💾 Local storage updated successfully');
-                } catch (storageError) {
-                    console.error('Error updating localStorage:', storageError);
-                }
-                
-                // Close the modal
+                if (releasedIndex === -1) releasedPositions.push(releasedPosition);
+
+                try { localStorage.setItem('dreamex_staff_data', JSON.stringify(staffData)); localStorage.setItem('dreamex_approved_staff_data', JSON.stringify(approvedPositions)); localStorage.setItem('dreamex_released_staff_data', JSON.stringify(releasedPositions)); console.log('💾 Local storage updated successfully'); } catch (storageError) { console.error('Error updating localStorage:', storageError); }
+
                 closeViewModal();
-                
-                // Refresh the current tab display
                 const activeTab = document.querySelector('.tab-nav-btn.active');
-                if (activeTab) {
-                    const tabName = activeTab.id.replace('TabBtn', '');
-                    console.log('Refreshing tab:', tabName);
-                    if (tabName === 'approved') {
-                        loadApprovedPositions();
-                    } else if (tabName === 'positions') {
-                        renderPositionsTab();
-                    }
-                }
-                
-                // Create in-app notifications for position release
+                if (activeTab) { const tabName = activeTab.id.replace('TabBtn', ''); console.log('Refreshing tab:', tabName); if (tabName === 'approved') loadApprovedPositions(); else if (tabName === 'positions') renderPositionsTab(); }
+
                 try {
                     console.log('🔔 Creating in-app notifications for position release...');
-                    console.log('🔔 Released position data for notifications:', {
-                        id: releasedPosition.id,
-                        jobTitle: releasedPosition.jobTitle,
-                        department: releasedPosition.department,
-                        submittedBy: releasedPosition.submittedBy,
-                        lineManager: releasedPosition.lineManager,
-                        lineManagerId: releasedPosition.lineManagerId,
-                        releasedBy: releasedPosition.releasedBy
-                    });
-                    
                     const actionType = 'staff_released';
                     const involvedUsers = await window.authManager.getInvolvedUsersForStaffAction(releasedPosition, actionType);
                     console.log('🔔 Involved users for release notification:', involvedUsers);
-                    console.log('🔔 Number of users to notify:', involvedUsers.length);
-                    
-                    if (involvedUsers.length > 0) {
-                        console.log('🔔 Creating bulk notifications for all involved users...');
-                        await window.authManager.createNotificationsForAction(actionType, releasedPosition, involvedUsers);
-                        console.log('✅ Release notifications created successfully for all involved users');
-                        
-                        // Log notification recipients for verification
-                        console.log('📋 Notification recipients summary:');
-                        involvedUsers.forEach((userId, index) => {
-                            console.log(`  ${index + 1}. User ID: ${userId}`);
-                        });
-                    } else {
-                        console.warn('⚠️ No involved users found for release notifications - this might be an issue!');
-                        
-                        // Fallback: Try to manually add key stakeholders
-                        console.log('🔧 Attempting fallback notification creation...');
+                    if (involvedUsers.length > 0) { await window.authManager.createNotificationsForAction(actionType, releasedPosition, involvedUsers); console.log('✅ Release notifications created successfully for all involved users'); involvedUsers.forEach((userId, i) => console.log(`  ${i + 1}. User ID: ${userId}`)); }
+                    else {
+                        console.warn('⚠️ No involved users found for release notifications - fallback path');
                         const fallbackUsers = [];
-                        
-                        if (releasedPosition.submittedBy && releasedPosition.submittedBy !== currentUserId) {
-                            fallbackUsers.push(releasedPosition.submittedBy);
-                            console.log('🔧 Added submitter to fallback:', releasedPosition.submittedBy);
-                        }
-                        
-                        if (releasedPosition.lineManagerId && releasedPosition.lineManagerId !== currentUserId) {
-                            fallbackUsers.push(releasedPosition.lineManagerId);
-                            console.log('🔧 Added line manager (ID) to fallback:', releasedPosition.lineManagerId);
-                        }
-                        
-                        if (fallbackUsers.length > 0) {
-                            console.log('🔧 Creating fallback notifications for:', fallbackUsers);
-                            await window.authManager.createNotificationsForAction(actionType, releasedPosition, fallbackUsers);
-                        }
+                        if (releasedPosition.submittedBy && releasedPosition.submittedBy !== currentUserId) fallbackUsers.push(releasedPosition.submittedBy);
+                        if (releasedPosition.lineManagerId && releasedPosition.lineManagerId !== currentUserId) fallbackUsers.push(releasedPosition.lineManagerId);
+                        if (fallbackUsers.length > 0) await window.authManager.createNotificationsForAction(actionType, releasedPosition, fallbackUsers);
                     }
+                    await window.authManager.createNotification(currentUserId, { title: 'Position Released Successfully', message: `Position '${releasedPosition.jobTitle}' in ${releasedPosition.department} has been released and is ready for recruitment.`, type: 'success', relatedData: { actionType: 'staff_released_confirmation', staffId: releasedPosition.id || releasedPosition.firebaseKey, staffTitle: releasedPosition.jobTitle, department: releasedPosition.department, positionCode: releasedPosition.positionCode } });
+                    setTimeout(async () => { if (window.refreshNotifications) await window.refreshNotifications(); }, 1000);
+                } catch (notificationError) { console.error('❌ Error creating release notifications:', notificationError); }
 
-                    // Create confirmation notification for the line manager (who performed the release)
-                    await window.authManager.createNotification(
-                        currentUserId,
-                        {
-                            title: 'Position Released Successfully',
-                            message: `Position '${releasedPosition.jobTitle}' in ${releasedPosition.department} has been released and is ready for recruitment.`,
-                            type: 'success',
-                            relatedData: {
-                                actionType: 'staff_released_confirmation',
-                                staffId: releasedPosition.id || releasedPosition.firebaseKey,
-                                staffTitle: releasedPosition.jobTitle,
-                                department: releasedPosition.department,
-                                positionCode: releasedPosition.positionCode
-                            }
-                        }
-                    );
-                    console.log('✅ Release confirmation notification created for line manager');
-                    
-                    // Immediately refresh notifications to show them in the bell
-                    setTimeout(async () => {
-                        if (window.refreshNotifications) {
-                            await window.refreshNotifications();
-                            console.log('🔔 Notifications refreshed after release action');
-                        }
-                    }, 1000);
-                    
-                } catch (notificationError) {
-                    console.error('❌ Error creating release notifications:', notificationError);
-                }
-                
-                // Send position release notification emails to submitter and approvers
-                try {
-                    console.log('🎯 Sending position release notification emails...');
-                    await sendPositionReleaseNotification(releasedPosition);
-                    console.log('🎯 ✅ Position release notification emails completed');
-                } catch (emailError) {
-                    console.error('🎯 ❌ Error sending position release notification emails:', emailError);
-                    // Don't fail the entire release process if email fails
-                    showNotification('⚠️ Position released successfully, but email notifications failed to send', 'warning');
-                }
-                
-                // Show success notification
+                try { console.log('🎯 Sending position release notification emails...'); await sendPositionReleaseNotification(releasedPosition); console.log('🎯 ✅ Position release notification emails completed'); } catch (emailError) { console.error('🎯 ❌ Error sending position release notification emails:', emailError); showNotification('⚠️ Position released successfully, but email notifications failed to send', 'warning'); }
+
                 showNotification(`Position "${positionToRelease.jobTitle}" has been successfully released.`, 'success');
-                
                 console.log(`✅ Release operation completed successfully for position: ${staffId}`);
-                
             } catch (error) {
-                console.error('❌ Error in releasePosition:', error);
+                console.error('❌ Error in continueRelease:', error);
                 showNotification('Error releasing position: ' + error.message, 'error');
             }
         }
@@ -20798,13 +20761,46 @@ ${positionId},"${staff ? staff.jobTitle : 'Unknown'}","${staff ? staff.departmen
 
         // Approved functionality
         function loadApprovedPositions() {
-            // Filter approved and released positions from main staffData
-            const approvedPositions = staffData.filter(position => {
-                const status = (position.approvalStatus || '').toLowerCase();
-                const isArchived = position.isArchived || false;
-                return !isArchived && (status === 'approved' || status === 'released');
+            console.log('🔍 Loading approved positions from staffData:', staffData.length);
+            
+            // Debug: show all positions with their approval status
+            staffData.forEach((pos, idx) => {
+                if (idx < 5) { // Only log first 5 for brevity
+                    console.log(`Position ${idx}:`, {
+                        id: pos.id,
+                        jobTitle: pos.jobTitle,
+                        approvalStatus: pos.approvalStatus,
+                        status: pos.status,
+                        isArchived: pos.isArchived
+                    });
+                }
             });
             
+            // Expanded filter: include any position whose approvalStatus or status indicates approval/release/publish
+            const approvedPositions = staffData.filter(position => {
+                const approvalRaw = (position.approvalStatus || '').toLowerCase();
+                const statusRaw = (position.status || '').toLowerCase();
+                const isArchived = position.isArchived || false;
+                if (isArchived) return false; // keep archived out unless explicitly requested
+                const combined = approvalRaw + ' ' + statusRaw;
+                // Match common approved states - expanded to catch more variants
+                const isApproved = /approved|fully approved|final approved|released|published|complete|completed|approve|fully approve/.test(combined);
+                
+                // Debug logging for first few positions
+                if (staffData.indexOf(position) < 3) {
+                    console.log(`Filter check for ${position.id}:`, {
+                        approvalRaw,
+                        statusRaw, 
+                        combined,
+                        isApproved,
+                        isArchived
+                    });
+                }
+                
+                return isApproved;
+            });
+            
+            console.log(`✅ Found ${approvedPositions.length} approved positions out of ${staffData.length} total`);
             renderApprovedPositions(approvedPositions);
         }
 
@@ -20829,18 +20825,21 @@ ${positionId},"${staff ? staff.jobTitle : 'Unknown'}","${staff ? staff.departmen
                     const status = (position.status || '').toLowerCase();
                     const isReleased = approvalStatus === 'released';
                     const isPublished = status === 'published';
+                    const isFullyApproved = /fully approved|final approved/.test(approvalStatus);
                     
                     let statusBadge;
                     if (isReleased) {
                         statusBadge = '<span class="status-badge badge-released">Released</span>';
                     } else if (isPublished) {
                         statusBadge = '<span class="status-badge badge-published">Published</span>';
+                    } else if (isFullyApproved) {
+                        statusBadge = '<span class="status-badge badge-approved">Fully Approved</span>';
                     } else {
                         statusBadge = '<span class="status-badge badge-approved">Approved</span>';
                     }
                     
                     return `
-                        <tr class="table-row-clickable" onclick="viewDetails('${position.id}')">
+                        <tr class="table-row-clickable" onclick="viewDetails('${position.firebaseKey || position.id}')">
                             <td><input type="checkbox" class="row-checkbox" value="${position.id}" onchange="updateApprovedSelectAllState()" onclick="event.stopPropagation()"></td>
                             <td><div class="position-id-cell">${position.positionCode || position.id || 'N/A'}</div></td>
                             <td><div class="job-title-cell">${position.jobTitle || 'N/A'}</div></td>
@@ -20895,7 +20894,7 @@ ${positionId},"${staff ? staff.jobTitle : 'Unknown'}","${staff ? staff.departmen
             
             if (tableBody) {
                 tableBody.innerHTML = declinedPositions.map(position => `
-                    <tr class="table-row-clickable" onclick="viewDetails('${position.id}')">
+                    <tr class="table-row-clickable" onclick="viewDetails('${position.firebaseKey || position.id}')">
                         <td>
                             <input type="checkbox" class="row-checkbox" value="${position.id}" onchange="toggleItemSelection('${position.id}')">
                         </td>
@@ -22602,6 +22601,94 @@ table input[type="checkbox"].archive-select-checkbox {
 .staff-table td:first-child,
 .staff-table th:first-child { width:24px; }
 </style>
+
+<!-- Enhanced Release Confirmation Modal -->
+<div id="releaseConfirmModal" class="release-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="releaseConfirmTitle" aria-describedby="releaseConfirmDesc">
+    <div class="confirm-dialog">
+        <div class="confirm-icon-wrapper">
+            <div class="confirm-icon">🚀</div>
+        </div>
+        <h2 id="releaseConfirmTitle" class="confirm-title">Release Position</h2>
+        <p id="releaseConfirmDesc" class="confirm-intro">You are about to release this approved position for recruitment.</p>
+        <div class="confirm-position-meta">
+            <div class="meta-row"><span class="meta-label">Title:</span><span class="meta-value" id="releaseConfirmJobTitle">–</span></div>
+            <div class="meta-row"><span class="meta-label">Department:</span><span class="meta-value" id="releaseConfirmDepartment">–</span></div>
+        </div>
+        <div class="confirm-impact">
+            <p class="impact-heading">This will:</p>
+            <ul class="impact-list">
+                <li>Update the position status to <strong>Released</strong></li>
+                <li>Move it into the released group (still visible under Approved)</li>
+                <li>Record release metadata (date, user)</li>
+                <li>Notify submitter and approvers</li>
+                <li>Trigger recruitment workflow notifications</li>
+            </ul>
+        </div>
+        <div class="confirm-warning" role="alert">This action cannot be "unreleased". Ensure everything is ready.</div>
+        <div class="confirm-actions">
+            <button type="button" class="btn btn-light cancel-release-btn" id="cancelReleaseBtn">Cancel</button>
+            <button type="button" class="btn btn-success confirm-release-btn" id="confirmReleaseBtn">Release Now</button>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* Release confirmation modal styles */
+    #releaseConfirmModal.release-confirm-modal { position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(17,24,39,.55); backdrop-filter:blur(4px); z-index:10000; }
+    #releaseConfirmModal.show { display:flex; }
+    #releaseConfirmModal .confirm-dialog { background:#ffffff; border-radius:20px; width:520px; max-width:92%; padding:30px 34px 26px; box-shadow:0 20px 40px -8px rgba(0,0,0,.35),0 0 0 1px rgba(0,0,0,.05); font-family:inherit; color:#1f2937; animation:releaseScaleIn .42s cubic-bezier(.4,.16,.3,1); position:relative; }
+    @keyframes releaseScaleIn { 0% { transform:scale(.85) translateY(12px); opacity:0; } 60% { transform:scale(1.02) translateY(0); opacity:1; } 100% { transform:scale(1); } }
+    #releaseConfirmModal .confirm-icon-wrapper { display:flex; justify-content:center; margin-bottom:12px; }
+    #releaseConfirmModal .confirm-icon { width:68px; height:68px; border-radius:18px; background:linear-gradient(135deg,#2563eb,#1d4ed8); display:flex; align-items:center; justify-content:center; font-size:34px; box-shadow:0 8px 24px -6px rgba(37,99,235,.45); color:#fff; }
+    #releaseConfirmModal .confirm-title { margin:6px 0 8px; font-size:1.55rem; font-weight:600; letter-spacing:.5px; }
+    #releaseConfirmModal .confirm-intro { margin:0 0 14px; font-size:.95rem; line-height:1.4; color:#4b5563; }
+    #releaseConfirmModal .confirm-position-meta { background:#f8fafc; border:1px solid #e2e8f0; padding:12px 16px; border-radius:12px; margin-bottom:18px; font-size:.9rem; }
+    #releaseConfirmModal .meta-row { display:flex; justify-content:space-between; padding:4px 0; }
+    #releaseConfirmModal .meta-label { font-weight:600; color:#475569; }
+    #releaseConfirmModal .meta-value { color:#1e3a8a; font-weight:500; }
+    #releaseConfirmModal .confirm-impact { margin-bottom:18px; }
+    #releaseConfirmModal .impact-heading { margin:0 0 6px; font-weight:600; font-size:.9rem; text-transform:uppercase; letter-spacing:.5px; color:#334155; }
+    #releaseConfirmModal .impact-list { margin:0; padding-left:18px; display:grid; gap:4px; }
+    #releaseConfirmModal .impact-list li { font-size:.85rem; color:#475569; line-height:1.3; position:relative; }
+    #releaseConfirmModal .confirm-warning { background:linear-gradient(90deg,#fef3c7,#fde68a); border:1px solid #fbbf24; padding:10px 14px; border-radius:10px; font-size:.8rem; font-weight:500; color:#92400e; margin-bottom:20px; box-shadow:0 2px 6px -2px rgba(0,0,0,.08); }
+    #releaseConfirmModal .confirm-actions { display:flex; justify-content:flex-end; gap:12px; }
+    #releaseConfirmModal .confirm-actions .btn { min-width:130px; font-weight:600; letter-spacing:.3px; }
+    #releaseConfirmModal .confirm-actions .cancel-release-btn { background:#fff; border:1px solid #d1d5db; color:#374151; }
+    #releaseConfirmModal .confirm-actions .cancel-release-btn:hover { background:#f1f5f9; }
+    #releaseConfirmModal .confirm-actions .confirm-release-btn { background:#059669; border:1px solid #047857; }
+    #releaseConfirmModal .confirm-actions .confirm-release-btn:hover { background:#047857; }
+    @media (max-width:640px){ #releaseConfirmModal .confirm-dialog { width:92%; padding:26px 24px 22px; } #releaseConfirmModal .confirm-title { font-size:1.3rem; } }
+</style>
+
+<script>
+    // Show enhanced release confirmation modal
+    function showReleaseConfirmModal(position, onConfirm){
+        const modal = document.getElementById('releaseConfirmModal');
+        if(!modal) return;
+        // Populate details
+        document.getElementById('releaseConfirmJobTitle').textContent = position.jobTitle || '—';
+        document.getElementById('releaseConfirmDepartment').textContent = position.department || '—';
+        // Accessibility focus management
+        modal.classList.add('show');
+        const confirmBtn = document.getElementById('confirmReleaseBtn');
+        const cancelBtn = document.getElementById('cancelReleaseBtn');
+        // Cleanup existing listeners
+        confirmBtn.onclick = null; cancelBtn.onclick = null;
+        confirmBtn.onclick = () => { hideReleaseConfirmModal(); if(typeof onConfirm === 'function'){ onConfirm(); } };
+        cancelBtn.onclick = () => { hideReleaseConfirmModal(); showNotification('Release cancelled', 'info'); };
+        // Close with ESC
+        function escHandler(e){ if(e.key === 'Escape'){ hideReleaseConfirmModal(); document.removeEventListener('keydown', escHandler); } }
+        document.addEventListener('keydown', escHandler);
+        // Click outside to cancel
+        function outsideHandler(e){ if(e.target === modal){ hideReleaseConfirmModal(); modal.removeEventListener('click', outsideHandler); } }
+        modal.addEventListener('click', outsideHandler);
+        // Focus first actionable
+        setTimeout(()=> confirmBtn.focus(), 50);
+    }
+    function hideReleaseConfirmModal(){ const modal = document.getElementById('releaseConfirmModal'); if(modal){ modal.classList.remove('show'); } }
+    window.showReleaseConfirmModal = showReleaseConfirmModal;
+    window.hideReleaseConfirmModal = hideReleaseConfirmModal;
+</script>
 
 </body>
 </html>
