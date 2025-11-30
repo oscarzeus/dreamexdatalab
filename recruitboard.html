@@ -3071,38 +3071,46 @@ Both sources combine into single unified table with source indicators
                 }
 
                 loadSettings() {
-                    const defaultSettings = {
-                        emailNotifications: true,
-                        notifySubmitter: true,
-                        notifyApprovers: true,
-                        notifyOnComplete: true,
-                        systemUpdates: true,
-                        securityAlerts: true
-                    };
-
-                    try {
-                        const saved = localStorage.getItem('notificationSettings');
-                        return saved ? { ...defaultSettings, ...JSON.parse(saved) } : defaultSettings;
-                    } catch {
-                        return defaultSettings;
-                    }
-                }
-
-                async initializeNotifications() {
-                    await this.loadNotifications();
-                    this.updateNotificationBadge();
-                    this.renderNotifications();
-                    
-                    // Set up real-time Firebase listener for notifications
-                    this.setupNotificationListener();
-                }
-
-                setupNotificationListener() {
-                    if (!window.authManager || !window.authManager.currentUser) {
-                        console.warn('Cannot setup notification listener: no authenticated user');
-                        return;
-                    }
-
+                    const detailContent = `
+                        <div class="position-details-flat">
+                            <h3 class="position-title"><i class="fas fa-briefcase"></i> ${position.jobTitle || 'N/A'}</h3>
+                            <div class="detail-meta-row">
+                                <span class="position-code">${formattedPositionCode}</span>
+                                <span class="department-tag">${position.department || 'N/A'}</span>
+                                <span class="status-badge badge-${(position.status || '').toLowerCase()}">${formatStatus(position.status) || 'N/A'}</span>
+                            </div>
+                            <div class="flat-section-heading"><i class="fas fa-id-badge"></i> Employment details</div>
+                            <div class="detail-item employment-details-group">
+                                <div class="field-row"><span class="detail-label">Employment type</span><span class="detail-value">${formatEmploymentType(position.employmentType || position.employment_type || position.type) || 'N/A'}</span></div>
+                                <div class="field-row"><span class="detail-label">Working hours/week</span><span class="detail-value">${position.workingHours || 'N/A'}</span></div>
+                                <div class="field-row"><span class="detail-label">Work location</span><span class="detail-value">${position.workLocation || position.location || 'N/A'}</span></div>
+                                <div class="field-row"><span class="detail-label">Line manager</span><span class="detail-value">${formatLineManagerName(position.lineManager) || 'N/A'}</span></div>
+                            </div>
+                            <div class="flat-section-heading"><i class="fas fa-calendar-alt"></i> Timeline & dates</div>
+                            <div class="detail-item timeline-group">
+                                <div class="field-row"><span class="detail-label">Start date</span><span class="detail-value">${formatDate(position.startDate) || 'N/A'}</span></div>
+                                <div class="field-row"><span class="detail-label">End date</span><span class="detail-value">${formatDate(position.endDate) || 'N/A'}</span></div>
+                                <div class="field-row"><span class="detail-label">${currentActiveTab === 'published' ? 'Published date' : 'Posted date'}</span><span class="detail-value">${formatDate(currentActiveTab === 'published' ? (position.publishedDate || position.postedDate) : position.postedDate) || 'N/A'}</span></div>
+                            </div>
+                            <div class="flat-section-heading"><i class="fas fa-coins"></i> Compensation</div>
+                            <div class="detail-item"><span class="detail-label">Salary range</span><span class="detail-value">${position.salaryMin ? '$'+Number(position.salaryMin).toLocaleString() : 'N/A'} ${position.salaryMax ? ' - $'+Number(position.salaryMax).toLocaleString() : ''}</span></div>
+                            <div class="flat-section-heading"><i class="fas fa-clipboard-list"></i> Requirements</div>
+                            <div class="detail-item requirements-group">
+                                <div class="field-row"><span class="detail-label">Education</span><span class="detail-value">${position.requiredEducation || position.education || position.educationLevel || position.educationRequired || 'N/A'}</span></div>
+                                <div class="field-row"><span class="detail-label">Experience</span><span class="detail-value">${position.requiredExperience ? position.requiredExperience + ' years' : 'N/A'}</span></div>
+                            </div>
+                            <div class="flat-section-heading"><i class="fas fa-users"></i> Recruitment</div>
+                            <div class="detail-item recruitment-group">
+                                <div class="field-row"><span class="detail-label">Urgency</span><span class="detail-value priority-${(position.urgency || position.priority || '').toLowerCase()}">${formatPriority(position.urgency || position.priority) || 'N/A'}</span></div>
+                                <div class="field-row"><span class="detail-label">Reason</span><span class="detail-value">${position.recruitmentReason || position.reason || position.hiringReason || position.requestReason || 'N/A'}</span></div>
+                                <div class="field-row"><span class="detail-label">Advertise</span><span class="detail-value">${(() => { if (position.advertiseOptionLabel) return position.advertiseOptionLabel; const v = (position.advertiseOption || '').toLowerCase(); if (v === 'external-internal') return 'Yes - External & Internal'; if (v === 'internal-only') return 'Yes - Internal Only'; if (v === 'no-advertise') return 'No - Do Not Advertise'; return 'N/A'; })()}</span></div>
+                            </div>
+                            ${position.jobDescription ? `<div class=\"flat-section-heading\">Job description</div><div class=\"detail-paragraph\">${position.jobDescription}</div>` : ''}
+                            ${position.requiredSkills ? `<div class=\"flat-section-heading\">Required skills & competencies</div><div class=\"detail-paragraph\">${position.requiredSkills}</div>` : ''}
+                            ${position.notes ? `<div class=\"flat-section-heading\">Additional notes</div><div class=\"detail-paragraph\">${position.notes}</div>` : ''}
+                            ${position.attachments && position.attachments.length > 0 ? `<div class=\"flat-section-heading\">Attachments</div><div class=\"attachments-flat\">${position.attachments.map(a => `<div class='attachment-item'><i class='fas fa-file'></i> ${a.name || a}</div>`).join('')}</div>` : ''}
+                        </div>
+                    `;
                     const userId = window.authManager.currentUser.uid;
                     console.log('🔗 Setting up notification listener for user:', userId);
                     
@@ -5054,18 +5062,19 @@ Both sources combine into single unified table with source indicators
             transition: all 0.2s ease;
         }
 
+        /* Removed hover lift/shadow for position details modal fields */
         .detail-item:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            background: #ffffff;
+            transform: none;
+            box-shadow: none;
+            background: rgba(255,255,255,0.95);
         }
 
         .detail-label {
             font-weight: 600;
             color: #6b7280;
             font-size: 0.65rem; /* Reduced to match form label size */
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
+            text-transform: none; /* Removed uppercase forcing */
+            letter-spacing: 0.2px; /* Subtler spacing */
             margin-bottom: 0.4rem; /* Slightly reduced margin */
             display: flex;
             align-items: center;
@@ -6584,6 +6593,10 @@ Both sources combine into single unified table with source indicators
                             <i class="fas fa-archive"></i>
                             Archives
                         </button>
+                        <button class="tab-nav-btn" id="settingsTabBtn" onclick="switchToTab('settings')" title="Recruitment Access Settings">
+                            <i class="fas fa-sliders-h"></i>
+                            Settings
+                        </button>
                     </div>
 
                     <!-- Pending Tab Content -->
@@ -6664,6 +6677,130 @@ Both sources combine into single unified table with source indicators
                                     </tbody>
                                 </table>
                             </div>
+                        </div>
+                    </div>
+
+                    <!-- Settings Tab Content -->
+                    <div class="tab-content" id="settingsTabContent" style="display:none;">
+                        <div class="content-header" style="margin-bottom:1rem; display:flex; justify-content:space-between; align-items:center;">
+                            <div style="display:flex; align-items:center; gap:.6rem;">
+                                <i class="fas fa-sliders-h"></i>
+                                <h2 style="margin:0; font-size:1.2rem; font-weight:600;">Recruitment Access Control</h2>
+                            </div>
+                            <div>
+                                <button class="btn btn-primary" id="saveRecruitmentAccessBtn" onclick="saveRecruitmentAccessSettings()" style="font-size:.75rem; padding:.5rem .9rem;">
+                                    <i class="fas fa-save"></i> Save Settings
+                                </button>
+                            </div>
+                        </div>
+                        <div class="settings-description" style="background:#f8fafc; border:1px solid #e2e8f0; padding:12px 16px; border-radius:8px; font-size:.75rem; color:#475569; margin-bottom:1rem;">
+                            Default permissions applied to all users unless a specific user override is defined in the Recruitment Access Control table below.
+                        </div>
+                        <!-- Approval Configuration (collapsible, with table and modal) -->
+                        <div id="approvalConfigCard" class="access-role-card collapsible-card" style="background:#fff; border:1px solid #e2e8f0; border-radius:10px; padding:0; box-shadow:0 1px 2px rgba(0,0,0,.04); margin-bottom:1rem;">
+                            <div class="collapsible-header" style="padding:14px 16px; display:flex; justify-content:space-between; align-items:center; gap:.5rem; cursor:pointer;">
+                                <div style="display:flex; align-items:center; gap:.5rem;">
+                                    <i class="fas fa-user-check" style="color:#64748b;"></i>
+                                    <h3 style="font-size:.9rem; margin:0; font-weight:600; color:#334155;">Approval Configuration</h3>
+                                    <span class="role-badge" style="background:#06b6d4; color:#fff; font-size:.6rem; padding:2px 6px; border-radius:10px;">ATR</span>
+                                </div>
+                                <div style="display:flex;gap:.5rem;align-items:center;">
+                                    <button type="button" class="btn btn-secondary" id="approvalWrapBtn" style="font-size:.6rem; padding:.3rem .55rem; display:inline-flex; align-items:center; gap:6px;">
+                                        <i class="fas fa-chevron-up" aria-hidden="true"></i>
+                                        <span class="wrap-label">Wrap</span>
+                                    </button>
+                                    <button type="button" class="btn btn-primary" title="Add approvers" onclick="openApprovalApproverModal()" style="font-size:.65rem;padding:.4rem .65rem;display:inline-flex;align-items:center;gap:4px;">
+                                        <i class="fas fa-plus"></i>
+                                        Configure
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="collapsible-body" style="display:block; padding:12px 16px; border-top:1px solid #e2e8f0;">
+                                <div style="font-size:.75rem;color:#475569;margin-bottom:.5rem;">Users allowed to approve in the position details modal. If empty, anyone with the Approve permission can approve.</div>
+                                <div class="table-wrapper" style="padding:.5rem 0;">
+                                    <table class="users-table" id="approvalConfigTable" style="font-size:.65rem;width:100%;">
+                                        <thead>
+                                            <tr>
+                                                <th style="width:220px;">User</th>
+                                                <th>Email</th>
+                                                <th style="white-space:nowrap;">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="approvalConfigTableBody"></tbody>
+                                    </table>
+                                    <div id="approvalConfigEmpty" style="display:none;text-align:center;color:#64748b;padding:.75rem;font-size:.65rem;">No approvers configured. All users with approval permission can approve.</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="access-control-grid" style="display:grid; gap:12px; grid-template-columns:repeat(auto-fit,minmax(260px,1fr));">
+                            <div id="defaultAccessCard" class="access-role-card collapsible-card collapsed" data-role="default" style="background:#fff; border:1px solid #e2e8f0; border-radius:10px; padding:0; box-shadow:0 1px 2px rgba(0,0,0,.04);">
+                                <div class="collapsible-header" style="padding:14px 16px; display:flex; justify-content:space-between; align-items:center; gap:.5rem; cursor:pointer;">
+                                    <div style="display:flex; align-items:center; gap:.5rem;">
+                                        <i class="fas fa-user-shield" style="color:#64748b;"></i>
+                                        <h3 style="font-size:.9rem; margin:0; font-weight:600; color:#334155;">Default</h3>
+                                        <span class="role-badge" style="background:#6366f1; color:#fff; font-size:.6rem; padding:2px 6px; border-radius:10px;">Global</span>
+                                    </div>
+                                    <button type="button" id="defaultWrapBtn" class="btn btn-secondary" style="font-size:.6rem; padding:.3rem .55rem; display:inline-flex; align-items:center; gap:6px;">
+                                        <i class="fas fa-chevron-down" aria-hidden="true"></i>
+                                        <span class="wrap-label">Unwrap</span>
+                                    </button>
+                                </div>
+                                <div class="collapsible-summary" id="defaultPermSummary" style="display:none; padding:0 16px 12px 16px; border-top:1px solid #e2e8f0;">
+                                    <!-- Summary chips rendered by JS -->
+                                </div>
+                                <div class="collapsible-body" style="display:block; padding:12px 16px; border-top:1px solid #e2e8f0;">
+                                    <div class="perm-group" style="display:grid; gap:6px; font-size:.65rem;">
+                                        <label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" data-perm="view" checked> View Board</label>
+                                        <label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" data-perm="create"> Create Authority to Recruit</label>
+                                        <label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" data-perm="approve"> Approve Position</label>
+                                        <label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" data-perm="decline"> Decline Position</label>
+                                        <label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" data-perm="fill"> Fill Position</label>
+                                        <label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" data-perm="edit"> Edit Request</label>
+                                        <label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" data-perm="delete"> Delete Request</label>
+                                        <label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" data-perm="export"> Export Data</label>
+                                        <label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" data-perm="select"> Allow Selection (Tick Boxes)</label>
+                                        <div style="height:1px; background:#e2e8f0; margin:4px 0;"></div>
+                                        <div style="font-size:.58rem; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:#64748b;">Tab Visibility</div>
+                                        <label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" data-perm="showPending" checked> Show Pending Tab</label>
+                                        <label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" data-perm="showPublished" checked> Show Published Tab</label>
+                                        <label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" data-perm="showDeclined" checked> Show Declined Tab</label>
+                                        <label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" data-perm="showArchives" checked> Show Archives Tab</label>
+                                        <label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" data-perm="showSettings" checked> Show Settings Tab</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                                                <!-- Recruitment Access Control Table (Fleet-style) -->
+                                                <div class="card" id="recruitAccessControlCard" style="margin-top:1.75rem;">
+                                                    <div class="card-header" style="display:flex;align-items:center;gap:.75rem;">
+                                                        <h3 class="card-title" style="flex:1;display:flex;align-items:center;gap:.5rem;font-size:.9rem;">
+                                                            <i class="fas fa-user-shield"></i>
+                                                            Recruitment Access Control
+                                                        </h3>
+                                                        <button type="button" class="btn btn-primary" title="Add user permissions" onclick="openUserOverrideModal()" style="font-size:.65rem;padding:.4rem .65rem;display:inline-flex;align-items:center;gap:4px;">
+                                                            <i class="fas fa-plus"></i>
+                                                            Add
+                                                        </button>
+                                                    </div>
+                                                    <div class="card-body" style="padding:0;">
+                                                        <div class="table-wrapper" style="padding:1rem;">
+                                                            <table class="users-table" id="recruitAccessControlTable" style="font-size:.65rem;width:100%;">
+                                                                <thead>
+                                                                    <tr>
+                                                                        <th style="width:220px;">User</th>
+                                                                        <th>Email</th>
+                                                                        <th>Job Title</th>
+                                                                        <th style="white-space:nowrap;">Permissions</th>
+                                                                    </tr>
+                                                                </thead>
+                                                                <tbody id="recruitAccessControlTableBody"></tbody>
+                                                            </table>
+                                                            <div id="recruitAccessControlEmpty" style="display:none;text-align:center;color:#64748b;padding:.75rem;font-size:.65rem;">No recruitment access control users added yet.</div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                        <div style="margin-top:1.25rem; font-size:.65rem; color:#64748b;">
+                            Changes take effect immediately after saving. Action buttons and tabs will be conditionally hidden or disabled based on these settings.
                         </div>
                     </div>
 
@@ -6928,21 +7065,367 @@ Both sources combine into single unified table with source indicators
                 <!-- Details will be populated here -->
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" onclick="closeViewModal()">
-                    <i class="fas fa-times"></i> Close
-                </button>
                 <div id="modalActionButtons" class="action-buttons-group">
                     <!-- Action buttons will be dynamically added here based on position source and status -->
                 </div>
+                <button type="button" class="btn btn-secondary" onclick="closeViewModal()">
+                    <i class="fas fa-times"></i> Close
+                </button>
             </div>
         </div>
     </div>
+    <style>
+        /* Enhanced Position Details Modal Styling */
+        #viewDetailsModal .modal-content {
+            max-width: 920px;
+            width: 100%;
+        }
+
+        /* Position Details Layout */
+        .position-details-layout {
+            display: flex;
+            flex-direction: column;
+            gap: 1.2rem;
+        }
+        /* Flat layout overrides */
+        .position-details-flat {display:flex; flex-direction:column; gap:.4rem;}
+        .position-details-flat .position-title {font-size:1rem; font-weight:600; margin:0 0 .35rem; display:flex; align-items:center; gap:.45rem;}
+        .detail-meta-row {display:flex; flex-wrap:wrap; gap:.5rem; margin:0 0 .65rem; align-items:center;}
+        .flat-section-heading {margin:.9rem 0 .35rem; font-weight:600; font-size:.72rem; letter-spacing:.4px; color:#495057; position:relative; padding-left:.6rem; display:flex; align-items:center; gap:6px;}
+        .flat-section-heading:before {content:''; position:absolute; left:0; top:50%; transform:translateY(-50%); width:4px; height:70%; background:#667eea; border-radius:2px; opacity:.65;}
+        .detail-paragraph {font-size:.7rem; line-height:1.4; color:#4a4f54; background:#f8f9fa; padding:.55rem .7rem; border:1px solid #e5e7eb; border-radius:4px;}
+        .attachments-flat {display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:.4rem; margin-top:.25rem;}
+        .attachments-flat .attachment-item {background:#f5f6f7; border:1px solid #e0e3e7; padding:.45rem .55rem; font-size:.65rem; border-radius:4px; display:flex; align-items:center; gap:.4rem;}
+        .attachments-flat .attachment-item i {font-size:.7rem; color:#6c757d;}
+
+        /* Position Header */
+        .position-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 1.2rem;
+            border-radius: 8px;
+            margin-bottom: 0.5rem;
+        }
+
+        .position-title-block .position-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            margin: 0 0 0.8rem 0;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .position-title i {
+            font-size: 1rem;
+            opacity: 0.9;
+        }
+
+        .position-meta {
+            display: flex;
+            gap: 0.8rem;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .position-code {
+            font-family: 'Monaco', 'Menlo', monospace;
+            background: rgba(255,255,255,0.2);
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            font-weight: 600;
+        }
+
+        .department-tag {
+            background: rgba(255,255,255,0.25);
+            padding: 0.25rem 0.6rem;
+            border-radius: 12px;
+            font-size: 0.7rem;
+            font-weight: 500;
+        }
+
+        /* Status badges */
+        .status-badge {
+            padding: 0.25rem 0.6rem;
+            border-radius: 12px;
+            font-size: 0.65rem;
+            font-weight: 600;
+            text-transform: none; /* Removed uppercase */
+            letter-spacing: 0.3px;
+        }
+
+        .badge-pending { background: #ffc107; color: #212529; }
+        .badge-approved, .badge-published { background: #28a745; color: white; }
+        .badge-declined { background: #dc3545; color: white; }
+        .badge-active { background: #17a2b8; color: white; }
+
+        /* Details Grid */
+        .details-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1rem;
+        }
+
+        /* Detail Cards */
+        .detail-card {
+            background: #ffffff;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            transition: all 0.2s ease;
+        }
+
+        .detail-card:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            transform: translateY(-1px);
+        }
+
+        .detail-card.full-width {
+            grid-column: 1 / -1;
+        }
+
+        /* Card Headers */
+        .card-header {
+            background: #f8f9fa;
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid #e9ecef;
+            font-weight: 600;
+            font-size: 0.8rem;
+            color: #495057;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .card-header i {
+            color: #6c757d;
+            font-size: 0.75rem;
+        }
+
+        /* Card Content */
+        .card-content {
+            padding: 1rem;
+        }
+
+        /* Detail Items */
+        .detail-item {
+            display: flex;
+            align-items: baseline;
+            gap: 2px; /* tighter gap */
+            padding: 0.3rem 0;
+            border-bottom: 1px solid #f1f3f4;
+            font-size: 0.75rem;
+        }
+
+        .detail-item:last-child {
+            border-bottom: none;
+            padding-bottom: 0;
+        }
+
+        .detail-label {
+            font-weight: 600;
+            color: #495057;
+            font-size: 0.75rem;
+            text-transform: none; /* Ensure sentence case */
+            margin-right: 4px; /* subtle space before value */
+            flex: 0 0 auto; /* shrink to content */
+            display: inline-flex;
+        }
+        .detail-value {
+            font-weight: 400; /* lighter than label */
+            color: #60696f; /* slightly lighter gray for contrast */
+            display: inline-flex;
+            flex: 0 0 auto;
+        }
+        .employment-details-group {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .employment-details-group .field-row {
+            display: flex;
+            align-items: baseline;
+            gap: 2px;
+            flex-wrap: nowrap;
+        }
+        .timeline-group {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .timeline-group .field-row {
+            display: flex;
+            align-items: baseline;
+            gap: 2px;
+            flex-wrap: nowrap;
+        }
+        .requirements-group, .recruitment-group {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .requirements-group .field-row, .recruitment-group .field-row {
+            display: flex;
+            align-items: baseline;
+            gap: 2px;
+            flex-wrap: nowrap;
+        }
+        .detail-value {
+            font-weight: 400; /* lighter than label */
+            color: #60696f; /* slightly lighter gray for contrast */
+        }
+
+        .detail-value {
+            color: #212529;
+            flex: 1;
+            text-align: right;
+            font-size: 0.75rem;
+            line-height: 1.3;
+        }
+
+        /* Salary Range Styling */
+        .salary-range {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.5rem;
+        }
+
+        .salary-item {
+            flex: 1;
+            text-align: center;
+        }
+
+        .salary-label {
+            display: block;
+            font-size: 0.65rem;
+            color: #6c757d;
+            font-weight: 500;
+            margin-bottom: 0.25rem;
+            text-transform: none; /* Removed uppercase */
+            letter-spacing: 0.3px;
+        }
+
+        .salary-value {
+            display: block;
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: #28a745;
+        }
+
+        .salary-separator {
+            color: #dee2e6;
+            font-weight: 300;
+            font-size: 1.2rem;
+        }
+
+        /* Priority styling */
+        .priority-urgent { color: #dc3545; font-weight: 600; }
+        .priority-high { color: #fd7e14; font-weight: 600; }
+        .priority-medium { color: #ffc107; font-weight: 600; }
+        .priority-low { color: #28a745; font-weight: 600; }
+
+        /* Content sections */
+        .description-content,
+        .skills-content,
+        .notes-content {
+            color: #495057;
+            line-height: 1.5;
+            font-size: 0.75rem;
+        }
+
+        /* Attachments Grid */
+        .attachments-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 0.5rem;
+        }
+
+        .attachment-item {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            padding: 0.5rem 0.75rem;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.7rem;
+            transition: all 0.2s ease;
+        }
+
+        .attachment-item:hover {
+            background: #e9ecef;
+            cursor: pointer;
+        }
+
+        .attachment-item i {
+            color: #6c757d;
+            font-size: 0.75rem;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            #viewDetailsModal .modal-content {
+                max-width: 95vw;
+                margin: 0.5rem;
+            }
+
+            .position-details-layout {
+                gap: 0.8rem;
+            }
+
+            .position-header {
+                padding: 0.8rem;
+            }
+
+            .position-title-block .position-title {
+                font-size: 1rem;
+            }
+
+            .position-meta {
+                gap: 0.5rem;
+            }
+
+            .details-grid {
+                grid-template-columns: 1fr;
+                gap: 0.8rem;
+            }
+
+            .card-content {
+                padding: 0.75rem;
+            }
+
+            .detail-item {
+                display: inline-flex;
+                flex-wrap: wrap;
+                align-items: baseline;
+                gap: 4px;
+            }
+
+            .detail-item {
+                display: flex;
+                align-items: baseline;
+                gap: 2px;
+                flex-wrap: nowrap;
+            }
+            .detail-label, .detail-value {
+                flex: 0 0 auto;
+                width: auto;
+            }
+
+            .attachments-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
 
     <!-- New Recruitment Modal -->
     <div class="modal" id="newRecruitmentModal">
         <div class="modal-content">
             <div class="modal-header">
-                <h5><i class="fas fa-plus-circle"></i> Initiate New Recruitment Process</h5>
+                <h5><i class="fas fa-plus-circle"></i> Create Authority to Recruit</h5>
                 <button class="close-btn" onclick="closeNewRecruitmentModal()">&times;</button>
             </div>            <div class="modal-body">
                 <form id="newRecruitmentForm">
@@ -7108,6 +7591,16 @@ Both sources combine into single unified table with source indicators
                                     <option value="other">Other</option>
                                 </select>
                             </div>
+                            <div class="form-group">
+                                <label for="newAdvertiseOption" class="form-label">Advertise Position <span class="required">*</span></label>
+                                <select class="form-control" id="newAdvertiseOption" name="advertiseOption" required>
+                                    <option value="">Select Advertising Preference</option>
+                                    <option value="external-internal">Yes - External & Internal</option>
+                                    <option value="internal-only">Yes - Internal Only</option>
+                                    <option value="no-advertise">No - Do Not Advertise</option>
+                                </select>
+                                <small class="text-muted" style="font-size:0.65rem;">Choose how (or if) this position will be advertised</small>
+                            </div>
                         </div>
                         <div class="form-group">
                             <label for="newNotes" class="form-label">Additional Notes</label>
@@ -7132,6 +7625,28 @@ Both sources combine into single unified table with source indicators
             </div>
         </div>
     </div>
+
+        <!-- Typography bump for New Recruitment Modal -->
+        <style>
+            /* Increase text sizes only within the Initiate New Recruitment modal */
+            #newRecruitmentModal .modal-content { font-size: 1rem; max-width: 900px; }
+            #newRecruitmentModal .modal-header h5 { font-size: 1.4rem; }
+            #newRecruitmentModal .section-title { font-size: 1.1rem; }
+            #newRecruitmentModal .form-label { font-size: 0.95rem !important; }
+            #newRecruitmentModal .text-muted { font-size: 0.85rem !important; }
+            #newRecruitmentModal .form-control { font-size: 0.95rem; }
+            #newRecruitmentModal select.form-control,
+            #newRecruitmentModal input.form-control,
+            #newRecruitmentModal textarea.form-control { font-size: 0.95rem; }
+            #newRecruitmentModal .modal-footer .btn { font-size: 0.95rem; }
+            #newRecruitmentModal .modal-body { line-height: 1.5; }
+            @media (max-width: 640px) {
+                #newRecruitmentModal .modal-header h5 { font-size: 1.2rem; }
+                #newRecruitmentModal .form-label { font-size: 1rem !important; }
+                #newRecruitmentModal .text-muted { font-size: 0.9rem !important; }
+                #newRecruitmentModal .form-control { font-size: 1rem; }
+            }
+        </style>
 
     <!-- Firebase SDK v8 (External CDN for compatibility) -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
@@ -7655,13 +8170,35 @@ Thank you for your prompt attention to this matter.
 
         // Tab switching functionality
         function switchToTab(tabName) {
+            // Enforce tab-level permissions if available
+            try {
+                const perms = window._recruitEffectivePerms || null;
+                if (perms) {
+                    const map = { pending: 'showPending', published: 'showPublished', declined: 'showDeclined', archives: 'showArchives', settings: 'showSettings' };
+                    const key = map[tabName];
+                    if (key && key in perms && !perms[key]) {
+                        showRecruitmentSettingsNotification('You do not have access to this tab', 'warning');
+                        return; // block switching
+                    }
+                }
+            } catch {}
             // Remove active class from all tabs
             document.querySelectorAll('.tab-nav-btn').forEach(btn => btn.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+                // Hide content explicitly for non-active tabs to support inline display:none override
+                if (!content.id.startsWith(tabName)) {
+                    content.style.display = 'none';
+                }
+            });
             
             // Add active class to selected tab
             document.getElementById(tabName + 'TabBtn').classList.add('active');
-            document.getElementById(tabName + 'TabContent').classList.add('active');
+            const activeContent = document.getElementById(tabName + 'TabContent');
+            if (activeContent) {
+                activeContent.classList.add('active');
+                activeContent.style.display = 'block';
+            }
             
             // Update current active tab
             currentActiveTab = tabName;
@@ -7679,6 +8216,12 @@ Thank you for your prompt attention to this matter.
                     break;
                 case 'archives':
                     renderArchivedPositions();
+                    break;
+                case 'settings':
+                    // Lazy initialize settings tab (load existing permissions from Firebase once)
+                    if (typeof loadRecruitmentAccessSettings === 'function') {
+                        loadRecruitmentAccessSettings();
+                    }
                     break;
             }
         }
@@ -8082,6 +8625,8 @@ Thank you for your prompt attention to this matter.
             // Load preferences and initialize notifications  
             if (typeof loadUserPreferences === 'function') loadUserPreferences();
             if (typeof initializeNotifications === 'function') initializeNotifications();
+            // Load Approval Configuration
+            try { await loadRecruitmentApprovalConfig(); } catch (_) {}
         });
 
         // Load approved positions from Firebase staff data
@@ -8237,6 +8782,8 @@ Thank you for your prompt attention to this matter.
                     endDate: recruit.endDate,
                     notes: recruit.notes,
                     recruitmentReason: recruit.recruitmentReason,
+                    advertiseOption: recruit.advertiseOption, // Preserve advertising preference
+                    advertiseOptionLabel: recruit.advertiseOptionLabel, // Preserve original label if stored
                     firebaseKey: recruit.firebaseKey,
                     source: 'recruit',
                     approvalStatus: recruit.approvalStatus || 'pending',
@@ -8800,8 +9347,43 @@ Thank you for your prompt attention to this matter.
             }
             
             if (confirm(`Are you sure you want to delete ${selectedIds.length} selected position(s)?`)) {
-                console.log('Deleting positions:', selectedIds);
-                // Add actual delete implementation here
+                console.log('🗑️ Deleting positions:', selectedIds);
+                (async () => {
+                    const companyId = getCurrentCompanyId();
+                    if (!companyId) {
+                        alert('Company context unavailable – cannot delete.');
+                        return;
+                    }
+                    const failures = [];
+                    // Remove each selected recruitment record (only recruit-sourced items exist at path)
+                    await Promise.all(selectedIds.map(async id => {
+                        try {
+                            await firebase.database().ref(`companies/${companyId}/recruit/${id}`).remove();
+                            console.log(`✅ Deleted recruitment request ${id}`);
+                        } catch (err) {
+                            console.error(`❌ Failed to delete ${id}:`, err);
+                            failures.push({ id, error: err });
+                        }
+                    }));
+                    // Optimistically remove rows from current table before realtime update arrives
+                    selectedIds.forEach(id => {
+                        const checkbox = document.querySelector(`[data-id='${id}']`);
+                        if (checkbox) {
+                            const row = checkbox.closest('tr');
+                            if (row) row.remove();
+                        }
+                    });
+                    // Clear master select-all checkbox if present
+                    ['selectAllCheckbox','selectAllPublishedCheckbox','selectAllDeclinedCheckbox','selectAllArchivesCheckbox']
+                        .forEach(cid => { const el = document.getElementById(cid); if (el) el.checked = false; });
+                    if (typeof showNotification === 'function') {
+                        if (failures.length === 0) {
+                            showNotification('Selected positions deleted successfully', 'success');
+                        } else {
+                            showNotification(`Deleted with ${failures.length} error(s) – check console`, 'error');
+                        }
+                    }
+                })();
             }
         }
 
@@ -8938,6 +9520,23 @@ Thank you for your prompt attention to this matter.
                 month: 'short',
                 day: 'numeric'
             });
+        }
+
+        // Ensure Line Manager displays only full name (no title/department)
+        function formatLineManagerName(val) {
+            if (!val) return '';
+            try {
+                let s = String(val).trim();
+                // Remove trailing parentheses/brackets content like (HR Manager) or [Finance]
+                s = s.replace(/\s*[\(\[].*?[\)\]]\s*$/g, '').trim();
+                // If an email is present, remove it
+                s = s.replace(/\b[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}\b/g, '').trim();
+                // Split on common separators and keep the first segment as the name
+                const first = (s.split(/\s*[-–—|,\/]\s*/)[0] || s).trim();
+                return first || (val + '').trim();
+            } catch (_) {
+                return (val + '').trim();
+            }
         }
 
         // Action functions
@@ -9164,151 +9763,202 @@ Thank you for your prompt attention to this matter.
             const formattedPositionCode = position.positionCode || `POS${position.id.replace(/[^0-9]/g, '')}`;
               // Populate detail fields
             const detailContent = `
-                <!-- Position Information -->
-                <div class="form-section">
-                    <div class="section-title">
-                        <i class="fas fa-briefcase"></i> Position Information
-                    </div>
-                    <div class="detail-grid">
-                        <div class="detail-item">
-                            <div class="detail-label"><i class="fas fa-briefcase"></i> Job Title</div>
-                            <div class="detail-value">${position.jobTitle || 'N/A'}</div>
-                        </div>
-                        <div class="detail-item">
-                            <div class="detail-label"><i class="fas fa-barcode"></i> Position Code</div>
-                            <div class="detail-value position-code">${formattedPositionCode}</div>
-                        </div>
-                        <div class="detail-item">
-                            <div class="detail-label"><i class="fas fa-building"></i> Department</div>
-                            <div class="detail-value">${position.department || 'N/A'}</div>
+            <style>
+                #viewDetailsContent{ display:flex; justify-content:center; align-items:flex-start; overflow:auto; padding:12px; background:#f5f6fa; }
+                #viewDetailsContent .a4-sheet{ position:relative; width:210mm; min-height:297mm; margin:0 auto; background:#fff; border:1px solid #e5e7eb; border-radius:10px; box-shadow:0 1px 3px rgba(0,0,0,0.04); padding:5mm 5mm 18mm; box-sizing:border-box; color:#111827; }
+                #viewDetailsContent .sheet-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
+                #viewDetailsContent .company-block{display:flex;flex-direction:row;align-items:center;gap:12px;}
+                #viewDetailsContent .company-info{display:flex;flex-direction:column;gap:4px;}
+                #viewDetailsContent .sheet-logo{width:52px;height:52px;border-radius:8px;object-fit:contain;background:#fff;border:1px solid #e5e7eb;display:flex;align-items:center;justify-content:center;font-size:.8rem;font-weight:600;color:#444;}
+                #viewDetailsContent .doc-title{font-size:.95rem;font-weight:700;margin:0;color:#111827;}
+                #viewDetailsContent .divider{height:1px;background:#e5e7eb;margin:10px 0;}
+                #viewDetailsContent .meta-row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:4px 0 10px;}
+                #viewDetailsContent .meta-item{display:flex;flex-direction:column;min-width:110px;}
+                #viewDetailsContent .meta-label{font-size:.58rem;font-weight:700;color:#6b7280;}
+                #viewDetailsContent .meta-value{font-size:.72rem;color:#111827;}
+                #viewDetailsContent .section-title{font-size:.75rem;margin:0 0 6px;display:flex;align-items:center;gap:6px;font-weight:600;color:#1f2937;}
+                #viewDetailsContent .info-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px;}
+                #viewDetailsContent .info-item{display:grid;grid-template-columns:max-content 1fr;column-gap:6px;row-gap:2px;}
+                #viewDetailsContent .info-item.single-line span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;}
+                #viewDetailsContent .info-item.single-line label{white-space:nowrap;}
+                #viewDetailsContent .info-item.full-row{grid-column:1 / -1;}
+                #viewDetailsContent .info-item.duo{grid-column:1 / -1;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));column-gap:20px;row-gap:4px;align-items:start;}
+                #viewDetailsContent .info-item.duo .sub{display:grid;grid-template-columns:max-content 1fr;column-gap:6px;row-gap:2px;}
+                #viewDetailsContent .info-item.duo .sub label{font-size:.7rem;font-weight:700;color:#6b7280;}
+                #viewDetailsContent .info-item.duo .sub label::after{content:':' ;margin-left:3px;color:#9ca3af;}
+                #viewDetailsContent .info-item.duo .sub span{font-size:.7rem;color:#111827;}
+                #viewDetailsContent .info-item label{font-size:.7rem;font-weight:700;color:#6b7280;}
+                #viewDetailsContent .info-item label::after{content:':';margin-left:3px;color:#9ca3af;}
+                #viewDetailsContent .info-item span{font-size:.7rem;color:#111827;}
+                #viewDetailsContent .paragraph-block{font-size:.7rem;line-height:1.4;color:#4a4f54;background:#f8f9fa;padding:.55rem .7rem;border:1px solid #e5e7eb;border-radius:4px;}
+                #viewDetailsContent .attachment-list{display:flex;flex-direction:column;gap:6px;margin-top:4px;}
+                #viewDetailsContent .attachment-item{display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid #e5e7eb;border-radius:6px;background:#fafafa;font-size:.7rem;}
+                #viewDetailsContent .status-chip{display:inline-block;font-size:.55rem;font-weight:600;letter-spacing:.02em;color:#374151;background:transparent;border:none;padding:0;border-radius:0;}
+                #viewDetailsContent .status-chip.approved{color:#166534;}#viewDetailsContent .status-chip.declined{color:#991b1b;}#viewDetailsContent .status-chip.pending{color:#92400e;}
+            </style>
+            <div class="a4-sheet">
+                <div class="sheet-header">
+                    <div class="company-block">
+                        <div id="mdCompanyLogoPH" class="sheet-logo">DL</div>
+                        <img id="mdCompanyLogo" class="sheet-logo" alt="Company Logo" style="display:none;"/>
+                        <div class="company-info">
+                            <h1 id="mdCompanyName" style="margin:0;font-size:1rem;">Company Name</h1>
+                            <h2 class="doc-title" id="mdDocTitle">Authority to Recruit</h2>
                         </div>
                     </div>
                 </div>
+                <div class="divider"></div>
+                <div class="meta-row">
+                    <div class="meta-item"><span class="meta-label">Position Code</span><span class="meta-value" id="mdDocNumber"></span></div>
+                    <div class="meta-item"><span class="meta-label">Department</span><span class="meta-value">${position.department || 'N/A'}</span></div>
+                    <div class="meta-item"><span class="meta-label">Status</span><span class="meta-value"><span class="status-chip ${((position.status||'').toLowerCase())}">${formatStatus(position.status) || 'N/A'}</span></span></div>
+                    <div class="meta-item"><span class="meta-label">Employment Type</span><span class="meta-value">${formatEmploymentType(position.employmentType || position.employment_type || position.type) || 'N/A'}</span></div>
+                    <div class="meta-item"><span class="meta-label">Location</span><span class="meta-value">${position.workLocation || position.location || 'N/A'}</span></div>
+                </div>
+                <div class="divider"></div>
+                <div class="section">
+                    <h2 class="section-title"><i class="fas fa-briefcase"></i> Position Details</h2>
+                    <div class="info-grid" id="mdPosInfo"></div>
+                </div>
+                <div class="divider"></div>
+                <div class="section">
+                    <h2 class="section-title"><i class="fas fa-calendar-alt"></i> Timeline</h2>
+                    <div class="info-grid">
+                        <div class="info-item"><label>Start Date</label><span>${formatDate(position.startDate) || 'N/A'}</span></div>
+                        <div class="info-item"><label>End Date</label><span>${formatDate(position.endDate) || 'N/A'}</span></div>
+                        <div class="info-item"><label>${currentActiveTab === 'published' ? 'Published Date' : 'Posted Date'}</label><span>${formatDate(currentActiveTab === 'published' ? (position.publishedDate || position.postedDate) : position.postedDate) || 'N/A'}</span></div>
+                    </div>
+                </div>
+                <div class="divider"></div>
+                <div class="section">
+                    <h2 class="section-title"><i class="fas fa-coins"></i> Compensation</h2>
+                    <div class="info-grid">
+                        <div class="info-item"><label>Salary Range</label><span>${position.salaryMin ? '$'+Number(position.salaryMin).toLocaleString() : 'N/A'} ${position.salaryMax ? ' - $'+Number(position.salaryMax).toLocaleString() : ''}</span></div>
+                        <div class="info-item"><label>Working Hours</label><span>${position.workingHours || 'N/A'}</span></div>
+                    </div>
+                </div>
+                <div class="divider"></div>
+                <div class="section">
+                    <h2 class="section-title"><i class="fas fa-users"></i> Recruitment</h2>
+                    <div class="info-grid">
+                        <div class="info-item"><label>Reason</label><span>${position.recruitmentReason || position.reason || position.hiringReason || position.requestReason || 'N/A'}</span></div>
+                        <div class="info-item"><label>Advertise</label><span>${(() => { if (position.advertiseOptionLabel) return position.advertiseOptionLabel; const v = (position.advertiseOption || '').toLowerCase(); if (v === 'external-internal') return 'Yes - External & Internal'; if (v === 'internal-only') return 'Yes - Internal Only'; if (v === 'no-advertise') return 'No - Do Not Advertise'; return 'N/A'; })()}</span></div>
+                    </div>
+                </div>
+                ${position.jobDescription ? `<div class="divider"></div><div class="section"><h2 class=\"section-title\">Job Description</h2><div class=\"paragraph-block\">${position.jobDescription}</div></div>` : ''}
+                ${position.requiredSkills ? `<div class="divider"></div><div class="section"><h2 class=\"section-title\">Required Skills & Competencies</h2><div class=\"paragraph-block\">${position.requiredSkills}</div></div>` : ''}
+                ${position.notes ? `<div class="divider"></div><div class="section"><h2 class=\"section-title\">Additional Notes</h2><div class=\"paragraph-block\">${position.notes}</div></div>` : ''}
+                ${(position.attachments && position.attachments.length > 0) ? `<div class="divider"></div><div class="section"><h2 class=\"section-title\">Attachments</h2><div class=\"attachment-list\">${position.attachments.map(a => `<div class='attachment-item'><i class='fas fa-file'></i> ${a.name || a}</div>`).join('')}</div></div>` : ''}
+                <div class="divider"></div>
+                <div class="section" id="approvalSection">
+                    <h2 class="section-title"><i class="fas fa-project-diagram"></i> Approval Flow</h2>
+                    <div class="approval-flow-container">
+                        <div class="approval-type" title="Approval flow type will be displayed here">
+                            <i class="fas fa-stream"></i> Loading approval flow...
+                        </div>
+                        <div class="approval-levels"></div>
+                    </div>
+                </div>
+            </div>`;
 
-                <!-- Employment Details -->
-                <div class="form-section">
-                    <div class="section-title">
-                        <i class="fas fa-id-card"></i> Employment Details
-                    </div>
-                    <div class="detail-grid">
-                        <div class="detail-item">
-                            <div class="detail-label"><i class="fas fa-user-tie"></i> Employment Type</div>
-                            <div class="detail-value">${formatEmploymentType(position.employmentType || position.employment_type || position.type) || 'N/A'}</div>
-                        </div>
-                        <div class="detail-item">
-                            <div class="detail-label"><i class="fas fa-clock"></i> Working Hours/Week</div>
-                            <div class="detail-value">${position.workingHours || 'N/A'}</div>
-                        </div>
-                        <div class="detail-item">
-                            <div class="detail-label"><i class="fas fa-calendar-plus"></i> Start Date</div>
-                            <div class="detail-value">${formatDate(position.startDate) || 'N/A'}</div>
-                        </div>
-                        <div class="detail-item">
-                            <div class="detail-label"><i class="fas fa-calendar-minus"></i> End Date</div>
-                            <div class="detail-value">${formatDate(position.endDate) || 'N/A'}</div>
-                        </div>
-                        <div class="detail-item">
-                            <div class="detail-label"><i class="fas fa-user-cog"></i> Direct Line Manager</div>
-                            <div class="detail-value">${position.lineManager || 'N/A'}</div>
-                        </div>
-                    </div>
-                </div>
+            const contentEl = document.getElementById('viewDetailsContent');
+            if(contentEl) contentEl.innerHTML = detailContent;
 
-                <!-- Location & Compensation -->
-                <div class="form-section">
-                    <div class="section-title">
-                        <i class="fas fa-map-marker-alt"></i> Location & Compensation
-                    </div>
-                    <div class="detail-grid">
-                        <div class="detail-item">
-                            <div class="detail-label"><i class="fas fa-map-marker-alt"></i> Primary Work Location</div>
-                            <div class="detail-value">${position.workLocation || position.location || 'N/A'}</div>
-                        </div>
-                        <div class="detail-item">
-                            <div class="detail-label"><i class="fas fa-dollar-sign"></i> Minimum Salary (Annual)</div>
-                            <div class="detail-value">${position.salaryMin ? '$' + Number(position.salaryMin).toLocaleString() : 'N/A'}</div>
-                        </div>
-                        <div class="detail-item">
-                            <div class="detail-label"><i class="fas fa-dollar-sign"></i> Maximum Salary (Annual)</div>
-                            <div class="detail-value">${position.salaryMax ? '$' + Number(position.salaryMax).toLocaleString() : 'N/A'}</div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Job Description & Requirements -->
-                <div class="form-section">
-                    <div class="section-title">
-                        <i class="fas fa-clipboard-list"></i> Job Description & Requirements
-                    </div>
-                    <div class="detail-grid">
-                        ${position.jobDescription ? `
-                        <div class="detail-item" style="grid-column: 1 / -1;">
-                            <div class="detail-label"><i class="fas fa-file-alt"></i> Job Description</div>
-                            <div class="detail-value">${position.jobDescription}</div>
-                        </div>
-                        ` : ''}
-                        <div class="detail-item">
-                            <div class="detail-label"><i class="fas fa-graduation-cap"></i> Required Education</div>
-                            <div class="detail-value">${position.requiredEducation || position.education || position.educationLevel || position.educationRequired || 'N/A'}</div>
-                        </div>
-                        <div class="detail-item">
-                            <div class="detail-label"><i class="fas fa-medal"></i> Required Experience (Years)</div>
-                            <div class="detail-value">${position.requiredExperience || 'N/A'}</div>
-                        </div>
-                        ${position.requiredSkills ? `
-                        <div class="detail-item" style="grid-column: 1 / -1;">
-                            <div class="detail-label"><i class="fas fa-tools"></i> Required Skills & Competencies</div>
-                            <div class="detail-value">${position.requiredSkills}</div>
-                        </div>
-                        ` : ''}
-                    </div>
-                </div>
-
-                <!-- Additional Information -->
-                <div class="form-section">
-                    <div class="section-title">
-                        <i class="fas fa-info-circle"></i> Additional Information
-                    </div>
-                    <div class="detail-grid">
-                        <div class="detail-item">
-                            <div class="detail-label"><i class="fas fa-exclamation-triangle"></i> Hiring Urgency</div>
-                            <div class="detail-value">${formatPriority(position.urgency || position.priority) || 'N/A'}</div>
-                        </div>
-                        <div class="detail-item">
-                            <div class="detail-label"><i class="fas fa-question-circle"></i> Recruitment Reason</div>
-                            <div class="detail-value">${position.recruitmentReason || position.reason || position.hiringReason || position.requestReason || 'N/A'}</div>
-                        </div>
-                        <div class="detail-item">
-                            <div class="detail-label"><i class="fas fa-chart-line"></i> Status</div>
-                            <div class="detail-value">${formatStatus(position.status) || 'N/A'}</div>
-                        </div>
-                        <div class="detail-item">
-                            <div class="detail-label"><i class="fas fa-calendar"></i> ${currentActiveTab === 'published' ? 'Published Date' : 'Posted Date'}</div>
-                            <div class="detail-value">${formatDate(currentActiveTab === 'published' ? (position.publishedDate || position.postedDate) : position.postedDate) || 'N/A'}</div>
-                        </div>
-                        ${position.notes ? `
-                        <div class="detail-item" style="grid-column: 1 / -1;">
-                            <div class="detail-label"><i class="fas fa-sticky-note"></i> Additional Notes</div>
-                            <div class="detail-value">${position.notes}</div>
-                        </div>
-                        ` : ''}
-                        ${position.attachments && position.attachments.length > 0 ? `
-                        <div class="detail-item" style="grid-column: 1 / -1;">
-                            <div class="detail-label"><i class="fas fa-paperclip"></i> Attachments</div>
-                            <div class="detail-value">
-                                ${position.attachments.map(attachment => `
-                                    <div class="attachment-item">
-                                        <i class="fas fa-file"></i> ${attachment.name || attachment}
-                                    </div>
-                                `).join('')}
-                            </div>
-                        </div>
-                        ` : ''}
-                    </div>
-                </div>
-            `;
-            
-            document.getElementById('viewDetailsContent').innerHTML = detailContent;
+            // Populate dynamic company logo/name similar to staff.html logic
+            (function populateCompanyHeader(pos){
+                try {
+                    let cName = pos.companyName || (pos.company && (pos.company.name || pos.company.title)) || pos.orgName || pos.organizationName || pos.clientName || '';
+                    let cLogo = pos.companyLogoUrl || pos.companyLogo || (pos.company && (pos.company.logoUrl || pos.company.logo)) || pos.logoUrl || pos.companyLogoURL || '';
+                    if (!cName || !cLogo) {
+                        try {
+                            const stored = JSON.parse(localStorage.getItem('currentCompanyData') || sessionStorage.getItem('currentCompanyData') || 'null');
+                            if (stored) {
+                                if (!cName && (stored.companyName || stored.name)) cName = stored.companyName || stored.name;
+                                if (!cLogo && (stored.logoUrl || stored.logo || stored.companyLogoUrl)) {
+                                    cLogo = stored.logoUrl || stored.logo || stored.companyLogoUrl;
+                                }
+                            }
+                        } catch(_) {}
+                    }
+                    if (!cName || !cLogo) {
+                        try {
+                            const hdrNameEl = document.getElementById('headerCompanyName');
+                            const hdrLogoEl = document.getElementById('headerCompanyLogo');
+                            if (!cName && hdrNameEl && hdrNameEl.textContent) cName = hdrNameEl.textContent.trim();
+                            if (!cLogo && hdrLogoEl && hdrLogoEl.src) cLogo = hdrLogoEl.src;
+                        } catch(_) {}
+                    }
+                    const nameEl = document.getElementById('mdCompanyName'); if (cName && nameEl) nameEl.textContent = cName;
+                    if (cLogo) {
+                        const img = document.getElementById('mdCompanyLogo'); if(img){ img.src=cLogo; img.style.display='block'; }
+                        const ph = document.getElementById('mdCompanyLogoPH'); if(ph){ ph.style.display='none'; }
+                    } else {
+                        const ph = document.getElementById('mdCompanyLogoPH'); if(ph){ const base=(cName||'CN').split(/\s+/).map(w=>w[0]).slice(0,3).join('').toUpperCase(); ph.textContent=base; }
+                    }
+                    const docNumEl = document.getElementById('mdDocNumber'); if(docNumEl) docNumEl.textContent = formattedPositionCode || 'N/A';
+                    const docTitleEl = document.getElementById('mdDocTitle'); if(docTitleEl) docTitleEl.textContent = pos.jobTitle ? `Authority to Recruit: ${pos.jobTitle}` : 'Authority to Recruit';
+                    // Populate position detail grid (selected key attributes)
+                    const grid = document.getElementById('mdPosInfo');
+                    if(grid){
+                        function stripDuplicateDept(lm, dept){
+                            try {
+                                if (!lm || !dept) return lm || '';
+                                const escapeRe = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                                const norm = s => (s||'').toString().toLowerCase().replace(/[^a-z0-9]/g,'');
+                                const deptNorm = norm(dept);
+                                let out = lm;
+                                // Remove common trailing patterns
+                                const reDept = new RegExp(escapeRe(dept), 'i');
+                                const patterns = [
+                                    new RegExp(`\\s*[-–—]\\s*${escapeRe(dept)}\\s*$`, 'i'),
+                                    new RegExp(`\\s*[/|,]\\s*${escapeRe(dept)}\\s*$`, 'i'),
+                                    new RegExp(`\\s*\\(${escapeRe(dept)}\\)\\s*$`, 'i'),
+                                    new RegExp(`\\s*\\[${escapeRe(dept)}\\]\\s*$`, 'i')
+                                ];
+                                patterns.forEach(p => { out = out.replace(p,''); });
+                                // Token-based removal for variants like Human-Capital vs Human Capital
+                                const tokens = out.split(/\s*[-–—,\/()\[\]]\s*/).filter(Boolean);
+                                if (tokens.length > 1) {
+                                    const kept = tokens.filter(t => norm(t) && norm(t) !== deptNorm);
+                                    if (kept.length) out = kept.join(' - ');
+                                }
+                                out = out.replace(/\s{2,}/g,' ').replace(/\s*[-–—,\/()\[\]]+\s*$/,'').trim();
+                                // If entire value equals department after normalization, clear it
+                                if (!out || norm(out) === deptNorm) return '';
+                                return out || lm;
+                            } catch { return lm || ''; }
+                        }
+                        // Removed Job Title and Department from Position Details per requirements
+                        const items = [];
+                        let html = items.map(([lbl,val,sl]) => {
+                            const safeVal = val || 'N/A';
+                            const clazz = sl ? 'info-item single-line' : 'info-item';
+                            const titleAttr = `title="${(safeVal+'').replace(/"/g,'&quot;')}"`;
+                            return `<div class='${clazz}'><label>${lbl}</label><span ${titleAttr}>${safeVal}</span></div>`;
+                        }).join('');
+                        // Duo row for Employment Type + Location
+                        const empType = formatEmploymentType(pos.employmentType || pos.employment_type || pos.type) || 'N/A';
+                        const loc = (pos.workLocation || pos.location || 'N/A');
+                        html += `<div class='info-item duo'><div class='sub'><label>Employment Type</label><span>${empType}</span></div><div class='sub'><label>Location</label><span>${loc}</span></div></div>`;
+                        // Duo row for Priority + Reason
+                        const prio = formatPriority(pos.priority || pos.urgency) || 'N/A';
+                        const reason = (pos.recruitmentReason || pos.reason || pos.hiringReason || pos.requestReason || 'N/A');
+                        html += `<div class='info-item duo'><div class='sub'><label>Priority</label><span>${prio}</span></div><div class='sub'><label>Reason</label><span>${reason}</span></div></div>`;
+                        // Add Line Manager row back into Position Details
+                        try {
+                            const lmValueRaw = pos.lineManager || '';
+                            const strippedDept = stripDuplicateDept(lmValueRaw, pos.department || '');
+                            const lmValue = formatLineManagerName(strippedDept);
+                            const safeLm = (lmValue || '').toString();
+                            const lmTitle = (safeLm || 'N/A').replace(/"/g, '&quot;');
+                            html += `<div class='info-item'><label>Line Manager</label><span title="${lmTitle}">${safeLm || 'N/A'}</span></div>`;
+                        } catch(_) {
+                            html += `<div class='info-item'><label>Line Manager</label><span>N/A</span></div>`;
+                        }
+                        grid.innerHTML = html;
+                    }
+                } catch(err) { console.warn('Company header population failed', err); }
+            })(position);
 
             // Add action buttons to modal
             const modalActionButtons = document.getElementById('modalActionButtons');
@@ -9317,43 +9967,186 @@ Thank you for your prompt attention to this matter.
             // Check if current user is an approver for this position
             const currentUserId = getCurrentUserId();
             let isCurrentUserApprover = false;
+            let isCurrentUserNextLevelApprover = false; // for sequential flows
+            let approvalOrderType = '';
+            let approverStatusReady = false; // avoids flicker before async check completes
+            let lastButtonsSignature = '';
             
             // We'll check this after loading the approval flow
             const checkApproverStatus = async () => {
                 try {
+                    approverStatusReady = false;
                     const approvalFlow = await window.fetchRecruitmentApprovalFlow(position.id);
                     if (approvalFlow && approvalFlow.levels) {
+                        approvalOrderType = String(approvalFlow.approvalOrder || '').toLowerCase();
+                        const norm = v => String(v||'').toLowerCase();
+                        const curEmail = norm(typeof getCurrentUserEmail === 'function' ? (getCurrentUserEmail() || '') : '');
+                        const globalUserId = getCurrentUserId();
+                        const companyUserId = await getCurrentUserIdWithCompanyContext();
+                        const idMatches = (val) => (val === globalUserId || val === companyUserId);
                         // Check if current user is an approver in any level
                         for (const level of approvalFlow.levels) {
                             for (const approver of level.approvers) {
-                                if ((approver.value?.startsWith('user_') && approver.value.replace('user_', '') === currentUserId) ||
-                                    (approver.userId === currentUserId) ||
-                                    (approver.approverId === currentUserId)) {
+                                // Direct ID matches
+                                const directMatch = (
+                                    (approver.value?.startsWith('user_') && idMatches(approver.value.replace('user_',''))) ||
+                                    idMatches(approver.userId) ||
+                                    idMatches(approver.approverId) ||
+                                    idMatches(approver.value) ||
+                                    (curEmail && (norm(approver.email||approver.approverEmail||approver.userEmail||approver.value) === curEmail))
+                                );
+
+                                // L+1 functional match (when level defines L+1 and current user is the line manager)
+                                const isLPlusOne = (
+                                    (approver.value || '').toString().toLowerCase().includes('l+1') ||
+                                    (approver.role || '').toString().toLowerCase().includes('l+1') ||
+                                    (approver.label || '').toString().toLowerCase().includes('l+1') ||
+                                    (approver.text || '').toString().toLowerCase().includes('l+1')
+                                );
+                                let lPlusOneMatch = false;
+                                if (isLPlusOne && position) {
+                                    try {
+                                        const lmRaw = (position.lineManager || '').toString().trim();
+                                        const lmLower = lmRaw.toLowerCase();
+                                        const curEmail = (typeof getCurrentUserEmail === 'function' ? (getCurrentUserEmail() || '') : '').toLowerCase();
+                                        // Prefer email equality if LM stored as email
+                                        if (lmLower && lmLower.includes('@') && curEmail && lmLower === curEmail) {
+                                            lPlusOneMatch = true;
+                                        } else if (window.authManager && typeof window.authManager.getUserDisplayName === 'function') {
+                                            const curName = (window.authManager.getUserDisplayName() || '').toString().trim().toLowerCase();
+                                            if (curName && lmLower && (curName === lmLower || curName.includes(lmLower) || lmLower.includes(curName))) {
+                                                lPlusOneMatch = true;
+                                            }
+                                        }
+                                    } catch (_) { /* no-op */ }
+                                }
+
+                                if (directMatch || lPlusOneMatch) {
                                     isCurrentUserApprover = true;
                                     break;
                                 }
                             }
                             if (isCurrentUserApprover) break;
                         }
+
+                        // If sequential, also compute if user is approver on the next unlocked level
+                        if (approvalOrderType === 'sequential') {
+                            const normStatus = s => String(s||'').toLowerCase();
+                            const levels = approvalFlow.levels || [];
+                            const nextIdx = levels.findIndex(l => {
+                                const st = normStatus(l.status);
+                                return st === 'pending' || st === 'partially-approved';
+                            });
+                            if (nextIdx >= 0) {
+                                const level = levels[nextIdx];
+                                for (const approver of (level.approvers || [])) {
+                                    const directMatch = (
+                                        (approver.value?.startsWith('user_') && idMatches(approver.value.replace('user_',''))) ||
+                                        idMatches(approver.userId) ||
+                                        idMatches(approver.approverId) ||
+                                        idMatches(approver.value) ||
+                                        (curEmail && (norm(approver.email||approver.approverEmail||approver.userEmail||approver.value) === curEmail))
+                                    );
+                                    let lPlusOneMatch = false;
+                                    const isLPlusOne = (
+                                        (approver.value || '').toString().toLowerCase().includes('l+1') ||
+                                        (approver.role || '').toString().toLowerCase().includes('l+1') ||
+                                        (approver.label || '').toString().toLowerCase().includes('l+1') ||
+                                        (approver.text || '').toString().toLowerCase().includes('l+1')
+                                    );
+                                    if (isLPlusOne && position) {
+                                        try {
+                                            const lmRaw = (position.lineManager || '').toString().trim();
+                                            const lmLower = lmRaw.toLowerCase();
+                                            if (lmLower && lmLower.includes('@') && curEmail && lmLower === curEmail) {
+                                                lPlusOneMatch = true;
+                                            } else if (window.authManager && typeof window.authManager.getUserDisplayName === 'function') {
+                                                const curName = (window.authManager.getUserDisplayName() || '').toString().trim().toLowerCase();
+                                                if (curName && lmLower && (curName === lmLower || curName.includes(lmLower) || lmLower.includes(curName))) {
+                                                    lPlusOneMatch = true;
+                                                }
+                                            }
+                                        } catch (_) { /* no-op */ }
+                                    }
+                                    const approverPending = normStatus(approver.status) === 'pending';
+                                    if ((directMatch || lPlusOneMatch) && approverPending) {
+                                        isCurrentUserNextLevelApprover = true;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
                     }
                 } catch (error) {
                     console.warn('Could not check approver status:', error);
                     // Default to showing buttons if we can't check (for backward compatibility)
                     isCurrentUserApprover = true;
+                } finally {
+                    approverStatusReady = true;
+                    updateModalButtons();
                 }
-                
-                // Update button visibility based on approver status
-                updateModalButtons();
             };
             
             const updateModalButtons = () => {
+                // For sequential flows, avoid drawing before approver status is ready
+                if (String(approvalOrderType||'').toLowerCase() === 'sequential' && !approverStatusReady) {
+                    return;
+                }
                 // Clear existing dynamic buttons (keep the close button)
                 const existingButtons = modalActionButtons.querySelectorAll('.btn');
                 existingButtons.forEach(btn => btn.remove());
                 
                 // Check current tab and position status
-                const currentStatus = (position.status || '').toLowerCase();
+                const currentStatus = (position.status || position.approvalStatus || '').toLowerCase();
                 const isPublishedStatus = currentStatus === 'published' || currentStatus === 'approved' || currentStatus === 'released';
+                const isPendingLike = !isPublishedStatus && (
+                    currentStatus === 'pending' || currentStatus === 'requested' || currentStatus === 'new' || currentStatus === ''
+                );
+                const perms = (window._recruitEffectivePerms || {});
+                // Approval configuration gate: only configured approvers can see approve/decline
+                const approverEmails = (window._recruitApprovalConfig && Array.isArray(window._recruitApprovalConfig.approvers)) ? window._recruitApprovalConfig.approvers : [];
+                const curEmail = (typeof getCurrentUserEmail === 'function' ? (getCurrentUserEmail() || '') : '').toLowerCase();
+                const isApproverConfigured = approverEmails.length === 0 ? true : approverEmails.includes(curEmail);
+
+                // Gating rules:
+                // - If approval is sequential, only show buttons when user is approver in the next unlocked level
+                // - Otherwise, allow if user is assigned anywhere in the flow OR config is permissive/explicitly includes the user
+                const isSequential = String(approvalOrderType || '').toLowerCase() === 'sequential';
+                const isAssignedApprover = !!isCurrentUserApprover;
+                const isInConfig = approverEmails.includes(curEmail);
+                const permissiveConfig = approverEmails.length === 0; // empty list means no restriction
+                const flowGate = isSequential ? !!isCurrentUserNextLevelApprover : (isAssignedApprover || permissiveConfig || isInConfig);
+                const canSeeApprovalActions = isPendingLike && flowGate;
+                const canApprove = (perms.approve !== false); // undefined or true => allow
+                const canDecline = (perms.decline !== false);
+
+                // Skip DOM churn if nothing changed
+                const signature = [currentStatus, isSequential, isAssignedApprover, isInConfig, permissiveConfig, flowGate, canSeeApprovalActions, canApprove, canDecline].join('|');
+                if (signature === lastButtonsSignature) {
+                    return;
+                }
+                lastButtonsSignature = signature;
+
+                if (canSeeApprovalActions) {
+                    if (canApprove) {
+                        const approveBtn = document.createElement('button');
+                        approveBtn.type = 'button';
+                        approveBtn.className = 'btn btn-success';
+                        approveBtn.onclick = () => approvePosition(position.id);
+                        approveBtn.title = 'Approve Position';
+                        approveBtn.innerHTML = '<i class="fas fa-check"></i> Approve';
+                        modalActionButtons.appendChild(approveBtn);
+                    }
+                    if (canDecline) {
+                        const declineBtn = document.createElement('button');
+                        declineBtn.type = 'button';
+                        declineBtn.className = 'btn btn-danger';
+                        declineBtn.onclick = () => declinePosition(position.id);
+                        declineBtn.title = 'Decline Position';
+                        declineBtn.innerHTML = '<i class="fas fa-times-circle"></i> Decline';
+                        modalActionButtons.appendChild(declineBtn);
+                    }
+                }
                 
                 // Add Edit button for published positions in published tab
                 if (currentActiveTab === 'published' && isPublishedStatus) {
@@ -9367,7 +10160,9 @@ Thank you for your prompt attention to this matter.
                 }
                 
                 // Only add the Publish button if the status is not "published" and not in published tab
-                if (currentStatus !== 'published' && currentActiveTab !== 'published') {
+                // Additionally, hide Publish when created with advertiseOption = 'no-advertise'
+                const isNoAdvertise = (position.source === 'recruit' && (position.advertiseOption || '').toLowerCase() === 'no-advertise');
+                if (!isNoAdvertise && currentStatus !== 'published' && currentActiveTab !== 'published') {
                     const publishBtn = document.createElement('button');
                     publishBtn.type = 'button';
                     publishBtn.className = 'btn btn-primary';
@@ -9378,15 +10173,12 @@ Thank you for your prompt attention to this matter.
                 }
             };
             
-            // Initial button setup
-            updateModalButtons();
-            
-            // Check approver status asynchronously (no longer needed for button updates)
-            if (position.source === 'recruit' && position.approvalStatus === 'pending') {
-                checkApproverStatus();
-            }
+            // Defer button setup until approver status is computed to avoid flicker
+            checkApproverStatus();
             
             openModal('viewDetailsModal');
+            // Load approval flow section content after modal renders
+            try { loadApprovalFlowForPosition(position.id, position); } catch (e) { console.warn('Approval flow load failed', e); }
         }
 
         // Open modal function
@@ -10362,6 +11154,13 @@ Thank you for your prompt attention to this matter.
             requestData.employmentType = document.getElementById('newEmploymentType').value || '';
             requestData.requiredEducation = document.getElementById('newRequiredEducation').value || '';
             requestData.recruitmentReason = document.getElementById('newRecruitmentReason').value || '';
+            requestData.advertiseOption = document.getElementById('newAdvertiseOption').value || '';
+            // Capture original select label for exact display fidelity later
+            const advertiseSelect = document.getElementById('newAdvertiseOption');
+            if (advertiseSelect) {
+                const selectedOption = advertiseSelect.options[advertiseSelect.selectedIndex];
+                requestData.advertiseOptionLabel = selectedOption ? selectedOption.textContent.trim() : '';
+            }
             
             // Generate unique ID for the request
             requestData.id = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -10375,7 +11174,9 @@ Thank you for your prompt attention to this matter.
             console.log('🔍 Critical fields check:', {
                 employmentType: requestData.employmentType,
                 requiredEducation: requestData.requiredEducation,
-                recruitmentReason: requestData.recruitmentReason
+                recruitmentReason: requestData.recruitmentReason,
+                advertiseOption: requestData.advertiseOption,
+                advertiseOptionLabel: requestData.advertiseOptionLabel
             });
             
             // Save to company-scoped recruit path
@@ -10508,26 +11309,121 @@ Thank you for your prompt attention to this matter.
         // Approve position function with authorization check
         async function approvePosition(positionId) {
             try {
-                // Show confirmation dialog
-                const confirmed = confirm('Are you sure you want to approve this position?\n\nThis action will change the position status to approved.');
-                if (!confirmed) {
-                    console.log('❌ User cancelled approval action');
+                // Confirmation (now clarifies this approves YOUR step, not whole position unless final)
+                const confirmed = confirm('Approve your step in the approval flow?\n\nIf this is the final required approval, the position will be marked fully approved.');
+                if (!confirmed) { console.log('❌ User cancelled approval action'); return; }
+
+                const currentUserId = getCurrentUserId();
+                const currentUserEmail = (typeof getCurrentUserEmail === 'function' ? (getCurrentUserEmail() || '') : '').toLowerCase();
+                if (!currentUserId || currentUserId === 'unknown') {
+                    showNotification('Cannot approve: user context missing', 'error');
                     return;
                 }
 
-                // Check if current user is authorized to approve this position
-                const isAuthorized = await checkUserApprovalAuthorization(positionId);
-                if (!isAuthorized) {
-                    showNotification('You are not authorized to approve this position', 'error');
-                    console.warn('⚠️ Unauthorized approval attempt for position:', positionId);
+                // Fetch latest approval flow
+                const flow = await window.fetchRecruitmentApprovalFlow(positionId);
+                if (!flow || !Array.isArray(flow.levels)) {
+                    showNotification('No approval flow found for this position', 'error');
                     return;
                 }
-                
-                console.log('✅ Authorized approval for position:', positionId);
-                updatePositionStatus(positionId, 'approved');
+
+                const isSequential = String(flow.approvalOrder || '').toLowerCase() === 'sequential';
+                const norm = v => String(v||'').toLowerCase();
+
+                // Determine target level/approver indices for this user
+                let targetLevelIndex = -1; let targetApproverIndex = -1;
+                const isLevelUnlocked = (idx) => {
+                    if (!isSequential) return true;
+                    if (idx === 0) return true;
+                    const prev = flow.levels[idx - 1];
+                    return ['approved','completed'].includes(norm(prev.status));
+                };
+
+                // Helper to test if approver matches user and is pending
+                const approverMatches = (approver) => {
+                    const directMatch = (
+                        (approver.value?.startsWith('user_') && approver.value.replace('user_','') === currentUserId) ||
+                        approver.userId === currentUserId ||
+                        approver.approverId === currentUserId
+                    );
+                    // Email match fallback
+                    const emailMatch = currentUserEmail && norm(approver.email) === currentUserEmail;
+                    // L+1 special match if designated
+                    let lPlusOneMatch = false;
+                    const isLPlusOne = [approver.value, approver.role, approver.label, approver.text]
+                        .some(v => norm(v).includes('l+1'));
+                    if (isLPlusOne) {
+                        // Compare against position line manager value
+                        const pos = recruitmentData.find(p => p.id === positionId) || {};
+                        const lmRaw = norm(pos.lineManager);
+                        if (lmRaw) {
+                            if (lmRaw === currentUserEmail) lPlusOneMatch = true;
+                            else if (window.authManager && typeof window.authManager.getUserDisplayName === 'function') {
+                                const dn = norm(window.authManager.getUserDisplayName());
+                                if (dn && (dn === lmRaw || dn.includes(lmRaw) || lmRaw.includes(dn))) lPlusOneMatch = true;
+                            }
+                        }
+                    }
+                    return (directMatch || emailMatch || lPlusOneMatch) && norm(approver.status) === 'pending';
+                };
+
+                // Locate approver slot
+                for (let li = 0; li < flow.levels.length; li++) {
+                    const level = flow.levels[li];
+                    if (!isLevelUnlocked(li)) continue; // sequential gating
+                    for (let ai = 0; ai < (level.approvers||[]).length; ai++) {
+                        const appr = level.approvers[ai];
+                        if (approverMatches(appr)) { targetLevelIndex = li; targetApproverIndex = ai; break; }
+                    }
+                    if (targetLevelIndex >= 0) break;
+                    // If sequential and not found in first pending level, stop searching further pending levels
+                    if (isSequential && ['pending','partially-approved','locked'].includes(norm(level.status))) break;
+                }
+
+                if (targetLevelIndex < 0 || targetApproverIndex < 0) {
+                    showNotification('No pending approval step found for you', 'warning');
+                    return;
+                }
+
+                console.log(`✅ Approving level ${targetLevelIndex+1}, approver ${targetApproverIndex} for position ${positionId}`);
+                await updateRecruitmentApprovalStatus(positionId, targetLevelIndex, targetApproverIndex);
+
+                // Fetch updated flow to evaluate level completion
+                const updatedFlow = await window.fetchRecruitmentApprovalFlow(positionId);
+                const level = updatedFlow.levels[targetLevelIndex];
+                const allApproved = level.approvers.every(a => norm(a.status) === 'approved');
+                if (allApproved) {
+                    console.log(`🎉 Level ${targetLevelIndex+1} fully approved`);
+                    try { await updateLevelStatus(positionId, targetLevelIndex, 'approved'); } catch(e){ console.warn('Level status update failed', e); }
+                    if (isSequential && targetLevelIndex + 1 < updatedFlow.levels.length) {
+                        try { await unlockNextLevel(positionId, targetLevelIndex + 1); } catch(e){ console.warn('Unlock next level failed', e); }
+                    }
+                } else {
+                    // Mark level as in-progress for sequential tracking
+                    try { await updateLevelStatus(positionId, targetLevelIndex, 'partially-approved'); } catch(e){ console.warn('Level partial status update failed', e); }
+                }
+
+                // If every level now approved mark overall position approved
+                const allLevelsApproved = updatedFlow.levels.every(l => ['approved','completed'].includes(norm(l.status)));
+                if (allLevelsApproved) {
+                    console.log('🏁 All levels approved — updating overall position status');
+                    try { await updateOverallPositionStatus(positionId, 'approved'); } catch(e){ console.warn('Overall status update failed', e); }
+                }
+
+                // Re-render approval flow section & modal buttons
+                try { 
+                    await loadApprovalFlowForPosition(positionId); 
+                    // Force refresh of modal buttons after approval flow update
+                    if (typeof checkApproverStatus === 'function') {
+                        await checkApproverStatus();
+                    }
+                } catch(e){ console.warn('Re-render after approval failed', e); }
+                // Refresh modal buttons gating (user may no longer have pending approvals)
+                try { /* reuse internal checker by reopening viewDetails or manual minimal refresh */ } catch {}
+                showNotification('Approval recorded', 'success');
             } catch (error) {
-                console.error('Error checking approval authorization:', error);
-                showNotification('Error verifying authorization', 'error');
+                console.error('Error processing approval:', error);
+                showNotification('Failed to process approval: ' + error.message, 'error');
             }
         }
 
@@ -10883,9 +11779,216 @@ Thank you for your prompt attention to this matter.
             // Modal is ready for use
         });
 
-        async function loadApprovalFlowForPosition(positionId) {
+        // Build and cache signature lookup maps (by userId and by name)
+        async function buildSignatureLookup() {
+            try {
+                const now = Date.now();
+                const cache = window._recruitSigCache || {};
+                // Reuse cache for 60 seconds to avoid repeated reads
+                if (cache.ts && (now - cache.ts) < 60000 && cache.byId && cache.byName) {
+                    return cache;
+                }
+                const companyId = getCurrentCompanyId();
+                if (!companyId || !window.firebase) {
+                    return { byId: {}, byName: {}, byEmail: {}, ts: now };
+                }
+                const snap = await firebase.database().ref(`companies/${companyId}/users`).once('value');
+                const users = snap.val() || {};
+                // Load signatures collection for default signature resolution
+                let signatures = {};
+                try {
+                    const sigSnap = await firebase.database().ref(`companies/${companyId}/signatures`).once('value');
+                    signatures = sigSnap.val() || {};
+                } catch (e) { console.warn('Signature collection fetch failed', e); }
+                const byId = {};
+                const byName = {};
+                const byEmail = {};
+                Object.entries(users).forEach(([uid, u]) => {
+                    if (!u) return;
+                    const nm = (u.displayName || u.name || u.fullName || u.email || '').trim();
+                    let sig = u.signatureUrl || null;
+                    // Resolve default signature via user's defaultSignatureId if missing
+                    if (!sig) {
+                        const defaultId = u.defaultSignatureId || u.signatureId || u.defaultSigId || null;
+                        if (defaultId && signatures[defaultId]) {
+                            sig = signatures[defaultId].url || signatures[defaultId].imageUrl || signatures[defaultId].signatureUrl || null;
+                        }
+                    }
+                    if (uid && sig) byId[uid] = sig;
+                    if (nm && sig) byName[nm.toLowerCase()] = sig;
+                    const email = (u.email || '').trim().toLowerCase();
+                    if (email && sig) byEmail[email] = sig;
+                });
+                const built = { byId, byName, byEmail, ts: now };
+                window._recruitSigCache = built;
+                return built;
+            } catch (e) {
+                console.warn('Signature lookup build failed', e);
+                return { byId: {}, byName: {}, byEmail: {}, ts: Date.now() };
+            }
+        }
+
+        // Resolve signature URL for an approver via id list or fallback name
+        function resolveSignatureUrl(sigLookup, uidCandidates, displayName, emailCandidate) {
+            try {
+                if (!sigLookup) return '';
+                for (const uid of (uidCandidates || [])) {
+                    if (uid && sigLookup.byId && sigLookup.byId[uid]) return sigLookup.byId[uid];
+                }
+                const key = (displayName || '').toLowerCase().trim();
+                if (key && sigLookup.byName && sigLookup.byName[key]) return sigLookup.byName[key];
+                const em = (emailCandidate || '').toLowerCase().trim();
+                if (em && sigLookup.byEmail && sigLookup.byEmail[em]) return sigLookup.byEmail[em];
+                return '';
+            } catch { return ''; }
+        }
+
+        // Render approval history table (Approved actions) similar to leave tab in profile.html
+        async function renderRecruitmentApprovalHistory(positionId, approvalFlow, sigLookup) {
+            try {
+                const approvalSection = document.getElementById('approvalSection');
+                if (!approvalSection) return;
+                // Ensure container
+                let historyContainer = document.getElementById('approvalHistoryContainer');
+                if (!historyContainer) {
+                    historyContainer = document.createElement('div');
+                    historyContainer.id = 'approvalHistoryContainer';
+                    historyContainer.style.marginTop = '12px';
+                    approvalSection.appendChild(historyContainer);
+                }
+                historyContainer.innerHTML = '<div style="font-size:.7rem;color:#475569;margin-bottom:6px;font-weight:600;display:flex;align-items:center;gap:6px;"><i class="fas fa-history"></i> Approval History</div>';
+                const companyId = getCurrentCompanyId();
+                if (!companyId || !window.firebase) {
+                    historyContainer.innerHTML += '<div style="font-size:.65rem;color:#64748b;">Company context unavailable</div>';
+                    return;
+                }
+                const approvalsSnap = await firebase.database().ref(`companies/${companyId}/recruit/${positionId}/approvals`).once('value');
+                const approvalsVal = approvalsSnap.val() || {};
+                // Build table skeleton
+                const table = document.createElement('table');
+                table.style.width = '100%';
+                table.style.borderCollapse = 'collapse';
+                table.style.fontSize = '.65rem';
+                table.innerHTML = `<thead><tr style='background:#f1f5f9;'>
+                    <th style='text-align:left;padding:6px;border:1px solid #e2e8f0;'>Level</th>
+                    <th style='text-align:left;padding:6px;border:1px solid #e2e8f0;'>Approver</th>
+                    <th style='text-align:left;padding:6px;border:1px solid #e2e8f0;'>Status</th>
+                    <th style='text-align:left;padding:6px;border:1px solid #e2e8f0;'>Timestamp</th>
+                    <th style='text-align:left;padding:6px;border:1px solid #e2e8f0;'>Signature</th>
+                </tr></thead><tbody></tbody>`;
+                const tbody = table.querySelector('tbody');
+                const levels = approvalFlow?.levels || [];
+                levels.forEach((lvl, idx) => {
+                    const levelNumber = idx + 1;
+                    const levelApprovalsPath = approvalsVal[`level${levelNumber}`]?.approvals || {};
+                    // Map approvals by approver index or id
+                    const approvalRecords = Object.values(levelApprovalsPath);
+                    // For each approver in flow show row (approved or pending with no signature)
+                    const positionRef = (typeof recruitmentData !== 'undefined') ? recruitmentData.find(p => p.id === positionId) || {} : {};
+                    (lvl.approvers || []).forEach((approver, aIdx) => {
+                        const tr = document.createElement('tr');
+                        let record = approvalRecords.find(r => (r.approverIndex === aIdx) || (r.approverId && approver.approverId && r.approverId === approver.approverId));
+                        // Determine actual status from approval record or approver status
+                        let status = approver.status || 'pending';
+                        if (record && (record.status === 'approved' || record.action === 'approved')) {
+                            status = 'approved';
+                        }
+                        const ts = record?.approvedDateTime || record?.approvedAt || approver.date || '';
+                        // Resolve approver display name with multiple fallbacks
+                        let approverName = approver.name || approver.displayName || approver.approverName || approver.label || approver.text || '';
+                        const isLPlusOne = (approver.value || '').toLowerCase().includes('l+1') || (approver.role || '').toLowerCase().includes('l+1');
+                        // Force line manager name for first level if missing or generic
+                        if (!approverName || approverName === 'Not assigned' || approverName === 'Pending Approver') {
+                            if (idx === 0 && (isLPlusOne || (lvl.approvers.length === 1))) {
+                                const rawLM = positionRef.lineManager || positionRef.lineManagerName || positionRef.line_manager || '';
+                                if (rawLM) {
+                                    if (typeof formatLineManagerName === 'function') {
+                                        approverName = formatLineManagerName(rawLM);
+                                    } else {
+                                        // Extract name portion (before separators, remove parentheses)
+                                        approverName = String(rawLM)
+                                            .replace(/\([^)]*\)/g,'')
+                                            .split(/[,|\-]/)[0]
+                                            .trim();
+                                    }
+                                }
+                            }
+                        }
+                        // Final fallback if still empty
+                        if (!approverName) approverName = 'Line Manager';
+                        if (!approverName) {
+                            // Attempt to derive from user id via a very lightweight lookup of cached signatures mapping names
+                            // (sigLookup.byName holds lowercase name->url; reverse attempt not possible. Keep placeholder.)
+                            approverName = 'Pending Approver';
+                        }
+                        // Signature resolution when approved
+                        let sig = '';
+                        if (status === 'approved') {
+                            const uidCandidates = [];
+                            if (approver.userId) uidCandidates.push(String(approver.userId));
+                            if (approver.approverId) uidCandidates.push(String(approver.approverId));
+                            if (approver.value && typeof approver.value === 'string') {
+                                if (approver.value.startsWith('user_')) uidCandidates.push(approver.value.replace('user_', ''));
+                                else if (/^[A-Za-z0-9_-]{10,}$/.test(approver.value)) uidCandidates.push(approver.value);
+                            }
+                            const approverEmailCandidate = (approver.email || approver.approverEmail || approver.userEmail || '').trim();
+                            sig = resolveSignatureUrl(sigLookup, uidCandidates, approverName, approverEmailCandidate);
+                            // Fallback for line manager (L+1) if signature not found yet
+                            if (!sig && idx === 0 && isLPlusOne) {
+                                const rawLM = (positionRef.lineManager || positionRef.lineManagerName || positionRef.line_manager || '').trim();
+                                const rawLower = rawLM.toLowerCase();
+                                // Try email presence inside raw line manager string
+                                const emailMatch = rawLower.match(/[\w.+-]+@[\w.-]+\.[a-z]{2,}/);
+                                if (emailMatch && sigLookup.byName[emailMatch[0]]) {
+                                    sig = sigLookup.byName[emailMatch[0]];
+                                }
+                                if (!sig) {
+                                    // Fuzzy token matching against byName keys
+                                    const tokens = approverName.toLowerCase().split(/\s+/).filter(t => t.length > 1);
+                                    for (const key of Object.keys(sigLookup.byName || {})) {
+                                        const hitAll = tokens.every(t => key.includes(t));
+                                        if (hitAll) { sig = sigLookup.byName[key]; break; }
+                                    }
+                                }
+                                if (!sig && rawLower) {
+                                    // Final attempt: any key fully contained in rawLM
+                                    for (const key of Object.keys(sigLookup.byName || {})) {
+                                        if (rawLower.includes(key)) { sig = sigLookup.byName[key]; break; }
+                                    }
+                                }
+                            }
+                        }
+                        tr.innerHTML = `
+                            <td style='padding:6px;border:1px solid #e2e8f0;'>${levelNumber}</td>
+                            <td style='padding:6px;border:1px solid #e2e8f0;'>${approverName}</td>
+                            <td style='padding:6px;border:1px solid #e2e8f0;'>${status.charAt(0).toUpperCase()+status.slice(1)}</td>
+                            <td style='padding:6px;border:1px solid #e2e8f0;'>${ts || ''}</td>
+                            <td style='padding:6px;border:1px solid #e2e8f0;'>${sig ? `<img src='${sig}' alt='${approverName} signature' style='height:32px;max-width:180px;object-fit:contain;'/>` : ''}</td>`;
+                        tbody.appendChild(tr);
+                    });
+                });
+                if (!tbody.children.length) {
+                    const empty = document.createElement('div');
+                    empty.style.fontSize = '.65rem';
+                    empty.style.color = '#64748b';
+                    empty.textContent = 'No approval history yet.';
+                    historyContainer.appendChild(empty);
+                } else {
+                    historyContainer.appendChild(table);
+                }
+            } catch (e) {
+                console.warn('Render recruitment approval history failed', e);
+            }
+        }
+
+        async function loadApprovalFlowForPosition(positionId, position = null) {
             try {
                 console.log(`🔄 Loading approval flow for position: ${positionId}`);
+                
+                // If position not provided, try to find it in global data
+                if (!position) {
+                    position = recruitmentData.find(p => p.id === positionId) || {};
+                }
                 
                 // Check if modal elements exist
                 const modal = document.getElementById('viewDetailsModal');
@@ -10902,6 +12005,9 @@ Thank you for your prompt attention to this matter.
                 console.log(`📋 Received approval flow:`, approvalFlow);
                 console.log(`📊 Approval flow levels:`, approvalFlow?.levels?.length || 0);
                 console.log(`👥 First level approvers:`, approvalFlow?.levels?.[0]?.approvers?.map(a => `${a.name} (${a.value})`) || []);
+
+                // Prepare signature lookup for rendering approved signatures (parity with leave modal)
+                const sigLookup = await buildSignatureLookup();
                 
                 // Update approval type display with company context
                 const approvalTypeElement = document.querySelector('#approvalSection .approval-type');
@@ -10933,22 +12039,51 @@ Thank you for your prompt attention to this matter.
                     approvalLevelsContainer.innerHTML = '';
                     
                     if (approvalFlow.levels && approvalFlow.levels.length > 0) {
-                        // Add informational message about authorization
-                        const infoMessage = document.createElement('div');
-                        infoMessage.className = 'approval-info-message';
-                        infoMessage.style.cssText = 'background: #e3f2fd; border: 1px solid #90caf9; border-radius: 6px; padding: 0.75rem; margin-bottom: 1rem; font-size: 0.85rem; color: #1565c0;';
-                        infoMessage.innerHTML = `
-                            <i class="fas fa-info-circle" style="margin-right: 0.5rem;"></i>
-                            <strong>Authorization:</strong> You can only approve/decline steps where you are assigned as an approver. 
-                            Your assigned steps are highlighted with a <i class="fas fa-user-check" style="color: #28a745;"></i> icon.
-                        `;
-                        approvalLevelsContainer.appendChild(infoMessage);
+                        // If flow type is L+1, surface the direct line manager prominently
+                        try {
+                            const flowTypeValue = (approvalFlow.type || approvalFlow.flowType || '').toLowerCase();
+                            console.log(`🔍 Checking flow type for L+1: "${flowTypeValue}"`);
+                            console.log(`📋 Position data:`, position);
+                            console.log(`👤 Line manager from position:`, position?.lineManager);
+                            
+                            if (flowTypeValue.includes('l+1') || flowTypeValue === 'l+1') {
+                                const lineManagerName = formatLineManagerName((position?.lineManager || '').trim());
+                                console.log(`✅ L+1 flow detected, line manager: "${lineManagerName}"`);
+                                
+                                if (lineManagerName) {
+                                    const lmEl = document.createElement('div');
+                                    lmEl.className = 'approval-line-manager-banner';
+                                    lmEl.style.cssText = 'background:#f0f9ff;border:1px solid #7dd3fc;border-radius:6px;padding:0.6rem 0.75rem;margin-bottom:0.75rem;font-size:0.8rem;color:#0369a1;display:flex;align-items:center;gap:0.5rem;';
+                                    lmEl.innerHTML = `
+                                        <i class="fas fa-user-tie" style="color:#0ea5e9;"></i>
+                                        <strong>Line Manager (L+1):</strong> <span style="font-weight:600;">${lineManagerName}</span>
+                                    `;
+                                    approvalLevelsContainer.appendChild(lmEl);
+                                } else {
+                                    const lmFallback = document.createElement('div');
+                                    lmFallback.className = 'approval-line-manager-banner';
+                                    lmFallback.style.cssText = 'background:#fff7ed;border:1px solid #fdba74;border-radius:6px;padding:0.6rem 0.75rem;margin-bottom:0.75rem;font-size:0.8rem;color:#9a3412;display:flex;align-items:center;gap:0.5rem;';
+                                    lmFallback.innerHTML = `
+                                        <i class="fas fa-exclamation-circle" style="color:#f97316;"></i>
+                                        <strong>Line Manager (L+1):</strong> <em>Not specified</em>
+                                    `;
+                                    approvalLevelsContainer.appendChild(lmFallback);
+                                }
+                            } else {
+                                console.log(`ℹ️ Not an L+1 flow type: "${flowTypeValue}"`);
+                            }
+                        } catch (e) { console.warn('Unable to render L+1 line manager banner:', e); }
                         
                         approvalFlow.levels.forEach((level, levelIndex) => {
                             console.log(`📊 Processing level ${levelIndex + 1}:`, level);
                             
                             const levelElement = document.createElement('div');
-                            levelElement.className = `approval-level ${level.status.toLowerCase()}`;
+                            // Match leave details modal card styling
+                            levelElement.className = 'leave-approval-flow-level';
+                            levelElement.style.border = '1px solid #e2e8f0';
+                            levelElement.style.borderRadius = '6px';
+                            levelElement.style.padding = '10px';
+                            levelElement.style.background = '#f9fafb';
                             
                             // Enhanced status display based on level completion
                             let statusDisplayHTML = '';
@@ -11006,7 +12141,7 @@ Thank you for your prompt attention to this matter.
                             
                             // Process approvers asynchronously to resolve user IDs
                             const processApproversAsync = async () => {
-                                const approversHTML = await Promise.all(level.approvers.map(async (approver, approverIndex) => {
+                                const approversHTML = await Promise.all((level.approvers || []).map(async (approver, approverIndex) => {
                                     console.log(`👤 Processing approver ${approverIndex}:`, approver);
                                     
                                     // Check if current user is this approver
@@ -11044,7 +12179,7 @@ Thank you for your prompt attention to this matter.
                                     // Check if level is unlocked (for sequential approval)
                                     const isLevelUnlocked = (approvalFlow.approvalOrder !== 'sequential' || 
                                                            levelIndex === 0 || 
-                                                           approvalFlow.levels[levelIndex - 1].status === 'approved');
+                                                           ['approved','completed'].includes(String(approvalFlow.levels[levelIndex - 1].status||'').toLowerCase()));
                                     
                                     console.log(`🔓 Level unlock check: isLevelUnlocked=${isLevelUnlocked}, approvalOrder=${approvalFlow.approvalOrder}, levelIndex=${levelIndex}, previousLevelStatus=${levelIndex > 0 ? approvalFlow.levels[levelIndex - 1].status : 'N/A'}`);
                                     
@@ -11059,76 +12194,118 @@ Thank you for your prompt attention to this matter.
                                     
                                     console.log(`🎯 Final clickable determination: ${isClickable} (isCurrentUserApprover=${isCurrentUserApprover}, approver.status=${approver.status}, level.status=${level.status}, isLevelUnlocked=${isLevelUnlocked})`);
                                     
-                                    const approverName = approver.name || 'Not assigned';
-                                    const approverAvatar = (approverName && approverName !== 'Not assigned') ? 
-                                        approverName.split(' ').map(n => n[0]).join('').toUpperCase() : '?';
+                                    const isLPlusOne = (
+                                        (approver.value || '').toString().toLowerCase().includes('l+1') ||
+                                        (approver.role || '').toString().toLowerCase().includes('l+1') ||
+                                        (approver.label || '').toString().toLowerCase().includes('l+1') ||
+                                        (approver.text || '').toString().toLowerCase().includes('l+1')
+                                    );
+                                    // Robust approver name resolution
+                                    let approverName = approver.name || approver.displayName || approver.approverName || approver.label || approver.text || '';
+                                    if (!approverName) {
+                                        // Extract email from value if present
+                                        const emailMatch = /[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}/.exec(String(approver.value||''));
+                                        if (emailMatch) approverName = emailMatch[0];
+                                    }
+                                    if (isLPlusOne && position && position.lineManager) {
+                                        approverName = typeof formatLineManagerName === 'function'
+                                            ? formatLineManagerName(position.lineManager)
+                                            : String(position.lineManager).split(/[,|\-]/)[0].trim();
+                                    }
+                                    if (!approverName || approverName === 'Not assigned') approverName = 'Approver';
+                                    // Build pill-style name to match leave modal styling and append signature if approved
                                     
                                     console.log(`🎭 Rendering approver ${approverIndex}: name="${approverName}", original="${approver.name}", email="${approver.email || 'none'}", isCurrentUser: ${isCurrentUserApprover}, globalUserId: ${globalUserId}, companyUserId: ${companyUserId}`);
-                                    
-                                    return `
-                                        <div class="approver-details ${approver.status.toLowerCase()} ${isClickable ? 'clickable' : 'not-clickable'} ${level.status === 'locked' ? 'level-locked' : ''}"
-                                             data-level-index="${levelIndex}"
-                                             data-approver-index="${approverIndex}"
-                                             data-recruitment-request-id="${positionId}"
-                                             data-is-current-user="${isCurrentUserApprover}"
-                                             data-can-approve="${isClickable}"
-                                             title="${level.status === 'locked' ? 'This level is locked. Previous level must be completed first.' : 
-                                                    isCurrentUserApprover ? (isClickable ? 'Click to approve/decline' : 'Cannot approve at this time') : 
-                                                    'You are not authorized to approve this step'}">
-                                            <div class="approver-avatar ${isCurrentUserApprover ? 'current-user' : ''}">
-                                                ${approverAvatar}
-                                            </div>
-                                            <div class="approver-info">
-                                                <div class="approver-name">
-                                                    ${approverName}
-                                                    ${isCurrentUserApprover ? '<i class="fas fa-user-check" style="margin-left: 0.5rem; color: #28a745; font-size: 0.8rem;" title="This is you"></i>' : ''}
-                                                </div>
-                                                ${approver.value?.startsWith('user_') ? 
-                                                    `<div class="approver-role-context">${approver.title || 'User'}</div>` : 
-                                                    approver.role ? `<div class="approver-role-context">${approver.role}</div>` : 
-                                                    `<div class="approver-role-context">${approver.department || 'Approver'}</div>`
-                                                }
-                                            </div>
-                                            ${approver.status === 'approved' && approver.date ? `
-                                                <div class="approval-info">
-                                                    <i class="fas fa-check-circle"></i>
-                                                    <span class="approval-date">${approver.date}</span>
-                                                </div>
-                                            ` : approver.status === 'rejected' ? `
-                                                <div class="approval-info">
-                                                    <i class="fas fa-times-circle"></i>
-                                                    <span class="rejection-date">${approver.date || ''}</span>
-                                                </div>
-                                            ` : ''}
-                                        </div>
-                                    `;
+
+                                    // Determine if approver is approved
+                                    const isApproved = (approver.status === 'approved');
+                                    // Gather possible userId candidates to resolve signature URL
+                                    const uidCandidates = [];
+                                    if (approver.userId) uidCandidates.push(String(approver.userId));
+                                    if (approver.approverId) uidCandidates.push(String(approver.approverId));
+                                    if (approver.value && typeof approver.value === 'string') {
+                                        if (approver.value.startsWith('user_')) uidCandidates.push(approver.value.replace('user_', ''));
+                                        else if (/^[A-Za-z0-9_-]{10,}$/.test(approver.value)) uidCandidates.push(approver.value);
+                                    }
+                                    const approverEmailCandidate = (approver.email || approver.approverEmail || approver.userEmail || '').trim();
+                                    const sigUrl = isApproved ? resolveSignatureUrl(sigLookup, uidCandidates, approverName, approverEmailCandidate) : '';
+                                    const clickableClass = isClickable ? ' clickable' : '';
+                                    const dataAttrs = isClickable
+                                        ? ` data-level-index="${levelIndex}" data-approver-index="${approverIndex}" data-recruitment-request-id="${positionId}" data-approver-name="${approverName}"`
+                                        : '';
+
+                                    if (isApproved && sigUrl) {
+                                        return `<div class="approver-pill${clickableClass}"${dataAttrs} style="display:flex; flex-direction:column; gap:4px; align-items:flex-start; cursor:${isClickable ? 'pointer' : 'default'};">
+                                            <span class="approver-name" style="font-size:0.65rem; padding:2px 8px; border-radius:999px; background:#eef2ff; color:#3730a3;">${approverName}</span>
+                                            <img src="${sigUrl}" alt="${approverName} signature" style="height:16px; max-width:140px; object-fit:contain; background:#fff; border:1px solid #e5e7eb; border-radius:4px; padding:2px;"/>
+                                        </div>`;
+                                    }
+
+                                    return `<span class="approver-pill${clickableClass}"${dataAttrs} style="font-size:0.65rem; padding:2px 8px; border-radius:999px; background:#eef2ff; color:#3730a3; cursor:${isClickable ? 'pointer' : 'default'};">${approverName}</span>`;
                                 }));
                                 
                                 return approversHTML.join('');
                             };
-                            
-                            levelElement.innerHTML = `
-                                <div class="level-content">
-                                    <div class="level-header">
-                                        ${level.name}
-                                        <span class="level-status ${level.status}">
-                                            ${statusDisplayHTML}
-                                        </span>
-                                    </div>
-                                    <div class="approvers-list">
-                                        <div class="loading-approvers">Loading approvers...</div>
-                                    </div>
-                                </div>
-                            `;
-                            
+
+                            const headerHtml = `<div style="display:flex; justify-content:space-between; align-items:center;">
+                                <div style="font-size:0.7rem; font-weight:600;">Level ${levelIndex + 1}</div>
+                                <div class="approver-pill-list" style="display:flex; flex-wrap:wrap; gap:6px;"><span style="font-size:0.65rem; color:#6b7280;">Loading approvers...</span></div>
+                            </div>`;
+                            levelElement.innerHTML = headerHtml;
+
                             approvalLevelsContainer.appendChild(levelElement);
-                            
-                            // Process approvers and update the HTML
+
+                            // Process approvers and update the pills container
                             processApproversAsync().then(approversHTML => {
-                                const approversList = levelElement.querySelector('.approvers-list');
-                                approversList.innerHTML = approversHTML;
+                                const pillList = levelElement.querySelector('.approver-pill-list');
+                                if (pillList) {
+                                    pillList.innerHTML = approversHTML;
+                                    // Attach click handlers for clickable approver pills (current user + unlocked + pending)
+                                    pillList.querySelectorAll('.approver-pill.clickable').forEach(pill => {
+                                        pill.addEventListener('click', async (e) => {
+                                            e.preventDefault();
+                                            const lvlIdx = parseInt(pill.getAttribute('data-level-index') || '-1', 10);
+                                            const apprIdx = parseInt(pill.getAttribute('data-approver-index') || '-1', 10);
+                                            const reqId = pill.getAttribute('data-recruitment-request-id') || positionId;
+                                            if (lvlIdx < 0 || apprIdx < 0 || !reqId) return;
+                                            const approverName = pill.getAttribute('data-approver-name') || 'Approver';
+                                            const confirmed = window.confirm(`Approve this step for ${approverName}?`);
+                                            if (!confirmed) return;
+                                            try {
+                                                await updateRecruitmentApprovalStatus(reqId, lvlIdx, apprIdx);
+                                                // Re-render to show updated status and signature
+                                                await loadApprovalFlowForPosition(reqId, position);
+                                            } catch (err) {
+                                                console.error('Approve via pill failed', err);
+                                                window.showNotification && window.showNotification('Failed to approve step', 'error');
+                                            }
+                                        });
+                                    });
+                                }
+                            }).catch(err => {
+                                console.warn('Failed to render approvers for level', levelIndex, err);
+                                const pillList = levelElement.querySelector('.approver-pill-list');
+                                if (pillList) {
+                                    pillList.innerHTML = `<span style="font-size:0.65rem; color:#9ca3af;">No approvers configured.</span>`;
+                                }
                             });
                         });
+
+                        // After levels render, show approval history table
+                // Re-render approval flow and history
+                try { 
+                    await renderRecruitmentApprovalHistory(positionId, approvalFlow, sigLookup); 
+                    // After flow renders, refresh button visibility for sequential approvals
+                    const modal = document.getElementById('viewDetailsModal');
+                    if (modal && modal.style.display !== 'none') {
+                        // Modal is open, refresh button state
+                        setTimeout(() => {
+                            if (typeof checkApproverStatus === 'function') {
+                                checkApproverStatus();
+                            }
+                        }, 100);
+                    }
+                } catch(e){ console.warn('History render error', e); }
 
                         // Remove any existing click handlers before adding new ones
                         document.querySelectorAll('.approver-details').forEach(approver => {
@@ -11295,6 +12472,8 @@ Thank you for your prompt attention to this matter.
                                             </div>
                                         `;
                                         levelStatusElement.className = 'level-status pending';
+                                            // Persist level status as partially-approved for sequential flows
+                                            try { await updateLevelStatus(recruitmentRequestId, levelIndex, 'partially-approved'); } catch(e){ console.warn('Partial level status update failed', e); }
                                         
                                         // Progress notification
                                         if (window.showNotification) {
@@ -11497,7 +12676,7 @@ Thank you for your prompt attention to this matter.
                 await firebase.database().ref(nextLevelApprovalsPath).update(approvalsUnlockData);
                 console.log(`✅ Next level ${nextLevelIndex + 1} unlocked in company-scoped approvals path`);
                 
-                // Update all approvers in the next level to pending status
+                // Update next level approvers to pending status (unlock UI for them)
                 const nextLevelApproversPath = `companies/${companyId}/recruit/${recruitmentRequestId}/approvalFlow/levels/${nextLevelIndex}/approvers`;
                 const nextLevelApproversSnapshot = await firebase.database().ref(nextLevelApproversPath).once('value');
                 const nextLevelApprovers = nextLevelApproversSnapshot.val();
@@ -11505,7 +12684,10 @@ Thank you for your prompt attention to this matter.
                 if (nextLevelApprovers) {
                     const approverUpdates = {};
                     Object.keys(nextLevelApprovers).forEach(approverKey => {
-                        if (nextLevelApprovers[approverKey].status === 'locked') {
+                        const cur = nextLevelApprovers[approverKey] || {};
+                        const curStatus = String(cur.status || '').toLowerCase();
+                        // Only keep terminal states as-is; otherwise set to pending
+                        if (!['approved','declined','rejected'].includes(curStatus)) {
                             approverUpdates[`${approverKey}/status`] = 'pending';
                             approverUpdates[`${approverKey}/unlockedAt`] = new Date().toISOString();
                         }
@@ -11513,7 +12695,7 @@ Thank you for your prompt attention to this matter.
                     
                     if (Object.keys(approverUpdates).length > 0) {
                         await firebase.database().ref(nextLevelApproversPath).update(approverUpdates);
-                        console.log(`✅ Updated ${Object.keys(approverUpdates).length / 2} approvers to pending status`);
+                        console.log(`✅ Updated next level approvers to pending (count=${Object.keys(approverUpdates).length / 2})`);
                     }
                 }
                 
@@ -11732,6 +12914,907 @@ window.addEventListener('offline', checkNetworkConnection);
 
 console.log('📋 Recruitment Board page initialized - Standalone version with all dependencies');
 </script>
+<script>
+// Recruitment Access Control Settings
+// Stores per-role recruitment permissions under: companies/{companyId}/recruitmentSettings/access
+// Structure: { role: { view: true, create: false, approve: false, ... } }
+
+async function getCurrentCompanyContextForSettings() {
+    try {
+        if (typeof getCurrentCompanyId === 'function') {
+            const id = getCurrentCompanyId();
+            if (id) return id;
+        }
+        // Fallback localStorage
+        const stored = localStorage.getItem('currentCompanyId');
+        return stored || 'default';
+    } catch { return 'default'; }
+}
+
+async function loadRecruitmentAccessSettings() {
+    // Prevent reloading if already loaded once
+    if (window._recruitAccessLoaded) return;
+    window._recruitAccessLoaded = true;
+    const companyId = await getCurrentCompanyContextForSettings();
+    if (!window.firebase || !firebase.database) return;
+    try {
+        const snap = await firebase.database().ref(`companies/${companyId}/recruitmentSettings/access`).get();
+        if (snap.exists()) {
+            const data = snap.val();
+            applyAccessSettingsToUI(data);
+        }
+        // Load user overrides
+        const overridesSnap = await firebase.database().ref(`companies/${companyId}/recruitmentSettings/userOverrides`).get();
+        if (overridesSnap.exists()) {
+            const overrides = overridesSnap.val();
+            // Make sure company users cache is ready for table rendering
+            if (!window._recruitOverrideUserListLoaded) {
+                await loadUserListForOverrides();
+            }
+            renderUserOverrides(overrides);
+            window._recruitUserOverridesCache = overrides;
+        } else {
+            renderUserOverrides({});
+        }
+    } catch (err) {
+        console.error('Failed to load recruitment access settings', err);
+        window._recruitAccessLoaded = false; // allow retry
+    }
+}
+
+// Approval Configuration: Load and Save
+window._recruitApprovalConfig = { approvers: [] };
+
+async function loadRecruitmentApprovalConfig() {
+    try {
+        const companyId = await getCurrentCompanyContextForSettings();
+        if (!companyId || !window.firebase || !firebase.database) return;
+        const snapshot = await firebase.database().ref(`companies/${companyId}/recruitmentSettings/approval/authorityToRecruit`).once('value');
+        const val = snapshot.val() || {};
+        const approvers = Array.isArray(val.approvers) ? val.approvers.map(e => (e||'').toLowerCase()) : [];
+        window._recruitApprovalConfig = { approvers };
+        const ta = document.getElementById('atrApproverList');
+        if (ta) ta.value = approvers.join('\n');
+        // Ensure user list is ready so we can render names in table
+        if (!window._recruitOverrideUserListLoaded) {
+            try { await loadUserListForOverrides(); } catch(_) {}
+        }
+        try { renderApprovalApproversTable(); } catch(_) {}
+    } catch (e) { console.warn('Approval config load failed:', e); }
+}
+
+async function saveRecruitmentApprovalConfig() {
+    try {
+        const ta = document.getElementById('atrApproverList');
+        const raw = (ta?.value || '').split(/\r?\n/).map(s => s.trim().toLowerCase()).filter(Boolean);
+        const unique = Array.from(new Set(raw));
+        const companyId = await getCurrentCompanyContextForSettings();
+        if (!companyId || !window.firebase || !firebase.database) return;
+        await firebase.database().ref(`companies/${companyId}/recruitmentSettings/approval/authorityToRecruit`).update({ approvers: unique });
+        window._recruitApprovalConfig = { approvers: unique };
+        if (typeof showRecruitmentSettingsNotification === 'function') {
+            showRecruitmentSettingsNotification('Approval configuration saved', 'success');
+        }
+    } catch (e) {
+        console.error('Failed to save approval config:', e);
+        if (typeof showRecruitmentSettingsNotification === 'function') {
+            showRecruitmentSettingsNotification('Failed to save approval configuration', 'error');
+        }
+    }
+}
+
+// Approval Configuration UI: render table of approvers
+function renderApprovalApproversTable() {
+    const tbody = document.getElementById('approvalConfigTableBody');
+    const empty = document.getElementById('approvalConfigEmpty');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    const approvers = (window._recruitApprovalConfig?.approvers || []).slice().sort();
+    if (!approvers.length) { if (empty) empty.style.display = 'block'; return; } else if (empty) empty.style.display = 'none';
+    const users = window._recruitOverrideUsersCache || [];
+    const emailToUser = new Map(users.filter(u=>u.email).map(u=>[u.email.toLowerCase(), u]));
+    approvers.forEach(email => {
+        const u = emailToUser.get(email) || { name: '', email };
+        const name = u?.name || '';
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td>${name ? name : '<span style="color:#94a3b8;">(Unknown)</span>'}</td>
+            <td>${email}</td>
+            <td style="white-space:nowrap;">
+                <button type="button" class="btn btn-danger" style="font-size:.65rem;" onclick="removeApprovalApprover('${email.replace(/'/g, "&#39;")}')"><i class="fas fa-trash"></i> Remove</button>
+            </td>`;
+        tbody.appendChild(tr);
+    });
+}
+
+// Collapsible behavior for Approval Configuration card
+function toggleApprovalConfigWrap() {
+    const card = document.getElementById('approvalConfigCard');
+    if (!card) return;
+    const btn = document.getElementById('approvalWrapBtn');
+    const wasCollapsed = card.classList.contains('collapsed');
+    if (wasCollapsed) {
+        card.classList.remove('collapsed');
+        if (btn) {
+            const icon = btn.querySelector('i');
+            const label = btn.querySelector('.wrap-label');
+            if (icon) icon.className = 'fas fa-chevron-up';
+            if (label) label.textContent = 'Wrap';
+        }
+    } else {
+        card.classList.add('collapsed');
+        if (btn) {
+            const icon = btn.querySelector('i');
+            const label = btn.querySelector('.wrap-label');
+            if (icon) icon.className = 'fas fa-chevron-down';
+            if (label) label.textContent = 'Unwrap';
+        }
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const approvalHeader = document.querySelector('#approvalConfigCard .collapsible-header');
+    const approvalBtn = document.getElementById('approvalWrapBtn');
+    if (approvalHeader) approvalHeader.addEventListener('click', (e) => {
+        if (e.target && e.target.closest('#approvalWrapBtn')) return;
+        toggleApprovalConfigWrap();
+    });
+    if (approvalBtn) approvalBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleApprovalConfigWrap(); });
+});
+
+// Approver selection modal
+function openApprovalApproverModal() {
+    const modal = document.getElementById('approvalApproverModal');
+    if (!modal) return;
+    modal.style.display='flex';
+    modal.classList.add('show');
+    const select = document.getElementById('approvalApproverSelect');
+    const search = document.getElementById('approvalApproverSearch');
+    const bind = () => {
+        if (search) search.oninput = () => populateApprovalApproverOptions(search.value||'');
+        populateApprovalApproverOptions('');
+    };
+    if (!window._recruitOverrideUserListLoaded) {
+        loadUserListForOverrides().then(bind).catch(bind);
+    } else { bind(); }
+    if (select) select.value = '';
+}
+
+function closeApprovalApproverModal() {
+    const modal = document.getElementById('approvalApproverModal');
+    if (modal) { modal.classList.remove('show'); modal.style.display='none'; }
+    const form = document.getElementById('approvalApproverForm');
+    if (form) form.reset();
+}
+
+function populateApprovalApproverOptions(filter) {
+    const select = document.getElementById('approvalApproverSelect');
+    if (!select) return;
+    const list = (window._recruitOverrideUsersCache || []);
+    select.innerHTML = '<option value="">-- Select a user --</option>';
+    const f = (filter||'').toLowerCase();
+    const existing = new Set((window._recruitApprovalConfig?.approvers||[]).map(e=>e.toLowerCase()));
+    list.forEach(u => {
+        if (!u.email || existing.has(u.email.toLowerCase())) return;
+        const hay = (u.name+' '+u.dept+' '+u.email).toLowerCase();
+        if (f && !hay.includes(f)) return;
+        const opt = document.createElement('option');
+        opt.value = u.email;
+        const label = u.dept ? `${u.name} - ${u.dept}` : (u.name || u.email);
+        opt.textContent = u.name || u.dept ? `${label} - ${u.email}` : u.email;
+        select.appendChild(opt);
+    });
+}
+
+async function saveApprovalApprover() {
+    const select = document.getElementById('approvalApproverSelect');
+    if (!select || !select.value) { alert('Please select a user'); return; }
+    const email = (select.value||'').toLowerCase();
+    const companyId = await getCurrentCompanyContextForSettings();
+    try {
+        const current = new Set((window._recruitApprovalConfig?.approvers||[]).map(e=>e.toLowerCase()));
+        current.add(email);
+        const next = Array.from(current);
+        await firebase.database().ref(`companies/${companyId}/recruitmentSettings/approval/authorityToRecruit`).update({ approvers: next });
+        window._recruitApprovalConfig.approvers = next;
+        renderApprovalApproversTable();
+        if (typeof showRecruitmentSettingsNotification === 'function') showRecruitmentSettingsNotification('Approver added', 'success');
+        closeApprovalApproverModal();
+    } catch (e) {
+        console.error('Failed to add approver', e);
+        if (typeof showRecruitmentSettingsNotification === 'function') showRecruitmentSettingsNotification('Failed to add approver', 'error');
+    }
+}
+
+async function removeApprovalApprover(email) {
+    const companyId = await getCurrentCompanyContextForSettings();
+    try {
+        const set = new Set((window._recruitApprovalConfig?.approvers||[]).map(e=>e.toLowerCase()));
+        set.delete((email||'').toLowerCase());
+        const next = Array.from(set);
+        await firebase.database().ref(`companies/${companyId}/recruitmentSettings/approval/authorityToRecruit`).update({ approvers: next });
+        window._recruitApprovalConfig.approvers = next;
+        renderApprovalApproversTable();
+        if (typeof showRecruitmentSettingsNotification === 'function') showRecruitmentSettingsNotification('Approver removed', 'success');
+    } catch (e) {
+        console.error('Failed to remove approver', e);
+        if (typeof showRecruitmentSettingsNotification === 'function') showRecruitmentSettingsNotification('Failed to remove approver', 'error');
+    }
+}
+
+function collectAccessSettingsFromUI() {
+    const result = {};
+    document.querySelectorAll('#settingsTabContent .access-role-card').forEach(card => {
+        const role = card.getAttribute('data-role');
+        if (!role) return;
+        result[role] = {};
+        card.querySelectorAll('input[type="checkbox"][data-perm]').forEach(cb => {
+            const perm = cb.getAttribute('data-perm');
+            result[role][perm] = cb.checked;
+        });
+    });
+    return result;
+}
+
+function applyAccessSettingsToUI(settings) {
+    Object.entries(settings).forEach(([role, perms]) => {
+        const card = document.querySelector(`#settingsTabContent .access-role-card[data-role="${role}"]`);
+        if (!card) return;
+        Object.entries(perms).forEach(([perm, val]) => {
+            const cb = card.querySelector(`input[data-perm="${perm}"]`);
+            if (cb) cb.checked = !!val;
+        });
+    });
+    // Update summary chips for default card after applying settings
+    try { updateDefaultPermSummary(); } catch (_) {}
+}
+
+// Collapsible Default card: toggle and summary rendering
+function toggleDefaultAccessWrap() {
+    const card = document.getElementById('defaultAccessCard');
+    if (!card) return;
+    const btn = document.getElementById('defaultWrapBtn');
+    const wasCollapsed = card.classList.contains('collapsed');
+    if (wasCollapsed) {
+        card.classList.remove('collapsed');
+        if (btn) {
+            const icon = btn.querySelector('i');
+            const label = btn.querySelector('.wrap-label');
+            if (icon) icon.className = 'fas fa-chevron-up';
+            if (label) label.textContent = 'Wrap';
+        }
+    } else {
+        card.classList.add('collapsed');
+        if (btn) {
+            const icon = btn.querySelector('i');
+            const label = btn.querySelector('.wrap-label');
+            if (icon) icon.className = 'fas fa-chevron-down';
+            if (label) label.textContent = 'Unwrap';
+        }
+        // Ensure summary reflects current checkbox state
+        updateDefaultPermSummary();
+    }
+}
+
+function updateDefaultPermSummary() {
+    const card = document.getElementById('defaultAccessCard');
+    const summaryEl = document.getElementById('defaultPermSummary');
+    if (!card || !summaryEl) return;
+    const get = k => !!card.querySelector(`input[type="checkbox"][data-perm="${k}"]`)?.checked;
+    const actionMap = [
+        ['view','View'], ['create','Create ATR'], ['approve','Approve'], ['decline','Decline'],
+        ['fill','Fill'], ['edit','Edit'], ['delete','Delete'], ['export','Export'], ['select','Selection']
+    ];
+    const tabMap = [
+        ['showPending','Pending'], ['showPublished','Published'], ['showDeclined','Declined'], ['showArchives','Archives'], ['showSettings','Settings']
+    ];
+    const actions = actionMap.filter(([k]) => get(k)).map(([,label]) => label);
+    const tabs = tabMap.filter(([k]) => get(k)).map(([,label]) => label);
+
+    const chip = (text, color='#eef2ff', fg='#3730a3') => `<span style="display:inline-block;background:${color};color:${fg};border:1px solid #e5e7eb;border-radius:999px;padding:.15rem .5rem;font-size:.6rem;margin:.15rem .25rem 0 0;">${text}</span>`;
+    let html = '';
+    html += `<div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;padding-top:.25rem;">
+                <span style="font-size:.6rem;color:#64748b;min-width:70px;">Actions:</span>
+                ${actions.length ? actions.map(a=>chip(a,'#ecfeff','#155e75')).join('') : `<span style='font-size:.6rem;color:#94a3b8;'>None</span>`}
+            </div>`;
+    html += `<div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-top:.25rem;">
+                <span style="font-size:.6rem;color:#64748b;min-width:70px;">Tabs:</span>
+                ${tabs.length ? tabs.map(t=>chip(t,'#f0f9ff','#1e40af')).join('') : `<span style='font-size:.6rem;color:#94a3b8;'>None</span>`}
+            </div>`;
+    summaryEl.innerHTML = html;
+}
+
+// Initialize collapsible behavior for Default card
+document.addEventListener('DOMContentLoaded', () => {
+    const header = document.querySelector('#defaultAccessCard .collapsible-header');
+    const btn = document.getElementById('defaultWrapBtn');
+    if (header) header.addEventListener('click', (e) => {
+        // Avoid double toggle if button clicked (let single handler run)
+        if (e.target && e.target.closest('#defaultWrapBtn')) return;
+        toggleDefaultAccessWrap();
+    });
+    if (btn) btn.addEventListener('click', (e) => { e.stopPropagation(); toggleDefaultAccessWrap(); });
+    // Update summary when checkboxes change
+    document.querySelectorAll('#defaultAccessCard input[type="checkbox"][data-perm]').forEach(cb => {
+        cb.addEventListener('change', updateDefaultPermSummary);
+    });
+    // Initial summary render
+    try { updateDefaultPermSummary(); } catch (_) {}
+});
+
+async function saveRecruitmentAccessSettings() {
+    const companyId = await getCurrentCompanyContextForSettings();
+    const data = collectAccessSettingsFromUI();
+    if (!window.firebase || !firebase.database) {
+        alert('Firebase not ready. Cannot save settings.');
+        return;
+    }
+    try {
+        await firebase.database().ref(`companies/${companyId}/recruitmentSettings/access`).set(data);
+        showRecruitmentSettingsNotification('Recruitment access settings saved.', 'success');
+        applyRecruitmentPermissionsRuntime(data);
+    } catch (err) {
+        console.error('Error saving recruitment access settings', err);
+        showRecruitmentSettingsNotification('Failed to save settings.', 'error');
+    }
+}
+
+// User Override Modal Logic
+function openUserOverrideModal() {
+    const modal = document.getElementById('userOverrideModal');
+        if (modal) { modal.style.display='flex'; modal.classList.add('show'); }
+    // Load user list and wire search
+    if (!window._recruitOverrideUserListLoaded) {
+        loadUserListForOverrides();
+    } else {
+        const s = document.getElementById('recruitAcUserSearch');
+        if (s) s.oninput = () => populateRecruitOverrideUserOptions(s.value||'');
+        populateRecruitOverrideUserOptions('');
+    }
+        // Reset search and selection
+        const search = document.getElementById('recruitAcUserSearch');
+        if (search) search.value = '';
+        const select = document.getElementById('overrideUserSelect');
+        if (select) { select.value = ''; }
+        // Default perms (view only checked)
+        setOverridePermsUI({ view: true, create: false, approve: false, decline: false, fill: false, edit: false, delete: false, export: false, select: false });
+        // Hook select change to prefill existing override if any
+        if (select) {
+            select.onchange = () => {
+                const email = (select.value||'').toLowerCase();
+                if (!email) { setOverridePermsUI({ view: true }); return; }
+                const key = email.replace(/[^a-z0-9]/gi,'_');
+                const overrides = window._recruitUserOverridesCache || {};
+                const existing = overrides[key];
+                if (existing && existing.perms) setOverridePermsUI(existing.perms); else setOverridePermsUI({ view: true });
+            };
+        }
+}
+
+function closeUserOverrideModal() {
+    const modal = document.getElementById('userOverrideModal');
+    if (modal) { modal.classList.remove('show'); modal.style.display='none'; }
+    const form = document.getElementById('userOverrideForm');
+    if (form) form.reset();
+}
+
+async function loadUserListForOverrides() {
+    try {
+        const companyId = await getCurrentCompanyContextForSettings();
+        // Prefer company scope users (as in fleet)
+        let users = {};
+        if (firebase.database) {
+            const companyUsersSnap = await firebase.database().ref(`companies/${companyId}/users`).get();
+            if (companyUsersSnap.exists()) {
+                users = companyUsersSnap.val();
+            } else {
+                const staffSnap = await firebase.database().ref(`companies/${companyId}/staff`).get();
+                if (staffSnap.exists()) users = staffSnap.val();
+                else {
+                    const usersSnap = await firebase.database().ref('users').get();
+                    if (usersSnap.exists()) users = usersSnap.val();
+                }
+            }
+        }
+                // Cache users for filter and sort by name
+                window._recruitOverrideUsersCache = Object.entries(users || {}).map(([uid,u]) => ({
+                    email: (u.email || u.userEmail || '').toLowerCase(),
+                    name: (u.displayName || u.name || `${(u.firstName||'')} ${(u.lastName||'')}`.trim()).trim(),
+                    dept: (u.jobTitle || u.positionTitle || u.position || u.department || '').trim(),
+                    uid: (u.uid || u.id || uid || '').trim()
+                })).filter(x => !!x.email).sort((a,b)=> (a.name||'').localeCompare(b.name||''));
+                populateRecruitOverrideUserOptions('');
+                const s = document.getElementById('recruitAcUserSearch');
+                if (s) s.oninput = () => populateRecruitOverrideUserOptions(s.value||'');
+        window._recruitOverrideUserListLoaded = true;
+    } catch (e) {
+        console.warn('Failed loading user list for overrides', e);
+    }
+}
+
+function populateRecruitOverrideUserOptions(filter) {
+    const select = document.getElementById('overrideUserSelect');
+    if (!select) return;
+    const list = (window._recruitOverrideUsersCache || []);
+    select.innerHTML = '<option value="">-- Select a user --</option>';
+    const f = (filter||'').toLowerCase();
+    const existing = new Set(
+        Object.values(window._recruitUserOverridesCache || {})
+            .map(o => (o.email||'').toLowerCase())
+            .filter(Boolean)
+    );
+    list.forEach(u => {
+        if (existing.has(u.email)) return; // exclude already added, like fleet
+        const hay = (u.name+' '+u.dept+' '+u.email).toLowerCase();
+        if (f && !hay.includes(f)) return;
+        const opt = document.createElement('option');
+        opt.value = u.email;
+        const label = u.dept ? `${u.name} - ${u.dept}` : (u.name || u.email);
+        opt.textContent = u.name || u.dept ? `${label} - ${u.email}` : u.email;
+        if (u.uid) opt.dataset.uid = u.uid;
+        if (u.name) opt.dataset.name = u.name;
+        select.appendChild(opt);
+    });
+}
+
+function setOverridePermsUI(perms) {
+    const def = Object.assign({ view:false, create:false, approve:false, decline:false, fill:false, edit:false, delete:false, export:false, select:false, showPending:true, showPublished:true, showDeclined:true, showArchives:true, showSettings:true }, perms||{});
+    document.querySelectorAll('#userOverrideModal input[type="checkbox"][data-user-perm]').forEach(cb => {
+        const key = cb.getAttribute('data-user-perm');
+        cb.checked = !!def[key];
+    });
+}
+
+async function saveUserOverride() {
+    const userSelect = document.getElementById('overrideUserSelect');
+    if (!userSelect || !userSelect.value) {
+        alert('Please select a user');
+        return;
+    }
+    const rawEmail = userSelect.value.trim().toLowerCase();
+    const key = rawEmail.replace(/[^a-z0-9]/gi,'_');
+    const perms = {};
+    document.querySelectorAll('#userOverrideModal input[type="checkbox"][data-user-perm]').forEach(cb => {
+        perms[cb.getAttribute('data-user-perm')] = cb.checked;
+    });
+    const companyId = await getCurrentCompanyContextForSettings();
+    try {
+        const selectedOption = userSelect.options[userSelect.selectedIndex];
+        const name = selectedOption?.dataset?.name || '';
+        const userId = selectedOption?.dataset?.uid || '';
+        await firebase.database().ref(`companies/${companyId}/recruitmentSettings/userOverrides/${key}`).set({
+            email: rawEmail,
+            name: name,
+            userId: userId,
+            perms: perms,
+            updatedAt: new Date().toISOString()
+        });
+        showRecruitmentSettingsNotification('User override saved.', 'success');
+        // Update UI table
+        if (!window._recruitUserOverridesCache) window._recruitUserOverridesCache={};
+        window._recruitUserOverridesCache[key] = { email: rawEmail, name: name, userId: userId, perms: perms };
+        if (!window._recruitOverrideUserListLoaded) {
+            await loadUserListForOverrides();
+        }
+        renderUserOverrides(window._recruitUserOverridesCache);
+        closeUserOverrideModal();
+        // Re-apply runtime with overrides precedence
+        applyRecruitmentPermissionsRuntimeWithOverrides();
+    } catch (e) {
+        console.error('Error saving user override', e);
+        showRecruitmentSettingsNotification('Failed to save user override.', 'error');
+    }
+}
+
+function renderUserOverrides(overrides) {
+    const tbody = document.getElementById('recruitAccessControlTableBody');
+    const empty = document.getElementById('recruitAccessControlEmpty');
+    if (!tbody) return; tbody.innerHTML='';
+    const entries = Object.entries(overrides || {});
+    if (!entries.length) { if (empty) empty.style.display='block'; return; } else if (empty) empty.style.display='none';
+    // Build email->user map from cache
+    const users = window._recruitOverrideUsersCache || [];
+    const emailToUser = new Map(users.filter(u=>u.email).map(u=>[u.email.toLowerCase(), u]));
+    entries.forEach(([key, data]) => {
+        const u = emailToUser.get((data.email||'').toLowerCase()) || { name: data.name||'', email: data.email||'', dept:'' };
+        const name = u.name || '(No name)';
+        const email = u.email || data.email || '-';
+        const jobTitle = u.dept || '-';
+        const p = data.perms || {};
+        const tabsSummary = [p.showPending!==false? 'P':'×', p.showPublished!==false? 'Pub':'×', p.showDeclined!==false? 'Dcl':'×', p.showArchives!==false? 'Arc':'×', p.showSettings!==false? 'S':'×'].join(' ');
+        const actionsSummary = [p.create!==false? 'Create':'×', p.approve!==false? 'Approve':'×', p.decline!==false? 'Decline':'×', p.fill!==false? 'Fill':'×', p.edit!==false? 'Edit':'×', p.delete!==false? 'Delete':'×', p.export!==false? 'Export':'×'].join('/');
+        const tr = document.createElement('tr');
+        tr.className = 'recruit-ac-user-row';
+        tr.setAttribute('data-key', key);
+        tr.innerHTML = `
+            <td style="position:relative;">
+                <button type="button" class="perm-toggle" data-key="${key}" title="Toggle permissions" style="background:none;border:none;cursor:pointer;padding:0;margin-right:6px;font-size:.7rem;color:#555;">
+                    <i class="fas fa-chevron-down"></i>
+                </button>
+                <span>${name}</span>
+            </td>
+            <td>${email}</td>
+            <td>${jobTitle}</td>
+            <td style="font-size:.6rem;text-align:center;white-space:nowrap;">
+                <strong>Tabs:</strong> ${tabsSummary} &nbsp; <strong>Actions:</strong> ${actionsSummary}
+            </td>`;
+        tbody.appendChild(tr);
+        const subTr = document.createElement('tr');
+        subTr.className='recruit-ac-perms-row';
+        subTr.setAttribute('data-key', key);
+        subTr.style.display='none';
+        subTr.innerHTML = `
+            <td colspan="4" style="background:#f8fafc;border-top:1px solid #e2e8f0;">
+              <div style="display:flex;flex-wrap:wrap;gap:2rem;padding:.75rem .5rem;font-size:.65rem;">
+                <div style="min-width:180px;">
+                  <h4 style="margin:0 0 .4rem;font-size:.6rem;text-transform:uppercase;letter-spacing:.5px;color:#334155;">Tab Visibility</h4>
+                  <label style="display:flex;align-items:center;gap:6px;margin:.25rem 0;"><input type="checkbox" data-rperm="showPending" data-key="${key}" ${p.showPending!==false?'checked':''}> Pending</label>
+                  <label style="display:flex;align-items:center;gap:6px;margin:.25rem 0;"><input type="checkbox" data-rperm="showPublished" data-key="${key}" ${p.showPublished!==false?'checked':''}> Published</label>
+                  <label style="display:flex;align-items:center;gap:6px;margin:.25rem 0;"><input type="checkbox" data-rperm="showDeclined" data-key="${key}" ${p.showDeclined!==false?'checked':''}> Declined</label>
+                  <label style="display:flex;align-items:center;gap:6px;margin:.25rem 0;"><input type="checkbox" data-rperm="showArchives" data-key="${key}" ${p.showArchives!==false?'checked':''}> Archives</label>
+                  <label style="display:flex;align-items:center;gap:6px;margin:.25rem 0;"><input type="checkbox" data-rperm="showSettings" data-key="${key}" ${p.showSettings!==false?'checked':''}> Settings</label>
+                </div>
+                <div style="min-width:260px;">
+                  <h4 style="margin:0 0 .4rem;font-size:.6rem;text-transform:uppercase;letter-spacing:.5px;color:#334155;">Actions</h4>
+                  <label style="display:flex;align-items:center;gap:6px;margin:.25rem 0;"><input type="checkbox" data-rperm="view" data-key="${key}" ${p.view!==false?'checked':''}> View Board</label>
+                  <label style="display:flex;align-items:center;gap:6px;margin:.25rem 0;"><input type="checkbox" data-rperm="create" data-key="${key}" ${p.create?'checked':''}> Create Request</label>
+                  <label style="display:flex;align-items:center;gap:6px;margin:.25rem 0;"><input type="checkbox" data-rperm="approve" data-key="${key}" ${p.approve?'checked':''}> Approve Position</label>
+                  <label style="display:flex;align-items:center;gap:6px;margin:.25rem 0;"><input type="checkbox" data-rperm="decline" data-key="${key}" ${p.decline?'checked':''}> Decline Position</label>
+                  <label style="display:flex;align-items:center;gap:6px;margin:.25rem 0;"><input type="checkbox" data-rperm="fill" data-key="${key}" ${p.fill?'checked':''}> Fill Position</label>
+                  <label style="display:flex;align-items:center;gap:6px;margin:.25rem 0;"><input type="checkbox" data-rperm="edit" data-key="${key}" ${p.edit?'checked':''}> Edit Request</label>
+                  <label style="display:flex;align-items:center;gap:6px;margin:.25rem 0;"><input type="checkbox" data-rperm="delete" data-key="${key}" ${p.delete?'checked':''}> Delete Request</label>
+                  <label style="display:flex;align-items:center;gap:6px;margin:.25rem 0;"><input type="checkbox" data-rperm="export" data-key="${key}" ${p.export?'checked':''}> Export Data</label>
+                </div>
+                <div style="min-width:140px;align-self:flex-start;">
+                  <button type="button" class="btn btn-danger" style="font-size:.65rem;" onclick="deleteUserOverride('${key}')"><i class="fas fa-trash"></i> Delete</button>
+                </div>
+              </div>
+            </td>`;
+        tbody.appendChild(subTr);
+    });
+    // Toggle expand/collapse
+    tbody.onclick = (e)=>{
+        const toggle = e.target.closest('.perm-toggle');
+        if (!toggle) return;
+        const key = toggle.getAttribute('data-key');
+        const sub = tbody.querySelector(`.recruit-ac-perms-row[data-key="${key}"]`);
+        if (!sub) return;
+        const icon = toggle.querySelector('i');
+        const isHidden = sub.style.display==='none';
+        sub.style.display = isHidden? 'table-row':'none';
+        if (icon) icon.className = isHidden? 'fas fa-chevron-up':'fas fa-chevron-down';
+    };
+    // Persist checkbox changes
+    tbody.onchange = async (e)=>{
+        const t = e.target; if (!t || !t.matches('input[type="checkbox"][data-key]')) return;
+        const key = t.getAttribute('data-key');
+        const perm = t.getAttribute('data-rperm');
+        const companyId = await getCurrentCompanyContextForSettings();
+        try {
+            const ref = firebase.database().ref(`companies/${companyId}/recruitmentSettings/userOverrides/${key}/perms/${perm}`);
+            await ref.set(!!t.checked);
+            // Update cache and re-render summaries
+            if (!window._recruitUserOverridesCache) window._recruitUserOverridesCache={};
+            if (!window._recruitUserOverridesCache[key]) window._recruitUserOverridesCache[key] = { email:'', perms:{} };
+            window._recruitUserOverridesCache[key].perms = window._recruitUserOverridesCache[key].perms || {};
+            window._recruitUserOverridesCache[key].perms[perm] = !!t.checked;
+            renderUserOverrides(window._recruitUserOverridesCache);
+            applyRecruitmentPermissionsRuntimeWithOverrides();
+        } catch(err) {
+            console.error('Recruit override update failed', err);
+        }
+    };
+}
+
+async function deleteUserOverride(key) {
+    if (!confirm('Delete this user override?')) return;
+    const companyId = await getCurrentCompanyContextForSettings();
+    try {
+        await firebase.database().ref(`companies/${companyId}/recruitmentSettings/userOverrides/${key}`).remove();
+        if (window._recruitUserOverridesCache) {
+            delete window._recruitUserOverridesCache[key];
+            renderUserOverrides(window._recruitUserOverridesCache);
+        }
+        showRecruitmentSettingsNotification('Override deleted.', 'success');
+        applyRecruitmentPermissionsRuntimeWithOverrides();
+    } catch (e) {
+        console.error('Failed deleting override', e);
+        showRecruitmentSettingsNotification('Failed to delete override.', 'error');
+    }
+}
+
+// Modified runtime application with override precedence
+async function applyRecruitmentPermissionsRuntimeWithOverrides() {
+    const companyId = await getCurrentCompanyContextForSettings();
+    let settings = {};
+    try {
+        const snap = await firebase.database().ref(`companies/${companyId}/recruitmentSettings/access`).get();
+        if (snap.exists()) settings = snap.val();
+        // Migration fallback: if no default but legacy roles exist, derive baseline
+        if (!settings.default) {
+            const legacyOrder = ['administrator','manager','employee'];
+            for (const r of legacyOrder) {
+                if (settings[r]) { settings.default = settings[r]; break; }
+            }
+            // Or merge if multiple present
+            if (!settings.default) {
+                const merged = {};
+                legacyOrder.forEach(r => { if (settings[r]) Object.entries(settings[r]).forEach(([k,v])=> { merged[k] = merged[k] || v; }); });
+                if (Object.keys(merged).length) settings.default = merged; 
+            }
+        }
+        let overrides = window._recruitUserOverridesCache;
+        if (!overrides) {
+            const oSnap = await firebase.database().ref(`companies/${companyId}/recruitmentSettings/userOverrides`).get();
+            overrides = oSnap.exists()? oSnap.val(): {};
+            window._recruitUserOverridesCache = overrides;
+        }
+        const currentEmail = (typeof getCurrentUserEmail === 'function') ? getCurrentUserEmail() : (localStorage.getItem('userEmail') || '').toLowerCase();
+        const overrideKey = currentEmail.replace(/[^a-z0-9]/gi,'_');
+        let perms = settings.default || {};
+        if (overrides && overrides[overrideKey] && overrides[overrideKey].perms) {
+            perms = overrides[overrideKey].perms; // override precedence
+        }
+        window._recruitEffectivePerms = perms; // cache effective
+        applyRecruitmentPermissionsRuntime({ default: perms });
+    } catch (e) {
+        console.warn('Override precedence application failed', e);
+    }
+}
+
+function showRecruitmentSettingsNotification(message, type='info') {
+    let box = document.getElementById('recruitAccessNotif');
+    if (!box) {
+        box = document.createElement('div');
+        box.id = 'recruitAccessNotif';
+        box.style.position='fixed';
+        box.style.bottom='20px';
+        box.style.right='20px';
+        box.style.padding='10px 14px';
+        box.style.borderRadius='8px';
+        box.style.fontSize='.7rem';
+        box.style.boxShadow='0 4px 12px rgba(0,0,0,.15)';
+        box.style.zIndex='3000';
+        document.body.appendChild(box);
+    }
+    const colors = { success: ['#10b981','#ecfdf5'], error:['#ef4444','#fef2f2'], info:['#3b82f6','#eff6ff'] };
+    const [fg,bg] = colors[type] || colors.info;
+    box.style.background=bg; box.style.color=fg; box.textContent=message;
+    box.style.opacity='1';
+    setTimeout(()=>{ box.style.transition='opacity .4s'; box.style.opacity='0'; }, 2800);
+}
+
+// Apply runtime permission effects: hide/disable actions if current role lacks perms
+async function applyRecruitmentPermissionsRuntime(settings) {
+    try {
+        const perms = settings.default; // single default baseline
+        if (!perms) return;
+        // Cache effective permissions for downstream gating (e.g., details modal buttons)
+        window._recruitEffectivePerms = perms;
+        // Create button restrictions
+        if (!perms.create) {
+            const addBtn = document.querySelector('.btn-add-new');
+            if (addBtn) addBtn.style.display='none';
+        }
+        // Export bulk
+        if (!perms.export) {
+            document.querySelectorAll('.fa-file-excel').forEach(el=> el.style.pointerEvents='none');
+        }
+        // Tab button visibility based on permissions
+        const tabMap = [
+            { key: 'showPending', id: 'pendingTabBtn' },
+            { key: 'showPublished', id: 'publishedTabBtn' },
+            { key: 'showDeclined', id: 'declinedTabBtn' },
+            { key: 'showArchives', id: 'archivesTabBtn' },
+            { key: 'showSettings', id: 'settingsTabBtn' }
+        ];
+        tabMap.forEach(t => {
+            const el = document.getElementById(t.id);
+            if (!el) return;
+            if (t.key in perms && !perms[t.key]) {
+                el.style.display = 'none';
+            } else {
+                el.style.display = '';
+            }
+        });
+
+        // Approve / decline / fill actions inside rows
+        if (!perms.approve || !perms.decline || !perms.fill || !perms.edit || !perms.delete) {
+            // After table render, we can conditionally hide / disable
+            const adjustRowActions = () => {
+                document.querySelectorAll('.action-btn, .btn-icon').forEach(btn => {
+                    const title = (btn.getAttribute('title')||'').toLowerCase();
+                    if (title.includes('approve') && !perms.approve) btn.style.display='none';
+                    if (title.includes('decline') && !perms.decline) btn.style.display='none';
+                    if (title.includes('fill') && !perms.fill) btn.style.display='none';
+                    if (title.includes('edit') && !perms.edit) btn.style.display='none';
+                    if (title.includes('delete') && !perms.delete) btn.style.display='none';
+                });
+            };
+            // Run immediately and after potential re-renders
+            adjustRowActions();
+            window.addEventListener('recruitmentTableUpdated', adjustRowActions);
+        }
+    } catch (e) {
+        console.warn('Permission runtime application skipped', e); 
+    }
+}
+
+async function resolveCurrentUserRoleForRecruitment() {
+    // Role concept deprecated; now using single default baseline
+    return 'default';
+}
+
+// Initial runtime application after data loads (optional retry)
+document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(async () => {
+        if (window._recruitAccessLoaded) {
+            const companyId = await getCurrentCompanyContextForSettings();
+            const snap = await firebase.database().ref(`companies/${companyId}/recruitmentSettings/access`).get();
+            if (snap.exists()) {
+                const data = snap.val();
+                if (data.default) {
+                    applyRecruitmentPermissionsRuntime({ default: data.default });
+                } else {
+                    // Legacy migration attempt on initial load
+                    const legacyOrder = ['administrator','manager','employee'];
+                    let baseline = {};
+                    legacyOrder.forEach(r => { if (data[r]) Object.entries(data[r]).forEach(([k,v])=> { baseline[k] = baseline[k] || v; }); });
+                    if (Object.keys(baseline).length) applyRecruitmentPermissionsRuntime({ default: baseline });
+                }
+            }
+        }
+    }, 2000);
+});
+</script>
+<style>
+/* Scoped Fleet-style modal for user override */
+#userOverrideModal.modal {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background-color: rgba(0,0,0,0.6); backdrop-filter: blur(5px);
+    z-index: 2500; display: none; align-items: center; justify-content: center;
+    opacity: 0; visibility: hidden; transition: all 0.3s ease-in-out; padding: 20px;
+}
+#userOverrideModal.modal.show { display: flex; opacity: 1; visibility: visible; }
+#userOverrideModal .modal-content {
+    background: linear-gradient(to bottom right, #ffffff, #f8f9fa);
+    border-radius: 16px; width: 95%; max-width: 640px; max-height: 90vh; overflow: hidden; position: relative;
+    transform: scale(0.95); opacity: 0; transition: all 0.3s ease-in-out;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.05);
+    border: 1px solid rgba(0,0,0,0.05);
+}
+#userOverrideModal.modal.show .modal-content { transform: scale(1); opacity: 1; }
+#userOverrideModal .modal-header {
+    padding: 1.5rem 2rem; border-bottom: 1px solid rgba(0,0,0,0.08); display: flex; justify-content: space-between; align-items: center;
+    background: rgba(255,255,255,0.95); position: sticky; top: 0; z-index: 2; box-shadow: 0 2px 15px rgba(0,0,0,0.03);
+}
+#userOverrideModal .modal-header h5 {
+    font-size: 1.1rem; font-weight: 600; color: #1a1a1a; margin: 0; position: relative; display: flex; align-items: center; gap: 10px;
+}
+#userOverrideModal .modal-header h5::after { content: ''; position: absolute; bottom: -8px; left: 0; width: 40px; height: 3px; background: #3b82f6; border-radius: 2px; }
+#userOverrideModal .modal-body {
+    padding: 1.25rem 1.5rem; overflow-y: auto; max-height: calc(90vh - 200px); scrollbar-width: thin; scrollbar-color: #ddd transparent; position: relative;
+}
+#userOverrideModal .modal-body::-webkit-scrollbar { width: 6px; }
+#userOverrideModal .modal-body::-webkit-scrollbar-track { background: transparent; }
+#userOverrideModal .modal-body::-webkit-scrollbar-thumb { background-color: #ddd; border-radius: 3px; }
+#userOverrideModal .modal-body::-webkit-scrollbar-thumb:hover { background-color: #bbb; }
+#userOverrideModal .modal-footer {
+    padding: 1rem 1.5rem; border-top: 1px solid rgba(0,0,0,0.08); display: flex; gap: .85rem; align-items: center; flex-wrap: wrap; justify-content: flex-end;
+    background: rgba(255,255,255,0.95); position: sticky; bottom: 0; z-index: 2; box-shadow: 0 -2px 15px rgba(0,0,0,0.03);
+}
+#userOverrideModal .form-row { display: flex; gap: 1rem; align-items: flex-start; }
+#userOverrideModal .form-row .form-group { flex: 1; margin-bottom: 0.9rem; }
+</style>
+<style>
+/* Collapsible default permissions card (wrap/unwrap) */
+#settingsTabContent .collapsible-card .collapsible-body { display: block; }
+#settingsTabContent .collapsible-card .collapsible-summary { display: none; }
+#settingsTabContent .collapsible-card.collapsed .collapsible-body { display: none !important; }
+#settingsTabContent .collapsible-card.collapsed .collapsible-summary { display: block !important; }
+#settingsTabContent .collapsible-card .collapsible-header .fa-chevron-up,
+#settingsTabContent .collapsible-card.collapsed .collapsible-header .fa-chevron-down { transition: transform .2s ease; }
+</style>
+<style>
+/* Approver selection modal (reuse fleet style) */
+#approvalApproverModal.modal {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background-color: rgba(0,0,0,0.6); backdrop-filter: blur(5px);
+    z-index: 2500; display: none; align-items: center; justify-content: center;
+    opacity: 0; visibility: hidden; transition: all 0.3s ease-in-out; padding: 20px;
+}
+#approvalApproverModal.modal.show { display: flex; opacity: 1; visibility: visible; }
+#approvalApproverModal .modal-content {
+    background: linear-gradient(to bottom right, #ffffff, #f8f9fa);
+    border-radius: 16px; width: 95%; max-width: 560px; max-height: 90vh; overflow: hidden; position: relative;
+    transform: scale(0.95); opacity: 0; transition: all 0.3s ease-in-out;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.05);
+    border: 1px solid rgba(0,0,0,0.05);
+}
+#approvalApproverModal.modal.show .modal-content { transform: scale(1); opacity: 1; }
+#approvalApproverModal .modal-header {
+    padding: 1.2rem 1.6rem; border-bottom: 1px solid rgba(0,0,0,0.08); display: flex; justify-content: space-between; align-items: center;
+    background: rgba(255,255,255,0.95); position: sticky; top: 0; z-index: 2; box-shadow: 0 2px 15px rgba(0,0,0,0.03);
+}
+#approvalApproverModal .modal-header h5 { font-size: .95rem; font-weight: 600; color: #1a1a1a; margin: 0; }
+#approvalApproverModal .modal-body { padding: 1rem 1.25rem; overflow-y: auto; max-height: calc(90vh - 180px); }
+#approvalApproverModal .modal-footer { padding: .9rem 1.25rem; border-top: 1px solid rgba(0,0,0,0.08); display: flex; gap: .75rem; justify-content: flex-end; }
+</style>
+<!-- User Override Modal -->
+<div id="userOverrideModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h5 style="font-size:.95rem;display:flex;align-items:center;gap:.5rem;"><i class="fas fa-user-shield"></i> Access control</h5>
+            <button type="button" onclick="closeUserOverrideModal()" style="background:none;border:none;font-size:1rem;cursor:pointer;">&times;</button>
+        </div>
+        <div class="modal-body" style="display:flex;flex-direction:column;gap:1rem;">
+            <form id="userOverrideForm" onsubmit="event.preventDefault(); saveUserOverride();" style="display:flex;flex-direction:column;gap:1rem;">
+                <div style="display:flex;flex-direction:column;gap:.35rem;">
+                    <label style="font-size:.65rem;font-weight:600;">User</label>
+                    <div style="display:flex;gap:.5rem;align-items:stretch;">
+                        <input id="recruitAcUserSearch" type="text" placeholder="Search by name or job title" style="flex:0 0 40%;min-width:160px;padding:.4rem .55rem;border:1px solid #ced4da;border-radius:6px;font-size:.7rem;"/>
+                        <select id="overrideUserSelect" required style="flex:1 1 auto;min-width:220px;padding:.45rem .6rem;border:1px solid #ced4da;border-radius:6px;font-size:.7rem;">
+                            <option value="">-- Select a user --</option>
+                        </select>
+                    </div>
+                    <small style="font-size:.55rem;color:#64748b;">Type to filter. Only users not already added will appear.</small>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;font-size:.6rem;">
+                    <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" data-user-perm="view" checked> View Board</label>
+                    <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" data-user-perm="create"> Create Authority to Recruit</label>
+                    <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" data-user-perm="approve"> Approve Position</label>
+                    <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" data-user-perm="decline"> Decline Position</label>
+                    <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" data-user-perm="fill"> Fill Position</label>
+                    <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" data-user-perm="edit"> Edit Request</label>
+                    <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" data-user-perm="delete"> Delete Request</label>
+                    <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" data-user-perm="export"> Export Data</label>
+                    <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" data-user-perm="select"> Allow Selection (Tick Boxes)</label>
+                </div>
+                <div style="margin-top:.25rem; font-size:.65rem; font-weight:600; color:#334155;">Tabs</div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;font-size:.6rem;">
+                    <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" data-user-perm="showPending" checked> Pending Tab</label>
+                    <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" data-user-perm="showPublished" checked> Published Tab</label>
+                    <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" data-user-perm="showDeclined" checked> Declined Tab</label>
+                    <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" data-user-perm="showArchives" checked> Archives Tab</label>
+                    <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" data-user-perm="showSettings" checked> Settings Tab</label>
+                </div>
+                <div class="modal-footer" style="padding:0;">
+                    <button type="button" class="btn btn-secondary" style="font-size:.65rem;" onclick="closeUserOverrideModal()">Cancel</button>
+                    <button type="submit" class="btn btn-success" style="font-size:.65rem;display:inline-flex;align-items:center;gap:6px;"><i class="fas fa-save"></i> Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Approval Approver Modal -->
+<div id="approvalApproverModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h5 style="font-size:.95rem;display:flex;align-items:center;gap:.5rem;"><i class="fas fa-user-plus"></i> Configure Approvers</h5>
+            <button type="button" onclick="closeApprovalApproverModal()" style="background:none;border:none;font-size:1rem;cursor:pointer;">&times;</button>
+        </div>
+        <div class="modal-body">
+            <form id="approvalApproverForm" onsubmit="event.preventDefault(); saveApprovalApprover();" style="display:flex;flex-direction:column;gap:1rem;">
+                <div style="display:flex;flex-direction:column;gap:.35rem;">
+                    <label style="font-size:.65rem;font-weight:600;">Select user</label>
+                    <div style="display:flex;gap:.5rem;align-items:stretch;">
+                        <input id="approvalApproverSearch" type="text" placeholder="Search by name or job title" style="flex:0 0 40%;min-width:160px;padding:.4rem .55rem;border:1px solid #ced4da;border-radius:6px;font-size:.7rem;"/>
+                        <select id="approvalApproverSelect" required style="flex:1 1 auto;min-width:220px;padding:.45rem .6rem;border:1px solid #ced4da;border-radius:6px;font-size:.7rem;">
+                            <option value="">-- Select a user --</option>
+                        </select>
+                    </div>
+                    <small class="text-muted" style="font-size:.65rem;">Only selected users will see Approve/Decline in position details (unless list is empty).</small>
+                </div>
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" onclick="closeApprovalApproverModal()">Cancel</button>
+            <button type="button" class="btn btn-primary" onclick="saveApprovalApprover()"><i class="fas fa-save"></i> Save</button>
+        </div>
+    </div>
+    
+</div>
 </body>
 </html>
 
