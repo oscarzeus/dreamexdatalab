@@ -15,8 +15,11 @@
     * { box-sizing:border-box; margin:0; padding:0; }
     body { font-family:'Segoe UI', Arial, sans-serif; background:#f5f7fa; color:#222; }
     .app-container { display:flex; min-height:100vh; }
-    .sidebar { width:var(--sidebar-width); background:var(--primary-color); color:#fff; padding:1rem; position:fixed; top:0; left:0; bottom:0; overflow-y:auto; z-index:1000; }
-    .main-content { flex:1; margin-left:var(--sidebar-width); padding:0.3rem; padding-top:3.2rem; }
+    .sidebar { width:var(--sidebar-width); background:var(--primary-color); color:#fff; padding:1rem; position:fixed; top:0; left:0; bottom:0; overflow-y:auto; z-index:1000; transition:transform .3s ease; }
+    .sidebar.collapsed { transform:translateX(-100%); }
+    .main-content { flex:1; margin-left:var(--sidebar-width); padding:0.3rem; padding-top:3.2rem; transition:margin-left .3s ease; }
+    .main-content.sidebar-collapsed { margin-left:0; }
+    .main-content.sidebar-collapsed .top-nav { left:0.5rem; }
     .logo h2 { text-align:center; padding:1rem 0; border-bottom:1px solid rgba(255,255,255,0.1); font-size:1.05rem; }
     .menu { list-style:none; margin-top:2rem; }
     .menu li { margin-bottom:0.45rem; }
@@ -25,119 +28,423 @@
     .submenu { list-style:none; margin-left:0.75rem; display:none; margin-top:0.25rem; }
     .menu-dropdown:hover .submenu { display:block; }
     .submenu a { font-size:0.75rem; padding:0.45rem 0.65rem; }
+    [data-feature]:not(.menu-visible) { display:none !important; }
+    .menu-dropdown:not(.menu-visible) { display:none !important; }
+    .sidebar.menu-loading .menu-item,
+    .sidebar.menu-loading .menu-dropdown,
+    .sidebar.menu-loading li[data-feature],
+    .sidebar.menu-loading [data-feature] { display:none !important; }
+    .sidebar.menu-loading .menu-visible,
+    .sidebar.menu-loading li.menu-visible,
+    .sidebar.menu-loading [data-feature].menu-visible { display:block !important; }
+    .menu-visible { display:block !important; }
 
-    .top-nav { display:flex; justify-content:space-between; align-items:center; padding:0.5rem 0.75rem; background-color:#fff; box-shadow:0 2px 5px rgba(0,0,0,0.1); margin-bottom:0.3rem; position:fixed; top:0.25rem; right:0.5rem; left:calc(var(--sidebar-width) + 0.5rem); height:50px; min-height:50px; z-index:100; }
+    .top-nav { display:flex; justify-content:space-between; align-items:center; padding:0.5rem 0.75rem; background-color:#fff; box-shadow:0 2px 5px rgba(0,0,0,0.1); margin-bottom:0.3rem; position:fixed; top:0.25rem; right:0.5rem; left:calc(var(--sidebar-width) + 0.5rem); height:50px; min-height:50px; z-index:100; transition:left 0.3s ease; }
     .sidebar-toggle-btn { background:none; border:none; cursor:pointer; font-size:1.1rem; padding:0.4rem; color:#555; }
-    .top-nav-left, .top-nav-right { display:flex; align-items:center; gap:0.75rem; }
+    .top-nav-left { display:flex; align-items:center; gap:0.75rem; }
+    .company-branding { display:flex; align-items:center; gap:0.5rem; }
+    #headerCompanyLogo { width:32px; height:32px; object-fit:contain; display:none; }
+    #headerCompanyName { font-weight:600; font-size:0.85rem; }
+    .top-nav-right { display:flex; align-items:center; gap:1rem; }
+    .notifications { position:relative; display:flex; align-items:center; }
+    .notification-btn { background:none; border:none; cursor:pointer; position:relative; font-size:1.2rem; padding:0.5rem; display:flex; align-items:center; justify-content:center; }
+    .notification-badge { position:absolute; top:-5px; right:-5px; background-color:var(--accent-color); color:white; border-radius:50%; padding:0.2rem 0.5rem; font-size:0.7rem; display:none; }
+    .notification-dropdown { display:none; position:absolute; right:0; top:100%; width:320px; background:#fff; border-radius:8px; box-shadow:0 4px 20px rgba(0,0,0,0.15); z-index:1000; border:1px solid #e9ecef; max-height:400px; overflow:hidden; }
+    .notification-dropdown.show { display:block; animation: slideDown 0.2s ease-out; }
+    @keyframes slideDown { from { opacity:0; transform:translateY(-10px);} to { opacity:1; transform:translateY(0);} }
+    .notification-header { padding:12px 16px; border-bottom:1px solid #e9ecef; background:linear-gradient(135deg,#f8f9fa 0%, #e9ecef 100%); display:flex; justify-content:space-between; align-items:center; }
+    .notification-header h3 { margin:0; color:#333; font-size:14px; font-weight:600; }
+    .mark-all-read { background:none; border:none; color:#3498db; cursor:pointer; font-size:12px; padding:4px 8px; border-radius:4px; transition:all .2s ease; }
+    .mark-all-read:hover { background:#e3f2fd; color:#1976d2; }
+    .notification-list { max-height:320px; overflow-y:auto; padding:0; }
+    .notification-empty { padding:40px 20px; text-align:center; color:#999; display:none; }
+    .notification-empty i { font-size:32px; margin-bottom:12px; color:#ddd; }
+    .notification-empty-title { font-size:14px; font-weight:500; margin-bottom:4px; color:#666; }
+    .notification-empty-message { font-size:12px; color:#999; }
+    .user-profile { position:relative; }
+    .profile-btn { background:none; border:none; border-radius:50%; overflow:hidden; width:38px; height:38px; cursor:pointer; }
+    .profile-btn img { width:100%; height:100%; object-fit:cover; }
+    .profile-dropdown { display:none; position:absolute; right:0; top:110%; background:#fff; border-radius:8px; min-width:200px; box-shadow:0 6px 18px rgba(0,0,0,0.12); overflow:hidden; }
+    .profile-dropdown.show { display:block; }
+    .profile-dropdown ul { list-style:none; }
+    .profile-dropdown li a { display:block; padding:0.65rem 0.85rem; font-size:0.72rem; text-decoration:none; color:#1e293b; font-weight:500; }
+    .profile-dropdown li a:hover { background:#f1f5f9; }
 
-    .page-header { background:#fff; padding:1.1rem 1.3rem; margin-bottom:0.8rem; border-radius:8px; box-shadow:0 2px 4px rgba(0,0,0,0.1); display:flex; justify-content:space-between; align-items:center; }
-    .page-header h1 { color:#1f2937; font-size:1.1rem; font-weight:700; display:flex; align-items:center; gap:0.5rem; }
-    .filters { display:flex; gap:0.5rem; flex-wrap:wrap; }
-    .filters input { padding:0.4rem 0.6rem; font-size:0.78rem; border:1px solid #cbd5e1; border-radius:6px; background:#fff; }
+    .page-header { background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)); color: #fff; padding: 0.55rem 0.75rem; margin: 0.35rem 0 0.5rem 0; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 10px 28px rgba(0,0,0,0.18), 0 6px 16px rgba(0,0,0,0.14); font-size: 0.9rem; }
+    .page-header h1 { color: #fff; font-size: 0.9rem; display: flex; align-items: center; gap: 0.5rem; letter-spacing: 0.5px; margin: 0; font-weight: 600; }
+    .page-header i { font-size: 1rem; }
+    .btn-add-new { background: none; border: none; color: #fff; padding: 0.4rem; font-size: 1.2rem; font-weight: 600; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center; text-decoration: none; }
+    .btn-add-new:hover { color: rgba(255,255,255,0.8); transform: scale(1.1); }
+    .page-actions { display:flex; gap:0.4rem; flex-wrap:wrap; }
 
-    .section { background:#fff; padding:0.9rem; border-radius:10px; box-shadow:0 2px 5px rgba(0,0,0,0.06); }
+    /* Stats Cards */
+    .stats-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:1rem; margin-bottom:1rem; }
+    .stat-card { background:#fff; padding:1rem; border-radius:0; box-shadow:0 2px 5px rgba(0,0,0,0.06); display:flex; align-items:center; gap:0.85rem; transition:transform .2s, box-shadow .2s; }
+    .stat-card:hover { transform:translateY(-2px); box-shadow:0 4px 12px rgba(0,0,0,0.1); }
+    .stat-icon { width:48px; height:48px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:1.2rem; }
+    .stat-icon.blue { background:#dbeafe; color:#2563eb; }
+    .stat-icon.green { background:#dcfce7; color:#16a34a; }
+    .stat-icon.orange { background:#ffedd5; color:#ea580c; }
+    .stat-icon.red { background:#fee2e2; color:#dc2626; }
+    .stat-icon.purple { background:#f3e8ff; color:#9333ea; }
+    .stat-info h3 { font-size:1.4rem; font-weight:700; color:#1f2937; margin-bottom:0.1rem; }
+    .stat-info p { font-size:0.75rem; color:#64748b; margin:0; }
 
-    table { width:100%; border-collapse:separate; border-spacing:0 6px; }
-    th, td { text-align:left; padding:0.6rem 0.7rem; font-size:0.85rem; }
-    thead th { color:#475569; font-weight:700; text-transform:uppercase; font-size:0.7rem; letter-spacing:0.6px; }
-    tbody tr { background:#fff; box-shadow:0 1px 3px rgba(0,0,0,0.06); }
+    /* Section */
+    .section { background:#fff; padding:1rem; border-radius:10px; box-shadow:0 2px 5px rgba(0,0,0,0.06); }
+    .section-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; padding-bottom:0.75rem; border-bottom:1px solid #f1f5f9; }
+    .section-title { font-size:0.9rem; font-weight:700; color:#1f2937; display:flex; align-items:center; gap:0.5rem; }
 
-    .chip { background:#f1f5f9; color:#334155; padding:0.2rem 0.5rem; border-radius:999px; font-size:0.72rem; font-weight:600; }
-    .muted { color:#64748b; font-size:0.8rem; }
-    .btn { border:none; border-radius:6px; padding:0.5rem 0.8rem; font-size:0.78rem; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:0.4rem; background:#eef2f6; color:#1e293b; }
-    .btn-primary { background:#2c3e50; color:#fff; }
+    /* Warehouse Table */
+    .warehouses-table { width:100%; border-collapse:collapse; font-size:0.85rem; }
+    .warehouses-table thead { background:#f8fafc; }
+    .warehouses-table th { padding:0.75rem 1rem; text-align:left; font-weight:600; color:#475569; border-bottom:2px solid #e2e8f0; white-space:nowrap; }
+    .warehouses-table td { padding:0.75rem 1rem; border-bottom:1px solid #f1f5f9; vertical-align:middle; }
+    .warehouses-table tbody tr:hover { background:#f8fafc; }
+    .warehouses-table .warehouse-name { font-weight:600; color:#1f2937; }
+    .warehouses-table .warehouse-code { font-size:0.75rem; color:#64748b; }
+    .warehouse-status { padding:0.25rem 0.6rem; border-radius:999px; font-size:0.7rem; font-weight:600; display:inline-block; }
+    .warehouse-status.active { background:#dcfce7; color:#16a34a; }
+    .warehouse-status.inactive { background:#fee2e2; color:#dc2626; }
+    .warehouse-status.maintenance { background:#fef3c7; color:#d97706; }
+    .warehouse-status.closed { background:#f3f4f6; color:#6b7280; }
+    .table-actions { display:flex; gap:0.4rem; }
+    .table-responsive { overflow-x:auto; }
+
+    /* Buttons */
+    .btn { border:none; border-radius:6px; padding:0.5rem 0.9rem; font-size:0.8rem; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:0.4rem; transition:all .2s; }
+    .btn:hover { transform:translateY(-1px); }
+    .btn-primary { background:var(--primary-color); color:#fff; }
+    .btn-primary:hover { background:#1f2f3d; }
+    .btn-success { background:var(--success-color); color:#fff; }
+    .btn-success:hover { background:#1e8449; }
     .btn-danger { background:#dc2626; color:#fff; }
-    .btn-outline { background:#fff; border:1px solid #cbd5e1; }
+    .btn-danger:hover { background:#b91c1c; }
+    .btn-outline { background:#fff; border:1px solid #e2e8f0; color:#475569; }
+    .btn-outline:hover { background:#f8fafc; border-color:#cbd5e1; }
+    .btn-sm { padding:0.35rem 0.6rem; font-size:0.75rem; }
+    .btn-block { width:100%; justify-content:center; }
 
-    .modal-backdrop { position:fixed; inset:0; background:rgba(0,0,0,0.45); display:none; align-items:flex-start; justify-content:center; padding-top:5vh; z-index:1001; }
-    .modal { width:clamp(320px, 680px, 92vw); background:#fff; border-radius:12px; overflow:hidden; }
-    .modal-header, .modal-footer { padding:0.9rem 1rem; background:#f8fafc; border:1px solid #e2e8f0; }
-    .modal-body { padding:1rem; max-height:70vh; overflow:auto; }
-    .close-btn { background:none; border:none; font-size:1.1rem; cursor:pointer; color:#64748b; }
-    .form-grid { display:grid; grid-template-columns: 1fr 1fr; gap:0.6rem; }
-    .form-grid .full { grid-column:1/-1; }
-    .form-grid label { font-size:0.78rem; color:#475569; margin-bottom:0.25rem; display:block; }
-    .form-grid input, .form-grid select, .form-grid textarea { width:100%; padding:0.5rem 0.6rem; border:1px solid #cbd5e1; border-radius:6px; font-size:0.85rem; }
-    .error { color:#b91c1c; background:#fee2e2; border:1px solid #fecaca; padding:0.5rem 0.6rem; border-radius:6px; font-size:0.8rem; margin-bottom:0.6rem; display:none; }
-    .ok { color:#065f46; background:#ecfdf5; border:1px solid #a7f3d0; padding:0.5rem 0.6rem; border-radius:6px; font-size:0.8rem; margin-bottom:0.6rem; display:none; }
+    /* Modal */
+    .modal-backdrop { position:fixed; inset:0; background:rgba(0,0,0,0.5); display:none; align-items:flex-start; justify-content:center; padding-top:3vh; z-index:1001; backdrop-filter:blur(2px); overflow-y:auto; }
+    .modal-backdrop.show { display:flex; }
+    .modal { width:clamp(340px, 950px, 96vw); background:#fff; border-radius:0; box-shadow:0 20px 50px rgba(0,0,0,0.2); overflow:hidden; animation:modalSlide 0.3s ease; margin-bottom:2rem; }
+    @keyframes modalSlide { from { opacity:0; transform:translateY(-20px); } to { opacity:1; transform:translateY(0); } }
+    .modal-header { padding:1rem 1.25rem; display:flex; align-items:center; justify-content:space-between; background:linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); border-bottom:1px solid #e2e8f0; }
+    .modal-title { font-size:1rem; font-weight:700; color:#1f2937; display:flex; align-items:center; gap:0.5rem; }
+    .modal-body { padding:0; max-height:70vh; overflow-y:auto; }
+    .modal-footer { padding:1rem 1.25rem; background:#f8fafc; border-top:1px solid #e2e8f0; display:flex; justify-content:flex-end; gap:0.5rem; }
+    .close-btn { background:none; border:none; font-size:1.2rem; cursor:pointer; color:#94a3b8; transition:color .2s; }
+    .close-btn:hover { color:#475569; }
+
+    /* Modal Tabs */
+    .modal-tabs { display:flex; flex-wrap:wrap; gap:0; border-bottom:1px solid #e2e8f0; background:#f8fafc; padding:0 0.5rem; }
+    .modal-tab { padding:0.65rem 0.9rem; font-size:0.75rem; font-weight:600; color:#64748b; cursor:pointer; border:none; background:none; border-bottom:2px solid transparent; transition:all .2s; display:flex; align-items:center; gap:0.4rem; }
+    .modal-tab:hover { color:#3b82f6; background:rgba(59,130,246,0.05); }
+    .modal-tab.active { color:#3b82f6; border-bottom-color:#3b82f6; background:#fff; }
+    .modal-tab i { font-size:0.7rem; }
+    .tab-panel { display:none; padding:1.25rem; }
+    .tab-panel.active { display:block; }
+
+    /* Form */
+    .form-group { margin-bottom:1rem; }
+    .form-group:last-child { margin-bottom:0; }
+    .form-group label { display:block; font-size:0.8rem; font-weight:600; color:#374151; margin-bottom:0.4rem; }
+    .form-group input, .form-group select, .form-group textarea { width:100%; padding:0.55rem 0.75rem; border:1px solid #e2e8f0; border-radius:6px; font-size:0.85rem; transition:border-color .2s, box-shadow .2s; }
+    .form-group input:focus, .form-group select:focus, .form-group textarea:focus { outline:none; border-color:#3b82f6; box-shadow:0 0 0 3px rgba(59,130,246,0.1); }
+    .form-group textarea { resize:vertical; min-height:80px; }
+    .form-row { display:grid; grid-template-columns: 1fr 1fr; gap:1rem; }
+    .form-row-3 { display:grid; grid-template-columns: 1fr 1fr 1fr; gap:1rem; }
+    .form-section-title { font-size:0.85rem; font-weight:700; color:#1f2937; margin-bottom:1rem; padding-bottom:0.5rem; border-bottom:1px solid #e2e8f0; display:flex; align-items:center; gap:0.5rem; }
+    .form-section-title i { color:#3b82f6; }
+
+    /* File Upload */
+    .file-upload-area { border:2px dashed #e2e8f0; border-radius:8px; padding:1.5rem; text-align:center; cursor:pointer; transition:all .2s; background:#fafafa; }
+    .file-upload-area:hover { border-color:#3b82f6; background:#f0f9ff; }
+    .file-upload-area i { font-size:2rem; color:#94a3b8; margin-bottom:0.5rem; }
+    .file-upload-area p { font-size:0.8rem; color:#64748b; margin:0; }
+    .file-list { margin-top:1rem; }
+    .file-item { display:flex; align-items:center; justify-content:space-between; padding:0.5rem 0.75rem; background:#f8fafc; border-radius:6px; margin-bottom:0.5rem; font-size:0.8rem; }
+    .file-item .file-name { display:flex; align-items:center; gap:0.5rem; color:#374151; }
+    .file-item .remove-file { background:none; border:none; color:#ef4444; cursor:pointer; padding:0.25rem; }
+
+    /* Alerts */
+    .alert { padding:0.75rem 1rem; border-radius:8px; font-size:0.85rem; margin:1rem 1.25rem 0; display:none; }
+    .alert.error { background:#fee2e2; color:#991b1b; border:1px solid #fecaca; }
+    .alert.success { background:#dcfce7; color:#166534; border:1px solid #bbf7d0; }
+    .alert.show { display:block; }
+
+    .muted { color:#64748b; font-size:0.85rem; }
+    .empty-state { text-align:center; padding:3rem 1rem; color:#94a3b8; }
+    .empty-state i { font-size:3rem; margin-bottom:1rem; display:block; opacity:0.4; }
+    .empty-state p { margin-bottom:1rem; }
+
+    /* Dropdowns */
+    .notification-dropdown { position:absolute; top:48px; right:60px; min-width:320px; max-width:400px; background:#fff; border-radius:8px; box-shadow:0 4px 20px rgba(0,0,0,0.15); display:none; z-index:999; }
+    .notification-dropdown.show { display:block; }
+    .profile-dropdown { position:absolute; top:48px; right:12px; min-width:260px; background:#fff; border-radius:8px; box-shadow:0 4px 20px rgba(0,0,0,0.15); display:none; z-index:999; }
+    .profile-dropdown.show { display:block; }
+    .profile-dropdown ul { list-style:none; padding:0; margin:0; }
+    .profile-dropdown a { display:flex; align-items:center; gap:0.5rem; padding:0.75rem 1rem; color:#333; text-decoration:none; transition:background .2s; }
+    .profile-dropdown a:hover { background:#f8f9fa; }
+
+    @media (max-width: 768px) {
+      .warehouses-grid { grid-template-columns: 1fr; }
+      .form-row { grid-template-columns: 1fr; }
+      .page-header { flex-direction:column; gap:1rem; align-items:flex-start; }
+    }
   </style>
 </head>
 <body>
   <div class="app-container">
-    <nav class="sidebar" id="sidebar">
+    <nav class="sidebar menu-loading" id="sidebar">
       <div class="logo"><h2>Dreamex Datalab</h2></div>
       <ul class="menu" id="roleBasedMenu">
         <li class="menu-item" data-feature="home_view"><a href="index.html"><i class="fas fa-home"></i> Home</a></li>
-        <li class="menu-item" data-feature="projects_view"><a href="project-list.html"><i class="fas fa-briefcase"></i> Projects</a></li>
-        <li class="menu-dropdown menu-visible" data-feature="inventory_view">
-          <a href="#"><i class="fas fa-warehouse"></i> Inventory</a>
+        <li class="menu-dropdown" data-feature="health_view">
+          <a href="#"><i class="fas fa-medkit"></i> Health</a>
           <ul class="submenu">
-            <li data-feature="inventory_dashboard_view"><a href="inventory-dashboard.html"><i class="fas fa-gauge"></i> Dashboard</a></li>
-            <li data-feature="inventory_items_view"><a href="inventory-items.html"><i class="fas fa-box"></i> Items</a></li>
-            <li class="menu-visible" data-feature="inventory_warehouses_view"><a class="active" href="inventory-warehouses.html"><i class="fas fa-building"></i> Warehouses</a></li>
-            <li data-feature="inventory_reservations_view"><a href="inventory-reservations.html"><i class="fas fa-bookmark"></i> Material Reservations</a></li>
-            <li data-feature="inventory_approvals_view"><a href="inventory-approvals.html"><i class="fas fa-check-circle"></i> Approvals</a></li>
-            <li data-feature="inventory_issue_view"><a href="inventory-issue.html"><i class="fas fa-dolly"></i> Issue Materials</a></li>
-            <li data-feature="approval_settings_view"><a href="approval-settings.html"><i class="fas fa-sliders-h"></i> Approval Flow Settings</a></li>
+            <li data-feature="health_assessment_view" data-requires-permission="health_assessment_view"><a href="health-assessment.html">Assessment</a></li>
+            <li data-feature="health_consultation_view" data-requires-permission="health_consultation_view"><a href="health-consultation.html">Consultation</a></li>
+            <li data-feature="medical_folder_view" data-requires-permission="medical_folder_view"><a href="medical-folder.html">Medical Folder</a></li>
           </ul>
         </li>
-        <li class="menu-item" data-feature="settings_view"><a href="settings.html"><i class="fas fa-cog"></i> Settings</a></li>
+        <li class="menu-dropdown" data-feature="risk_view" data-requires-permission="risk_view">
+          <a href="#"><i class="fas fa-exclamation-triangle"></i> Risk Management</a>
+          <ul class="submenu">
+            <li data-feature="risk_view" data-requires-permission="risk_view"><a href="riskboard.html">Risk Management</a></li>
+            <li data-feature="risk_view" data-requires-permission="risk_register_view"><a href="riskreg.html">Risk Register</a></li>
+          </ul>
+        </li>
+        <li class="menu-dropdown" data-feature="safety_view" data-requires-permission="safety_view">
+          <a href="#"><i class="fas fa-shield-alt"></i> Safety</a>
+          <ul class="submenu">
+            <li data-feature="training_view" data-requires-permission="training_view"><a href="trainingboard.html">Training</a></li>
+            <li data-feature="jsa_view" data-requires-permission="jsa_view"><a href="jsaboard.html">Job Safety Analysis</a></li>
+            <li data-feature="ptw_view" data-requires-permission="ptw_view"><a href="ptwboard.html">Permit to Work</a></li>
+            <li data-feature="incident_view" data-requires-permission="incident_view"><a href="incidentboard.html">Incident Reports</a></li>
+            <li data-feature="inspection_view" data-requires-permission="inspection_view"><a href="inspectionboard.html">Inspection</a></li>
+            <li data-feature="audit_view" data-requires-permission="audit_view"><a href="auditboard.html">Audit</a></li>
+          </ul>
+        </li>
+        <li class="menu-dropdown" data-feature="investigation_view" data-requires-permission="investigation_view">
+          <a href="#"><i class="fas fa-search-plus"></i> Investigation</a>
+          <ul class="submenu">
+            <li data-feature="investigation_dashboard_view" data-requires-permission="investigation_dashboard_view"><a href="investigation-dashboard.html">Investigation Dashboard</a></li>
+            <li data-feature="investigation_list_view" data-requires-permission="investigation_list_view"><a href="investigation-list.html">Investigation List</a></li>
+            <li data-feature="create_investigation_view" data-requires-permission="create_investigation_view"><a href="investigation-create.html">Create Investigation</a></li>
+          </ul>
+        </li>
+        <li class="menu-dropdown" data-feature="fuel_management" data-requires-permission="fuel_management">
+          <a href="#"><i class="fas fa-gas-pump"></i> Fuel Management</a>
+          <ul class="submenu">
+            <li data-feature="vessel_offloading" data-requires-permission="vessel_offloading"><a href="vessel-offloading.html">Vessel Offloading</a></li>
+            <li data-feature="fuel_storage" data-requires-permission="fuel_storage"><a href="fuelstor.html">Fuel Storage Status</a></li>
+            <li data-feature="tank_transfer" data-requires-permission="tank_transfer"><a href="fueltrans.html">Tank-to-Tank Transfer</a></li>
+            <li data-feature="truck_loading" data-requires-permission="truck_loading"><a href="fuel-truck-loading.html">Fuel Truck Loading</a></li>
+            <li data-feature="quality_analysis" data-requires-permission="quality_analysis"><a href="fuel-quality-analysis.html">Fuel Quality Analysis</a></li>
+            <li data-feature="fuel_distribution" data-requires-permission="fuel_distribution"><a href="fueldist.html">Fuel Distribution</a></li>
+            <li data-feature="fuel_consumption_analysis" data-requires-permission="fuel_consumption_analysis"><a href="fuelanalys.html">Consumption Analysis</a></li>
+            <li data-feature="fuel_daily_report" data-requires-permission="fuel_daily_report"><a href="fueldaily.html">Daily Fuel Report</a></li>
+          </ul>
+        </li>
+        <li class="menu-dropdown" data-feature="environment_view">
+          <a href="#"><i class="fas fa-leaf"></i> Environment</a>
+          <ul class="submenu">
+            <li data-feature="water_view" data-requires-permission="water_view"><a href="waterboard.html">Water Quality</a></li>
+          </ul>
+        </li>
+        <li class="menu-dropdown" data-feature="security_view" data-requires-permission="security_view">
+          <a href="#"><i class="fas fa-lock"></i> Security</a>
+          <ul class="submenu">
+            <li data-feature="access_view" data-requires-permission="access_view"><a href="accessboard.html">Access Request</a></li>
+            <li data-feature="access_daily_view" data-requires-permission="access_daily_view"><a href="accessdaily.html">Daily Access Control</a></li>
+            <li data-feature="removal_view" data-requires-permission="removal_view"><a href="removalboard.html">Property Removal</a></li>
+            <li data-feature="security_site_map_view" data-requires-permission="security_site_map_view"><a href="sitemap.html">Security Site Map</a></li>
+            <li data-feature="security_level_evaluation_view" data-requires-permission="security_level_evaluation_view"><a href="seclevel.html">Security Level Evaluation</a></li>
+          </ul>
+        </li>
+        <li class="menu-dropdown" data-feature="logistics_view" data-requires-permission="logistics_view">
+          <a href="#"><i class="fas fa-truck"></i> Logistics</a>
+          <ul class="submenu">
+            <li data-feature="fleet_view" data-requires-permission="fleet_view"><a href="fleet.html">Fleet Management</a></li>
+            <li data-feature="travel_view" data-requires-permission="travel_view"><a href="travel.html">Travel Requests</a></li>
+          </ul>
+        </li>
+        <li class="menu-dropdown" data-feature="accommodation_view" data-requires-permission="accommodation_view">
+          <a href="#"><i class="fas fa-bed"></i> Accommodation</a>
+          <ul class="submenu">
+            <li data-feature="camp_view" data-requires-permission="camp_view"><a href="camp.html">Camp Management</a></li>
+            <li data-feature="camp_settings_view" data-requires-permission="camp_settings_view"><a href="campset.html">Camp Settings</a></li>
+          </ul>
+        </li>
+        <li class="menu-dropdown" data-feature="hr_view" data-requires-permission="hr_view">
+          <a href="#"><i class="fas fa-users"></i> HR</a>
+          <ul class="submenu">
+            <li data-feature="human_hr_view" data-requires-permission="human_hr_view"><a href="human-hr.html"><i class="fas fa-user-tie"></i> Human HR</a></li>
+            <li data-feature="staff_management_view" data-requires-permission="staff_management_view"><a href="staff.html">Staffing</a></li>
+            <li data-feature="authority_to_recruit_view" data-requires-permission="authority_to_recruit_view"><a href="recruit.html">Authority to Recruit</a></li>
+            <li data-feature="job_advertising_view" data-requires-permission="job_advertising_view"><a href="jobpost.html">Job Advertising</a></li>
+            <li data-feature="screening_view" data-requires-permission="screening_view"><a href="jobscreen.html">Screening</a></li>
+            <li data-feature="interview_view" data-requires-permission="interview_view"><a href="interview.html">Interview</a></li>
+            <li data-feature="offer_view" data-requires-permission="offer_view"><a href="offer.html">Offer Management</a></li>
+            <li data-feature="contract_view" data-requires-permission="contract_view"><a href="contract.html">Contract Management</a></li>
+            <li data-feature="salary_management_view" data-requires-permission="salary_management_view"><a href="salary.html">Salary Management</a></li>
+            <li data-feature="onboarding_view" data-requires-permission="onboarding_view"><a href="onboard.html">Onboarding</a></li>
+            <li data-feature="chart_view" data-requires-permission="chart_view"><a href="chart.html">Chart Setup</a></li>
+            <li data-feature="chartboard_view" data-requires-permission="chartboard_view"><a href="chartboard.html">Org Chart</a></li>
+            <li data-feature="kpi_dashboard_view" data-requires-permission="kpi_dashboard_view"><a href="kpi.html">KPI</a></li>
+            <li data-feature="payroll_view" data-requires-permission="payroll_view"><a href="payroll.html">Payroll</a></li>
+          </ul>
+        </li>
+        <li class="menu-dropdown" data-feature="project_management_section">
+          <a href="#"><i class="fas fa-project-diagram"></i> Project Management</a>
+          <ul class="submenu">
+            <li data-feature="project_dashboard_view" data-requires-permission="project_dashboard_view"><a href="project-dashboard.html"><i class="fas fa-tachometer-alt"></i> Project Dashboard</a></li>
+            <li data-feature="project_create_view" data-requires-permission="project_create_view"><a href="project-create.html"><i class="fas fa-plus-circle"></i> Create Project</a></li>
+            <li data-feature="project_list_view" data-requires-permission="project_list_view"><a href="project-list.html"><i class="fas fa-list"></i> Project List</a></li>
+            <li data-feature="project_reports_view" data-requires-permission="project_reports_view"><a href="project-reports.html"><i class="fas fa-chart-bar"></i> Project Reports</a></li>
+          </ul>
+        </li>
+        <li class="menu-dropdown" data-feature="inventory_view" data-requires-permission="inventory_view">
+          <a href="#"><i class="fas fa-boxes"></i> Inventory Management</a>
+          <ul class="submenu">
+            <li data-feature="inventory_dashboard_view" data-requires-permission="inventory_dashboard_view"><a href="inventory-dashboard.html"><i class="fas fa-tachometer-alt"></i> Inventory Dashboard</a></li>
+            <li data-feature="inventory_items_view" data-requires-permission="inventory_items_view"><a href="inventory-items.html"><i class="fas fa-cubes"></i> Items Management</a></li>
+            <li data-feature="inventory_warehouses_view" data-requires-permission="inventory_warehouses_view"><a href="inventory-warehouses.html" class="active"><i class="fas fa-warehouse"></i> Warehouses</a></li>
+            <li data-feature="inventory_reservations_view" data-requires-permission="inventory_reservations_view"><a href="inventory-reservations.html"><i class="fas fa-bookmark"></i> Material Reservations</a></li>
+            <li data-feature="inventory_approvals_view" data-requires-permission="inventory_approvals_view"><a href="inventory-approvals.html"><i class="fas fa-check-circle"></i> Approvals</a></li>
+            <li data-feature="inventory_issue_view" data-requires-permission="inventory_issue_view"><a href="inventory-issue.html"><i class="fas fa-shipping-fast"></i> Material Issue</a></li>
+          </ul>
+        </li>
+        <li class="menu-dropdown" data-feature="catering_view" data-requires-permission="catering_view">
+          <a href="#"><i class="fas fa-utensils"></i> Workspaces — Catering</a>
+          <ul class="submenu">
+            <li data-feature="catering_manage_types" data-requires-permission="catering_manage_types"><a href="catering-meal-types.html"><i class="fas fa-list"></i> Meal Types</a></li>
+            <li data-feature="catering_assign" data-requires-permission="catering_assign"><a href="catering-eligibility.html"><i class="fas fa-user-check"></i> Eligibility & Assign</a></li>
+            <li data-feature="catering_consumption_manual" data-requires-permission="catering_consumption_manual"><a href="catering-consumption.html"><i class="fas fa-keyboard"></i> Consumption (Manual)</a></li>
+            <li data-feature="catering_consumption_nfc" data-requires-permission="catering_consumption_nfc"><a href="catering-consumption.html#nfc"><i class="fas fa-id-card"></i> Consumption (NFC)</a></li>
+            <li data-feature="catering_reports" data-requires-permission="catering_reports"><a href="catering-reports.html"><i class="fas fa-chart-line"></i> Reports</a></li>
+          </ul>
+        </li>
+        <li data-feature="requests_view" data-requires-permission="requests_view"><a href="tickboard.html"><i class="fas fa-ticket-alt"></i> Requests</a></li>
+        <li data-feature="communication_view"><a href="info.html"><i class="fas fa-comments"></i> Communication</a></li>
+        <li class="menu-dropdown" data-feature="settings_view">
+          <a href="#"><i class="fas fa-cog"></i> Settings</a>
+          <ul class="submenu">
+            <li data-feature="account_settings_view" data-requires-permission="account_settings_view"><a href="account.html">Account Settings</a></li>
+            <li data-feature="company_management_view" data-requires-permission="company_management_view"><a href="companymanagement.html">Company Management</a></li>
+            <li data-feature="approval_settings_view" data-requires-permission="approval_settings_view"><a href="approval-settings.html">Approval Flow Settings</a></li>
+            <li data-feature="field_setup_view" data-requires-permission="field_setup_view"><a href="fieldsetup.html">Field Setup</a></li>
+            <li data-feature="preferences_view" data-requires-permission="preferences_view"><a href="preferences.html">Preferences</a></li>
+            <li data-feature="notification_settings_view" data-requires-permission="notification_settings_view"><a href="notification-settings.html">Notification Settings</a></li>
+            <li data-feature="audit_log_view" data-requires-permission="audit_log_view"><a href="auditlog.html"><i class="fas fa-history"></i> Audit Log</a></li>
+            <li data-feature="user_management_view" data-requires-permission="user_management_view"><a href="users.html">User & Role Management</a></li>
+            <li data-feature="role_permissions_view" data-requires-permission="role_permissions_view"><a href="roles.html">Role Permissions</a></li>
+          </ul>
+        </li>
       </ul>
     </nav>
 
     <main class="main-content" id="mainContent">
-      <header class="top-nav">
-        <div class="top-nav-left">
-          <button class="sidebar-toggle-btn" id="sidebarToggle" title="Toggle menu"><i class="fas fa-bars"></i></button>
-          <div class="company-branding" style="display:flex;align-items:center;gap:10px;">
-            <img id="headerCompanyLogo" src="" alt="Company Logo" style="width:38px;height:38px;border-radius:6px;object-fit:cover;display:none;" />
-            <span id="headerCompanyName" style="font-weight:600;font-size:1rem;color:#222;">Warehouses</span>
-          </div>
-        </div>
-        <div class="top-nav-right">
-          <button id="notificationBtn" title="Notifications" style="background:none;border:none;position:relative;font-size:1.2rem;margin-right:8px;color:#555;">
-            <i class="fas fa-bell"></i>
-          </button>
-          <div class="notification-dropdown" style="position:absolute;top:48px;right:60px;min-width:320px;max-width:400px;background:#fff;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.12);display:none;z-index:999;">
-            <div style="padding:12px 16px;border-bottom:1px solid #eee;font-weight:600;color:#333;">Notifications</div>
-            <ul id="notificationList" style="list-style:none;padding:0;margin:0;max-height:320px;overflow:auto;"></ul>
-            <div style="padding:8px 16px;text-align:right;"><a href="notifications.html" style="font-size:12px;color:#3498db;text-decoration:none;">View all</a></div>
-          </div>
-          <div class="user-profile">
-            <button class="profile-btn" id="userProfileBtn" style="display:flex;align-items:center;gap:8px;background:none;border:none;cursor:pointer;">
-              <img src="" alt="User" style="width:38px;height:38px;border-radius:50%;object-fit:cover;display:none;" />
-              <span id="userProfileName">Account</span>
-              <i class="fas fa-chevron-down"></i>
-            </button>
-            <div class="profile-dropdown" style="position:absolute;top:48px;right:12px;min-width:260px;background:#fff;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.12);display:none;z-index:999;">
-              <ul style="list-style:none;padding:0;margin:0;"></ul>
+        <nav class="top-nav">
+            <div class="top-nav-left">
+                <button id="sidebarToggle" class="sidebar-toggle-btn" title="Toggle Menu"><i class="fas fa-bars"></i></button>
+                <div class="company-branding">
+                    <img id="headerCompanyLogo" alt="Company Logo" />
+                    <span id="headerCompanyName"></span>
+                </div>
             </div>
-          </div>
-        </div>
-      </header>
+            <div class="top-nav-right">
+                <div class="notifications">
+                    <button id="notificationBtn" class="notification-btn">
+                        <i class="fas fa-bell"></i>
+                        <span class="notification-badge">0</span>
+                    </button>
+                    <div class="notification-dropdown">
+                        <div class="notification-header">
+                            <h3>Notifications</h3>
+                            <button class="mark-all-read">Mark all as read</button>
+                        </div>
+                        <div class="notification-list"></div>
+                        <div class="notification-empty">
+                            <i class="fas fa-inbox"></i>
+                            <div class="notification-empty-title">No notifications</div>
+                            <div class="notification-empty-message">You're all caught up</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="user-profile" style="position:relative;">
+                    <button id="userProfileBtn" class="profile-btn"><img src="" alt="User Avatar" /></button>
+                    <div class="profile-dropdown"><ul></ul></div>
+                </div>
+            </div>
+        </nav>
 
+      <!-- Page Header -->
       <section class="page-header">
         <h1><i class="fas fa-building"></i> Warehouses</h1>
-        <div class="filters">
-          <input type="text" id="searchBox" placeholder="Search name/code/location" />
-          <button class="btn btn-primary" id="addWarehouse"><i class="fas fa-plus"></i> New Warehouse</button>
+        <div class="page-actions">
+          <button class="btn-add-new" onclick="openWarehouseModal()" title="Add Warehouse"><i class="fas fa-plus"></i></button>
         </div>
       </section>
 
-      <section class="section">
-        <table>
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Code</th>
-              <th>Location</th>
-              <th>Capacity</th>
-              <th class="right">Action</th>
-            </tr>
-          </thead>
-          <tbody id="warehousesBody"><tr><td colspan="5" class="muted">Loading…</td></tr></tbody>
-        </table>
-      </section>
+      <!-- Stats Cards -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-icon blue"><i class="fas fa-warehouse"></i></div>
+          <div class="stat-info">
+            <h3 id="totalWarehouses">0</h3>
+            <p>Total Warehouses</p>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon green"><i class="fas fa-check-circle"></i></div>
+          <div class="stat-info">
+            <h3 id="activeWarehouses">0</h3>
+            <p>Active</p>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon red"><i class="fas fa-pause-circle"></i></div>
+          <div class="stat-info">
+            <h3 id="inactiveWarehouses">0</h3>
+            <p>Inactive</p>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon purple"><i class="fas fa-boxes"></i></div>
+          <div class="stat-info">
+            <h3 id="totalItems">0</h3>
+            <p>Total Items Stored</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Warehouses Table -->
+      <div class="section">
+        <div class="section-header">
+          <h2 class="section-title"><i class="fas fa-building"></i> Warehouse Locations</h2>
+        </div>
+        <div class="table-responsive" id="warehousesTableContainer">
+          <table class="warehouses-table" id="warehousesTable">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Code</th>
+                <th>Location</th>
+                <th>Department</th>
+                <th>Items</th>
+                <th>Stock</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="warehousesTableBody">
+            </tbody>
+          </table>
+        </div>
+      </div>
     </main>
   </div>
 
@@ -145,44 +452,324 @@
   <div class="modal-backdrop" id="warehouseModal">
     <div class="modal">
       <div class="modal-header">
-        <div class="modal-title"><i class="fas fa-building"></i> <span id="modalTitle">New Warehouse</span></div>
-        <button class="close-btn" id="closeWarehouseModal"><i class="fas fa-times"></i></button>
+        <h3 class="modal-title"><i class="fas fa-building"></i> <span id="modalTitle">Add Warehouse</span></h3>
+        <button class="close-btn" onclick="closeWarehouseModal()"><i class="fas fa-times"></i></button>
       </div>
+      
+      <div class="alert error" id="modalError"></div>
+      <div class="alert success" id="modalSuccess"></div>
+      
+      <!-- Tabs Navigation -->
+      <div class="modal-tabs">
+        <button class="modal-tab active" onclick="switchModalTab('identification')"><i class="fas fa-id-card"></i> Identification</button>
+        <button class="modal-tab" onclick="switchModalTab('location')"><i class="fas fa-map-marker-alt"></i> Location</button>
+        <button class="modal-tab" onclick="switchModalTab('capacity')"><i class="fas fa-cubes"></i> Capacity</button>
+        <button class="modal-tab" onclick="switchModalTab('security')"><i class="fas fa-shield-alt"></i> Security</button>
+        <button class="modal-tab" onclick="switchModalTab('responsibility')"><i class="fas fa-users"></i> Responsibility</button>
+        <button class="modal-tab" onclick="switchModalTab('financial')"><i class="fas fa-dollar-sign"></i> Financial</button>
+        <button class="modal-tab" onclick="switchModalTab('attachments')"><i class="fas fa-paperclip"></i> Attachments</button>
+      </div>
+      
       <div class="modal-body">
-        <div id="modalAlertError" class="error"></div>
-        <div id="modalAlertOk" class="ok"></div>
-        <div class="form-grid">
-          <div>
-            <label>Name</label>
-            <input type="text" id="whName" />
+        <form id="warehouseForm">
+          <!-- Tab 1: Identification -->
+          <div class="tab-panel active" id="tab-identification">
+            <div class="form-section-title"><i class="fas fa-id-card"></i> Basic Identification</div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="warehouseName">Warehouse Name *</label>
+                <input type="text" id="warehouseName" required placeholder="e.g., Main Warehouse" />
+              </div>
+              <div class="form-group">
+                <label for="warehouseCode">Warehouse Code *</label>
+                <input type="text" id="warehouseCode" required placeholder="e.g., WH-001" />
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="warehouseType">Warehouse Type</label>
+                <select id="warehouseType">
+                  <option value="">Select Type...</option>
+                  <option value="general">General Storage</option>
+                  <option value="cold">Cold Storage</option>
+                  <option value="hazardous">Hazardous Materials</option>
+                  <option value="bonded">Bonded Warehouse</option>
+                  <option value="distribution">Distribution Center</option>
+                  <option value="temporary">Temporary Storage</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="warehouseStatus">Status</label>
+                <select id="warehouseStatus">
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                  <option value="maintenance">Under Maintenance</option>
+                  <option value="closed">Closed</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="warehouseDescription">Description</label>
+              <textarea id="warehouseDescription" rows="3" placeholder="Brief description of the warehouse..."></textarea>
+            </div>
           </div>
-          <div>
-            <label>Code</label>
-            <input type="text" id="whCode" />
+          
+          <!-- Tab 2: Location -->
+          <div class="tab-panel" id="tab-location">
+            <div class="form-section-title"><i class="fas fa-map-marker-alt"></i> Location Details</div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="warehouseLocation">Work Area *</label>
+                <select id="warehouseLocation" required>
+                  <option value="">Select Work Area...</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="warehouseBuilding">Building / Facility</label>
+                <input type="text" id="warehouseBuilding" placeholder="e.g., Building A" />
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="warehouseAddress">Full Address</label>
+              <textarea id="warehouseAddress" rows="2" placeholder="Street address, city, state, postal code..."></textarea>
+            </div>
+            <div class="form-row-3">
+              <div class="form-group">
+                <label for="warehouseLatitude">Latitude</label>
+                <input type="text" id="warehouseLatitude" placeholder="e.g., 25.2048" />
+              </div>
+              <div class="form-group">
+                <label for="warehouseLongitude">Longitude</label>
+                <input type="text" id="warehouseLongitude" placeholder="e.g., 55.2708" />
+              </div>
+              <div class="form-group">
+                <label for="warehouseFloor">Floor / Level</label>
+                <input type="text" id="warehouseFloor" placeholder="e.g., Ground Floor" />
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="warehouseAccessInstructions">Access Instructions</label>
+              <textarea id="warehouseAccessInstructions" rows="2" placeholder="Special instructions for accessing the warehouse..."></textarea>
+            </div>
           </div>
-          <div>
-            <label>Location</label>
-            <input type="text" id="whLocation" />
+          
+          <!-- Tab 3: Capacity -->
+          <div class="tab-panel" id="tab-capacity">
+            <div class="form-section-title"><i class="fas fa-cubes"></i> Storage Capacity</div>
+            <div class="form-row-3">
+              <div class="form-group">
+                <label for="warehouseTotalArea">Total Area (m²)</label>
+                <input type="number" id="warehouseTotalArea" placeholder="e.g., 5000" step="0.01" />
+              </div>
+              <div class="form-group">
+                <label for="warehouseUsableArea">Usable Area (m²)</label>
+                <input type="number" id="warehouseUsableArea" placeholder="e.g., 4500" step="0.01" />
+              </div>
+              <div class="form-group">
+                <label for="warehouseHeight">Ceiling Height (m)</label>
+                <input type="number" id="warehouseHeight" placeholder="e.g., 8" step="0.1" />
+              </div>
+            </div>
+            <div class="form-row-3">
+              <div class="form-group">
+                <label for="warehousePalletCapacity">Pallet Capacity</label>
+                <input type="number" id="warehousePalletCapacity" placeholder="e.g., 1000" />
+              </div>
+              <div class="form-group">
+                <label for="warehouseBinLocations">Bin Locations</label>
+                <input type="number" id="warehouseBinLocations" placeholder="e.g., 500" />
+              </div>
+              <div class="form-group">
+                <label for="warehouseRackLevels">Rack Levels</label>
+                <input type="number" id="warehouseRackLevels" placeholder="e.g., 5" />
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="warehouseMaxWeight">Max Weight Capacity (tons)</label>
+                <input type="number" id="warehouseMaxWeight" placeholder="e.g., 500" step="0.1" />
+              </div>
+              <div class="form-group">
+                <label for="warehouseUtilization">Current Utilization (%)</label>
+                <input type="number" id="warehouseUtilization" placeholder="e.g., 75" min="0" max="100" />
+              </div>
+            </div>
           </div>
-          <div>
-            <label>Capacity (optional)</label>
-            <input type="number" id="whCapacity" min="0" step="1" />
+          
+
+          
+          <!-- Tab 5: Security -->
+          <div class="tab-panel" id="tab-security">
+            <div class="form-section-title"><i class="fas fa-shield-alt"></i> Security & Safety</div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="warehouseSecurityLevel">Security Level</label>
+                <select id="warehouseSecurityLevel">
+                  <option value="">Select Level...</option>
+                  <option value="low">Low</option>
+                  <option value="medium">Medium</option>
+                  <option value="high">High</option>
+                  <option value="restricted">Restricted Access</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="warehouseAccessControl">Access Control System</label>
+                <select id="warehouseAccessControl">
+                  <option value="">Select Type...</option>
+                  <option value="keycard">Key Card</option>
+                  <option value="biometric">Biometric</option>
+                  <option value="pin">PIN Code</option>
+                  <option value="manual">Manual / Key Lock</option>
+                  <option value="combined">Combined Systems</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="warehouseCCTV">CCTV Cameras</label>
+                <input type="number" id="warehouseCCTV" placeholder="Number of cameras" />
+              </div>
+              <div class="form-group">
+                <label for="warehouseFireSystem">Fire Suppression System</label>
+                <select id="warehouseFireSystem">
+                  <option value="">Select Type...</option>
+                  <option value="sprinkler">Sprinkler System</option>
+                  <option value="foam">Foam System</option>
+                  <option value="gas">Gas Suppression</option>
+                  <option value="extinguisher">Fire Extinguishers Only</option>
+                  <option value="combined">Combined Systems</option>
+                </select>
+              </div>
+            </div>
           </div>
-          <div class="full">
-            <label>Description</label>
-            <textarea id="whDesc" rows="2"></textarea>
+          
+          <!-- Tab 6: Responsibility -->
+          <div class="tab-panel" id="tab-responsibility">
+            <div class="form-section-title"><i class="fas fa-users"></i> Responsibility & Contacts</div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="warehouseManager">Department</label>
+                <select id="warehouseManager">
+                  <option value="">Select Department...</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="warehouseManagerEmail">Manager Email</label>
+                <input type="email" id="warehouseManagerEmail" placeholder="manager@company.com" />
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="warehousePhone">Main Phone</label>
+                <input type="tel" id="warehousePhone" placeholder="+1 234 567 8900" />
+              </div>
+              <div class="form-group">
+                <label for="warehouseEmergencyPhone">Emergency Phone</label>
+                <input type="tel" id="warehouseEmergencyPhone" placeholder="+1 234 567 8901" />
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="warehouseSupervisor">Supervisor</label>
+                <input type="text" id="warehouseSupervisor" placeholder="Supervisor's name" />
+              </div>
+              <div class="form-group">
+                <label for="warehouseShiftCount">Number of Shifts</label>
+                <select id="warehouseShiftCount">
+                  <option value="1">1 Shift</option>
+                  <option value="2">2 Shifts</option>
+                  <option value="3">3 Shifts (24/7)</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="warehouseOperatingHours">Operating Hours</label>
+              <input type="text" id="warehouseOperatingHours" placeholder="e.g., Mon-Fri 7:00 AM - 5:00 PM" />
+            </div>
+            <div class="form-group">
+              <label for="warehouseNotes">Additional Notes</label>
+              <textarea id="warehouseNotes" rows="2" placeholder="Any additional information..."></textarea>
+            </div>
           </div>
-        </div>
+          
+          <!-- Tab 7: Financial -->
+          <div class="tab-panel" id="tab-financial">
+            <div class="form-section-title"><i class="fas fa-dollar-sign"></i> Financial Information</div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="warehouseOwnership">Ownership Type</label>
+                <select id="warehouseOwnership">
+                  <option value="">Select...</option>
+                  <option value="owned">Company Owned</option>
+                  <option value="leased">Leased</option>
+                  <option value="rented">Rented</option>
+                  <option value="shared">Shared Facility</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="warehouseCostCenter">Cost Center</label>
+                <input type="text" id="warehouseCostCenter" placeholder="e.g., CC-WH-001" />
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="warehouseMonthlyRent">Monthly Rent / Cost</label>
+                <input type="number" id="warehouseMonthlyRent" placeholder="e.g., 50000" step="0.01" />
+              </div>
+              <div class="form-group">
+                <label for="warehouseCurrency">Currency</label>
+                <select id="warehouseCurrency">
+                  <option value="USD">USD - US Dollar</option>
+                  <option value="EUR">EUR - Euro</option>
+                  <option value="GBP">GBP - British Pound</option>
+                  <option value="AED">AED - UAE Dirham</option>
+                  <option value="SAR">SAR - Saudi Riyal</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="warehouseLeaseStart">Lease Start Date</label>
+                <input type="date" id="warehouseLeaseStart" />
+              </div>
+              <div class="form-group">
+                <label for="warehouseLeaseEnd">Lease End Date</label>
+                <input type="date" id="warehouseLeaseEnd" />
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="warehouseInsuranceInfo">Insurance Information</label>
+              <textarea id="warehouseInsuranceInfo" rows="2" placeholder="Insurance provider, policy number, coverage details..."></textarea>
+            </div>
+          </div>
+          
+          <!-- Tab 8: Attachments -->
+          <div class="tab-panel" id="tab-attachments">
+            <div class="form-section-title"><i class="fas fa-paperclip"></i> Documents & Attachments</div>
+            <div class="file-upload-area" onclick="document.getElementById('warehouseFiles').click()">
+              <i class="fas fa-cloud-upload-alt"></i>
+              <p>Click to upload files or drag and drop</p>
+              <p style="font-size:0.7rem; color:#94a3b8;">PDF, Images, Documents (Max 10MB each)</p>
+            </div>
+            <input type="file" id="warehouseFiles" multiple accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" style="display:none" onchange="handleFileSelect(event)" />
+            <div class="file-list" id="fileList"></div>
+            <div class="form-group" style="margin-top:1rem;">
+              <label for="warehouseDocumentNotes">Document Notes</label>
+              <textarea id="warehouseDocumentNotes" rows="2" placeholder="Notes about attached documents..."></textarea>
+            </div>
+          </div>
+        </form>
       </div>
       <div class="modal-footer">
-        <button class="btn" id="deleteWarehouse"><i class="fas fa-trash"></i> Delete</button>
-        <button class="btn btn-primary" id="saveWarehouse"><i class="fas fa-save"></i> Save</button>
+        <button class="btn btn-outline" onclick="closeWarehouseModal()">Cancel</button>
+        <button class="btn btn-danger" id="deleteWarehouseBtn" onclick="deleteWarehouse()" style="display:none;"><i class="fas fa-trash"></i> Delete</button>
+        <button class="btn btn-primary" onclick="saveWarehouse()"><i class="fas fa-save"></i> Save Warehouse</button>
       </div>
     </div>
   </div>
 
   <script>
-    // Centralized Firebase initialization (from project-list.html)
+    // Firebase initialization
     function initializeFirebase() {
       if (!window.firebase || !window.firebase.apps || window.firebase.apps.length === 0) {
         window.firebase.initializeApp({
@@ -195,20 +782,19 @@
           appId: "1:909025468149:web:fb4e7c4a8b4bd6d1076e4d",
           measurementId: "G-XHFMRCJQEZ"
         });
-        console.log('✅ Firebase v8 initialized successfully for centralized auth');
       }
       return window.firebase;
     }
     const firebase = initializeFirebase();
     const db = firebase.database();
-    const auth = firebase.auth();
 
     let companyId = null;
     let currentUser = null;
     let warehousesCache = {};
-    let activeWarehouseId = null;
+    let itemsCache = {};
+    let editingWarehouseId = null;
 
-    // AuthManager class for centralized authentication and profile management
+    // AuthManager class
     class AuthManager {
       constructor() {
         this.currentUser = this.getCurrentUser();
@@ -232,6 +818,7 @@
         this.updateCompanyBranding();
         await this.updateUIForAuthenticatedUser();
         this.bindProfileDropdown();
+        loadPageData();
       }
       async loadUserCompany() {
         if (!this.currentUser) return;
@@ -250,51 +837,33 @@
                   this.currentCompany = comp;
                   this.setCurrentUser(this.currentUser);
                   companyId = cid;
+                  currentUser = this.currentUser;
                   return;
                 }
               }
             }
           }
-        } catch (e) { }
+        } catch (e) { console.error('Error loading company:', e); }
       }
       updateCompanyBranding() {
         const logoEl = document.getElementById('headerCompanyLogo');
         const nameEl = document.getElementById('headerCompanyName');
         if (!this.currentCompany) { this.showFallbackBranding(); return; }
-        if (nameEl) nameEl.textContent = this.currentCompany.companyName || '';
+        if (nameEl) nameEl.textContent = this.currentCompany.companyName || 'Warehouses';
         const logoUrl = this.currentCompany.logo || this.currentCompany.logoUrl;
         if (logoEl) {
-          if (logoUrl) {
-            logoEl.src = logoUrl;
-            logoEl.classList.add('visible');
-            logoEl.style.display = 'block';
-          } else {
-            const svg = this.generateCompanyInitialsSVG(this.getCompanyInitials(this.currentCompany.companyName || ''));
-            logoEl.src = svg;
-            logoEl.classList.add('visible');
-            logoEl.style.display = 'block';
-          }
-        }
-        if (this.currentCompany.branding) {
-          const root = document.documentElement;
-          if (this.currentCompany.branding.primaryColor) root.style.setProperty('--primary-color', this.currentCompany.branding.primaryColor);
-          if (this.currentCompany.branding.secondaryColor) root.style.setProperty('--secondary-color', this.currentCompany.branding.secondaryColor);
+          if (logoUrl) { logoEl.src = logoUrl; logoEl.style.display = 'block'; }
+          else { logoEl.src = this.generateCompanyInitialsSVG(this.getCompanyInitials(this.currentCompany.companyName || '')); logoEl.style.display = 'block'; }
         }
       }
       showFallbackBranding() {
         const logoEl = document.getElementById('headerCompanyLogo');
-        if (logoEl) {
-          const svg = this.generateCompanyInitialsSVG('DX');
-          logoEl.src = svg;
-          logoEl.classList.add('visible');
-          logoEl.style.display = 'block';
-        }
+        if (logoEl) { logoEl.src = this.generateCompanyInitialsSVG('DX'); logoEl.style.display = 'block'; }
       }
       getCompanyInitials(name) {
         if (!name) return 'CO';
         const parts = name.trim().split(/\s+/);
-        if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
-        return (parts[0][0] + parts[1][0]).toUpperCase();
+        return parts.length === 1 ? parts[0].substring(0, 2).toUpperCase() : (parts[0][0] + parts[1][0]).toUpperCase();
       }
       generateCompanyInitialsSVG(initials) {
         const svg = `<svg width="44" height="44" viewBox="0 0 44 44" xmlns="http://www.w3.org/2000/svg"><rect width="44" height="44" rx="6" fill="#f0f3f6"/><text x="50%" y="52%" dominant-baseline="middle" text-anchor="middle" fill="#495057" font-family="Inter,Arial,sans-serif" font-weight="600" font-size="14">${initials}</text></svg>`;
@@ -302,42 +871,15 @@
       }
       getUserDisplayName() {
         if (!this.currentUser) return 'User';
-        const n = v => typeof v === 'string' ? v.trim().replace(/\s+/g, ' ') : '';
+        const n = v => typeof v === 'string' ? v.trim() : '';
         const cand = [this.currentUser.displayName, this.currentUser.name, this.currentUser.username];
-        for (const c of cand) { const cleaned = n(c); if (cleaned) return cleaned; }
-        if (this.currentUser.email) return n(this.currentUser.email.split('@')[0]) || 'User';
-        return 'User';
+        for (const c of cand) { if (n(c)) return n(c); }
+        return this.currentUser.email ? n(this.currentUser.email.split('@')[0]) || 'User' : 'User';
       }
       getUserInitials() {
         const dn = this.getUserDisplayName();
         const parts = dn.split(' ').filter(Boolean);
-        if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
-        return parts.slice(0, 2).map(p => p[0]).join('').toUpperCase();
-      }
-      async getUserAvatarUrl() {
-        if (!this.currentUser) return null;
-        const companyId = this.currentUser.companyId || 'default';
-        const possiblePaths = [
-          `companies/${companyId}/avatars/${this.currentUser.uid}/profile.jpg`,
-          `companies/${companyId}/avatars/${this.currentUser.uid}/profile.png`,
-          `companies/${companyId}/avatars/${this.currentUser.uid}/profile.jpeg`,
-          `companies/${companyId}/avatars/${this.currentUser.uid}/avatar.jpg`,
-          `companies/${companyId}/avatars/${this.currentUser.uid}/avatar.png`,
-          `avatars/${this.currentUser.uid}/profile.jpg`,
-          `avatars/${this.currentUser.uid}/profile.png`,
-          `avatars/${this.currentUser.uid}/avatar.jpg`,
-          `avatars/${this.currentUser.uid}/avatar.png`,
-          `profiles/${this.currentUser.uid}/profile.jpg`,
-          `profiles/${this.currentUser.uid}/profile.png`
-        ];
-        for (const path of possiblePaths) {
-          try {
-            const ref = firebase.storage().ref(path);
-            const url = await ref.getDownloadURL();
-            return url;
-          } catch (err) { continue; }
-        }
-        return null;
+        return parts.length === 1 ? parts[0].substring(0, 2).toUpperCase() : parts.slice(0, 2).map(p => p[0]).join('').toUpperCase();
       }
       async updateUIForAuthenticatedUser() {
         const btn = document.getElementById('userProfileBtn');
@@ -345,22 +887,9 @@
         if (!btn || !list || !this.currentUser) return;
         const displayName = this.getUserDisplayName();
         const email = this.currentUser.email || '';
-        let avatarUrl = null;
-        try { avatarUrl = await this.getUserAvatarUrl(); } catch (error) { }
-        const btnImg = btn.querySelector('img');
-        if (avatarUrl && btnImg) {
-          btnImg.src = avatarUrl;
-          btnImg.alt = displayName + ' Avatar';
-          btnImg.style.display = 'block';
-          btnImg.onerror = () => {
-            btnImg.style.display = 'none';
-            btn.innerHTML = `<div style="width:38px;height:38px;border-radius:50%;background:#3498db;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:0.8rem;">${this.getUserInitials()}</div>`;
-          };
-        } else {
-          btn.innerHTML = `<div style="width:38px;height:38px;border-radius:50%;background:#3498db;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:0.8rem;">${this.getUserInitials()}</div>`;
-        }
-        const avatarHtml = avatarUrl ? `<img src="${avatarUrl}" alt="${displayName} Avatar" style="width:32px;height:32px;border-radius:50%;object-fit:cover;">` : `<div style="width:32px;height:32px;border-radius:50%;background:#3498db;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:12px;">${this.getUserInitials()}</div>`;
-        list.innerHTML = `<li style="border-bottom:1px solid #eee;padding:12px 16px;background:#f8f9fa;"><div style="display:flex;align-items:center;gap:12px;">${avatarHtml}<div><div style="font-weight:600;color:#333;font-size:14px;margin-bottom:2px;">${displayName}</div><div style="color:#666;font-size:12px;">${email}</div></div></div></li><li><a href="profile.html"><i class="fas fa-user"></i> Profile</a></li><li><a href="account.html"><i class="fas fa-cog"></i> Account Settings</a></li><li><a href="#" id="logoutLink"><i class="fas fa-sign-out-alt"></i> Sign out</a></li>`;
+        btn.innerHTML = `<div style="width:38px;height:38px;border-radius:50%;background:#3498db;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:0.8rem;">${this.getUserInitials()}</div>`;
+        const avatarHtml = `<div style="width:32px;height:32px;border-radius:50%;background:#3498db;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:12px;">${this.getUserInitials()}</div>`;
+        list.innerHTML = `<li style="border-bottom:1px solid #eee;padding:12px 16px;background:#f8f9fa;"><div style="display:flex;align-items:center;gap:12px;">${avatarHtml}<div><div style="font-weight:600;color:#333;font-size:14px;">${displayName}</div><div style="color:#666;font-size:12px;">${email}</div></div></div></li><li><a href="profile.html"><i class="fas fa-user"></i> Profile</a></li><li><a href="account.html"><i class="fas fa-cog"></i> Account Settings</a></li><li><a href="#" id="logoutLink"><i class="fas fa-sign-out-alt"></i> Sign out</a></li>`;
         list.querySelector('#logoutLink')?.addEventListener('click', e => { e.preventDefault(); this.logout(); });
       }
       bindProfileDropdown() {
@@ -372,140 +901,853 @@
         }
       }
       async logout() {
-        try {
-          await firebase.auth().signOut();
-          localStorage.removeItem('currentUser');
-          localStorage.removeItem('user');
-          window.location.href = 'login.html';
-        } catch (error) {
-          console.error('Logout error:', error);
-          localStorage.removeItem('currentUser');
-          localStorage.removeItem('user');
-          window.location.href = 'login.html';
-        }
+        try { await firebase.auth().signOut(); } catch (e) {}
+        localStorage.removeItem('currentUser');
+        localStorage.removeItem('user');
+        window.location.href = 'login.html';
       }
     }
 
+    // Initialize
     document.addEventListener('DOMContentLoaded', () => {
       window.authManager = new AuthManager();
-      if (typeof initializeMenuAuthorization === 'function') {
-        initializeMenuAuthorization();
-      }
+
       document.getElementById('sidebarToggle').addEventListener('click', () => {
         document.getElementById('sidebar').classList.toggle('collapsed');
         document.getElementById('mainContent').classList.toggle('sidebar-collapsed');
       });
+
       document.getElementById('notificationBtn').addEventListener('click', (e) => {
         e.stopPropagation();
         document.querySelector('.notification-dropdown').classList.toggle('show');
       });
-      document.getElementById('addWarehouse').addEventListener('click', () => openWarehouseModal());
-      document.getElementById('closeWarehouseModal').addEventListener('click', closeWarehouseModal);
-      document.getElementById('saveWarehouse').addEventListener('click', saveWarehouse);
-      document.getElementById('deleteWarehouse').addEventListener('click', deleteWarehouse);
-      document.getElementById('searchBox').addEventListener('input', renderWarehouses);
+
+      document.addEventListener('click', () => {
+        document.querySelector('.notification-dropdown')?.classList.remove('show');
+      });
     });
 
-    async function loadWarehouses() {
-      const snap = await db.ref(`companies/${companyId}/inventory/warehouses`).once('value');
-      warehousesCache = snap.val() || {};
-      renderWarehouses();
+    // Load page data
+    async function loadPageData() {
+      if (!companyId) { setTimeout(loadPageData, 500); return; }
+
+      try {
+        const [warehousesSnap, itemsSnap] = await Promise.all([
+          db.ref(`companies/${companyId}/inventory/warehouses`).once('value'),
+          db.ref(`companies/${companyId}/inventory/items`).once('value')
+        ]);
+
+        warehousesCache = warehousesSnap.val() || {};
+        itemsCache = itemsSnap.val() || {};
+
+        updateStats();
+        renderWarehouses();
+      } catch (err) {
+        console.error('Error loading data:', err);
+      }
     }
 
+    // Load work areas from company field options
+    let workAreasCache = [];
+    async function loadWorkAreas() {
+      const locationSelect = document.getElementById('warehouseLocation');
+      if (!locationSelect) return;
+
+      locationSelect.innerHTML = '<option value="">Loading work areas...</option>';
+      locationSelect.disabled = true;
+
+      // Get company ID from AuthManager or current user
+      let currentCompanyId = companyId;
+      if (!currentCompanyId && window.authManager && window.authManager.currentUser) {
+        currentCompanyId = window.authManager.currentUser.companyId;
+      }
+      if (!currentCompanyId && currentUser) {
+        currentCompanyId = currentUser.companyId;
+      }
+
+      if (!currentCompanyId) {
+        locationSelect.innerHTML = '<option value="">Select Work Area...</option><option value="">No company context</option>';
+        locationSelect.disabled = false;
+        console.warn('No company ID available for loading work areas');
+        return;
+      }
+
+      try {
+        // Try primary location first: companies/{companyId}/fieldOptions/area
+        let snap = await db.ref(`companies/${currentCompanyId}/fieldOptions/area`).once('value');
+        
+        // If not found, try alternative location: companies/{companyId}/settings/fieldOptions/area
+        if (!snap.exists()) {
+          snap = await db.ref(`companies/${currentCompanyId}/settings/fieldOptions/area`).once('value');
+        }
+        
+        locationSelect.innerHTML = '<option value="">Select Work Area...</option>';
+        workAreasCache = [];
+
+        if (!snap.exists()) {
+          console.warn(`No work areas found for company: ${currentCompanyId}`);
+          locationSelect.innerHTML += '<option value="">No work areas configured - Add in Settings</option>';
+          locationSelect.disabled = false;
+          return;
+        }
+
+        const areasData = snap.val();
+        console.log('📦 Work areas data:', areasData);
+
+        if (Array.isArray(areasData)) {
+          areasData.forEach((area, index) => {
+            if (area && area.enabled !== false) {
+              const value = area.value || area.label || `area-${index}`;
+              const label = area.label || area.value || `Area ${index + 1}`;
+              workAreasCache.push({ value, label });
+              const option = document.createElement('option');
+              option.value = value;
+              option.textContent = label;
+              locationSelect.appendChild(option);
+            }
+          });
+        } else if (typeof areasData === 'object') {
+          Object.entries(areasData).forEach(([key, area]) => {
+            if (area && area.enabled !== false) {
+              const value = area.value || key;
+              const label = area.label || area.value || key;
+              workAreasCache.push({ value, label });
+              const option = document.createElement('option');
+              option.value = value;
+              option.textContent = label;
+              locationSelect.appendChild(option);
+            }
+          });
+        }
+
+        console.log(`✅ Loaded ${workAreasCache.length} work areas for warehouse location from company ${currentCompanyId}`);
+
+      } catch (error) {
+        console.error('Error loading work areas:', error);
+        locationSelect.innerHTML = '<option value="">Select Work Area...</option><option value="">Error loading work areas</option>';
+      }
+
+      locationSelect.disabled = false;
+    }
+
+    // Load departments from company field options
+    let departmentsCache = [];
+    async function loadDepartments() {
+      const departmentSelect = document.getElementById('warehouseManager');
+      if (!departmentSelect) return;
+
+      departmentSelect.innerHTML = '<option value="">Loading departments...</option>';
+      departmentSelect.disabled = true;
+
+      // Get company ID from AuthManager or current user
+      let currentCompanyId = companyId;
+      if (!currentCompanyId && window.authManager && window.authManager.currentUser) {
+        currentCompanyId = window.authManager.currentUser.companyId;
+      }
+      if (!currentCompanyId && currentUser) {
+        currentCompanyId = currentUser.companyId;
+      }
+
+      if (!currentCompanyId) {
+        departmentSelect.innerHTML = '<option value="">Select Department...</option><option value="">No company context</option>';
+        departmentSelect.disabled = false;
+        console.warn('No company ID available for loading departments');
+        return;
+      }
+
+      try {
+        // Try primary location first: companies/{companyId}/fieldOptions/department
+        let snap = await db.ref(`companies/${currentCompanyId}/fieldOptions/department`).once('value');
+        
+        // If not found, try alternative location: companies/{companyId}/settings/fieldOptions/department
+        if (!snap.exists()) {
+          snap = await db.ref(`companies/${currentCompanyId}/settings/fieldOptions/department`).once('value');
+        }
+        
+        departmentSelect.innerHTML = '<option value="">Select Department...</option>';
+        departmentsCache = [];
+
+        if (!snap.exists()) {
+          console.warn(`No departments found for company: ${currentCompanyId}`);
+          departmentSelect.innerHTML += '<option value="">No departments configured - Add in Settings</option>';
+          departmentSelect.disabled = false;
+          return;
+        }
+
+        const deptData = snap.val();
+        console.log('📦 Departments data:', deptData);
+
+        if (Array.isArray(deptData)) {
+          deptData.forEach((dept, index) => {
+            if (dept && dept.enabled !== false) {
+              const value = dept.value || dept.label || `dept-${index}`;
+              const label = dept.label || dept.value || `Department ${index + 1}`;
+              departmentsCache.push({ value, label });
+              const option = document.createElement('option');
+              option.value = value;
+              option.textContent = label;
+              departmentSelect.appendChild(option);
+            }
+          });
+        } else if (typeof deptData === 'object') {
+          Object.entries(deptData).forEach(([key, dept]) => {
+            if (dept && dept.enabled !== false) {
+              const value = dept.value || key;
+              const label = dept.label || dept.value || key;
+              departmentsCache.push({ value, label });
+              const option = document.createElement('option');
+              option.value = value;
+              option.textContent = label;
+              departmentSelect.appendChild(option);
+            }
+          });
+        }
+
+        console.log(`✅ Loaded ${departmentsCache.length} departments from company ${currentCompanyId}`);
+
+      } catch (error) {
+        console.error('Error loading departments:', error);
+        departmentSelect.innerHTML = '<option value="">Select Department...</option><option value="">Error loading departments</option>';
+      }
+
+      departmentSelect.disabled = false;
+    }
+
+    // Tab switching function
+    function switchModalTab(tabId) {
+      // Update tab buttons
+      document.querySelectorAll('.modal-tab').forEach(btn => btn.classList.remove('active'));
+      const activeBtn = document.querySelector(`.modal-tab[onclick*="'${tabId}'"]`);
+      if (activeBtn) activeBtn.classList.add('active');
+
+      // Update tab content - hide all panels and show selected one
+      document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.remove('active'));
+      const activePanel = document.getElementById(`tab-${tabId}`);
+      if (activePanel) activePanel.classList.add('active');
+    }
+
+    // Handle file attachments
+    let attachmentsCache = [];
+    function handleFileSelect(event) {
+      const files = event.target.files;
+      const attachmentsList = document.getElementById('attachmentsList');
+      
+      for (const file of files) {
+        if (file.size > 10 * 1024 * 1024) {
+          alert(`File "${file.name}" exceeds 10MB limit.`);
+          continue;
+        }
+        attachmentsCache.push({
+          file,
+          name: file.name,
+          size: file.size,
+          type: file.type,
+          status: 'pending'
+        });
+      }
+      renderAttachmentsList();
+      event.target.value = ''; // Reset input
+    }
+
+    function renderAttachmentsList() {
+      const attachmentsList = document.getElementById('fileList');
+      if (!attachmentsList) return;
+
+      if (attachmentsCache.length === 0) {
+        attachmentsList.innerHTML = '<p style="color:#6c757d; text-align:center;">No attachments</p>';
+        return;
+      }
+
+      attachmentsList.innerHTML = attachmentsCache.map((att, index) => `
+        <div class="attachment-item" style="display:flex; align-items:center; gap:10px; padding:8px; background:#f8f9fa; border-radius:6px; margin-bottom:8px;">
+          <i class="fas fa-file" style="color:#6c757d;"></i>
+          <div style="flex:1; overflow:hidden;">
+            <div style="font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(att.name)}</div>
+            <div style="font-size:12px; color:#6c757d;">${formatFileSize(att.size)}</div>
+          </div>
+          ${att.url ? `<a href="${att.url}" target="_blank" class="btn btn-sm btn-outline" title="Download"><i class="fas fa-download"></i></a>` : ''}
+          <button type="button" class="btn btn-sm btn-outline" style="color:#dc3545;" onclick="removeAttachment(${index})" title="Remove"><i class="fas fa-trash"></i></button>
+        </div>
+      `).join('');
+    }
+
+    function removeAttachment(index) {
+      attachmentsCache.splice(index, 1);
+      renderAttachmentsList();
+    }
+
+    function formatFileSize(bytes) {
+      if (bytes === 0) return '0 Bytes';
+      const k = 1024;
+      const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
+    async function uploadAttachments(warehouseId) {
+      const uploaded = [];
+      for (const att of attachmentsCache) {
+        if (att.url) {
+          uploaded.push({ name: att.name, url: att.url, size: att.size, type: att.type });
+          continue;
+        }
+        if (!att.file) continue;
+        try {
+          const storageRef = firebase.storage().ref(`companies/${companyId}/warehouses/${warehouseId}/${Date.now()}_${att.name}`);
+          await storageRef.put(att.file);
+          const url = await storageRef.getDownloadURL();
+          uploaded.push({ name: att.name, url, size: att.size, type: att.type });
+        } catch (err) {
+          console.error('Error uploading file:', att.name, err);
+        }
+      }
+      return uploaded;
+    }
+
+    // Update stats
+    function updateStats() {
+      const warehouses = Object.values(warehousesCache);
+      const items = Object.values(itemsCache);
+
+      const active = warehouses.filter(w => w.status === 'active' || !w.status).length;
+      const inactive = warehouses.filter(w => w.status === 'inactive').length;
+
+      document.getElementById('totalWarehouses').textContent = warehouses.length;
+      document.getElementById('activeWarehouses').textContent = active;
+      document.getElementById('inactiveWarehouses').textContent = inactive;
+      document.getElementById('totalItems').textContent = items.length;
+    }
+
+    // Render warehouses
     function renderWarehouses() {
-      const q = (document.getElementById('searchBox').value || '').toLowerCase();
-      const tbody = document.getElementById('warehousesBody');
-      let list = Object.entries(warehousesCache).map(([id, w]) => ({ id, ...w }));
-      if (q) list = list.filter(x => (x.name||'').toLowerCase().includes(q) || (x.code||'').toLowerCase().includes(q) || (x.location||'').toLowerCase().includes(q));
-      if (!list.length) { tbody.innerHTML = '<tr><td colspan="5" class="muted">No warehouses found</td></tr>'; return; }
-      list.sort((a,b)=> (a.name||'').localeCompare(b.name||''));
-      tbody.innerHTML = list.map(w => `
-        <tr>
-          <td>${w.name || '-'}</td>
-          <td>${w.code || '-'}</td>
-          <td>${w.location || '-'}</td>
-          <td>${w.capacity ? Number(w.capacity) : '-'}</td>
-          <td class="right"><button class="btn" onclick="openWarehouseModal('${w.id || w.code || w.name || ''}')"><i class="fas fa-pen"></i> Edit</button></td>
-        </tr>`).join('');
+      const tbody = document.getElementById('warehousesTableBody');
+      const warehouses = Object.entries(warehousesCache);
+
+      if (warehouses.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="8" style="text-align:center; padding:2rem; color:#64748b;">
+              <i class="fas fa-warehouse" style="font-size:1.5rem; opacity:0.4; margin-bottom:0.5rem; display:block;"></i>
+              No warehouses configured yet
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      tbody.innerHTML = warehouses.map(([id, wh]) => {
+        const isActive = wh.status === 'active' || !wh.status;
+        const statusClass = wh.status || 'active';
+        const statusLabel = wh.status ? wh.status.charAt(0).toUpperCase() + wh.status.slice(1) : 'Active';
+        const itemCount = Object.values(itemsCache).filter(i => i.warehouseId === id).length;
+        const totalStock = Object.values(itemsCache).filter(i => i.warehouseId === id).reduce((sum, i) => sum + Number(i.currentStock || 0), 0);
+
+        // Find department label from cache
+        const deptLabel = departmentsCache.find(d => d.value === wh.manager)?.label || wh.manager || '-';
+        // Find location label from cache
+        const locationLabel = workAreasCache.find(a => a.value === wh.location)?.label || wh.location || '-';
+
+        return `
+          <tr>
+            <td>
+              <div class="warehouse-name">${escapeHtml(wh.name || 'Unnamed')}</div>
+            </td>
+            <td><span class="warehouse-code">${escapeHtml(wh.code || '-')}</span></td>
+            <td>${escapeHtml(locationLabel)}</td>
+            <td>${escapeHtml(deptLabel)}</td>
+            <td>${itemCount}</td>
+            <td>${totalStock}</td>
+            <td><span class="warehouse-status ${statusClass}">${statusLabel}</span></td>
+            <td>
+              <div class="table-actions">
+                <button class="btn btn-sm btn-outline" onclick="openWarehouseModal('${id}')" title="Edit">
+                  <i class="fas fa-edit"></i>
+                </button>
+                <button class="btn btn-sm btn-outline" onclick="viewWarehouseItems('${id}')" title="View Items">
+                  <i class="fas fa-boxes"></i>
+                </button>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
     }
 
-    function openWarehouseModal(id=null) {
-      activeWarehouseId = null;
-      document.getElementById('modalAlertError').style.display='none';
-      document.getElementById('modalAlertOk').style.display='none';
+    // Open warehouse modal
+    async function openWarehouseModal(warehouseId = null) {
+      editingWarehouseId = warehouseId;
+      const modal = document.getElementById('warehouseModal');
+      const title = document.getElementById('modalTitle');
+      const deleteBtn = document.getElementById('deleteWarehouseBtn');
 
-      if (id) {
-        const entry = Object.entries(warehousesCache).find(([k,v]) => v.id===id || k===id);
-        if (entry) {
-          const [key, w] = entry;
-          activeWarehouseId = key;
-          document.getElementById('modalTitle').textContent = 'Edit Warehouse';
-          document.getElementById('whName').value = w.name || '';
-          document.getElementById('whCode').value = w.code || '';
-          document.getElementById('whLocation').value = w.location || '';
-          document.getElementById('whCapacity').value = Number(w.capacity||0);
-          document.getElementById('whDesc').value = w.description || '';
+      // Reset form
+      document.getElementById('warehouseForm').reset();
+      document.getElementById('modalError').classList.remove('show');
+      document.getElementById('modalSuccess').classList.remove('show');
+      
+      // Reset to first tab
+      switchModalTab('identification');
+      
+      // Reset attachments
+      attachmentsCache = [];
+      renderAttachmentsList();
+
+      // Load work areas for location dropdown
+      await loadWorkAreas();
+      
+      // Load departments for responsibility dropdown
+      await loadDepartments();
+
+      if (warehouseId && warehousesCache[warehouseId]) {
+        const wh = warehousesCache[warehouseId];
+        title.textContent = 'Edit Warehouse';
+        deleteBtn.style.display = 'inline-flex';
+
+        // Identification tab
+        document.getElementById('warehouseName').value = wh.name || '';
+        document.getElementById('warehouseCode').value = wh.code || '';
+        document.getElementById('warehouseType').value = wh.type || '';
+        document.getElementById('warehouseStatus').value = wh.status || 'active';
+        document.getElementById('warehouseDescription').value = wh.description || '';
+
+        // Location tab
+        document.getElementById('warehouseLocation').value = wh.location || '';
+        document.getElementById('warehouseBuilding').value = wh.building || '';
+        document.getElementById('warehouseAddress').value = wh.address || '';
+        document.getElementById('warehouseLatitude').value = wh.latitude || '';
+        document.getElementById('warehouseLongitude').value = wh.longitude || '';
+        document.getElementById('warehouseFloor').value = wh.floor || '';
+        document.getElementById('warehouseAccessInstructions').value = wh.accessInstructions || '';
+
+        // Capacity tab
+        document.getElementById('warehouseTotalArea').value = wh.totalArea || '';
+        document.getElementById('warehouseUsableArea').value = wh.usableArea || '';
+        document.getElementById('warehouseHeight').value = wh.height || '';
+        document.getElementById('warehousePalletCapacity').value = wh.palletCapacity || '';
+        document.getElementById('warehouseBinLocations').value = wh.binLocations || '';
+        document.getElementById('warehouseRackLevels').value = wh.rackLevels || '';
+        document.getElementById('warehouseMaxWeight').value = wh.maxWeight || '';
+        document.getElementById('warehouseUtilization').value = wh.utilization || '';
+
+
+
+        // Security tab
+        document.getElementById('warehouseSecurityLevel').value = wh.securityLevel || '';
+        document.getElementById('warehouseAccessControl').value = wh.accessControl || '';
+        document.getElementById('warehouseCCTV').value = wh.cctv || '';
+        document.getElementById('warehouseFireSystem').value = wh.fireSystem || '';
+
+        // Responsibility tab
+        document.getElementById('warehouseManager').value = wh.manager || '';
+        document.getElementById('warehouseManagerEmail').value = wh.managerEmail || '';
+        document.getElementById('warehousePhone').value = wh.phone || '';
+        document.getElementById('warehouseEmergencyPhone').value = wh.emergencyPhone || '';
+        document.getElementById('warehouseSupervisor').value = wh.supervisor || '';
+        document.getElementById('warehouseShiftCount').value = wh.shiftCount || '1';
+        document.getElementById('warehouseOperatingHours').value = wh.operatingHours || '';
+        document.getElementById('warehouseNotes').value = wh.notes || '';
+
+        // Financial tab
+        document.getElementById('warehouseOwnership').value = wh.ownership || '';
+        document.getElementById('warehouseCostCenter').value = wh.costCenter || '';
+        document.getElementById('warehouseMonthlyRent').value = wh.monthlyRent || '';
+        document.getElementById('warehouseCurrency').value = wh.currency || 'USD';
+        document.getElementById('warehouseLeaseStart').value = wh.leaseStart || '';
+        document.getElementById('warehouseLeaseEnd').value = wh.leaseEnd || '';
+        document.getElementById('warehouseInsuranceInfo').value = wh.insuranceInfo || '';
+
+        // Attachments tab
+        document.getElementById('warehouseDocumentNotes').value = wh.documentNotes || '';
+        if (wh.attachments && wh.attachments.length > 0) {
+          attachmentsCache = wh.attachments.map(att => ({ ...att, status: 'uploaded' }));
+          renderAttachmentsList();
         }
       } else {
-        document.getElementById('modalTitle').textContent = 'New Warehouse';
-        document.getElementById('whName').value = '';
-        document.getElementById('whCode').value = '';
-        document.getElementById('whLocation').value = '';
-        document.getElementById('whCapacity').value = 0;
-        document.getElementById('whDesc').value = '';
+        title.textContent = 'Add Warehouse';
+        deleteBtn.style.display = 'none';
       }
 
-      document.getElementById('warehouseModal').style.display = 'flex';
+      modal.classList.add('show');
     }
 
-    function closeWarehouseModal() { document.getElementById('warehouseModal').style.display = 'none'; }
+    // Close warehouse modal
+    function closeWarehouseModal() {
+      document.getElementById('warehouseModal').classList.remove('show');
+      editingWarehouseId = null;
+      attachmentsCache = [];
+    }
 
+    // Save warehouse
     async function saveWarehouse() {
-      const errorBox = document.getElementById('modalAlertError');
-      const okBox = document.getElementById('modalAlertOk');
-      errorBox.style.display = 'none';
-      okBox.style.display = 'none';
+      const errorEl = document.getElementById('modalError');
+      const successEl = document.getElementById('modalSuccess');
+      errorEl.classList.remove('show');
+      successEl.classList.remove('show');
 
-      const name = (document.getElementById('whName').value||'').trim();
-      const code = (document.getElementById('whCode').value||'').trim();
-      const location = (document.getElementById('whLocation').value||'').trim();
-      const capacity = Number(document.getElementById('whCapacity').value||0);
-      const description = (document.getElementById('whDesc').value||'').trim();
+      const name = document.getElementById('warehouseName').value.trim();
+      if (!name) {
+        errorEl.textContent = 'Warehouse name is required.';
+        errorEl.classList.add('show');
+        switchModalTab('identification');
+        return;
+      }
 
-      if (!name) { errorBox.textContent = 'Name is required.'; errorBox.style.display='block'; return; }
+      // Show saving state
+      const saveBtn = document.querySelector('#warehouseForm button[onclick="saveWarehouse()"]');
+      const originalText = saveBtn ? saveBtn.innerHTML : '';
+      if (saveBtn) {
+        saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+        saveBtn.disabled = true;
+      }
 
       try {
-        if (!activeWarehouseId) activeWarehouseId = db.ref().push().key;
-        const payload = { id: activeWarehouseId, name, code, location, capacity, description, updatedAt: Date.now(), updatedBy: { uid: currentUser.uid, email: currentUser.email } };
-        await db.ref(`companies/${companyId}/inventory/warehouses/${activeWarehouseId}`).set(payload);
-        await loadWarehouses();
-        okBox.textContent = 'Warehouse saved.';
-        okBox.style.display = 'block';
-        setTimeout(() => closeWarehouseModal(), 800);
+        const warehouseId = editingWarehouseId || db.ref().push().key;
+
+        // Upload attachments first
+        const uploadedAttachments = await uploadAttachments(warehouseId);
+
+        const warehouseData = {
+          // Identification
+          name,
+          code: document.getElementById('warehouseCode').value.trim(),
+          type: document.getElementById('warehouseType').value,
+          status: document.getElementById('warehouseStatus').value,
+          description: document.getElementById('warehouseDescription').value.trim(),
+          
+          // Location
+          location: document.getElementById('warehouseLocation').value,
+          building: document.getElementById('warehouseBuilding').value.trim(),
+          address: document.getElementById('warehouseAddress').value.trim(),
+          latitude: document.getElementById('warehouseLatitude').value.trim(),
+          longitude: document.getElementById('warehouseLongitude').value.trim(),
+          floor: document.getElementById('warehouseFloor').value.trim(),
+          accessInstructions: document.getElementById('warehouseAccessInstructions').value.trim(),
+          
+          // Capacity
+          totalArea: document.getElementById('warehouseTotalArea').value.trim(),
+          usableArea: document.getElementById('warehouseUsableArea').value.trim(),
+          height: document.getElementById('warehouseHeight').value.trim(),
+          palletCapacity: document.getElementById('warehousePalletCapacity').value.trim(),
+          binLocations: document.getElementById('warehouseBinLocations').value.trim(),
+          rackLevels: document.getElementById('warehouseRackLevels').value.trim(),
+          maxWeight: document.getElementById('warehouseMaxWeight').value.trim(),
+          utilization: document.getElementById('warehouseUtilization').value.trim(),
+          
+
+          
+          // Security
+          securityLevel: document.getElementById('warehouseSecurityLevel').value,
+          accessControl: document.getElementById('warehouseAccessControl').value,
+          cctv: document.getElementById('warehouseCCTV').value.trim(),
+          fireSystem: document.getElementById('warehouseFireSystem').value,
+          
+          // Responsibility
+          manager: document.getElementById('warehouseManager').value.trim(),
+          managerEmail: document.getElementById('warehouseManagerEmail').value.trim(),
+          phone: document.getElementById('warehousePhone').value.trim(),
+          emergencyPhone: document.getElementById('warehouseEmergencyPhone').value.trim(),
+          supervisor: document.getElementById('warehouseSupervisor').value.trim(),
+          shiftCount: document.getElementById('warehouseShiftCount').value,
+          operatingHours: document.getElementById('warehouseOperatingHours').value.trim(),
+          notes: document.getElementById('warehouseNotes').value.trim(),
+          
+          // Financial
+          ownership: document.getElementById('warehouseOwnership').value,
+          costCenter: document.getElementById('warehouseCostCenter').value.trim(),
+          monthlyRent: document.getElementById('warehouseMonthlyRent').value.trim(),
+          currency: document.getElementById('warehouseCurrency').value,
+          leaseStart: document.getElementById('warehouseLeaseStart').value,
+          leaseEnd: document.getElementById('warehouseLeaseEnd').value,
+          insuranceInfo: document.getElementById('warehouseInsuranceInfo').value.trim(),
+          documentNotes: document.getElementById('warehouseDocumentNotes').value.trim(),
+          
+          // Attachments
+          attachments: uploadedAttachments,
+          
+          // Metadata
+          id: warehouseId,
+          updatedAt: Date.now(),
+          updatedBy: { uid: currentUser?.uid, email: currentUser?.email }
+        };
+
+        if (!editingWarehouseId) {
+          warehouseData.createdAt = Date.now();
+          warehouseData.createdBy = { uid: currentUser?.uid, email: currentUser?.email };
+        }
+
+        await db.ref(`companies/${companyId}/inventory/warehouses/${warehouseId}`).set(warehouseData);
+
+        successEl.textContent = 'Warehouse saved successfully!';
+        successEl.classList.add('show');
+
+        await loadPageData();
+        setTimeout(() => closeWarehouseModal(), 1000);
       } catch (err) {
-        console.error(err);
-        errorBox.textContent = 'Failed to save warehouse.';
-        errorBox.style.display='block';
+        console.error('Error saving warehouse:', err);
+        errorEl.textContent = 'Failed to save warehouse. Please try again.';
+        errorEl.classList.add('show');
+      } finally {
+        if (saveBtn) {
+          saveBtn.innerHTML = originalText;
+          saveBtn.disabled = false;
+        }
       }
     }
 
+    // Delete warehouse
     async function deleteWarehouse() {
-      if (!activeWarehouseId) { closeWarehouseModal(); return; }
-      if (!confirm('Delete this warehouse?')) return;
+      if (!editingWarehouseId) return;
+
+      const itemsInWarehouse = Object.values(itemsCache).filter(i => i.warehouseId === editingWarehouseId).length;
+      if (itemsInWarehouse > 0) {
+        alert(`Cannot delete warehouse. ${itemsInWarehouse} item(s) are assigned to this warehouse.`);
+        return;
+      }
+
+      if (!confirm('Are you sure you want to delete this warehouse?')) return;
+
       try {
-        await db.ref(`companies/${companyId}/inventory/warehouses/${activeWarehouseId}`).remove();
-        await loadWarehouses();
+        await db.ref(`companies/${companyId}/inventory/warehouses/${editingWarehouseId}`).remove();
+        await loadPageData();
         closeWarehouseModal();
       } catch (err) {
-        console.error(err);
+        console.error('Error deleting warehouse:', err);
         alert('Failed to delete warehouse.');
       }
     }
-  // Use AuthManager and menu authorization as in project-list.html
-  function initializeMenuSystem() {
-    window.authManager = new AuthManager();
-    initializeMenuAuthorization();
-  }
+
+    // View items in warehouse
+    function viewWarehouseItems(warehouseId) {
+      window.location.href = `inventory-items.html?warehouse=${warehouseId}`;
+    }
+
+    // Helper
+    function escapeHtml(str) {
+      return String(str || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c] || c));
+    }
+
+    // ===== ROLE-BASED MENU AUTHORIZATION SYSTEM =====
+    let isMenuUpdateInProgress = false;
+
+    function resetMenuVisibility() {
+      document.querySelectorAll('[data-feature]').forEach(item => item.classList.remove('menu-visible'));
+      document.querySelectorAll('.menu-dropdown').forEach(dropdown => dropdown.classList.remove('menu-visible'));
+    }
+
+    function showBasicMenu() {
+      resetMenuVisibility();
+      const sidebar = document.querySelector('.sidebar');
+      if (sidebar) sidebar.classList.remove('menu-loading');
+      const homeItem = document.querySelector('[data-feature="home_view"]');
+      if (homeItem) homeItem.classList.add('menu-visible');
+    }
+
+    async function updateMenuWithFeatureAuthorization() {
+      if (isMenuUpdateInProgress) return;
+      isMenuUpdateInProgress = true;
+      try {
+        let currentUserData = null;
+        let companyIdVal = null;
+        let userRole = null;
+        if (window.authManager && window.authManager.currentUser) {
+          currentUserData = window.authManager.currentUser;
+          companyIdVal = currentUserData.companyId;
+          userRole = currentUserData.role;
+        } else if (firebase.auth().currentUser) {
+          currentUserData = firebase.auth().currentUser;
+        } else {
+          resetMenuVisibility();
+          return;
+        }
+        if (!companyIdVal && currentUserData) {
+          const companiesSnapshot = await firebase.database().ref('companies').once('value');
+          if (companiesSnapshot.exists()) {
+            const companies = companiesSnapshot.val();
+            for (const [cId, company] of Object.entries(companies)) {
+              if (company.status !== 'active') continue;
+              if (company.users && company.users[currentUserData.uid]) {
+                companyIdVal = cId;
+                userRole = company.users[currentUserData.uid].role || company.users[currentUserData.uid].userRole;
+                break;
+              }
+            }
+          }
+        }
+        if (!companyIdVal) { resetMenuVisibility(); return; }
+        const authorizedPages = await applyFeatureBasedMenuVisibility(companyIdVal);
+        if (userRole) await applyRoleBasedFiltering(companyIdVal, userRole, authorizedPages);
+      } catch (error) {
+        console.error('Menu authorization error:', error);
+        resetMenuVisibility();
+      } finally {
+        isMenuUpdateInProgress = false;
+      }
+    }
+
+    async function applyFeatureBasedMenuVisibility(companyIdVal) {
+      try {
+        const database = firebase.database();
+        const featuresSnapshot = await database.ref('/platformFeatures').once('value');
+        if (!featuresSnapshot.exists()) { resetMenuVisibility(); return; }
+        const featuresData = featuresSnapshot.val();
+        const companySnapshot = await database.ref(`/companies/${companyIdVal}`).once('value');
+        const companyData = companySnapshot.val();
+        if (!companyData) { resetMenuVisibility(); return; }
+        const subscribedFeatureIds = companyData.selectedFeatures || [];
+        if (subscribedFeatureIds.length === 0) { resetMenuVisibility(); return; }
+        const authorizedPages = [];
+        subscribedFeatureIds.forEach(featureId => {
+          const feature = featuresData[featureId];
+          if (feature && feature.status === 'active' && feature.authorizedPages) {
+            authorizedPages.push(...feature.authorizedPages);
+          }
+        });
+        resetMenuVisibility();
+        const authorizedFeatures = new Set();
+        const authorizedHrefs = new Set();
+        const featureAlias = (key) => {
+          if (!key) return key;
+          if (key === 'risk_view') return 'risk_management_section';
+          if (key === 'risk_management_section') return 'risk_view';
+          return null;
+        };
+        const normalizeHref = (href) => {
+          if (!href) return '';
+          try { const u = new URL(href, window.location.origin); return (u.pathname || '').replace(/^\//, ''); } catch { return String(href).replace(/^\//, ''); }
+        };
+        authorizedPages.forEach(pageInfo => {
+          if (pageInfo.feature) { authorizedFeatures.add(pageInfo.feature); const alias = featureAlias(pageInfo.feature); if (alias) authorizedFeatures.add(alias); }
+          if (pageInfo.href) authorizedHrefs.add(normalizeHref(pageInfo.href));
+          if (pageInfo.page) authorizedHrefs.add(normalizeHref(pageInfo.page));
+          if (pageInfo.url) authorizedHrefs.add(normalizeHref(pageInfo.url));
+        });
+        const allMenuItems = document.querySelectorAll('#roleBasedMenu li[data-feature]');
+        allMenuItems.forEach(menuItem => {
+          const featureAttribute = menuItem.getAttribute('data-feature');
+          const isDropdownContainer = menuItem.classList.contains('menu-dropdown');
+          const anchor = menuItem.querySelector('a[href]');
+          const href = anchor ? anchor.getAttribute('href') : '';
+          const normalized = normalizeHref(href);
+          const featureAuthorized = authorizedFeatures.has(featureAttribute);
+          const hrefAuthorized = normalized && authorizedHrefs.has(normalized);
+          const isAuthorized = featureAuthorized || hrefAuthorized;
+          if (isDropdownContainer) return;
+          if (isAuthorized) menuItem.classList.add('menu-visible');
+          else menuItem.classList.remove('menu-visible');
+        });
+        const dropdownMenus = document.querySelectorAll('#roleBasedMenu li.menu-dropdown');
+        dropdownMenus.forEach(dropdown => {
+          const dropdownFeature = dropdown.getAttribute('data-feature');
+          const submenuItems = dropdown.querySelectorAll('.submenu li[data-feature]');
+          let hasVisibleChildren = false;
+          submenuItems.forEach(submenuItem => { if (submenuItem.classList.contains('menu-visible')) hasVisibleChildren = true; });
+          if (hasVisibleChildren || authorizedFeatures.has(dropdownFeature)) dropdown.classList.add('menu-visible');
+          else dropdown.classList.remove('menu-visible');
+        });
+        return authorizedPages;
+      } catch (error) {
+        console.error('Feature menu error:', error);
+        resetMenuVisibility();
+        return [];
+      }
+    }
+
+    async function applyRoleBasedFiltering(companyIdVal, userRole, authorizedPages) {
+      try {
+        const database = firebase.database();
+        const permissionsRef = database.ref(`companies/${companyIdVal}/roles/${userRole}/permissions`);
+        const permissionsSnapshot = await permissionsRef.once('value');
+        if (!permissionsSnapshot.exists()) {
+          if (userRole === 'administrator') { showSidebarAfterAuth(); return; }
+          hideItemsRequiringPermissions();
+          showSidebarAfterAuth();
+          return;
+        }
+        const permissions = permissionsSnapshot.val();
+        filterMenuByPermissions(permissions);
+      } catch (error) {
+        console.error('Role filtering error:', error);
+        showSidebarAfterAuth();
+      }
+    }
+
+    function filterMenuByPermissions(permissions) {
+      if (!permissions) { hideItemsRequiringPermissions(); showSidebarAfterAuth(); return; }
+      const permissionAlias = (key) => {
+        if (!key) return key;
+        if (key === 'risk_view') return 'risk_management_section';
+        if (key === 'risk_management_section') return 'risk_view';
+        return null;
+      };
+      const itemsRequiringPermissions = document.querySelectorAll('#roleBasedMenu li[data-requires-permission]');
+      itemsRequiringPermissions.forEach(item => {
+        const requiresPermission = item.getAttribute('data-requires-permission');
+        const perm = permissions[requiresPermission];
+        const aliasKey = permissionAlias(requiresPermission);
+        const aliasPerm = aliasKey ? permissions[aliasKey] : undefined;
+        const hasViewPermission = (p) => p === true || (p && p.view === true);
+        const allowed = hasViewPermission(perm) || hasViewPermission(aliasPerm);
+        if (allowed) item.classList.add('menu-visible');
+        else item.classList.remove('menu-visible');
+      });
+      const dropdownMenus = document.querySelectorAll('#roleBasedMenu li.menu-dropdown');
+      dropdownMenus.forEach(dropdown => {
+        const submenuItems = dropdown.querySelectorAll('.submenu li.menu-visible');
+        const dropdownRequires = dropdown.getAttribute('data-requires-permission');
+        if (submenuItems.length === 0) {
+          if (dropdownRequires) {
+            const perm = permissions[dropdownRequires];
+            const aliasKey = permissionAlias(dropdownRequires);
+            const aliasPerm = aliasKey ? permissions[aliasKey] : undefined;
+            const hasViewPermission = (p) => p === true || (p && p.view === true);
+            const allowed = hasViewPermission(perm) || hasViewPermission(aliasPerm);
+            if (allowed) dropdown.classList.add('menu-visible');
+            else dropdown.classList.remove('menu-visible');
+          } else {
+            dropdown.classList.remove('menu-visible');
+          }
+        }
+      });
+      ensureHomeIsVisible();
+      showSidebarAfterAuth();
+    }
+
+    function hideItemsRequiringPermissions() {
+      const itemsRequiringPermissions = document.querySelectorAll('#roleBasedMenu li.menu-visible[data-requires-permission]');
+      itemsRequiringPermissions.forEach(item => item.classList.remove('menu-visible'));
+      const dropdownMenus = document.querySelectorAll('#roleBasedMenu li.menu-dropdown');
+      dropdownMenus.forEach(dropdown => {
+        const visibleSubmenuItems = dropdown.querySelectorAll('.submenu li.menu-visible');
+        if (visibleSubmenuItems.length === 0) dropdown.classList.remove('menu-visible');
+      });
+      ensureHomeIsVisible();
+    }
+
+    function ensureHomeIsVisible() {
+      const homeItem = document.querySelector('#roleBasedMenu li[data-feature="home_view"]');
+      if (homeItem && !homeItem.classList.contains('menu-visible')) homeItem.classList.add('menu-visible');
+    }
+
+    function showSidebarAfterAuth() {
+      const sidebar = document.querySelector('.sidebar');
+      if (sidebar) sidebar.classList.remove('menu-loading');
+    }
+
+    function initializeMenuAuthorization() {
+      const sidebar = document.querySelector('.sidebar');
+      if (sidebar) sidebar.classList.add('menu-loading');
+      setTimeout(() => updateMenuWithFeatureAuthorization(), 500);
+    }
+
+    window.updateMenuWithFeatureAuthorization = updateMenuWithFeatureAuthorization;
+
+    // Initialize menu authorization after authManager loads
+    const origInit = AuthManager.prototype.init;
+    AuthManager.prototype.init = async function() {
+      await origInit.call(this);
+      initializeMenuAuthorization();
+    };
+    // ===== END ROLE-BASED MENU AUTHORIZATION SYSTEM =====
   </script>
 </body>
 </html>

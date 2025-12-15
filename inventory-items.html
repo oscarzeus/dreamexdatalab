@@ -15,8 +15,11 @@
     * { box-sizing:border-box; margin:0; padding:0; }
     body { font-family:'Segoe UI', Arial, sans-serif; background:#f5f7fa; color:#222; }
     .app-container { display:flex; min-height:100vh; }
-    .sidebar { width:var(--sidebar-width); background:var(--primary-color); color:#fff; padding:1rem; position:fixed; top:0; left:0; bottom:0; overflow-y:auto; z-index:1000; }
-    .main-content { flex:1; margin-left:var(--sidebar-width); padding:0.3rem; padding-top:3.2rem; }
+    .sidebar { width:var(--sidebar-width); background:var(--primary-color); color:#fff; padding:1rem; position:fixed; top:0; left:0; bottom:0; overflow-y:auto; z-index:1000; transition:transform .3s ease; }
+    .sidebar.collapsed { transform:translateX(-100%); }
+    .main-content { flex:1; margin-left:var(--sidebar-width); padding:0.3rem; padding-top:3.2rem; transition:margin-left .3s ease; }
+    .main-content.sidebar-collapsed { margin-left:0; }
+    .main-content.sidebar-collapsed .top-nav { left:0.5rem; }
     .logo h2 { text-align:center; padding:1rem 0; border-bottom:1px solid rgba(255,255,255,0.1); font-size:1.05rem; }
     .menu { list-style:none; margin-top:2rem; }
     .menu li { margin-bottom:0.45rem; }
@@ -25,41 +28,189 @@
     .submenu { list-style:none; margin-left:0.75rem; display:none; margin-top:0.25rem; }
     .menu-dropdown:hover .submenu { display:block; }
     .submenu a { font-size:0.75rem; padding:0.45rem 0.65rem; }
+    [data-feature]:not(.menu-visible) { display:none !important; }
+    .menu-dropdown:not(.menu-visible) { display:none !important; }
+    .sidebar.menu-loading .menu-item,
+    .sidebar.menu-loading .menu-dropdown,
+    .sidebar.menu-loading li[data-feature],
+    .sidebar.menu-loading [data-feature] { display:none !important; }
+    .sidebar.menu-loading .menu-visible,
+    .sidebar.menu-loading li.menu-visible,
+    .sidebar.menu-loading [data-feature].menu-visible { display:block !important; }
+    .menu-visible { display:block !important; }
 
-    .top-nav { display:flex; justify-content:space-between; align-items:center; padding:0.5rem 0.75rem; background-color:#fff; box-shadow:0 2px 5px rgba(0,0,0,0.1); margin-bottom:0.3rem; position:fixed; top:0.25rem; right:0.5rem; left:calc(var(--sidebar-width) + 0.5rem); height:50px; min-height:50px; z-index:100; }
+    .top-nav { display:flex; justify-content:space-between; align-items:center; padding:0.5rem 0.75rem; background-color:#fff; box-shadow:0 2px 5px rgba(0,0,0,0.1); margin-bottom:0.3rem; position:fixed; top:0.25rem; right:0.5rem; left:calc(var(--sidebar-width) + 0.5rem); height:50px; min-height:50px; z-index:100; transition:left 0.3s ease; }
     .sidebar-toggle-btn { background:none; border:none; cursor:pointer; font-size:1.1rem; padding:0.4rem; color:#555; }
-    .top-nav-left, .top-nav-right { display:flex; align-items:center; gap:0.75rem; }
+    .top-nav-left { display:flex; align-items:center; gap:0.75rem; }
+    .company-branding { display:flex; align-items:center; gap:0.5rem; }
+    #headerCompanyLogo { width:32px; height:32px; object-fit:contain; display:none; }
+    #headerCompanyName { font-weight:600; font-size:0.85rem; }
+    .top-nav-right { display:flex; align-items:center; gap:1rem; }
+    .notifications { position:relative; display:flex; align-items:center; }
+    .notification-btn { background:none; border:none; cursor:pointer; position:relative; font-size:1.2rem; padding:0.5rem; display:flex; align-items:center; justify-content:center; }
+    .notification-badge { position:absolute; top:-5px; right:-5px; background-color:var(--accent-color); color:white; border-radius:50%; padding:0.2rem 0.5rem; font-size:0.7rem; display:none; }
+    .notification-dropdown { display:none; position:absolute; right:0; top:100%; width:320px; background:#fff; border-radius:8px; box-shadow:0 4px 20px rgba(0,0,0,0.15); z-index:1000; border:1px solid #e9ecef; max-height:400px; overflow:hidden; }
+    .notification-dropdown.show { display:block; animation: slideDown 0.2s ease-out; }
+    @keyframes slideDown { from { opacity:0; transform:translateY(-10px);} to { opacity:1; transform:translateY(0);} }
+    .notification-header { padding:12px 16px; border-bottom:1px solid #e9ecef; background:linear-gradient(135deg,#f8f9fa 0%, #e9ecef 100%); display:flex; justify-content:space-between; align-items:center; }
+    .notification-header h3 { margin:0; color:#333; font-size:14px; font-weight:600; }
+    .mark-all-read { background:none; border:none; color:#3498db; cursor:pointer; font-size:12px; padding:4px 8px; border-radius:4px; transition:all .2s ease; }
+    .mark-all-read:hover { background:#e3f2fd; color:#1976d2; }
+    .notification-list { max-height:320px; overflow-y:auto; padding:0; }
+    .notification-empty { padding:40px 20px; text-align:center; color:#999; display:none; }
+    .notification-empty i { font-size:32px; margin-bottom:12px; color:#ddd; }
+    .notification-empty-title { font-size:14px; font-weight:500; margin-bottom:4px; color:#666; }
+    .notification-empty-message { font-size:12px; color:#999; }
+    .user-profile { position:relative; }
+    .profile-btn { background:none; border:none; border-radius:50%; overflow:hidden; width:38px; height:38px; cursor:pointer; }
+    .profile-btn img { width:100%; height:100%; object-fit:cover; }
+    .profile-dropdown { display:none; position:absolute; right:0; top:110%; background:#fff; border-radius:8px; min-width:200px; box-shadow:0 6px 18px rgba(0,0,0,0.12); overflow:hidden; }
+    .profile-dropdown.show { display:block; }
+    .profile-dropdown ul { list-style:none; }
+    .profile-dropdown li a { display:block; padding:0.65rem 0.85rem; font-size:0.72rem; text-decoration:none; color:#1e293b; font-weight:500; }
+    .profile-dropdown li a:hover { background:#f1f5f9; }
 
-    .page-header { background:#fff; padding:1.1rem 1.3rem; margin-bottom:0.8rem; border-radius:8px; box-shadow:0 2px 4px rgba(0,0,0,0.1); display:flex; justify-content:space-between; align-items:center; }
-    .page-header h1 { color:#1f2937; font-size:1.1rem; font-weight:700; display:flex; align-items:center; gap:0.5rem; }
-    .filters { display:flex; gap:0.5rem; flex-wrap:wrap; }
-    .filters input, .filters select { padding:0.4rem 0.6rem; font-size:0.78rem; border:1px solid #cbd5e1; border-radius:6px; background:#fff; }
+    .page-header { background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)); color: #fff; padding: 0.55rem 0.75rem; margin: 0.35rem 0 0.5rem 0; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 10px 28px rgba(0,0,0,0.18), 0 6px 16px rgba(0,0,0,0.14); font-size: 0.9rem; }
+    .page-header h1 { color: #fff; font-size: 0.9rem; display: flex; align-items: center; gap: 0.5rem; letter-spacing: 0.5px; margin: 0; font-weight: 600; }
+    .page-header i { font-size: 1rem; }
+    .btn-add-new { background: none; border: none; color: #fff; padding: 0.4rem; font-size: 1.2rem; font-weight: 600; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center; text-decoration: none; }
+    .btn-add-new:hover { color: rgba(255,255,255,0.8); transform: scale(1.1); }
+    .page-actions { display:flex; gap:0.4rem; flex-wrap:wrap; }
 
-    .section { background:#fff; padding:0.9rem; border-radius:10px; box-shadow:0 2px 5px rgba(0,0,0,0.06); }
+    /* Stats Cards */
+    .stats-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:1rem; margin-bottom:1rem; }
+    .stat-card { background:#fff; padding:1rem; border-radius:0; box-shadow:0 2px 5px rgba(0,0,0,0.06); display:flex; align-items:center; gap:0.85rem; transition:transform .2s, box-shadow .2s; }
+    .stat-card:hover { transform:translateY(-2px); box-shadow:0 4px 12px rgba(0,0,0,0.1); }
+    .stat-icon { width:44px; height:44px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:1.1rem; }
+    .stat-icon.blue { background:#dbeafe; color:#2563eb; }
+    .stat-icon.green { background:#dcfce7; color:#16a34a; }
+    .stat-icon.orange { background:#ffedd5; color:#ea580c; }
+    .stat-icon.red { background:#fee2e2; color:#dc2626; }
+    .stat-info h3 { font-size:1.3rem; font-weight:700; color:#1f2937; margin-bottom:0.1rem; }
+    .stat-info p { font-size:0.75rem; color:#64748b; margin:0; }
 
-    table { width:100%; border-collapse:separate; border-spacing:0 6px; }
-    th, td { text-align:left; padding:0.6rem 0.7rem; font-size:0.85rem; }
-    thead th { color:#475569; font-weight:700; text-transform:uppercase; font-size:0.7rem; letter-spacing:0.6px; }
-    tbody tr { background:#fff; box-shadow:0 1px 3px rgba(0,0,0,0.06); }
+    /* Filters */
+    .filters { display:flex; gap:0.5rem; flex-wrap:wrap; align-items:center; }
+    .filters input, .filters select { padding:0.45rem 0.7rem; font-size:0.8rem; border:1px solid #e2e8f0; border-radius:6px; background:#fff; transition:border-color .2s, box-shadow .2s; }
+    .filters input:focus, .filters select:focus { outline:none; border-color:#3b82f6; box-shadow:0 0 0 3px rgba(59,130,246,0.1); }
 
-    .chip { background:#f1f5f9; color:#334155; padding:0.2rem 0.5rem; border-radius:999px; font-size:0.72rem; font-weight:600; }
-    .muted { color:#64748b; font-size:0.8rem; }
-    .btn { border:none; border-radius:6px; padding:0.5rem 0.8rem; font-size:0.78rem; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:0.4rem; background:#eef2f6; color:#1e293b; }
-    .btn-primary { background:#2c3e50; color:#fff; }
+    /* Section */
+    .section { background:#fff; padding:1rem; border-radius:10px; box-shadow:0 2px 5px rgba(0,0,0,0.06); }
+    .section-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; padding-bottom:0.75rem; border-bottom:1px solid #f1f5f9; }
+    .section-title { font-size:0.9rem; font-weight:700; color:#1f2937; display:flex; align-items:center; gap:0.5rem; }
+
+    /* Table */
+    table { width:100%; border-collapse:separate; border-spacing:0; }
+    th, td { text-align:left; padding:0.75rem 0.85rem; font-size:0.85rem; }
+    thead th { background:#f8fafc; color:#475569; font-weight:600; text-transform:uppercase; font-size:0.7rem; letter-spacing:0.5px; border-bottom:2px solid #e2e8f0; }
+    tbody tr { transition:background .2s; }
+    tbody tr:hover { background:#f8fafc; }
+    tbody td { border-bottom:1px solid #f1f5f9; }
+    .right { text-align:right; }
+
+    /* Badges */
+    .badge { display:inline-flex; align-items:center; padding:0.25rem 0.6rem; border-radius:999px; font-size:0.7rem; font-weight:600; }
+    .badge.good { background:#dcfce7; color:#16a34a; }
+    .badge.low { background:#fef3c7; color:#d97706; }
+    .badge.critical { background:#fee2e2; color:#dc2626; }
+    .badge.info { background:#dbeafe; color:#2563eb; }
+
+    /* Buttons */
+    .btn { border:none; border-radius:6px; padding:0.5rem 0.9rem; font-size:0.8rem; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:0.4rem; transition:all .2s; }
+    .btn:hover { transform:translateY(-1px); }
+    .btn-primary { background:var(--primary-color); color:#fff; }
+    .btn-primary:hover { background:#1f2f3d; }
+    .btn-success { background:var(--success-color); color:#fff; }
+    .btn-success:hover { background:#1e8449; }
     .btn-danger { background:#dc2626; color:#fff; }
-    .btn-outline { background:#fff; border:1px solid #cbd5e1; }
+    .btn-danger:hover { background:#b91c1c; }
+    .btn-outline { background:#fff; border:1px solid #e2e8f0; color:#475569; }
+    .btn-outline:hover { background:#f8fafc; border-color:#cbd5e1; }
+    .btn-sm { padding:0.35rem 0.6rem; font-size:0.75rem; }
+    .btn-icon { width:32px; height:32px; padding:0; justify-content:center; border-radius:6px; }
 
-    .modal-backdrop { position:fixed; inset:0; background:rgba(0,0,0,0.45); display:none; align-items:flex-start; justify-content:center; padding-top:5vh; z-index:1001; }
-    .modal { width:clamp(320px, 680px, 92vw); background:#fff; border-radius:12px; overflow:hidden; }
-    .modal-header, .modal-footer { padding:0.9rem 1rem; background:#f8fafc; border:1px solid #e2e8f0; }
-    .modal-body { padding:1rem; max-height:70vh; overflow:auto; }
-    .close-btn { background:none; border:none; font-size:1.1rem; cursor:pointer; color:#64748b; }
-    .form-grid { display:grid; grid-template-columns: 1fr 1fr; gap:0.6rem; }
+    /* Modal */
+    .modal-backdrop { position:fixed; inset:0; background:rgba(0,0,0,0.5); display:none; align-items:flex-start; justify-content:center; padding-top:5vh; z-index:1001; backdrop-filter:blur(2px); }
+    .modal-backdrop.show { display:flex; }
+    .modal { width:clamp(340px, 1050px, 96vw); background:#fff; border-radius:0; box-shadow:0 20px 50px rgba(0,0,0,0.2); overflow:hidden; animation:modalSlide 0.3s ease; }
+    @keyframes modalSlide { from { opacity:0; transform:translateY(-20px); } to { opacity:1; transform:translateY(0); } }
+    .modal-header { padding:1rem 1.25rem; display:flex; align-items:center; justify-content:space-between; background:linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); border-bottom:1px solid #e2e8f0; }
+    .modal-title { font-size:1rem; font-weight:700; color:#1f2937; display:flex; align-items:center; gap:0.5rem; }
+    .modal-body { padding:1.25rem; max-height:65vh; overflow-y:auto; }
+    .modal-footer { padding:1rem 1.25rem; background:#f8fafc; border-top:1px solid #e2e8f0; display:flex; justify-content:flex-end; gap:0.5rem; }
+    .close-btn { background:none; border:none; font-size:1.2rem; cursor:pointer; color:#94a3b8; transition:color .2s; }
+
+    /* Modal Tabs */
+    .modal-tabs { display:flex; gap:0; border-bottom:2px solid #e2e8f0; margin-bottom:1rem; flex-wrap:nowrap; overflow-x:auto; }
+    .modal-tab { padding:0.6rem 0.9rem; font-size:0.75rem; font-weight:600; color:#64748b; background:none; border:none; cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-2px; transition:all 0.2s; white-space:nowrap; }
+    .modal-tab:hover { color:#3b82f6; background:#f8fafc; }
+    .modal-tab.active { color:#3b82f6; border-bottom-color:#3b82f6; background:#fff; }
+    .tab-panel { display:none; }
+    .tab-panel.active { display:block; }
+    .form-grid-3 { display:grid; grid-template-columns:repeat(3,1fr); gap:1rem; }
+    .form-section-title { font-size:0.85rem; font-weight:700; color:#1f2937; margin:1rem 0 0.75rem 0; padding-bottom:0.5rem; border-bottom:1px solid #e2e8f0; display:flex; align-items:center; gap:0.5rem; }
+    .form-section-title:first-child { margin-top:0; }
+    .form-section-title i { color:#3b82f6; }
+    .checkbox-group { display:flex; align-items:center; gap:0.5rem; margin-top:0.5rem; }
+    .checkbox-group input[type="checkbox"] { width:16px; height:16px; cursor:pointer; }
+    .checkbox-group label { font-size:0.8rem; color:#374151; cursor:pointer; }
+    .file-upload-area { border:2px dashed #e2e8f0; border-radius:8px; padding:1.5rem; text-align:center; cursor:pointer; transition:all 0.2s; background:#fafbfc; }
+    .file-upload-area:hover { border-color:#3b82f6; background:#f0f7ff; }
+    .file-upload-area i { font-size:2rem; color:#94a3b8; margin-bottom:0.5rem; }
+    .file-upload-area p { font-size:0.8rem; color:#64748b; margin:0; }
+    .file-list { margin-top:1rem; }
+    .file-item { display:flex; align-items:center; justify-content:space-between; padding:0.5rem 0.75rem; background:#f8fafc; border-radius:6px; margin-bottom:0.5rem; font-size:0.8rem; }
+    .file-item .file-name { color:#374151; display:flex; align-items:center; gap:0.5rem; }
+    .file-item .remove-file { background:none; border:none; color:#dc2626; cursor:pointer; padding:0.25rem; }
+    @media (max-width: 900px) { .form-grid-3 { grid-template-columns:repeat(2,1fr); } .modal-tabs { flex-wrap:wrap; } }
+    .close-btn:hover { color:#475569; }
+
+    /* Form */
+    .form-grid { display:grid; grid-template-columns: 1fr 1fr; gap:1rem; }
     .form-grid .full { grid-column:1/-1; }
-    .form-grid label { font-size:0.78rem; color:#475569; margin-bottom:0.25rem; display:block; }
-    .form-grid input, .form-grid select, .form-grid textarea { width:100%; padding:0.5rem 0.6rem; border:1px solid #cbd5e1; border-radius:6px; font-size:0.85rem; }
-    .error { color:#b91c1c; background:#fee2e2; border:1px solid #fecaca; padding:0.5rem 0.6rem; border-radius:6px; font-size:0.8rem; margin-bottom:0.6rem; display:none; }
-    .ok { color:#065f46; background:#ecfdf5; border:1px solid #a7f3d0; padding:0.5rem 0.6rem; border-radius:6px; font-size:0.8rem; margin-bottom:0.6rem; display:none; }
+    .form-group { margin-bottom:0; }
+    .form-group label { display:block; font-size:0.8rem; font-weight:600; color:#374151; margin-bottom:0.4rem; }
+    .form-group input, .form-group select, .form-group textarea { width:100%; padding:0.55rem 0.75rem; border:1px solid #e2e8f0; border-radius:6px; font-size:0.85rem; transition:border-color .2s, box-shadow .2s; }
+    .form-group input:focus, .form-group select:focus, .form-group textarea:focus { outline:none; border-color:#3b82f6; box-shadow:0 0 0 3px rgba(59,130,246,0.1); }
+    .form-group textarea { resize:vertical; min-height:80px; }
+
+    /* Alerts */
+    .alert { padding:0.75rem 1rem; border-radius:8px; font-size:0.85rem; margin-bottom:1rem; display:none; }
+    .alert.error { background:#fee2e2; color:#991b1b; border:1px solid #fecaca; }
+    .alert.success { background:#dcfce7; color:#166534; border:1px solid #bbf7d0; }
+    .alert.show { display:block; }
+
+    .muted { color:#64748b; font-size:0.85rem; }
+    .empty-state { text-align:center; padding:3rem 1rem; color:#94a3b8; }
+    .empty-state i { font-size:2.5rem; margin-bottom:0.75rem; display:block; opacity:0.5; }
+
+    /* Dropdowns */
+    .notification-dropdown { position:absolute; top:48px; right:60px; min-width:320px; max-width:400px; background:#fff; border-radius:8px; box-shadow:0 4px 20px rgba(0,0,0,0.15); display:none; z-index:999; }
+    .notification-dropdown.show { display:block; }
+    .profile-dropdown { position:absolute; top:48px; right:12px; min-width:260px; background:#fff; border-radius:8px; box-shadow:0 4px 20px rgba(0,0,0,0.15); display:none; z-index:999; }
+    .profile-dropdown.show { display:block; }
+    .profile-dropdown ul { list-style:none; padding:0; margin:0; }
+    .profile-dropdown a { display:flex; align-items:center; gap:0.5rem; padding:0.75rem 1rem; color:#333; text-decoration:none; transition:background .2s; }
+    .profile-dropdown a:hover { background:#f8f9fa; }
+
+    /* Page-level Tabs (Warehouses) */
+    .page-tabs { display:flex; gap:0; background:#fff; border-bottom:2px solid #e2e8f0; margin-bottom:1rem; flex-wrap:wrap; padding:0 0.5rem; }
+    .page-tab { padding:0.75rem 1.25rem; font-size:0.8rem; font-weight:600; color:#64748b; background:none; border:none; cursor:pointer; border-bottom:3px solid transparent; margin-bottom:-2px; transition:all 0.2s; display:flex; align-items:center; gap:0.5rem; }
+    .page-tab:hover { color:#3b82f6; background:#f8fafc; }
+    .page-tab.active { color:#3b82f6; border-bottom-color:#3b82f6; background:#fff; }
+    .page-tab .tab-badge { background:#e2e8f0; color:#64748b; padding:0.15rem 0.5rem; border-radius:999px; font-size:0.7rem; font-weight:700; }
+    .page-tab.active .tab-badge { background:#3b82f6; color:#fff; }
+    .page-tab-panel { display:none; }
+    .page-tab-panel.active { display:block; }
+    .warehouse-icon { width:24px; height:24px; display:flex; align-items:center; justify-content:center; background:#e2e8f0; border-radius:4px; font-size:0.7rem; }
+    .page-tab.active .warehouse-icon { background:#dbeafe; color:#2563eb; }
+
+    @media (max-width: 768px) {
+      .form-grid { grid-template-columns: 1fr; }
+      .stats-grid { grid-template-columns: repeat(2, 1fr); }
+      .page-header { flex-direction:column; gap:1rem; align-items:flex-start; }
+      .page-tabs { flex-wrap:nowrap; overflow-x:auto; }
+    }
   </style>
 </head>
 <body>
@@ -68,79 +219,310 @@
       <div class="logo"><h2>Dreamex Datalab</h2></div>
       <ul class="menu" id="roleBasedMenu">
         <li class="menu-item" data-feature="home_view"><a href="index.html"><i class="fas fa-home"></i> Home</a></li>
-        <li class="menu-item" data-feature="projects_view"><a href="project-list.html"><i class="fas fa-briefcase"></i> Projects</a></li>
-        <li class="menu-dropdown menu-visible" data-feature="inventory_view">
-          <a href="#"><i class="fas fa-warehouse"></i> Inventory</a>
+        <li class="menu-dropdown" data-feature="health_view">
+          <a href="#"><i class="fas fa-medkit"></i> Health</a>
           <ul class="submenu">
-            <li data-feature="inventory_dashboard_view"><a href="inventory-dashboard.html"><i class="fas fa-gauge"></i> Dashboard</a></li>
-            <li class="menu-visible" data-feature="inventory_items_view"><a class="active" href="inventory-items.html"><i class="fas fa-box"></i> Items</a></li>
-            <li data-feature="inventory_warehouses_view"><a href="inventory-warehouses.html"><i class="fas fa-building"></i> Warehouses</a></li>
-            <li data-feature="inventory_reservations_view"><a href="inventory-reservations.html"><i class="fas fa-bookmark"></i> Material Reservations</a></li>
-            <li data-feature="inventory_approvals_view"><a href="inventory-approvals.html"><i class="fas fa-check-circle"></i> Approvals</a></li>
-            <li data-feature="inventory_issue_view"><a href="inventory-issue.html"><i class="fas fa-dolly"></i> Issue Materials</a></li>
-            <li data-feature="approval_settings_view"><a href="approval-settings.html"><i class="fas fa-sliders-h"></i> Approval Flow Settings</a></li>
+            <li data-feature="health_assessment_view" data-requires-permission="health_assessment_view"><a href="health-assessment.html">Assessment</a></li>
+            <li data-feature="health_consultation_view" data-requires-permission="health_consultation_view"><a href="health-consultation.html">Consultation</a></li>
+            <li data-feature="medical_folder_view" data-requires-permission="medical_folder_view"><a href="medical-folder.html">Medical Folder</a></li>
           </ul>
         </li>
-        <li class="menu-item" data-feature="settings_view"><a href="settings.html"><i class="fas fa-cog"></i> Settings</a></li>
+        <li class="menu-dropdown" data-feature="risk_view" data-requires-permission="risk_view">
+          <a href="#"><i class="fas fa-exclamation-triangle"></i> Risk Management</a>
+          <ul class="submenu">
+            <li data-feature="risk_view" data-requires-permission="risk_view"><a href="riskboard.html">Risk Management</a></li>
+            <li data-feature="risk_view" data-requires-permission="risk_register_view"><a href="riskreg.html">Risk Register</a></li>
+          </ul>
+        </li>
+        <li class="menu-dropdown" data-feature="safety_view" data-requires-permission="safety_view">
+          <a href="#"><i class="fas fa-shield-alt"></i> Safety</a>
+          <ul class="submenu">
+            <li data-feature="training_view" data-requires-permission="training_view"><a href="trainingboard.html">Training</a></li>
+            <li data-feature="jsa_view" data-requires-permission="jsa_view"><a href="jsaboard.html">Job Safety Analysis</a></li>
+            <li data-feature="ptw_view" data-requires-permission="ptw_view"><a href="ptwboard.html">Permit to Work</a></li>
+            <li data-feature="incident_view" data-requires-permission="incident_view"><a href="incidentboard.html">Incident Reports</a></li>
+            <li data-feature="inspection_view" data-requires-permission="inspection_view"><a href="inspectionboard.html">Inspection</a></li>
+            <li data-feature="audit_view" data-requires-permission="audit_view"><a href="auditboard.html">Audit</a></li>
+          </ul>
+        </li>
+        <li class="menu-dropdown" data-feature="investigation_view" data-requires-permission="investigation_view">
+          <a href="#"><i class="fas fa-search-plus"></i> Investigation</a>
+          <ul class="submenu">
+            <li data-feature="investigation_dashboard_view" data-requires-permission="investigation_dashboard_view"><a href="investigation-dashboard.html">Investigation Dashboard</a></li>
+            <li data-feature="investigation_list_view" data-requires-permission="investigation_list_view"><a href="investigation-list.html">Investigation List</a></li>
+            <li data-feature="create_investigation_view" data-requires-permission="create_investigation_view"><a href="investigation-create.html">Create Investigation</a></li>
+          </ul>
+        </li>
+        <li class="menu-dropdown" data-feature="fuel_management" data-requires-permission="fuel_management">
+          <a href="#"><i class="fas fa-gas-pump"></i> Fuel Management</a>
+          <ul class="submenu">
+            <li data-feature="vessel_offloading" data-requires-permission="vessel_offloading"><a href="vessel-offloading.html">Vessel Offloading</a></li>
+            <li data-feature="fuel_storage" data-requires-permission="fuel_storage"><a href="fuelstor.html">Fuel Storage Status</a></li>
+            <li data-feature="tank_transfer" data-requires-permission="tank_transfer"><a href="fueltrans.html">Tank-to-Tank Transfer</a></li>
+            <li data-feature="truck_loading" data-requires-permission="truck_loading"><a href="fuel-truck-loading.html">Fuel Truck Loading</a></li>
+            <li data-feature="quality_analysis" data-requires-permission="quality_analysis"><a href="fuel-quality-analysis.html">Fuel Quality Analysis</a></li>
+            <li data-feature="fuel_distribution" data-requires-permission="fuel_distribution"><a href="fueldist.html">Fuel Distribution</a></li>
+            <li data-feature="fuel_consumption_analysis" data-requires-permission="fuel_consumption_analysis"><a href="fuelanalys.html">Consumption Analysis</a></li>
+            <li data-feature="fuel_daily_report" data-requires-permission="fuel_daily_report"><a href="fueldaily.html">Daily Fuel Report</a></li>
+          </ul>
+        </li>
+        <li class="menu-dropdown" data-feature="environment_view">
+          <a href="#"><i class="fas fa-leaf"></i> Environment</a>
+          <ul class="submenu">
+            <li data-feature="water_view" data-requires-permission="water_view"><a href="waterboard.html">Water Quality</a></li>
+          </ul>
+        </li>
+        <li class="menu-dropdown" data-feature="security_view" data-requires-permission="security_view">
+          <a href="#"><i class="fas fa-lock"></i> Security</a>
+          <ul class="submenu">
+            <li data-feature="access_view" data-requires-permission="access_view"><a href="accessboard.html">Access Request</a></li>
+            <li data-feature="access_daily_view" data-requires-permission="access_daily_view"><a href="accessdaily.html">Daily Access Control</a></li>
+            <li data-feature="removal_view" data-requires-permission="removal_view"><a href="removalboard.html">Property Removal</a></li>
+            <li data-feature="security_site_map_view" data-requires-permission="security_site_map_view"><a href="sitemap.html">Security Site Map</a></li>
+            <li data-feature="security_level_evaluation_view" data-requires-permission="security_level_evaluation_view"><a href="seclevel.html">Security Level Evaluation</a></li>
+          </ul>
+        </li>
+        <li class="menu-dropdown" data-feature="logistics_view" data-requires-permission="logistics_view">
+          <a href="#"><i class="fas fa-truck"></i> Logistics</a>
+          <ul class="submenu">
+            <li data-feature="fleet_view" data-requires-permission="fleet_view"><a href="fleet.html">Fleet Management</a></li>
+            <li data-feature="travel_view" data-requires-permission="travel_view"><a href="travel.html">Travel Requests</a></li>
+          </ul>
+        </li>
+        <li class="menu-dropdown" data-feature="accommodation_view" data-requires-permission="accommodation_view">
+          <a href="#"><i class="fas fa-bed"></i> Accommodation</a>
+          <ul class="submenu">
+            <li data-feature="camp_view" data-requires-permission="camp_view"><a href="camp.html">Camp Management</a></li>
+            <li data-feature="camp_settings_view" data-requires-permission="camp_settings_view"><a href="campset.html">Camp Settings</a></li>
+          </ul>
+        </li>
+        <li class="menu-dropdown" data-feature="hr_view" data-requires-permission="hr_view">
+          <a href="#"><i class="fas fa-users"></i> HR</a>
+          <ul class="submenu">
+            <li data-feature="human_hr_view" data-requires-permission="human_hr_view"><a href="human-hr.html"><i class="fas fa-user-tie"></i> Human HR</a></li>
+            <li data-feature="staff_management_view" data-requires-permission="staff_management_view"><a href="staff.html">Staffing</a></li>
+            <li data-feature="authority_to_recruit_view" data-requires-permission="authority_to_recruit_view"><a href="recruit.html">Authority to Recruit</a></li>
+            <li data-feature="job_advertising_view" data-requires-permission="job_advertising_view"><a href="jobpost.html">Job Advertising</a></li>
+            <li data-feature="screening_view" data-requires-permission="screening_view"><a href="jobscreen.html">Screening</a></li>
+            <li data-feature="interview_view" data-requires-permission="interview_view"><a href="interview.html">Interview</a></li>
+            <li data-feature="offer_view" data-requires-permission="offer_view"><a href="offer.html">Offer Management</a></li>
+            <li data-feature="contract_view" data-requires-permission="contract_view"><a href="contract.html">Contract Management</a></li>
+            <li data-feature="salary_management_view" data-requires-permission="salary_management_view"><a href="salary.html">Salary Management</a></li>
+            <li data-feature="onboarding_view" data-requires-permission="onboarding_view"><a href="onboard.html">Onboarding</a></li>
+            <li data-feature="chart_view" data-requires-permission="chart_view"><a href="chart.html">Chart Setup</a></li>
+            <li data-feature="chartboard_view" data-requires-permission="chartboard_view"><a href="chartboard.html">Org Chart</a></li>
+            <li data-feature="kpi_dashboard_view" data-requires-permission="kpi_dashboard_view"><a href="kpi.html">KPI</a></li>
+            <li data-feature="payroll_view" data-requires-permission="payroll_view"><a href="payroll.html">Payroll</a></li>
+          </ul>
+        </li>
+        <li class="menu-dropdown" data-feature="project_management_section">
+          <a href="#"><i class="fas fa-project-diagram"></i> Project Management</a>
+          <ul class="submenu">
+            <li data-feature="project_dashboard_view" data-requires-permission="project_dashboard_view"><a href="project-dashboard.html"><i class="fas fa-tachometer-alt"></i> Project Dashboard</a></li>
+            <li data-feature="project_create_view" data-requires-permission="project_create_view"><a href="project-create.html"><i class="fas fa-plus-circle"></i> Create Project</a></li>
+            <li data-feature="project_list_view" data-requires-permission="project_list_view"><a href="project-list.html"><i class="fas fa-list"></i> Project List</a></li>
+            <li data-feature="project_reports_view" data-requires-permission="project_reports_view"><a href="project-reports.html"><i class="fas fa-chart-bar"></i> Project Reports</a></li>
+          </ul>
+        </li>
+        <li class="menu-dropdown" data-feature="inventory_view" data-requires-permission="inventory_view">
+          <a href="#"><i class="fas fa-boxes"></i> Inventory Management</a>
+          <ul class="submenu">
+            <li data-feature="inventory_dashboard_view" data-requires-permission="inventory_dashboard_view"><a href="inventory-dashboard.html"><i class="fas fa-tachometer-alt"></i> Inventory Dashboard</a></li>
+            <li data-feature="inventory_items_view" data-requires-permission="inventory_items_view"><a href="inventory-items.html" class="active"><i class="fas fa-cubes"></i> Items Management</a></li>
+            <li data-feature="inventory_warehouses_view" data-requires-permission="inventory_warehouses_view"><a href="inventory-warehouses.html"><i class="fas fa-warehouse"></i> Warehouses</a></li>
+            <li data-feature="inventory_reservations_view" data-requires-permission="inventory_reservations_view"><a href="inventory-reservations.html"><i class="fas fa-bookmark"></i> Material Reservations</a></li>
+            <li data-feature="inventory_approvals_view" data-requires-permission="inventory_approvals_view"><a href="inventory-approvals.html"><i class="fas fa-check-circle"></i> Approvals</a></li>
+            <li data-feature="inventory_issue_view" data-requires-permission="inventory_issue_view"><a href="inventory-issue.html"><i class="fas fa-shipping-fast"></i> Material Issue</a></li>
+          </ul>
+        </li>
+        <li class="menu-dropdown" data-feature="catering_view" data-requires-permission="catering_view">
+          <a href="#"><i class="fas fa-utensils"></i> Workspaces — Catering</a>
+          <ul class="submenu">
+            <li data-feature="catering_manage_types" data-requires-permission="catering_manage_types"><a href="catering-meal-types.html"><i class="fas fa-list"></i> Meal Types</a></li>
+            <li data-feature="catering_assign" data-requires-permission="catering_assign"><a href="catering-eligibility.html"><i class="fas fa-user-check"></i> Eligibility & Assign</a></li>
+            <li data-feature="catering_consumption_manual" data-requires-permission="catering_consumption_manual"><a href="catering-consumption.html"><i class="fas fa-keyboard"></i> Consumption (Manual)</a></li>
+            <li data-feature="catering_consumption_nfc" data-requires-permission="catering_consumption_nfc"><a href="catering-consumption.html#nfc"><i class="fas fa-id-card"></i> Consumption (NFC)</a></li>
+            <li data-feature="catering_reports" data-requires-permission="catering_reports"><a href="catering-reports.html"><i class="fas fa-chart-line"></i> Reports</a></li>
+          </ul>
+        </li>
+        <li data-feature="requests_view" data-requires-permission="requests_view"><a href="tickboard.html"><i class="fas fa-ticket-alt"></i> Requests</a></li>
+        <li data-feature="communication_view"><a href="info.html"><i class="fas fa-comments"></i> Communication</a></li>
+        <li class="menu-dropdown" data-feature="settings_view">
+          <a href="#"><i class="fas fa-cog"></i> Settings</a>
+          <ul class="submenu">
+            <li data-feature="account_settings_view" data-requires-permission="account_settings_view"><a href="account.html">Account Settings</a></li>
+            <li data-feature="company_management_view" data-requires-permission="company_management_view"><a href="companymanagement.html">Company Management</a></li>
+            <li data-feature="approval_settings_view" data-requires-permission="approval_settings_view"><a href="approval-settings.html">Approval Flow Settings</a></li>
+            <li data-feature="field_setup_view" data-requires-permission="field_setup_view"><a href="fieldsetup.html">Field Setup</a></li>
+            <li data-feature="preferences_view" data-requires-permission="preferences_view"><a href="preferences.html">Preferences</a></li>
+            <li data-feature="notification_settings_view" data-requires-permission="notification_settings_view"><a href="notification-settings.html">Notification Settings</a></li>
+            <li data-feature="audit_log_view" data-requires-permission="audit_log_view"><a href="auditlog.html"><i class="fas fa-history"></i> Audit Log</a></li>
+            <li data-feature="user_management_view" data-requires-permission="user_management_view"><a href="users.html">User & Role Management</a></li>
+            <li data-feature="role_permissions_view" data-requires-permission="role_permissions_view"><a href="roles.html">Role Permissions</a></li>
+          </ul>
+        </li>
       </ul>
     </nav>
 
     <main class="main-content" id="mainContent">
-      <header class="top-nav">
-        <div class="top-nav-left">
-          <button class="sidebar-toggle-btn" id="sidebarToggle" title="Toggle menu"><i class="fas fa-bars"></i></button>
-          <div class="company-branding" style="display:flex;align-items:center;gap:10px;">
-            <img id="headerCompanyLogo" src="" alt="Company Logo" style="width:38px;height:38px;border-radius:6px;object-fit:cover;display:none;" />
-            <span id="headerCompanyName" style="font-weight:600;font-size:1rem;color:#222;">Inventory Items</span>
+        <nav class="top-nav">
+            <div class="top-nav-left">
+                <button id="sidebarToggle" class="sidebar-toggle-btn" title="Toggle Menu"><i class="fas fa-bars"></i></button>
+                <div class="company-branding">
+                    <img id="headerCompanyLogo" alt="Company Logo" />
+                    <span id="headerCompanyName"></span>
+                </div>
+            </div>
+            <div class="top-nav-right">
+                <div class="notifications">
+                    <button id="notificationBtn" class="notification-btn">
+                        <i class="fas fa-bell"></i>
+                        <span class="notification-badge">0</span>
+                    </button>
+                    <div class="notification-dropdown">
+                        <div class="notification-header">
+                            <h3>Notifications</h3>
+                            <button class="mark-all-read">Mark all as read</button>
+                        </div>
+                        <div class="notification-list"></div>
+                        <div class="notification-empty">
+                            <i class="fas fa-inbox"></i>
+                            <div class="notification-empty-title">No notifications</div>
+                            <div class="notification-empty-message">You're all caught up</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="user-profile" style="position:relative;">
+                    <button id="userProfileBtn" class="profile-btn"><img src="" alt="User Avatar" /></button>
+                    <div class="profile-dropdown"><ul></ul></div>
+                </div>
+            </div>
+        </nav>
+
+      <!-- Page Header -->
+      <section class="page-header">
+        <h1><i class="fas fa-box"></i> Inventory Items</h1>
+        <div class="page-actions">
+          <button class="btn-add-new" onclick="exportItems()" title="Export"><i class="fas fa-download"></i></button>
+          <button class="btn-add-new" onclick="openItemModal()" title="Add Item"><i class="fas fa-plus"></i></button>
+        </div>
+      </section>
+
+      <!-- Stats Cards -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-icon blue"><i class="fas fa-boxes"></i></div>
+          <div class="stat-info">
+            <h3 id="totalItemsCount">0</h3>
+            <p>Total Items</p>
           </div>
         </div>
-        <div class="top-nav-right">
-          <button id="notificationBtn" title="Notifications" style="background:none;border:none;position:relative;font-size:1.2rem;margin-right:8px;color:#555;">
-            <i class="fas fa-bell"></i>
-          </button>
-          <div class="notification-dropdown" style="position:absolute;top:48px;right:60px;min-width:320px;max-width:400px;background:#fff;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.12);display:none;z-index:999;">
-            <div style="padding:12px 16px;border-bottom:1px solid #eee;font-weight:600;color:#333;">Notifications</div>
-            <ul id="notificationList" style="list-style:none;padding:0;margin:0;max-height:320px;overflow:auto;"></ul>
-            <div style="padding:8px 16px;text-align:right;"><a href="notifications.html" style="font-size:12px;color:#3498db;text-decoration:none;">View all</a></div>
+        <div class="stat-card">
+          <div class="stat-icon green"><i class="fas fa-check-circle"></i></div>
+          <div class="stat-info">
+            <h3 id="inStockCount">0</h3>
+            <p>In Stock</p>
           </div>
-          <div class="user-profile">
-            <button class="profile-btn" id="userProfileBtn" style="display:flex;align-items:center;gap:8px;background:none;border:none;cursor:pointer;">
-              <img src="" alt="User" style="width:38px;height:38px;border-radius:50%;object-fit:cover;display:none;" />
-              <span id="userProfileName">Account</span>
-              <i class="fas fa-chevron-down"></i>
-            </button>
-            <div class="profile-dropdown" style="position:absolute;top:48px;right:12px;min-width:260px;background:#fff;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.12);display:none;z-index:999;">
-              <ul style="list-style:none;padding:0;margin:0;"></ul>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon orange"><i class="fas fa-exclamation-triangle"></i></div>
+          <div class="stat-info">
+            <h3 id="lowStockCount">0</h3>
+            <p>Low Stock</p>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon red"><i class="fas fa-times-circle"></i></div>
+          <div class="stat-info">
+            <h3 id="outOfStockCount">0</h3>
+            <p>Out of Stock</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Page-Level Tabs -->
+      <div class="page-tabs" id="pageTabs">
+        <button class="page-tab active" data-page-tab="warehouses" onclick="switchPageTab('warehouses')">
+          <i class="fas fa-warehouse"></i> Warehouses
+          <span class="tab-badge" id="warehouseCount">0</span>
+        </button>
+        <button class="page-tab" data-page-tab="items" onclick="switchPageTab('items')">
+          <i class="fas fa-boxes"></i> Items
+          <span class="tab-badge" id="itemsCount">0</span>
+        </button>
+        <button onclick="openReceiveModal()" style="background:none; border:none; color:#64748b; font-size:1rem; cursor:pointer; padding:0.5rem; margin-left:0.25rem;" title="Receive Item">
+          <i class="fas fa-plus"></i>
+        </button>
+      </div>
+
+      <!-- Warehouses Tab Panel -->
+      <div class="page-tab-panel active" id="pageTab-warehouses">
+        <div class="section">
+          <div class="section-header">
+            <h2 class="section-title"><i class="fas fa-warehouse"></i> Warehouses List</h2>
+            <div class="filters">
+              <input type="text" id="warehouseSearchBox" placeholder="Search warehouses..." style="min-width:200px;" oninput="renderWarehousesList()" />
             </div>
           </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Warehouse Name</th>
+                <th>Location</th>
+                <th>Type</th>
+                <th>Items Count</th>
+                <th>Total Stock</th>
+                <th>Status</th>
+                <th class="right">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="warehousesTableBody">
+              <tr><td colspan="7" class="muted" style="text-align:center;padding:2rem;">Loading warehouses...</td></tr>
+            </tbody>
+          </table>
         </div>
-      </header>
+      </div>
 
-      <section class="page-header">
-        <h1><i class="fas fa-box"></i> Items</h1>
-        <div class="filters">
-          <input type="text" id="searchBox" placeholder="Search name/SKU/category" />
-          <select id="categoryFilter"><option value="all">All Categories</option></select>
-          <button class="btn btn-primary" id="addItem"><i class="fas fa-plus"></i> New Item</button>
+      <!-- Items List Tab Panel -->
+      <div class="page-tab-panel" id="pageTab-items">
+        <div class="section">
+          <div class="section-header">
+            <h2 class="section-title"><i class="fas fa-list"></i> Items List <span id="currentWarehouseName" style="font-weight:400; color:#64748b; font-size:0.8rem;"></span></h2>
+            <div class="filters">
+              <select id="warehouseFilter" onchange="renderItems()">
+                <option value="">Select Warehouse</option>
+              </select>
+              <input type="text" id="searchBox" placeholder="Search items..." style="min-width:200px;" />
+              <select id="categoryFilter">
+                <option value="all">All Categories</option>
+              </select>
+              <select id="statusFilter">
+                <option value="all">All Status</option>
+                <option value="in-stock">In Stock</option>
+                <option value="low-stock">Low Stock</option>
+                <option value="out-of-stock">Out of Stock</option>
+              </select>
+            </div>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Item Name</th>
+                <th>SKU</th>
+                <th>Category</th>
+                <th>Warehouse</th>
+                <th>Unit</th>
+                <th>Min Stock</th>
+                <th>Current Stock</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="itemsTableBody">
+              <tr><td colspan="8" class="muted" style="text-align:center;padding:2rem;">Loading items...</td></tr>
+            </tbody>
+          </table>
         </div>
-      </section>
-
-      <section class="section">
-        <table>
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>SKU</th>
-              <th>Category</th>
-              <th>UoM</th>
-              <th>Min Stock</th>
-              <th>Current Stock</th>
-              <th class="right">Action</th>
-            </tr>
-          </thead>
-          <tbody id="itemsBody"><tr><td colspan="7" class="muted">Loading…</td></tr></tbody>
-        </table>
-      </section>
+      </div>
     </main>
   </div>
 
@@ -148,53 +530,612 @@
   <div class="modal-backdrop" id="itemModal">
     <div class="modal">
       <div class="modal-header">
-        <div class="modal-title"><i class="fas fa-box"></i> <span id="modalTitle">New Item</span></div>
-        <button class="close-btn" id="closeItemModal"><i class="fas fa-times"></i></button>
+        <h3 class="modal-title"><i class="fas fa-box"></i> <span id="modalTitle">Add New Item</span></h3>
+        <button class="close-btn" onclick="closeItemModal()"><i class="fas fa-times"></i></button>
       </div>
       <div class="modal-body">
-        <div id="modalAlertError" class="error"></div>
-        <div id="modalAlertOk" class="ok"></div>
-        <div class="form-grid">
-          <div>
-            <label>Name</label>
-            <input type="text" id="itemName" />
+        <div class="alert error" id="modalError"></div>
+        <div class="alert success" id="modalSuccess"></div>
+
+        <!-- Modal Tabs -->
+        <div class="modal-tabs">
+          <button type="button" class="modal-tab active" data-tab="basic" onclick="switchItemTab('basic')"><i class="fas fa-info-circle"></i> Basic Info</button>
+          <button type="button" class="modal-tab" data-tab="stock" onclick="switchItemTab('stock')"><i class="fas fa-cubes"></i> Stock</button>
+          <button type="button" class="modal-tab" data-tab="location" onclick="switchItemTab('location')"><i class="fas fa-map-marker-alt"></i> Location</button>
+          <button type="button" class="modal-tab" data-tab="pricing" onclick="switchItemTab('pricing')"><i class="fas fa-dollar-sign"></i> Pricing</button>
+          <button type="button" class="modal-tab" data-tab="supplier" onclick="switchItemTab('supplier')"><i class="fas fa-truck"></i> Supplier</button>
+          <button type="button" class="modal-tab" data-tab="physical" onclick="switchItemTab('physical')"><i class="fas fa-ruler-combined"></i> Physical</button>
+          <button type="button" class="modal-tab" data-tab="tracking" onclick="switchItemTab('tracking')"><i class="fas fa-barcode"></i> Tracking</button>
+          <button type="button" class="modal-tab" data-tab="attachments" onclick="switchItemTab('attachments')"><i class="fas fa-paperclip"></i> Attachments</button>
+        </div>
+
+        <form id="itemForm">
+          <!-- Basic Info Tab -->
+          <div class="tab-panel active" id="tab-basic">
+            <div class="form-grid-3">
+              <div class="form-group">
+                <label for="itemName">Item Name *</label>
+                <input type="text" id="itemName" required placeholder="Enter item name" />
+              </div>
+              <div class="form-group">
+                <label for="itemSku">SKU / Item Code *</label>
+                <input type="text" id="itemSku" placeholder="e.g., ITM-001" />
+              </div>
+              <div class="form-group">
+                <label for="itemBarcode">Barcode / UPC</label>
+                <input type="text" id="itemBarcode" placeholder="e.g., 012345678901" />
+              </div>
+              <div class="form-group">
+                <label for="itemCategory">Category</label>
+                <select id="itemCategory">
+                  <option value="">Select Category</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="itemSubcategory">Subcategory</label>
+                <select id="itemSubcategory">
+                  <option value="">Select Subcategory</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="itemBrand">Brand</label>
+                <input type="text" id="itemBrand" placeholder="Enter brand name" />
+              </div>
+              <div class="form-group">
+                <label for="itemManufacturer">Manufacturer</label>
+                <input type="text" id="itemManufacturer" placeholder="Enter manufacturer name" />
+              </div>
+              <div class="form-group">
+                <label for="itemModel">Model / Part Number</label>
+                <input type="text" id="itemModel" placeholder="Enter model or part number" />
+              </div>
+              <div class="form-group">
+                <label for="itemStatus">Status</label>
+                <select id="itemStatus">
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                  <option value="discontinued">Discontinued</option>
+                  <option value="pending">Pending Approval</option>
+                </select>
+              </div>
+              <div class="form-group full">
+                <label for="itemDescription">Description</label>
+                <textarea id="itemDescription" placeholder="Enter detailed item description..." rows="3"></textarea>
+              </div>
+            </div>
           </div>
-          <div>
-            <label>SKU/Code</label>
-            <input type="text" id="itemSku" />
+
+          <!-- Stock Management Tab -->
+          <div class="tab-panel" id="tab-stock">
+            <div class="form-section-title"><i class="fas fa-chart-bar"></i> Stock Levels</div>
+            <div class="form-grid-3">
+              <div class="form-group">
+                <label for="itemCurrentStock">Current Stock</label>
+                <input type="number" id="itemCurrentStock" min="0" value="0" placeholder="0" />
+              </div>
+              <div class="form-group">
+                <label for="itemMinStock">Minimum Stock Level (Reorder Point)</label>
+                <input type="number" id="itemMinStock" min="0" value="0" placeholder="0" />
+              </div>
+              <div class="form-group">
+                <label for="itemMaxStock">Maximum Stock Level</label>
+                <input type="number" id="itemMaxStock" min="0" value="0" placeholder="0" />
+              </div>
+              <div class="form-group">
+                <label for="itemSafetyStock">Safety Stock</label>
+                <input type="number" id="itemSafetyStock" min="0" value="0" placeholder="0" />
+              </div>
+              <div class="form-group">
+                <label for="itemReorderQty">Reorder Quantity (EOQ)</label>
+                <input type="number" id="itemReorderQty" min="0" value="0" placeholder="0" />
+              </div>
+              <div class="form-group">
+                <label for="itemAvailableStock">Available Stock</label>
+                <input type="number" id="itemAvailableStock" min="0" value="0" placeholder="0" readonly style="background:#f8fafc;" />
+              </div>
+            </div>
+            <div class="form-section-title"><i class="fas fa-balance-scale"></i> Units & Measurement</div>
+            <div class="form-grid-3">
+              <div class="form-group">
+                <label for="itemUom">Primary Unit of Measure (UOM)</label>
+                <select id="itemUom">
+                  <option value="EA">Each (EA)</option>
+                  <option value="PCS">Pieces (PCS)</option>
+                  <option value="KG">Kilogram (KG)</option>
+                  <option value="G">Gram (G)</option>
+                  <option value="LB">Pound (LB)</option>
+                  <option value="OZ">Ounce (OZ)</option>
+                  <option value="L">Liter (L)</option>
+                  <option value="ML">Milliliter (ML)</option>
+                  <option value="GAL">Gallon (GAL)</option>
+                  <option value="M">Meter (M)</option>
+                  <option value="CM">Centimeter (CM)</option>
+                  <option value="FT">Feet (FT)</option>
+                  <option value="IN">Inch (IN)</option>
+                  <option value="BOX">Box</option>
+                  <option value="CASE">Case</option>
+                  <option value="PACK">Pack</option>
+                  <option value="SET">Set</option>
+                  <option value="ROLL">Roll</option>
+                  <option value="PAIR">Pair</option>
+                  <option value="DOZEN">Dozen</option>
+                  <option value="PALLET">Pallet</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="itemSecondaryUom">Secondary UOM</label>
+                <select id="itemSecondaryUom">
+                  <option value="">None</option>
+                  <option value="EA">Each (EA)</option>
+                  <option value="PCS">Pieces (PCS)</option>
+                  <option value="KG">Kilogram (KG)</option>
+                  <option value="BOX">Box</option>
+                  <option value="CASE">Case</option>
+                  <option value="PACK">Pack</option>
+                  <option value="PALLET">Pallet</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="itemConversionFactor">Conversion Factor</label>
+                <input type="number" id="itemConversionFactor" min="0" step="0.01" value="1" placeholder="e.g., 12 EA per BOX" />
+              </div>
+            </div>
           </div>
-          <div>
-            <label>Category</label>
-            <input type="text" id="itemCategory" list="categoriesList" />
-            <datalist id="categoriesList"></datalist>
+
+          <!-- Location Tab -->
+          <div class="tab-panel" id="tab-location">
+            <div class="form-grid-3">
+              <div class="form-group">
+                <label for="itemWarehouse">Warehouse *</label>
+                <select id="itemWarehouse">
+                  <option value="">Select Warehouse</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="itemZone">Zone / Area</label>
+                <select id="itemZone">
+                  <option value="">Select Zone</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="itemAisle">Aisle</label>
+                <input type="text" id="itemAisle" placeholder="e.g., A, B, C" />
+              </div>
+              <div class="form-group">
+                <label for="itemRack">Rack / Row</label>
+                <input type="text" id="itemRack" placeholder="e.g., R1, R2" />
+              </div>
+              <div class="form-group">
+                <label for="itemShelf">Shelf / Level</label>
+                <input type="text" id="itemShelf" placeholder="e.g., S1, Level 2" />
+              </div>
+              <div class="form-group">
+                <label for="itemBin">Bin / Slot Location</label>
+                <input type="text" id="itemBin" placeholder="e.g., BIN-001" />
+              </div>
+              <div class="form-group full">
+                <label for="itemLocationNotes">Location Notes</label>
+                <textarea id="itemLocationNotes" placeholder="Additional location details or instructions..." rows="2"></textarea>
+              </div>
+            </div>
           </div>
-          <div>
-            <label>Unit of Measure</label>
-            <input type="text" id="itemUom" placeholder="EA, KG, L, ..." />
+
+          <!-- Pricing Tab -->
+          <div class="tab-panel" id="tab-pricing">
+            <div class="form-section-title"><i class="fas fa-tags"></i> Cost & Pricing</div>
+            <div class="form-grid-3">
+              <div class="form-group">
+                <label for="itemCurrency">Currency</label>
+                <select id="itemCurrency">
+                  <option value="USD">USD - US Dollar</option>
+                  <option value="EUR">EUR - Euro</option>
+                  <option value="GBP">GBP - British Pound</option>
+                  <option value="CAD">CAD - Canadian Dollar</option>
+                  <option value="AUD">AUD - Australian Dollar</option>
+                  <option value="JPY">JPY - Japanese Yen</option>
+                  <option value="CNY">CNY - Chinese Yuan</option>
+                  <option value="INR">INR - Indian Rupee</option>
+                  <option value="NGN">NGN - Nigerian Naira</option>
+                  <option value="ZAR">ZAR - South African Rand</option>
+                  <option value="AED">AED - UAE Dirham</option>
+                  <option value="SAR">SAR - Saudi Riyal</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="itemCostPrice">Cost Price (Unit Cost)</label>
+                <input type="number" id="itemCostPrice" min="0" step="0.01" value="0" placeholder="0.00" />
+              </div>
+              <div class="form-group">
+                <label for="itemUnitPrice">Selling Price</label>
+                <input type="number" id="itemUnitPrice" min="0" step="0.01" value="0" placeholder="0.00" />
+              </div>
+              <div class="form-group">
+                <label for="itemMsrp">MSRP / List Price</label>
+                <input type="number" id="itemMsrp" min="0" step="0.01" value="0" placeholder="0.00" />
+              </div>
+              <div class="form-group">
+                <label for="itemWholesalePrice">Wholesale Price</label>
+                <input type="number" id="itemWholesalePrice" min="0" step="0.01" value="0" placeholder="0.00" />
+              </div>
+              <div class="form-group">
+                <label for="itemMargin">Profit Margin (%)</label>
+                <input type="number" id="itemMargin" min="0" max="100" step="0.01" value="0" placeholder="0" readonly style="background:#f8fafc;" />
+              </div>
+            </div>
+            <div class="form-section-title"><i class="fas fa-percent"></i> Tax & Discounts</div>
+            <div class="form-grid-3">
+              <div class="form-group">
+                <label for="itemTaxRate">Tax Rate (%)</label>
+                <input type="number" id="itemTaxRate" min="0" max="100" step="0.01" value="0" placeholder="0" />
+              </div>
+              <div class="form-group">
+                <label for="itemTaxCode">Tax Code / Category</label>
+                <input type="text" id="itemTaxCode" placeholder="e.g., VAT, GST, EXEMPT" />
+              </div>
+              <div class="form-group">
+                <label for="itemDiscount">Default Discount (%)</label>
+                <input type="number" id="itemDiscount" min="0" max="100" step="0.01" value="0" placeholder="0" />
+              </div>
+            </div>
           </div>
-          <div>
-            <label>Minimum Stock</label>
-            <input type="number" id="itemMinStock" min="0" step="1" />
+
+          <!-- Supplier Tab -->
+          <div class="tab-panel" id="tab-supplier">
+            <div class="form-section-title"><i class="fas fa-building"></i> Primary Supplier</div>
+            <div class="form-grid-3">
+              <div class="form-group">
+                <label for="itemSupplier">Preferred Supplier</label>
+                <select id="itemSupplier">
+                  <option value="">Select Supplier</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="itemSupplierSku">Supplier SKU / Part No.</label>
+                <input type="text" id="itemSupplierSku" placeholder="Supplier's item code" />
+              </div>
+              <div class="form-group">
+                <label for="itemSupplierPrice">Supplier Price</label>
+                <input type="number" id="itemSupplierPrice" min="0" step="0.01" value="0" placeholder="0.00" />
+              </div>
+              <div class="form-group">
+                <label for="itemLeadTime">Lead Time (Days)</label>
+                <input type="number" id="itemLeadTime" min="0" value="0" placeholder="0" />
+              </div>
+              <div class="form-group">
+                <label for="itemMoq">Minimum Order Quantity (MOQ)</label>
+                <input type="number" id="itemMoq" min="0" value="1" placeholder="1" />
+              </div>
+              <div class="form-group">
+                <label for="itemOrderMultiple">Order Multiple</label>
+                <input type="number" id="itemOrderMultiple" min="1" value="1" placeholder="1" />
+              </div>
+            </div>
+            <div class="form-section-title"><i class="fas fa-users"></i> Alternative Suppliers</div>
+            <div class="form-grid-3">
+              <div class="form-group">
+                <label for="itemAltSupplier1">Alternative Supplier 1</label>
+                <select id="itemAltSupplier1">
+                  <option value="">Select Supplier</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="itemAltSupplier2">Alternative Supplier 2</label>
+                <select id="itemAltSupplier2">
+                  <option value="">Select Supplier</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="itemSupplierNotes">Supplier Notes</label>
+                <input type="text" id="itemSupplierNotes" placeholder="Additional notes" />
+              </div>
+            </div>
           </div>
-          <div>
-            <label>Current Stock</label>
-            <input type="number" id="itemCurrentStock" min="0" step="1" />
+
+          <!-- Physical Attributes Tab -->
+          <div class="tab-panel" id="tab-physical">
+            <div class="form-section-title"><i class="fas fa-weight"></i> Weight & Dimensions</div>
+            <div class="form-grid-3">
+              <div class="form-group">
+                <label for="itemWeight">Weight</label>
+                <input type="number" id="itemWeight" min="0" step="0.01" value="0" placeholder="0" />
+              </div>
+              <div class="form-group">
+                <label for="itemWeightUnit">Weight Unit</label>
+                <select id="itemWeightUnit">
+                  <option value="kg">Kilograms (kg)</option>
+                  <option value="g">Grams (g)</option>
+                  <option value="lb">Pounds (lb)</option>
+                  <option value="oz">Ounces (oz)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="itemGrossWeight">Gross Weight (Packaged)</label>
+                <input type="number" id="itemGrossWeight" min="0" step="0.01" value="0" placeholder="0" />
+              </div>
+              <div class="form-group">
+                <label for="itemLength">Length</label>
+                <input type="number" id="itemLength" min="0" step="0.01" value="0" placeholder="0" />
+              </div>
+              <div class="form-group">
+                <label for="itemWidth">Width</label>
+                <input type="number" id="itemWidth" min="0" step="0.01" value="0" placeholder="0" />
+              </div>
+              <div class="form-group">
+                <label for="itemHeight">Height</label>
+                <input type="number" id="itemHeight" min="0" step="0.01" value="0" placeholder="0" />
+              </div>
+              <div class="form-group">
+                <label for="itemDimensionUnit">Dimension Unit</label>
+                <select id="itemDimensionUnit">
+                  <option value="cm">Centimeters (cm)</option>
+                  <option value="m">Meters (m)</option>
+                  <option value="in">Inches (in)</option>
+                  <option value="ft">Feet (ft)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="itemVolume">Volume</label>
+                <input type="number" id="itemVolume" min="0" step="0.001" value="0" placeholder="0" readonly style="background:#f8fafc;" />
+              </div>
+              <div class="form-group">
+                <label for="itemVolumeUnit">Volume Unit</label>
+                <select id="itemVolumeUnit">
+                  <option value="cm3">Cubic cm (cm³)</option>
+                  <option value="m3">Cubic m (m³)</option>
+                  <option value="in3">Cubic in (in³)</option>
+                  <option value="ft3">Cubic ft (ft³)</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-section-title"><i class="fas fa-palette"></i> Additional Attributes</div>
+            <div class="form-grid-3">
+              <div class="form-group">
+                <label for="itemColor">Color</label>
+                <input type="text" id="itemColor" placeholder="e.g., Red, Blue, Black" />
+              </div>
+              <div class="form-group">
+                <label for="itemSize">Size</label>
+                <input type="text" id="itemSize" placeholder="e.g., S, M, L, XL or dimensions" />
+              </div>
+              <div class="form-group">
+                <label for="itemMaterial">Material</label>
+                <input type="text" id="itemMaterial" placeholder="e.g., Steel, Plastic, Cotton" />
+              </div>
+              <div class="form-group">
+                <label for="itemCountryOrigin">Country of Origin</label>
+                <input type="text" id="itemCountryOrigin" placeholder="e.g., USA, China, Germany" />
+              </div>
+              <div class="form-group">
+                <label for="itemHsCode">HS Code / Tariff Code</label>
+                <input type="text" id="itemHsCode" placeholder="Harmonized System Code" />
+              </div>
+              <div class="form-group">
+                <label for="itemCondition">Condition</label>
+                <select id="itemCondition">
+                  <option value="new">New</option>
+                  <option value="refurbished">Refurbished</option>
+                  <option value="used">Used</option>
+                </select>
+              </div>
+            </div>
           </div>
-          <div class="full">
-            <label>Description</label>
-            <textarea id="itemDesc" rows="2"></textarea>
+
+          <!-- Tracking Tab -->
+          <div class="tab-panel" id="tab-tracking">
+            <div class="form-section-title"><i class="fas fa-qrcode"></i> Tracking Options</div>
+            <div class="form-grid-3">
+              <div class="form-group">
+                <div class="checkbox-group">
+                  <input type="checkbox" id="itemTrackSerial" />
+                  <label for="itemTrackSerial">Track by Serial Number</label>
+                </div>
+              </div>
+              <div class="form-group">
+                <div class="checkbox-group">
+                  <input type="checkbox" id="itemTrackBatch" />
+                  <label for="itemTrackBatch">Track by Batch / Lot Number</label>
+                </div>
+              </div>
+              <div class="form-group">
+                <div class="checkbox-group">
+                  <input type="checkbox" id="itemTrackExpiry" />
+                  <label for="itemTrackExpiry">Track Expiry Date</label>
+                </div>
+              </div>
+            </div>
+            <div class="form-section-title"><i class="fas fa-shield-alt"></i> Warranty & Lifecycle</div>
+            <div class="form-grid-3">
+              <div class="form-group">
+                <label for="itemWarrantyPeriod">Warranty Period</label>
+                <input type="number" id="itemWarrantyPeriod" min="0" value="0" placeholder="0" />
+              </div>
+              <div class="form-group">
+                <label for="itemWarrantyUnit">Warranty Unit</label>
+                <select id="itemWarrantyUnit">
+                  <option value="days">Days</option>
+                  <option value="months">Months</option>
+                  <option value="years">Years</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="itemShelfLife">Shelf Life (Days)</label>
+                <input type="number" id="itemShelfLife" min="0" value="0" placeholder="0" />
+              </div>
+            </div>
+            <div class="form-section-title"><i class="fas fa-exclamation-triangle"></i> Hazard & Compliance</div>
+            <div class="form-grid-3">
+              <div class="form-group">
+                <div class="checkbox-group">
+                  <input type="checkbox" id="itemIsHazardous" />
+                  <label for="itemIsHazardous">Hazardous Material</label>
+                </div>
+              </div>
+              <div class="form-group">
+                <div class="checkbox-group">
+                  <input type="checkbox" id="itemIsPerishable" />
+                  <label for="itemIsPerishable">Perishable Item</label>
+                </div>
+              </div>
+              <div class="form-group">
+                <div class="checkbox-group">
+                  <input type="checkbox" id="itemRequiresCert" />
+                  <label for="itemRequiresCert">Requires Certification</label>
+                </div>
+              </div>
+              <div class="form-group">
+                <label for="itemHazardClass">Hazard Class</label>
+                <input type="text" id="itemHazardClass" placeholder="e.g., Class 3 - Flammable" />
+              </div>
+              <div class="form-group">
+                <label for="itemUnNumber">UN Number</label>
+                <input type="text" id="itemUnNumber" placeholder="e.g., UN1203" />
+              </div>
+              <div class="form-group">
+                <label for="itemStorageConditions">Storage Conditions</label>
+                <input type="text" id="itemStorageConditions" placeholder="e.g., Cool, dry place" />
+              </div>
+              <div class="form-group full">
+                <label for="itemComplianceNotes">Compliance Notes</label>
+                <textarea id="itemComplianceNotes" placeholder="Regulatory, certification, or handling requirements..." rows="2"></textarea>
+              </div>
+            </div>
+          </div>
+
+          <!-- Attachments Tab -->
+          <div class="tab-panel" id="tab-attachments">
+            <div class="form-section-title"><i class="fas fa-image"></i> Product Images</div>
+            <div class="form-group full">
+              <div class="file-upload-area" onclick="document.getElementById('itemImages').click()">
+                <i class="fas fa-cloud-upload-alt"></i>
+                <p>Click to upload images (JPG, PNG, GIF - Max 5MB each)</p>
+                <input type="file" id="itemImages" accept="image/*" multiple style="display:none;" onchange="handleImageUpload(this)" />
+              </div>
+              <div class="file-list" id="imagesList"></div>
+            </div>
+            <div class="form-section-title"><i class="fas fa-file-alt"></i> Documents & Specifications</div>
+            <div class="form-group full">
+              <div class="file-upload-area" onclick="document.getElementById('itemDocuments').click()">
+                <i class="fas fa-file-upload"></i>
+                <p>Click to upload documents (PDF, DOC, XLS - Max 10MB each)</p>
+                <input type="file" id="itemDocuments" accept=".pdf,.doc,.docx,.xls,.xlsx" multiple style="display:none;" onchange="handleDocumentUpload(this)" />
+              </div>
+              <div class="file-list" id="documentsList"></div>
+            </div>
+            <div class="form-section-title"><i class="fas fa-sticky-note"></i> Additional Notes</div>
+            <div class="form-group full">
+              <label for="itemNotes">Internal Notes</label>
+              <textarea id="itemNotes" placeholder="Internal notes, special instructions, or additional information..." rows="4"></textarea>
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeItemModal()">Cancel</button>
+        <button class="btn btn-danger" id="deleteItemBtn" onclick="deleteItem()" style="display:none;"><i class="fas fa-trash"></i> Delete</button>
+        <button class="btn btn-primary" onclick="saveItem()"><i class="fas fa-save"></i> Save Item</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Item Details Modal -->
+  <div class="modal-backdrop" id="itemDetailsModal">
+    <div class="modal" style="max-width:800px;">
+      <div class="modal-header">
+        <h3 class="modal-title"><i class="fas fa-box-open"></i> <span id="itemDetailsTitle">Item Details</span></h3>
+        <button class="close-btn" onclick="closeItemDetailsModal()"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="modal-body">
+        <div id="itemDetailsContent">
+          <!-- Item details will be populated here -->
+        </div>
+        
+        <!-- Stock Reception History -->
+        <div class="form-section-title" style="margin-top:1.5rem;"><i class="fas fa-history"></i> Stock Reception History</div>
+        <div style="max-height:200px; overflow-y:auto;">
+          <table style="width:100%; font-size:0.8rem;">
+            <thead>
+              <tr>
+                <th style="padding:0.5rem; background:#f8fafc;">Date</th>
+                <th style="padding:0.5rem; background:#f8fafc;">Quantity</th>
+                <th style="padding:0.5rem; background:#f8fafc;">Reference</th>
+                <th style="padding:0.5rem; background:#f8fafc;">Received By</th>
+                <th style="padding:0.5rem; background:#f8fafc;">Notes</th>
+              </tr>
+            </thead>
+            <tbody id="itemReceptionHistory">
+              <tr><td colspan="5" class="muted" style="text-align:center; padding:1rem;">Loading reception history...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeItemDetailsModal()">Close</button>
+        <button class="btn btn-outline" onclick="openItemModalFromDetails()"><i class="fas fa-edit"></i> Edit Item</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Receive Item Modal -->
+  <div class="modal-backdrop" id="receiveItemModal">
+    <div class="modal" style="max-width:600px;">
+      <div class="modal-header">
+        <h3 class="modal-title"><i class="fas fa-arrow-down"></i> Receive Item to Warehouse</h3>
+        <button class="close-btn" onclick="closeReceiveModal()"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="alert error" id="receiveModalError"></div>
+        <div class="alert success" id="receiveModalSuccess"></div>
+        
+        <div class="form-grid" style="gap:1rem;">
+          <div class="form-group">
+            <label for="receiveWarehouse">Warehouse *</label>
+            <select id="receiveWarehouse" onchange="updateReceiveItemDropdown()">
+              <option value="">Select Warehouse</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="receiveItemSelect">Item *</label>
+            <select id="receiveItemSelect">
+              <option value="">Select Item</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="receiveQty">Quantity to Receive *</label>
+            <input type="number" id="receiveQty" min="1" value="1" placeholder="Enter quantity" />
+          </div>
+          <div class="form-group">
+            <label for="receiveRef">Reference / PO Number</label>
+            <input type="text" id="receiveRef" placeholder="e.g., PO-2024-001" />
+          </div>
+          <div class="form-group full">
+            <label for="receiveNote">Notes</label>
+            <textarea id="receiveNote" rows="2" placeholder="Optional notes about this receipt..."></textarea>
+          </div>
+        </div>
+        
+        <!-- Selected Item Preview -->
+        <div id="receiveItemPreview" style="display:none; margin-top:1rem; padding:1rem; background:#f8fafc; border-radius:8px; border:1px solid #e2e8f0;">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div>
+              <div style="font-weight:700; color:#1f2937;" id="previewItemName">-</div>
+              <div style="font-size:0.8rem; color:#64748b;">SKU: <span id="previewItemSku">-</span></div>
+            </div>
+            <div style="text-align:right;">
+              <div style="font-size:0.75rem; color:#64748b;">Current Stock</div>
+              <div style="font-size:1.25rem; font-weight:700; color:#1f2937;" id="previewItemStock">0</div>
+            </div>
           </div>
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn" id="deleteItem"><i class="fas fa-trash"></i> Delete</button>
-        <button class="btn btn-primary" id="saveItem"><i class="fas fa-save"></i> Save</button>
+        <button class="btn btn-outline" onclick="closeReceiveModal()">Cancel</button>
+        <button class="btn btn-success" onclick="submitReceiveItem()"><i class="fas fa-arrow-down"></i> Receive Stock</button>
       </div>
     </div>
   </div>
 
   <script>
-    // Centralized Firebase initialization (from project-list.html)
+    // Firebase initialization
     function initializeFirebase() {
       if (!window.firebase || !window.firebase.apps || window.firebase.apps.length === 0) {
         window.firebase.initializeApp({
@@ -207,20 +1148,234 @@
           appId: "1:909025468149:web:fb4e7c4a8b4bd6d1076e4d",
           measurementId: "G-XHFMRCJQEZ"
         });
-        console.log('✅ Firebase v8 initialized successfully for centralized auth');
       }
       return window.firebase;
     }
     const firebase = initializeFirebase();
     const db = firebase.database();
-    const auth = firebase.auth();
 
     let companyId = null;
     let currentUser = null;
     let itemsCache = {};
-    let activeItemId = null;
+    let warehousesCache = {};
+    let suppliersCache = {};
+    let categoriesCache = {};
+    let zonesCache = {};
+    let editingItemId = null;
+    let uploadedImages = [];
+    let uploadedDocuments = [];
+    let selectedWarehouse = 'all'; // Currently selected warehouse filter
 
-    // AuthManager class for centralized authentication and profile management
+    // Page-level tab switching function
+    function switchPageTab(tabName) {
+      document.querySelectorAll('.page-tab[data-page-tab]').forEach(tab => tab.classList.remove('active'));
+      document.querySelectorAll('.page-tab-panel').forEach(panel => panel.classList.remove('active'));
+      document.querySelector(`.page-tab[data-page-tab="${tabName}"]`).classList.add('active');
+      document.getElementById(`pageTab-${tabName}`).classList.add('active');
+      
+      // Render appropriate content when switching tabs
+      if (tabName === 'warehouses') {
+        renderWarehousesList();
+      } else if (tabName === 'items') {
+        renderItems();
+      }
+    }
+
+    // Update tab badges
+    function updateTabBadges() {
+      const warehouseCount = Object.keys(warehousesCache).length;
+      const itemsCount = Object.keys(itemsCache).length;
+      
+      document.getElementById('warehouseCount').textContent = warehouseCount;
+      document.getElementById('itemsCount').textContent = itemsCount;
+    }
+
+    // Render warehouses list
+    function renderWarehousesList() {
+      const tbody = document.getElementById('warehousesTableBody');
+      const search = (document.getElementById('warehouseSearchBox')?.value || '').toLowerCase();
+      
+      let warehouses = Object.entries(warehousesCache).map(([id, w]) => ({ id, ...w }));
+      
+      // Filter by search
+      if (search) {
+        warehouses = warehouses.filter(w => 
+          (w.name || '').toLowerCase().includes(search) ||
+          (w.location || '').toLowerCase().includes(search) ||
+          (w.type || '').toLowerCase().includes(search)
+        );
+      }
+      
+      // Sort by name
+      warehouses.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+      
+      if (warehouses.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="empty-state"><i class="fas fa-warehouse"></i><p>No warehouses found</p></td></tr>';
+        return;
+      }
+      
+      tbody.innerHTML = warehouses.map(warehouse => {
+        // Count items in this warehouse
+        const warehouseItems = Object.values(itemsCache).filter(item => item.warehouseId === warehouse.id);
+        const itemCount = warehouseItems.length;
+        const totalStock = warehouseItems.reduce((sum, item) => sum + (Number(item.currentStock) || 0), 0);
+        
+        const statusClass = warehouse.status === 'active' ? 'good' : 'low';
+        const statusText = warehouse.status === 'active' ? 'Active' : (warehouse.status || 'Unknown');
+        
+        return `
+          <tr style="cursor:pointer;" onclick="viewWarehouseItems('${warehouse.id}')">
+            <td><strong><i class="fas fa-warehouse" style="color:#64748b; margin-right:0.5rem;"></i>${escapeHtml(warehouse.name || '-')}</strong></td>
+            <td>${escapeHtml(warehouse.location || warehouse.address || '-')}</td>
+            <td>${escapeHtml(warehouse.type || '-')}</td>
+            <td><span class="badge info">${itemCount} items</span></td>
+            <td><strong>${totalStock.toLocaleString()}</strong></td>
+            <td><span class="badge ${statusClass}">${statusText}</span></td>
+            <td class="right">
+              <button class="btn btn-sm btn-primary" onclick="event.stopPropagation(); viewWarehouseItems('${warehouse.id}')" title="View Items">
+                <i class="fas fa-eye"></i> View Items
+              </button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    // View items for a specific warehouse
+    function viewWarehouseItems(warehouseId) {
+      selectedWarehouse = warehouseId;
+      
+      // Update warehouse filter dropdown
+      const warehouseFilter = document.getElementById('warehouseFilter');
+      if (warehouseFilter) {
+        warehouseFilter.value = warehouseId;
+      }
+      
+      // Update current warehouse name display
+      const warehouseNameEl = document.getElementById('currentWarehouseName');
+      const warehouse = warehousesCache[warehouseId];
+      warehouseNameEl.textContent = warehouse ? `- ${warehouse.name}` : '';
+      
+      // Switch to items tab
+      switchPageTab('items');
+    }
+
+    // Update warehouse filter dropdown
+    function updateWarehouseFilterDropdown() {
+      const select = document.getElementById('warehouseFilter');
+      if (!select) return;
+      
+      const warehouses = Object.entries(warehousesCache)
+        .map(([id, w]) => ({ id, ...w }))
+        .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+      
+      select.innerHTML = '<option value="all">All Warehouses</option>' +
+        warehouses.map(w => `<option value="${w.id}">${escapeHtml(w.name || 'Unnamed')}</option>`).join('');
+      
+      // Restore selected value
+      if (selectedWarehouse !== 'all') {
+        select.value = selectedWarehouse;
+      }
+    }
+
+    // Tab switching function (modal tabs)
+    function switchItemTab(tabName) {
+      document.querySelectorAll('.modal-tab').forEach(tab => tab.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.remove('active'));
+      document.querySelector(`.modal-tab[data-tab="${tabName}"]`).classList.add('active');
+      document.getElementById(`tab-${tabName}`).classList.add('active');
+    }
+
+    // Handle image upload
+    function handleImageUpload(input) {
+      const files = input.files;
+      const list = document.getElementById('imagesList');
+      for (let file of files) {
+        if (file.size > 5 * 1024 * 1024) {
+          alert(`File ${file.name} exceeds 5MB limit`);
+          continue;
+        }
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          uploadedImages.push({ name: file.name, data: e.target.result, file: file });
+          renderFileList('imagesList', uploadedImages, 'image');
+        };
+        reader.readAsDataURL(file);
+      }
+      input.value = '';
+    }
+
+    // Handle document upload
+    function handleDocumentUpload(input) {
+      const files = input.files;
+      for (let file of files) {
+        if (file.size > 10 * 1024 * 1024) {
+          alert(`File ${file.name} exceeds 10MB limit`);
+          continue;
+        }
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          uploadedDocuments.push({ name: file.name, data: e.target.result, file: file });
+          renderFileList('documentsList', uploadedDocuments, 'document');
+        };
+        reader.readAsDataURL(file);
+      }
+      input.value = '';
+    }
+
+    // Render file list
+    function renderFileList(containerId, files, type) {
+      const container = document.getElementById(containerId);
+      container.innerHTML = files.map((f, i) => `
+        <div class="file-item">
+          <span class="file-name">
+            <i class="fas ${type === 'image' ? 'fa-image' : 'fa-file-alt'}"></i>
+            ${escapeHtml(f.name)}
+          </span>
+          <button type="button" class="remove-file" onclick="removeFile('${type}', ${i})">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+      `).join('');
+    }
+
+    // Remove file
+    function removeFile(type, index) {
+      if (type === 'image') {
+        uploadedImages.splice(index, 1);
+        renderFileList('imagesList', uploadedImages, 'image');
+      } else {
+        uploadedDocuments.splice(index, 1);
+        renderFileList('documentsList', uploadedDocuments, 'document');
+      }
+    }
+
+    // Calculate volume and margin
+    function calculateDerivedFields() {
+      const length = parseFloat(document.getElementById('itemLength').value) || 0;
+      const width = parseFloat(document.getElementById('itemWidth').value) || 0;
+      const height = parseFloat(document.getElementById('itemHeight').value) || 0;
+      const volume = length * width * height;
+      document.getElementById('itemVolume').value = volume.toFixed(3);
+
+      const cost = parseFloat(document.getElementById('itemCostPrice').value) || 0;
+      const sell = parseFloat(document.getElementById('itemUnitPrice').value) || 0;
+      const margin = cost > 0 ? ((sell - cost) / cost * 100).toFixed(2) : 0;
+      document.getElementById('itemMargin').value = margin;
+
+      const current = parseFloat(document.getElementById('itemCurrentStock').value) || 0;
+      document.getElementById('itemAvailableStock').value = current;
+    }
+
+    // Add event listeners for auto-calculation
+    document.addEventListener('DOMContentLoaded', function() {
+      ['itemLength', 'itemWidth', 'itemHeight', 'itemCostPrice', 'itemUnitPrice', 'itemCurrentStock'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('input', calculateDerivedFields);
+      });
+    });
+
+    // AuthManager class
     class AuthManager {
       constructor() {
         this.currentUser = this.getCurrentUser();
@@ -244,6 +1399,7 @@
         this.updateCompanyBranding();
         await this.updateUIForAuthenticatedUser();
         this.bindProfileDropdown();
+        loadPageData();
       }
       async loadUserCompany() {
         if (!this.currentUser) return;
@@ -262,51 +1418,36 @@
                   this.currentCompany = comp;
                   this.setCurrentUser(this.currentUser);
                   companyId = cid;
+                  currentUser = this.currentUser;
                   return;
                 }
               }
             }
           }
-        } catch (e) { }
+        } catch (e) { console.error('Error loading company:', e); }
       }
       updateCompanyBranding() {
         const logoEl = document.getElementById('headerCompanyLogo');
         const nameEl = document.getElementById('headerCompanyName');
         if (!this.currentCompany) { this.showFallbackBranding(); return; }
-        if (nameEl) nameEl.textContent = this.currentCompany.companyName || '';
+        if (nameEl) nameEl.textContent = this.currentCompany.companyName || 'Inventory Items';
         const logoUrl = this.currentCompany.logo || this.currentCompany.logoUrl;
         if (logoEl) {
-          if (logoUrl) {
-            logoEl.src = logoUrl;
-            logoEl.classList.add('visible');
-            logoEl.style.display = 'block';
-          } else {
+          if (logoUrl) { logoEl.src = logoUrl; logoEl.style.display = 'block'; }
+          else {
             const svg = this.generateCompanyInitialsSVG(this.getCompanyInitials(this.currentCompany.companyName || ''));
-            logoEl.src = svg;
-            logoEl.classList.add('visible');
-            logoEl.style.display = 'block';
+            logoEl.src = svg; logoEl.style.display = 'block';
           }
-        }
-        if (this.currentCompany.branding) {
-          const root = document.documentElement;
-          if (this.currentCompany.branding.primaryColor) root.style.setProperty('--primary-color', this.currentCompany.branding.primaryColor);
-          if (this.currentCompany.branding.secondaryColor) root.style.setProperty('--secondary-color', this.currentCompany.branding.secondaryColor);
         }
       }
       showFallbackBranding() {
         const logoEl = document.getElementById('headerCompanyLogo');
-        if (logoEl) {
-          const svg = this.generateCompanyInitialsSVG('DX');
-          logoEl.src = svg;
-          logoEl.classList.add('visible');
-          logoEl.style.display = 'block';
-        }
+        if (logoEl) { logoEl.src = this.generateCompanyInitialsSVG('DX'); logoEl.style.display = 'block'; }
       }
       getCompanyInitials(name) {
         if (!name) return 'CO';
         const parts = name.trim().split(/\s+/);
-        if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
-        return (parts[0][0] + parts[1][0]).toUpperCase();
+        return parts.length === 1 ? parts[0].substring(0, 2).toUpperCase() : (parts[0][0] + parts[1][0]).toUpperCase();
       }
       generateCompanyInitialsSVG(initials) {
         const svg = `<svg width="44" height="44" viewBox="0 0 44 44" xmlns="http://www.w3.org/2000/svg"><rect width="44" height="44" rx="6" fill="#f0f3f6"/><text x="50%" y="52%" dominant-baseline="middle" text-anchor="middle" fill="#495057" font-family="Inter,Arial,sans-serif" font-weight="600" font-size="14">${initials}</text></svg>`;
@@ -314,42 +1455,15 @@
       }
       getUserDisplayName() {
         if (!this.currentUser) return 'User';
-        const n = v => typeof v === 'string' ? v.trim().replace(/\s+/g, ' ') : '';
+        const n = v => typeof v === 'string' ? v.trim() : '';
         const cand = [this.currentUser.displayName, this.currentUser.name, this.currentUser.username];
-        for (const c of cand) { const cleaned = n(c); if (cleaned) return cleaned; }
-        if (this.currentUser.email) return n(this.currentUser.email.split('@')[0]) || 'User';
-        return 'User';
+        for (const c of cand) { if (n(c)) return n(c); }
+        return this.currentUser.email ? n(this.currentUser.email.split('@')[0]) || 'User' : 'User';
       }
       getUserInitials() {
         const dn = this.getUserDisplayName();
         const parts = dn.split(' ').filter(Boolean);
-        if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
-        return parts.slice(0, 2).map(p => p[0]).join('').toUpperCase();
-      }
-      async getUserAvatarUrl() {
-        if (!this.currentUser) return null;
-        const companyId = this.currentUser.companyId || 'default';
-        const possiblePaths = [
-          `companies/${companyId}/avatars/${this.currentUser.uid}/profile.jpg`,
-          `companies/${companyId}/avatars/${this.currentUser.uid}/profile.png`,
-          `companies/${companyId}/avatars/${this.currentUser.uid}/profile.jpeg`,
-          `companies/${companyId}/avatars/${this.currentUser.uid}/avatar.jpg`,
-          `companies/${companyId}/avatars/${this.currentUser.uid}/avatar.png`,
-          `avatars/${this.currentUser.uid}/profile.jpg`,
-          `avatars/${this.currentUser.uid}/profile.png`,
-          `avatars/${this.currentUser.uid}/avatar.jpg`,
-          `avatars/${this.currentUser.uid}/avatar.png`,
-          `profiles/${this.currentUser.uid}/profile.jpg`,
-          `profiles/${this.currentUser.uid}/profile.png`
-        ];
-        for (const path of possiblePaths) {
-          try {
-            const ref = firebase.storage().ref(path);
-            const url = await ref.getDownloadURL();
-            return url;
-          } catch (err) { continue; }
-        }
-        return null;
+        return parts.length === 1 ? parts[0].substring(0, 2).toUpperCase() : parts.slice(0, 2).map(p => p[0]).join('').toUpperCase();
       }
       async updateUIForAuthenticatedUser() {
         const btn = document.getElementById('userProfileBtn');
@@ -357,22 +1471,9 @@
         if (!btn || !list || !this.currentUser) return;
         const displayName = this.getUserDisplayName();
         const email = this.currentUser.email || '';
-        let avatarUrl = null;
-        try { avatarUrl = await this.getUserAvatarUrl(); } catch (error) { }
-        const btnImg = btn.querySelector('img');
-        if (avatarUrl && btnImg) {
-          btnImg.src = avatarUrl;
-          btnImg.alt = displayName + ' Avatar';
-          btnImg.style.display = 'block';
-          btnImg.onerror = () => {
-            btnImg.style.display = 'none';
-            btn.innerHTML = `<div style="width:38px;height:38px;border-radius:50%;background:#3498db;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:0.8rem;">${this.getUserInitials()}</div>`;
-          };
-        } else {
-          btn.innerHTML = `<div style="width:38px;height:38px;border-radius:50%;background:#3498db;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:0.8rem;">${this.getUserInitials()}</div>`;
-        }
-        const avatarHtml = avatarUrl ? `<img src="${avatarUrl}" alt="${displayName} Avatar" style="width:32px;height:32px;border-radius:50%;object-fit:cover;">` : `<div style="width:32px;height:32px;border-radius:50%;background:#3498db;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:12px;">${this.getUserInitials()}</div>`;
-        list.innerHTML = `<li style="border-bottom:1px solid #eee;padding:12px 16px;background:#f8f9fa;"><div style="display:flex;align-items:center;gap:12px;">${avatarHtml}<div><div style="font-weight:600;color:#333;font-size:14px;margin-bottom:2px;">${displayName}</div><div style="color:#666;font-size:12px;">${email}</div></div></div></li><li><a href="profile.html"><i class="fas fa-user"></i> Profile</a></li><li><a href="account.html"><i class="fas fa-cog"></i> Account Settings</a></li><li><a href="#" id="logoutLink"><i class="fas fa-sign-out-alt"></i> Sign out</a></li>`;
+        btn.innerHTML = `<div style="width:38px;height:38px;border-radius:50%;background:#3498db;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:0.8rem;">${this.getUserInitials()}</div>`;
+        const avatarHtml = `<div style="width:32px;height:32px;border-radius:50%;background:#3498db;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:12px;">${this.getUserInitials()}</div>`;
+        list.innerHTML = `<li style="border-bottom:1px solid #eee;padding:12px 16px;background:#f8f9fa;"><div style="display:flex;align-items:center;gap:12px;">${avatarHtml}<div><div style="font-weight:600;color:#333;font-size:14px;">${displayName}</div><div style="color:#666;font-size:12px;">${email}</div></div></div></li><li><a href="profile.html"><i class="fas fa-user"></i> Profile</a></li><li><a href="account.html"><i class="fas fa-cog"></i> Account Settings</a></li><li><a href="#" id="logoutLink"><i class="fas fa-sign-out-alt"></i> Sign out</a></li>`;
         list.querySelector('#logoutLink')?.addEventListener('click', e => { e.preventDefault(); this.logout(); });
       }
       bindProfileDropdown() {
@@ -384,166 +1485,1181 @@
         }
       }
       async logout() {
-        try {
-          await firebase.auth().signOut();
-          localStorage.removeItem('currentUser');
-          localStorage.removeItem('user');
-          window.location.href = 'login.html';
-        } catch (error) {
-          console.error('Logout error:', error);
-          localStorage.removeItem('currentUser');
-          localStorage.removeItem('user');
-          window.location.href = 'login.html';
-        }
+        try { await firebase.auth().signOut(); } catch (e) {}
+        localStorage.removeItem('currentUser');
+        localStorage.removeItem('user');
+        window.location.href = 'login.html';
       }
     }
 
+    // Initialize
     document.addEventListener('DOMContentLoaded', () => {
       window.authManager = new AuthManager();
-      if (typeof initializeMenuAuthorization === 'function') {
-        initializeMenuAuthorization();
-      }
+
       document.getElementById('sidebarToggle').addEventListener('click', () => {
         document.getElementById('sidebar').classList.toggle('collapsed');
         document.getElementById('mainContent').classList.toggle('sidebar-collapsed');
       });
+
       document.getElementById('notificationBtn').addEventListener('click', (e) => {
         e.stopPropagation();
         document.querySelector('.notification-dropdown').classList.toggle('show');
       });
-      document.getElementById('addItem').addEventListener('click', () => openItemModal());
-      document.getElementById('closeItemModal').addEventListener('click', closeItemModal);
-      document.getElementById('saveItem').addEventListener('click', saveItem);
-      document.getElementById('deleteItem').addEventListener('click', deleteItem);
+
+      document.addEventListener('click', () => {
+        document.querySelector('.notification-dropdown')?.classList.remove('show');
+      });
+
+      // Filters
       document.getElementById('searchBox').addEventListener('input', renderItems);
       document.getElementById('categoryFilter').addEventListener('change', renderItems);
+      document.getElementById('statusFilter').addEventListener('change', renderItems);
     });
 
-    async function loadItems() {
-      const snap = await db.ref(`companies/${companyId}/inventory/items`).once('value');
-      itemsCache = snap.val() || {};
-      renderItems();
-    }
-
-    function renderItems() {
-      const q = (document.getElementById('searchBox').value || '').toLowerCase();
-      const cat = document.getElementById('categoryFilter').value;
-      const tbody = document.getElementById('itemsBody');
-
-      let list = Object.entries(itemsCache).map(([id, it]) => ({ id, ...it }));
-      if (cat !== 'all') list = list.filter(x => (x.category || '').toLowerCase() === cat.toLowerCase());
-      if (q) list = list.filter(x => (x.name||'').toLowerCase().includes(q) || (x.sku||'').toLowerCase().includes(q) || (x.category||'').toLowerCase().includes(q));
-
-      if (!list.length) { tbody.innerHTML = '<tr><td colspan="7" class="muted">No items found</td></tr>'; return; }
-
-      list.sort((a,b)=> (a.name||'').localeCompare(b.name||''));
-      tbody.innerHTML = list.map(it => `
-        <tr>
-          <td>${it.name || '-'}</td>
-          <td>${it.sku || '-'}</td>
-          <td>${it.category || '-'}</td>
-          <td>${it.uom || '-'}</td>
-          <td>${Number(it.minStock||0)}</td>
-          <td>${Number(it.currentStock||0)}</td>
-          <td class="right"><button class="btn" onclick="openItemModal('${it.id || it.sku || it.name || ''}')"><i class="fas fa-pen"></i> Edit</button></td>
-        </tr>`).join('');
-    }
-
-    function refreshCategoryFilter() {
-      const select = document.getElementById('categoryFilter');
-      const datalist = document.getElementById('categoriesList');
-      const cats = Array.from(new Set(Object.values(itemsCache).map(x => x.category).filter(Boolean))).sort();
-      select.innerHTML = '<option value="all">All Categories</option>' + cats.map(c => `<option value="${c}">${c}</option>`).join('');
-      datalist.innerHTML = cats.map(c => `<option value="${c}"></option>`).join('');
-    }
-
-    function openItemModal(id=null) {
-      activeItemId = null;
-      document.getElementById('modalAlertError').style.display='none';
-      document.getElementById('modalAlertOk').style.display='none';
-
-      if (id) {
-        const entry = Object.entries(itemsCache).find(([k,v]) => v.id===id || k===id);
-        if (entry) {
-          const [key, it] = entry;
-          activeItemId = key;
-          document.getElementById('modalTitle').textContent = 'Edit Item';
-          document.getElementById('itemName').value = it.name || '';
-          document.getElementById('itemSku').value = it.sku || '';
-          document.getElementById('itemCategory').value = it.category || '';
-          document.getElementById('itemUom').value = it.uom || '';
-          document.getElementById('itemMinStock').value = Number(it.minStock||0);
-          document.getElementById('itemCurrentStock').value = Number(it.currentStock||0);
-          document.getElementById('itemDesc').value = it.description || '';
-        }
-      } else {
-        document.getElementById('modalTitle').textContent = 'New Item';
-        document.getElementById('itemName').value = '';
-        document.getElementById('itemSku').value = '';
-        document.getElementById('itemCategory').value = '';
-        document.getElementById('itemUom').value = '';
-        document.getElementById('itemMinStock').value = 0;
-        document.getElementById('itemCurrentStock').value = 0;
-        document.getElementById('itemDesc').value = '';
-      }
-
-      document.getElementById('itemModal').style.display = 'flex';
-    }
-
-    function closeItemModal() {
-      document.getElementById('itemModal').style.display = 'none';
-    }
-
-    async function saveItem() {
-      const errorBox = document.getElementById('modalAlertError');
-      const okBox = document.getElementById('modalAlertOk');
-      errorBox.style.display = 'none';
-      okBox.style.display = 'none';
-
-      const name = (document.getElementById('itemName').value||'').trim();
-      const sku = (document.getElementById('itemSku').value||'').trim();
-      const category = (document.getElementById('itemCategory').value||'').trim();
-      const uom = (document.getElementById('itemUom').value||'').trim();
-      const minStock = Number(document.getElementById('itemMinStock').value||0);
-      const currentStock = Number(document.getElementById('itemCurrentStock').value||0);
-      const description = (document.getElementById('itemDesc').value||'').trim();
-
-      if (!name) { errorBox.textContent = 'Name is required.'; errorBox.style.display='block'; return; }
+    // Load page data
+    async function loadPageData() {
+      if (!companyId) { setTimeout(loadPageData, 500); return; }
 
       try {
-        if (!activeItemId) activeItemId = db.ref().push().key;
-        const payload = { id: activeItemId, name, sku, category, uom, minStock, currentStock, description, updatedAt: Date.now(), updatedBy: { uid: currentUser.uid, email: currentUser.email } };
-        await db.ref(`companies/${companyId}/inventory/items/${activeItemId}`).set(payload);
-        await loadItems();
-        refreshCategoryFilter();
-        okBox.textContent = 'Item saved.';
-        okBox.style.display = 'block';
-        setTimeout(() => closeItemModal(), 800);
+        const [itemsSnap, warehousesSnap, suppliersSnap, categoriesSnap, zonesSnap] = await Promise.all([
+          db.ref(`companies/${companyId}/inventory/items`).once('value'),
+          db.ref(`companies/${companyId}/inventory/warehouses`).once('value'),
+          db.ref(`companies/${companyId}/inventory/suppliers`).once('value'),
+          db.ref(`companies/${companyId}/fieldOptions/inventoryCategory`).once('value'),
+          db.ref(`companies/${companyId}/fieldOptions/area`).once('value')
+        ]);
+
+        itemsCache = itemsSnap.val() || {};
+        warehousesCache = warehousesSnap.val() || {};
+        suppliersCache = suppliersSnap.val() || {};
+        categoriesCache = categoriesSnap.val() || {};
+        zonesCache = zonesSnap.val() || {};
+
+        updateStats();
+        updateCategoryFilter();
+        updateWarehouseDropdown();
+        updateCategoryDropdowns();
+        updateSupplierDropdowns();
+        updateZoneDropdown();
+        updateTabBadges();
+        renderWarehousesList();
+        renderItems();
       } catch (err) {
-        console.error(err);
-        errorBox.textContent = 'Failed to save item.';
-        errorBox.style.display='block';
+        console.error('Error loading data:', err);
       }
     }
 
-    async function deleteItem() {
-      if (!activeItemId) { closeItemModal(); return; }
-      if (!confirm('Delete this item?')) return;
+    // World-standard inventory categories and subcategories
+    const inventoryCategoryData = {
+      'Raw Materials': ['Metals', 'Plastics', 'Chemicals', 'Textiles', 'Wood & Lumber', 'Paper & Packaging', 'Rubber', 'Glass', 'Ceramics', 'Composites'],
+      'Finished Goods': ['Consumer Products', 'Industrial Products', 'Electronic Devices', 'Machinery', 'Vehicles', 'Furniture', 'Appliances', 'Textiles & Apparel'],
+      'Work-in-Progress (WIP)': ['Semi-Finished Products', 'Assemblies', 'Sub-Assemblies', 'Partially Processed Materials'],
+      'MRO (Maintenance, Repair, Operations)': ['Spare Parts', 'Lubricants & Oils', 'Cleaning Supplies', 'Tools & Equipment', 'Fasteners & Hardware', 'Electrical Components', 'Plumbing Supplies', 'HVAC Components'],
+      'Safety & PPE': ['Head Protection', 'Eye & Face Protection', 'Hearing Protection', 'Respiratory Protection', 'Hand Protection', 'Foot Protection', 'Body Protection', 'Fall Protection', 'High Visibility Clothing', 'First Aid Supplies'],
+      'Office Supplies': ['Paper Products', 'Writing Instruments', 'Filing & Storage', 'Desk Accessories', 'Presentation Supplies', 'Mailing & Shipping', 'Breakroom Supplies', 'Technology Accessories'],
+      'IT & Electronics': ['Computers & Laptops', 'Monitors & Displays', 'Networking Equipment', 'Storage Devices', 'Printers & Scanners', 'Cables & Connectors', 'Software & Licenses', 'Mobile Devices', 'Audio/Video Equipment', 'Security Equipment'],
+      'Electrical & Lighting': ['Wiring & Cables', 'Switches & Outlets', 'Circuit Breakers', 'Transformers', 'Motors & Drives', 'Lighting Fixtures', 'Bulbs & Lamps', 'Batteries & Power', 'Control Panels', 'Sensors & Detectors'],
+      'Mechanical & Industrial': ['Bearings & Bushings', 'Gears & Pulleys', 'Belts & Chains', 'Pumps & Valves', 'Compressors', 'Hydraulic Components', 'Pneumatic Components', 'Seals & Gaskets', 'Springs & Shock Absorbers'],
+      'Plumbing & Piping': ['Pipes & Fittings', 'Valves & Controls', 'Pumps', 'Tanks & Vessels', 'Hoses & Tubing', 'Fixtures & Faucets', 'Drainage & Sewage', 'Water Treatment'],
+      'Building & Construction': ['Cement & Concrete', 'Steel & Rebar', 'Bricks & Blocks', 'Roofing Materials', 'Insulation', 'Doors & Windows', 'Flooring', 'Paint & Coatings', 'Adhesives & Sealants'],
+      'Automotive & Fleet': ['Engine Parts', 'Transmission Parts', 'Brake Systems', 'Suspension Parts', 'Electrical Systems', 'Body Parts', 'Tires & Wheels', 'Fluids & Lubricants', 'Filters', 'Accessories'],
+      'Medical & Healthcare': ['Medical Devices', 'Surgical Instruments', 'Diagnostic Equipment', 'Pharmaceuticals', 'Medical Consumables', 'Laboratory Supplies', 'Patient Care', 'Sterilization Equipment'],
+      'Food & Beverage': ['Dry Goods', 'Frozen Foods', 'Refrigerated Items', 'Beverages', 'Seasonings & Spices', 'Canned Goods', 'Fresh Produce', 'Dairy Products', 'Packaging Materials'],
+      'Packaging Materials': ['Boxes & Cartons', 'Bags & Pouches', 'Wrapping Materials', 'Labels & Tags', 'Pallets & Crates', 'Cushioning & Void Fill', 'Strapping & Tape', 'Containers'],
+      'Chemicals & Hazmat': ['Industrial Chemicals', 'Cleaning Chemicals', 'Solvents', 'Acids & Bases', 'Paints & Coatings', 'Adhesives', 'Fuels & Oils', 'Gases', 'Pesticides & Herbicides'],
+      'Textiles & Fabrics': ['Cotton', 'Synthetic Fibers', 'Wool & Natural Fibers', 'Technical Textiles', 'Leather', 'Non-Woven Materials', 'Thread & Yarn'],
+      'Laboratory & Scientific': ['Glassware', 'Instruments', 'Reagents & Chemicals', 'Consumables', 'Safety Equipment', 'Storage & Handling', 'Measurement Tools'],
+      'Agricultural & Farming': ['Seeds & Plants', 'Fertilizers', 'Pesticides', 'Farm Equipment Parts', 'Animal Feed', 'Veterinary Supplies', 'Irrigation Equipment'],
+      'Furniture & Fixtures': ['Office Furniture', 'Industrial Furniture', 'Storage Systems', 'Shelving & Racking', 'Workstations', 'Seating', 'Tables & Desks'],
+      'Tools & Equipment': ['Hand Tools', 'Power Tools', 'Measuring Instruments', 'Cutting Tools', 'Welding Equipment', 'Testing Equipment', 'Lifting Equipment', 'Material Handling'],
+      'Fuel & Energy': ['Diesel', 'Gasoline', 'Natural Gas', 'Propane', 'Coal', 'Solar Equipment', 'Battery Systems', 'Generators'],
+      'Consumables': ['Disposable Items', 'Filters', 'Absorbents', 'Wipes & Rags', 'Tapes', 'Adhesives', 'Lubricants', 'Coolants'],
+      'Promotional & Marketing': ['Branded Merchandise', 'Display Materials', 'Print Collateral', 'Signage', 'Giveaways', 'Event Supplies'],
+      'Other': ['Miscellaneous', 'Uncategorized', 'Special Items', 'Custom Items']
+    };
+
+    // Update category dropdowns in modal
+    function updateCategoryDropdowns() {
+      const categorySelect = document.getElementById('itemCategory');
+      const subcategorySelect = document.getElementById('itemSubcategory');
+      
+      // Get all standard categories
+      const standardCategories = Object.keys(inventoryCategoryData);
+      
+      // Also get custom categories from fieldOptions if any
+      let customCategories = [];
+      if (categoriesCache && typeof categoriesCache === 'object') {
+        customCategories = Object.values(categoriesCache).filter(c => c && (typeof c === 'string' || c.name)).map(c => typeof c === 'string' ? c : c.name);
+      }
+      
+      // Also get categories from existing items
+      const itemCategories = [...new Set(Object.values(itemsCache).map(i => i.category).filter(Boolean))];
+      
+      // Combine all categories (standard first, then custom/existing)
+      const allCategories = [...new Set([...standardCategories, ...customCategories, ...itemCategories])];
+      
+      categorySelect.innerHTML = '<option value="">Select Category</option>' + 
+        allCategories.map(c => `<option value="${c}">${escapeHtml(c)}</option>`).join('');
+      
+      // Default subcategories
+      subcategorySelect.innerHTML = '<option value="">Select Subcategory</option>';
+      
+      // Add event listener for category change
+      categorySelect.removeEventListener('change', handleCategoryChange);
+      categorySelect.addEventListener('change', handleCategoryChange);
+    }
+
+    // Handle category change to update subcategories
+    function handleCategoryChange() {
+      const categorySelect = document.getElementById('itemCategory');
+      const subcategorySelect = document.getElementById('itemSubcategory');
+      const selectedCategory = categorySelect.value;
+      
+      // Get subcategories for selected category
+      let subcategories = [];
+      
+      if (selectedCategory && inventoryCategoryData[selectedCategory]) {
+        subcategories = inventoryCategoryData[selectedCategory];
+      }
+      
+      // Also get custom subcategories from existing items with same category
+      const customSubcategories = [...new Set(
+        Object.values(itemsCache)
+          .filter(i => i.category === selectedCategory && i.subcategory)
+          .map(i => i.subcategory)
+      )];
+      
+      // Combine standard and custom subcategories
+      const allSubcategories = [...new Set([...subcategories, ...customSubcategories])];
+      
+      subcategorySelect.innerHTML = '<option value="">Select Subcategory</option>' + 
+        allSubcategories.map(s => `<option value="${s}">${escapeHtml(s)}</option>`).join('');
+    }
+
+    // Update supplier dropdowns
+    function updateSupplierDropdowns() {
+      const supplierOptions = '<option value="">Select Supplier</option>' + 
+        Object.entries(suppliersCache).map(([id, s]) => `<option value="${id}">${escapeHtml(s.name || s.companyName || 'Supplier')}</option>`).join('');
+      
+      document.getElementById('itemSupplier').innerHTML = supplierOptions;
+      document.getElementById('itemAltSupplier1').innerHTML = supplierOptions;
+      document.getElementById('itemAltSupplier2').innerHTML = supplierOptions;
+    }
+
+    // Update zone dropdown
+    function updateZoneDropdown() {
+      const zoneSelect = document.getElementById('itemZone');
+      let zones = [];
+      if (zonesCache && typeof zonesCache === 'object') {
+        zones = Object.values(zonesCache).filter(z => z && (typeof z === 'string' || z.name)).map(z => typeof z === 'string' ? z : z.name);
+      }
+      zoneSelect.innerHTML = '<option value="">Select Zone</option>' + 
+        zones.map(z => `<option value="${z}">${escapeHtml(z)}</option>`).join('');
+    }
+
+    // Update stats
+    function updateStats() {
+      const items = Object.values(itemsCache);
+      let inStock = 0, lowStock = 0, outOfStock = 0;
+
+      items.forEach(item => {
+        const current = Number(item.currentStock || 0);
+        const min = Number(item.minStock || 0);
+        if (current === 0) outOfStock++;
+        else if (min > 0 && current <= min) lowStock++;
+        else inStock++;
+      });
+
+      document.getElementById('totalItemsCount').textContent = items.length;
+      document.getElementById('inStockCount').textContent = inStock;
+      document.getElementById('lowStockCount').textContent = lowStock;
+      document.getElementById('outOfStockCount').textContent = outOfStock;
+    }
+
+    // Update category filter (for table filtering)
+    function updateCategoryFilter() {
+      const select = document.getElementById('categoryFilter');
+      const categories = [...new Set(Object.values(itemsCache).map(i => i.category).filter(Boolean))].sort();
+
+      select.innerHTML = '<option value="all">All Categories</option>' + categories.map(c => `<option value="${c}">${c}</option>`).join('');
+    }
+
+    // Update warehouse dropdown
+    function updateWarehouseDropdown() {
+      const select = document.getElementById('itemWarehouse');
+      select.innerHTML = '<option value="">Select Warehouse</option>' + 
+        Object.entries(warehousesCache).map(([id, wh]) => `<option value="${id}">${escapeHtml(wh.name || 'Warehouse')}</option>`).join('');
+      
+      // Also update the warehouse filter dropdown in Items tab
+      const filterSelect = document.getElementById('warehouseFilter');
+      if (filterSelect) {
+        filterSelect.innerHTML = '<option value="">Select Warehouse</option>' + 
+          Object.entries(warehousesCache).map(([id, wh]) => `<option value="${id}">${escapeHtml(wh.name || 'Warehouse')}</option>`).join('');
+      }
+    }
+
+    // Render items table
+    function renderItems() {
+      const tbody = document.getElementById('itemsTableBody');
+      const search = (document.getElementById('searchBox').value || '').toLowerCase();
+      const category = document.getElementById('categoryFilter').value;
+      const status = document.getElementById('statusFilter').value;
+      const warehouseFilter = document.getElementById('warehouseFilter')?.value || '';
+
+      // Require warehouse selection
+      if (!warehouseFilter || warehouseFilter === 'all') {
+        tbody.innerHTML = '<tr><td colspan="8" class="muted" style="text-align:center;padding:2rem;"><i class="fas fa-warehouse" style="font-size:2rem;color:#94a3b8;display:block;margin-bottom:0.5rem;"></i>Please select a warehouse to view items</td></tr>';
+        document.getElementById('currentWarehouseName').textContent = '';
+        return;
+      }
+
+      let items = Object.entries(itemsCache).map(([id, item]) => ({ id, ...item }));
+
+      // Filter by selected warehouse
+      items = items.filter(i => i.warehouseId === warehouseFilter);
+
+      // Update current warehouse name display
+      const warehouseNameEl = document.getElementById('currentWarehouseName');
+      const warehouse = warehousesCache[warehouseFilter];
+      warehouseNameEl.textContent = warehouse ? `- ${warehouse.name}` : '';
+
+      // Filter by search
+      if (search) {
+        items = items.filter(i => 
+          (i.name || '').toLowerCase().includes(search) ||
+          (i.sku || '').toLowerCase().includes(search) ||
+          (i.category || '').toLowerCase().includes(search)
+        );
+      }
+      if (category !== 'all') {
+        items = items.filter(i => i.category === category);
+      }
+      if (status !== 'all') {
+        items = items.filter(i => {
+          const current = Number(i.currentStock || 0);
+          const min = Number(i.minStock || 0);
+          if (status === 'out-of-stock') return current === 0;
+          if (status === 'low-stock') return current > 0 && min > 0 && current <= min;
+          if (status === 'in-stock') return current > 0 && (min === 0 || current > min);
+          return true;
+        });
+      }
+
+      // Sort by name
+      items.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
+      if (items.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" class="empty-state"><i class="fas fa-box-open"></i><p>No items found</p></td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = items.map(item => {
+        const current = Number(item.currentStock || 0);
+        const min = Number(item.minStock || 0);
+        let statusClass = 'good', statusText = 'In Stock';
+        if (current === 0) { statusClass = 'critical'; statusText = 'Out of Stock'; }
+        else if (min > 0 && current <= min) { statusClass = 'low'; statusText = 'Low Stock'; }
+
+        // Get warehouse name
+        const warehouseName = item.warehouseId && warehousesCache[item.warehouseId] 
+          ? warehousesCache[item.warehouseId].name 
+          : '-';
+
+        return `
+          <tr style="cursor:pointer;" onclick="openItemDetailsModal('${item.id}')">
+            <td><strong>${escapeHtml(item.name || '-')}</strong></td>
+            <td>${escapeHtml(item.sku || '-')}</td>
+            <td>${escapeHtml(item.category || '-')}</td>
+            <td>${escapeHtml(warehouseName)}</td>
+            <td>${escapeHtml(item.uom || 'EA')}</td>
+            <td>${min}</td>
+            <td><strong>${current}</strong></td>
+            <td><span class="badge ${statusClass}">${statusText}</span></td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    // Open item modal
+    function openItemModal(itemId = null) {
+      editingItemId = itemId;
+      const modal = document.getElementById('itemModal');
+      const title = document.getElementById('modalTitle');
+      const deleteBtn = document.getElementById('deleteItemBtn');
+
+      // Reset form and tabs
+      document.getElementById('itemForm').reset();
+      document.getElementById('modalError').classList.remove('show');
+      document.getElementById('modalSuccess').classList.remove('show');
+      switchItemTab('basic');
+      uploadedImages = [];
+      uploadedDocuments = [];
+      renderFileList('imagesList', [], 'image');
+      renderFileList('documentsList', [], 'document');
+
+      if (itemId && itemsCache[itemId]) {
+        const item = itemsCache[itemId];
+        title.textContent = 'Edit Item';
+        deleteBtn.style.display = 'inline-flex';
+
+        // Basic Info
+        document.getElementById('itemName').value = item.name || '';
+        document.getElementById('itemSku').value = item.sku || '';
+        document.getElementById('itemBarcode').value = item.barcode || '';
+        document.getElementById('itemCategory').value = item.category || '';
+        // Trigger subcategory update based on selected category
+        handleCategoryChange();
+        document.getElementById('itemSubcategory').value = item.subcategory || '';
+        document.getElementById('itemBrand').value = item.brand || '';
+        document.getElementById('itemManufacturer').value = item.manufacturer || '';
+        document.getElementById('itemModel').value = item.model || '';
+        document.getElementById('itemStatus').value = item.status || 'active';
+        document.getElementById('itemDescription').value = item.description || '';
+
+        // Stock Management
+        document.getElementById('itemCurrentStock').value = item.currentStock || 0;
+        document.getElementById('itemMinStock').value = item.minStock || 0;
+        document.getElementById('itemMaxStock').value = item.maxStock || 0;
+        document.getElementById('itemSafetyStock').value = item.safetyStock || 0;
+        document.getElementById('itemReorderQty').value = item.reorderQty || 0;
+        document.getElementById('itemAvailableStock').value = item.currentStock || 0;
+        document.getElementById('itemUom').value = item.uom || 'EA';
+        document.getElementById('itemSecondaryUom').value = item.secondaryUom || '';
+        document.getElementById('itemConversionFactor').value = item.conversionFactor || 1;
+
+        // Location
+        document.getElementById('itemWarehouse').value = item.warehouseId || '';
+        document.getElementById('itemZone').value = item.zone || '';
+        document.getElementById('itemAisle').value = item.aisle || '';
+        document.getElementById('itemRack').value = item.rack || '';
+        document.getElementById('itemShelf').value = item.shelf || '';
+        document.getElementById('itemBin').value = item.bin || '';
+        document.getElementById('itemLocationNotes').value = item.locationNotes || '';
+
+        // Pricing
+        document.getElementById('itemCurrency').value = item.currency || 'USD';
+        document.getElementById('itemCostPrice').value = item.costPrice || 0;
+        document.getElementById('itemUnitPrice').value = item.unitPrice || 0;
+        document.getElementById('itemMsrp').value = item.msrp || 0;
+        document.getElementById('itemWholesalePrice').value = item.wholesalePrice || 0;
+        document.getElementById('itemTaxRate').value = item.taxRate || 0;
+        document.getElementById('itemTaxCode').value = item.taxCode || '';
+        document.getElementById('itemDiscount').value = item.discount || 0;
+
+        // Supplier
+        document.getElementById('itemSupplier').value = item.supplierId || '';
+        document.getElementById('itemSupplierSku').value = item.supplierSku || '';
+        document.getElementById('itemSupplierPrice').value = item.supplierPrice || 0;
+        document.getElementById('itemLeadTime').value = item.leadTime || 0;
+        document.getElementById('itemMoq').value = item.moq || 1;
+        document.getElementById('itemOrderMultiple').value = item.orderMultiple || 1;
+        document.getElementById('itemAltSupplier1').value = item.altSupplier1 || '';
+        document.getElementById('itemAltSupplier2').value = item.altSupplier2 || '';
+        document.getElementById('itemSupplierNotes').value = item.supplierNotes || '';
+
+        // Physical
+        document.getElementById('itemWeight').value = item.weight || 0;
+        document.getElementById('itemWeightUnit').value = item.weightUnit || 'kg';
+        document.getElementById('itemGrossWeight').value = item.grossWeight || 0;
+        document.getElementById('itemLength').value = item.length || 0;
+        document.getElementById('itemWidth').value = item.width || 0;
+        document.getElementById('itemHeight').value = item.height || 0;
+        document.getElementById('itemDimensionUnit').value = item.dimensionUnit || 'cm';
+        document.getElementById('itemVolume').value = item.volume || 0;
+        document.getElementById('itemVolumeUnit').value = item.volumeUnit || 'cm3';
+        document.getElementById('itemColor').value = item.color || '';
+        document.getElementById('itemSize').value = item.size || '';
+        document.getElementById('itemMaterial').value = item.material || '';
+        document.getElementById('itemCountryOrigin').value = item.countryOrigin || '';
+        document.getElementById('itemHsCode').value = item.hsCode || '';
+        document.getElementById('itemCondition').value = item.condition || 'new';
+
+        // Tracking
+        document.getElementById('itemTrackSerial').checked = item.trackSerial || false;
+        document.getElementById('itemTrackBatch').checked = item.trackBatch || false;
+        document.getElementById('itemTrackExpiry').checked = item.trackExpiry || false;
+        document.getElementById('itemWarrantyPeriod').value = item.warrantyPeriod || 0;
+        document.getElementById('itemWarrantyUnit').value = item.warrantyUnit || 'months';
+        document.getElementById('itemShelfLife').value = item.shelfLife || 0;
+        document.getElementById('itemIsHazardous').checked = item.isHazardous || false;
+        document.getElementById('itemIsPerishable').checked = item.isPerishable || false;
+        document.getElementById('itemRequiresCert').checked = item.requiresCert || false;
+        document.getElementById('itemHazardClass').value = item.hazardClass || '';
+        document.getElementById('itemUnNumber').value = item.unNumber || '';
+        document.getElementById('itemStorageConditions').value = item.storageConditions || '';
+        document.getElementById('itemComplianceNotes').value = item.complianceNotes || '';
+
+        // Attachments - load existing files
+        document.getElementById('itemNotes').value = item.notes || '';
+        if (item.images && Array.isArray(item.images)) {
+          uploadedImages = item.images.map(img => ({ name: img.name, url: img.url, existing: true }));
+          renderFileList('imagesList', uploadedImages, 'image');
+        }
+        if (item.documents && Array.isArray(item.documents)) {
+          uploadedDocuments = item.documents.map(doc => ({ name: doc.name, url: doc.url, existing: true }));
+          renderFileList('documentsList', uploadedDocuments, 'document');
+        }
+
+        calculateDerivedFields();
+      } else {
+        title.textContent = 'Add New Item';
+        deleteBtn.style.display = 'none';
+      }
+
+      modal.classList.add('show');
+    }
+
+    // Close item modal
+    function closeItemModal() {
+      document.getElementById('itemModal').classList.remove('show');
+      editingItemId = null;
+      uploadedImages = [];
+      uploadedDocuments = [];
+    }
+
+    // Current item being viewed in details modal
+    let viewingItemId = null;
+
+    // Open item details modal
+    function openItemDetailsModal(itemId) {
+      if (!itemId || !itemsCache[itemId]) {
+        console.error('Item not found:', itemId);
+        return;
+      }
+
+      viewingItemId = itemId;
+      const item = itemsCache[itemId];
+      const modal = document.getElementById('itemDetailsModal');
+      const content = document.getElementById('itemDetailsContent');
+
+      // Get warehouse and supplier names
+      const warehouseName = item.warehouseId && warehousesCache[item.warehouseId] 
+        ? warehousesCache[item.warehouseId].name : '-';
+      const supplierName = item.supplierId && suppliersCache[item.supplierId]
+        ? suppliersCache[item.supplierId].name : '-';
+
+      // Determine stock status
+      const current = Number(item.currentStock || 0);
+      const min = Number(item.minStock || 0);
+      let statusClass = 'good', statusText = 'In Stock';
+      if (current === 0) { statusClass = 'critical'; statusText = 'Out of Stock'; }
+      else if (min > 0 && current <= min) { statusClass = 'low'; statusText = 'Low Stock'; }
+
+      // Build item details HTML
+      content.innerHTML = `
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:1.5rem;">
+          <div>
+            <div style="margin-bottom:1rem;">
+              <h4 style="font-size:1.1rem; font-weight:700; color:#1f2937; margin:0 0 0.25rem 0;">${escapeHtml(item.name || '-')}</h4>
+              <span class="badge ${statusClass}">${statusText}</span>
+            </div>
+            
+            <table style="width:100%; font-size:0.85rem;">
+              <tr><td style="padding:0.4rem 0; color:#64748b; width:40%;">SKU / Item Code:</td><td style="padding:0.4rem 0; font-weight:600;">${escapeHtml(item.sku || '-')}</td></tr>
+              <tr><td style="padding:0.4rem 0; color:#64748b;">Barcode:</td><td style="padding:0.4rem 0;">${escapeHtml(item.barcode || '-')}</td></tr>
+              <tr><td style="padding:0.4rem 0; color:#64748b;">Category:</td><td style="padding:0.4rem 0;">${escapeHtml(item.category || '-')}</td></tr>
+              <tr><td style="padding:0.4rem 0; color:#64748b;">Subcategory:</td><td style="padding:0.4rem 0;">${escapeHtml(item.subcategory || '-')}</td></tr>
+              <tr><td style="padding:0.4rem 0; color:#64748b;">Brand:</td><td style="padding:0.4rem 0;">${escapeHtml(item.brand || '-')}</td></tr>
+              <tr><td style="padding:0.4rem 0; color:#64748b;">Manufacturer:</td><td style="padding:0.4rem 0;">${escapeHtml(item.manufacturer || '-')}</td></tr>
+              <tr><td style="padding:0.4rem 0; color:#64748b;">Unit of Measure:</td><td style="padding:0.4rem 0;">${escapeHtml(item.uom || 'EA')}</td></tr>
+            </table>
+          </div>
+          
+          <div>
+            <div class="form-section-title" style="margin-top:0;"><i class="fas fa-cubes"></i> Stock Information</div>
+            <table style="width:100%; font-size:0.85rem;">
+              <tr><td style="padding:0.4rem 0; color:#64748b; width:50%;">Current Stock:</td><td style="padding:0.4rem 0; font-weight:700; font-size:1.1rem; color:#1f2937;">${current} ${escapeHtml(item.uom || 'EA')}</td></tr>
+              <tr><td style="padding:0.4rem 0; color:#64748b;">Minimum Stock:</td><td style="padding:0.4rem 0;">${min}</td></tr>
+              <tr><td style="padding:0.4rem 0; color:#64748b;">Maximum Stock:</td><td style="padding:0.4rem 0;">${Number(item.maxStock || 0)}</td></tr>
+              <tr><td style="padding:0.4rem 0; color:#64748b;">Safety Stock:</td><td style="padding:0.4rem 0;">${Number(item.safetyStock || 0)}</td></tr>
+              <tr><td style="padding:0.4rem 0; color:#64748b;">Reorder Quantity:</td><td style="padding:0.4rem 0;">${Number(item.reorderQty || 0)}</td></tr>
+            </table>
+            
+            <div class="form-section-title"><i class="fas fa-map-marker-alt"></i> Location</div>
+            <table style="width:100%; font-size:0.85rem;">
+              <tr><td style="padding:0.4rem 0; color:#64748b; width:50%;">Warehouse:</td><td style="padding:0.4rem 0; font-weight:600;">${escapeHtml(warehouseName)}</td></tr>
+              <tr><td style="padding:0.4rem 0; color:#64748b;">Zone:</td><td style="padding:0.4rem 0;">${escapeHtml(item.zone || '-')}</td></tr>
+              <tr><td style="padding:0.4rem 0; color:#64748b;">Aisle / Rack / Bin:</td><td style="padding:0.4rem 0;">${escapeHtml(item.aisle || '-')} / ${escapeHtml(item.rack || '-')} / ${escapeHtml(item.bin || '-')}</td></tr>
+            </table>
+            
+            <div class="form-section-title"><i class="fas fa-dollar-sign"></i> Pricing</div>
+            <table style="width:100%; font-size:0.85rem;">
+              <tr><td style="padding:0.4rem 0; color:#64748b; width:50%;">Cost Price:</td><td style="padding:0.4rem 0;">${item.costPrice ? '$' + Number(item.costPrice).toFixed(2) : '-'}</td></tr>
+              <tr><td style="padding:0.4rem 0; color:#64748b;">Unit Price:</td><td style="padding:0.4rem 0; font-weight:600;">${item.unitPrice ? '$' + Number(item.unitPrice).toFixed(2) : '-'}</td></tr>
+              <tr><td style="padding:0.4rem 0; color:#64748b;">Supplier:</td><td style="padding:0.4rem 0;">${escapeHtml(supplierName)}</td></tr>
+            </table>
+          </div>
+        </div>
+        
+        ${item.description ? `
+          <div style="margin-top:1rem; padding:0.75rem; background:#f8fafc; border-radius:6px;">
+            <div style="font-size:0.75rem; color:#64748b; margin-bottom:0.25rem;">Description</div>
+            <div style="font-size:0.85rem; color:#374151;">${escapeHtml(item.description)}</div>
+          </div>
+        ` : ''}
+      `;
+
+      // Update title
+      document.getElementById('itemDetailsTitle').textContent = item.name || 'Item Details';
+
+      // Load reception history
+      loadItemReceptionHistory(itemId);
+
+      modal.classList.add('show');
+    }
+
+    // Load reception history for an item
+    async function loadItemReceptionHistory(itemId) {
+      const tbody = document.getElementById('itemReceptionHistory');
+      tbody.innerHTML = '<tr><td colspan="5" class="muted" style="text-align:center; padding:1rem;">Loading reception history...</td></tr>';
+
       try {
-        await db.ref(`companies/${companyId}/inventory/items/${activeItemId}`).remove();
-        await loadItems();
-        refreshCategoryFilter();
+        // Load stock movements and users in parallel
+        const [movementsSnap, usersSnap] = await Promise.all([
+          firebase.database()
+            .ref(`companies/${companyId}/inventory/stock-movements`)
+            .orderByChild('itemId')
+            .equalTo(itemId)
+            .once('value'),
+          firebase.database()
+            .ref(`companies/${companyId}/users`)
+            .once('value')
+        ]);
+
+        const movements = movementsSnap.val();
+        const users = usersSnap.val() || {};
+        
+        if (!movements) {
+          tbody.innerHTML = '<tr><td colspan="5" class="muted" style="text-align:center; padding:1rem;">No reception history found</td></tr>';
+          return;
+        }
+
+        // Helper function to get user full name
+        const getUserFullName = (userId, fallbackName) => {
+          // First check users by matching authUid or direct key
+          for (const [uid, user] of Object.entries(users)) {
+            if (uid === userId || user.authUid === userId) {
+              const fullName = user.fullName || user.name || user.displayName || 
+                ((user.firstName || '') + ' ' + (user.lastName || '')).trim();
+              if (fullName) return fullName;
+            }
+          }
+          // If fallbackName looks like an email, try to make it readable
+          if (fallbackName && fallbackName.includes('@')) {
+            return fallbackName.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+          }
+          return fallbackName || '-';
+        };
+
+        // Filter only 'receive' type movements and sort by date descending
+        const receptions = Object.entries(movements)
+          .filter(([id, m]) => m.type === 'receive')
+          .map(([id, m]) => ({ id, ...m }))
+          .sort((a, b) => (b.receivedAt || 0) - (a.receivedAt || 0));
+
+        if (receptions.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="5" class="muted" style="text-align:center; padding:1rem;">No reception history found</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = receptions.map(rec => {
+          const date = rec.receivedAt ? new Date(rec.receivedAt).toLocaleDateString('en-US', {
+            year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+          }) : '-';
+          
+          const receivedByFullName = getUserFullName(rec.receivedBy, rec.receivedByName);
+          
+          return `
+            <tr>
+              <td style="padding:0.5rem; border-bottom:1px solid #f1f5f9;">${date}</td>
+              <td style="padding:0.5rem; border-bottom:1px solid #f1f5f9; font-weight:600; color:#16a34a;">+${rec.quantity || 0}</td>
+              <td style="padding:0.5rem; border-bottom:1px solid #f1f5f9;">${escapeHtml(rec.reference || '-')}</td>
+              <td style="padding:0.5rem; border-bottom:1px solid #f1f5f9;">${escapeHtml(receivedByFullName)}</td>
+              <td style="padding:0.5rem; border-bottom:1px solid #f1f5f9;">${escapeHtml(rec.notes || '-')}</td>
+            </tr>
+          `;
+        }).join('');
+
+      } catch (err) {
+        console.error('Error loading reception history:', err);
+        tbody.innerHTML = '<tr><td colspan="5" class="muted" style="text-align:center; padding:1rem; color:#dc2626;">Error loading history</td></tr>';
+      }
+    }
+
+    // Close item details modal
+    function closeItemDetailsModal() {
+      document.getElementById('itemDetailsModal').classList.remove('show');
+      viewingItemId = null;
+    }
+
+    // Open edit modal from details modal
+    function openItemModalFromDetails() {
+      const itemId = viewingItemId;
+      closeItemDetailsModal();
+      openItemModal(itemId);
+    }
+
+    // Open receive item modal
+    function openReceiveModal() {
+      const modal = document.getElementById('receiveItemModal');
+      
+      // Reset form
+      document.getElementById('receiveWarehouse').value = '';
+      document.getElementById('receiveItemSelect').innerHTML = '<option value="">Select Item</option>';
+      document.getElementById('receiveQty').value = 1;
+      document.getElementById('receiveRef').value = '';
+      document.getElementById('receiveNote').value = '';
+      document.getElementById('receiveModalError').classList.remove('show');
+      document.getElementById('receiveModalSuccess').classList.remove('show');
+      document.getElementById('receiveItemPreview').style.display = 'none';
+      
+      // Populate warehouse dropdown
+      const warehouseSelect = document.getElementById('receiveWarehouse');
+      warehouseSelect.innerHTML = '<option value="">Select Warehouse</option>' + 
+        Object.entries(warehousesCache).map(([id, wh]) => 
+          `<option value="${id}">${escapeHtml(wh.name || 'Warehouse')}</option>`
+        ).join('');
+      
+      modal.classList.add('show');
+    }
+
+    // Close receive item modal
+    function closeReceiveModal() {
+      document.getElementById('receiveItemModal').classList.remove('show');
+    }
+
+    // Update item dropdown based on selected warehouse
+    function updateReceiveItemDropdown() {
+      const warehouseId = document.getElementById('receiveWarehouse').value;
+      const itemSelect = document.getElementById('receiveItemSelect');
+      const preview = document.getElementById('receiveItemPreview');
+      
+      preview.style.display = 'none';
+      
+      if (!warehouseId) {
+        itemSelect.innerHTML = '<option value="">Select Item</option>';
+        return;
+      }
+      
+      // Filter items by warehouse
+      const warehouseItems = Object.entries(itemsCache)
+        .filter(([id, item]) => item.warehouseId === warehouseId)
+        .sort((a, b) => (a[1].name || '').localeCompare(b[1].name || ''));
+      
+      if (warehouseItems.length === 0) {
+        itemSelect.innerHTML = '<option value="">No items in this warehouse</option>';
+        return;
+      }
+      
+      itemSelect.innerHTML = '<option value="">Select Item</option>' + 
+        warehouseItems.map(([id, item]) => 
+          `<option value="${id}">${escapeHtml(item.name || 'Item')} (${escapeHtml(item.sku || 'N/A')})</option>`
+        ).join('');
+      
+      // Add change listener to show preview
+      itemSelect.onchange = function() {
+        const itemId = this.value;
+        if (itemId && itemsCache[itemId]) {
+          const item = itemsCache[itemId];
+          document.getElementById('previewItemName').textContent = item.name || '-';
+          document.getElementById('previewItemSku').textContent = item.sku || '-';
+          document.getElementById('previewItemStock').textContent = Number(item.currentStock || 0) + ' ' + (item.uom || 'EA');
+          preview.style.display = 'block';
+        } else {
+          preview.style.display = 'none';
+        }
+      };
+    }
+
+    // Submit receive item from modal
+    async function submitReceiveItem() {
+      const errorEl = document.getElementById('receiveModalError');
+      const successEl = document.getElementById('receiveModalSuccess');
+      errorEl.classList.remove('show');
+      successEl.classList.remove('show');
+
+      const warehouseId = document.getElementById('receiveWarehouse').value;
+      const itemId = document.getElementById('receiveItemSelect').value;
+      const quantity = parseInt(document.getElementById('receiveQty').value);
+      const reference = document.getElementById('receiveRef').value.trim();
+      const notes = document.getElementById('receiveNote').value.trim();
+
+      if (!warehouseId) {
+        errorEl.textContent = 'Please select a warehouse.';
+        errorEl.classList.add('show');
+        return;
+      }
+
+      if (!itemId) {
+        errorEl.textContent = 'Please select an item.';
+        errorEl.classList.add('show');
+        return;
+      }
+
+      if (!quantity || quantity < 1) {
+        errorEl.textContent = 'Please enter a valid quantity (minimum 1).';
+        errorEl.classList.add('show');
+        return;
+      }
+
+      const item = itemsCache[itemId];
+      if (!item) {
+        errorEl.textContent = 'Item not found.';
+        errorEl.classList.add('show');
+        return;
+      }
+
+      try {
+        const currentStock = Number(item.currentStock || 0);
+        const newStock = currentStock + quantity;
+
+        // Update item stock
+        await firebase.database().ref(`companies/${companyId}/inventory/items/${itemId}/currentStock`).set(newStock);
+
+        // Get user display name
+        const userDisplayName = window.authManager?.getUserDisplayName() || currentUser?.displayName || currentUser?.name || currentUser?.email || '';
+
+        // Log the stock receipt
+        const receiptLog = {
+          itemId: itemId,
+          itemName: item.name || '',
+          itemSku: item.sku || '',
+          warehouseId: warehouseId,
+          type: 'receive',
+          quantity: quantity,
+          previousStock: currentStock,
+          newStock: newStock,
+          reference: reference,
+          notes: notes,
+          receivedBy: currentUser?.uid || '',
+          receivedByName: userDisplayName,
+          receivedAt: firebase.database.ServerValue.TIMESTAMP
+        };
+        await firebase.database().ref(`companies/${companyId}/inventory/stock-movements`).push(receiptLog);
+
+        // Update local cache
+        itemsCache[itemId].currentStock = newStock;
+
+        successEl.textContent = `Successfully received ${quantity} ${item.uom || 'units'} of ${item.name}. New stock: ${newStock}`;
+        successEl.classList.add('show');
+
+        // Update preview
+        document.getElementById('previewItemStock').textContent = newStock + ' ' + (item.uom || 'EA');
+
+        // Refresh items list
+        renderItems();
+        updateTabBadges();
+
+        // Close modal after delay
+        setTimeout(() => {
+          closeReceiveModal();
+        }, 2000);
+
+      } catch (err) {
+        console.error('Error receiving stock:', err);
+        errorEl.textContent = 'Error receiving stock: ' + err.message;
+        errorEl.classList.add('show');
+      }
+    }
+
+    // Save item
+    async function saveItem() {
+      const errorEl = document.getElementById('modalError');
+      const successEl = document.getElementById('modalSuccess');
+      errorEl.classList.remove('show');
+      successEl.classList.remove('show');
+
+      const name = document.getElementById('itemName').value.trim();
+      if (!name) {
+        errorEl.textContent = 'Item name is required.';
+        errorEl.classList.add('show');
+        switchItemTab('basic');
+        return;
+      }
+
+      const itemData = {
+        // Basic Info
+        name,
+        sku: document.getElementById('itemSku').value.trim(),
+        barcode: document.getElementById('itemBarcode').value.trim(),
+        category: document.getElementById('itemCategory').value,
+        subcategory: document.getElementById('itemSubcategory').value,
+        brand: document.getElementById('itemBrand').value.trim(),
+        manufacturer: document.getElementById('itemManufacturer').value.trim(),
+        model: document.getElementById('itemModel').value.trim(),
+        status: document.getElementById('itemStatus').value,
+        description: document.getElementById('itemDescription').value.trim(),
+
+        // Stock Management
+        currentStock: Number(document.getElementById('itemCurrentStock').value) || 0,
+        minStock: Number(document.getElementById('itemMinStock').value) || 0,
+        maxStock: Number(document.getElementById('itemMaxStock').value) || 0,
+        safetyStock: Number(document.getElementById('itemSafetyStock').value) || 0,
+        reorderQty: Number(document.getElementById('itemReorderQty').value) || 0,
+        uom: document.getElementById('itemUom').value,
+        secondaryUom: document.getElementById('itemSecondaryUom').value,
+        conversionFactor: Number(document.getElementById('itemConversionFactor').value) || 1,
+
+        // Location
+        warehouseId: document.getElementById('itemWarehouse').value,
+        zone: document.getElementById('itemZone').value,
+        aisle: document.getElementById('itemAisle').value.trim(),
+        rack: document.getElementById('itemRack').value.trim(),
+        shelf: document.getElementById('itemShelf').value.trim(),
+        bin: document.getElementById('itemBin').value.trim(),
+        locationNotes: document.getElementById('itemLocationNotes').value.trim(),
+
+        // Pricing
+        currency: document.getElementById('itemCurrency').value,
+        costPrice: Number(document.getElementById('itemCostPrice').value) || 0,
+        unitPrice: Number(document.getElementById('itemUnitPrice').value) || 0,
+        msrp: Number(document.getElementById('itemMsrp').value) || 0,
+        wholesalePrice: Number(document.getElementById('itemWholesalePrice').value) || 0,
+        taxRate: Number(document.getElementById('itemTaxRate').value) || 0,
+        taxCode: document.getElementById('itemTaxCode').value.trim(),
+        discount: Number(document.getElementById('itemDiscount').value) || 0,
+
+        // Supplier
+        supplierId: document.getElementById('itemSupplier').value,
+        supplierSku: document.getElementById('itemSupplierSku').value.trim(),
+        supplierPrice: Number(document.getElementById('itemSupplierPrice').value) || 0,
+        leadTime: Number(document.getElementById('itemLeadTime').value) || 0,
+        moq: Number(document.getElementById('itemMoq').value) || 1,
+        orderMultiple: Number(document.getElementById('itemOrderMultiple').value) || 1,
+        altSupplier1: document.getElementById('itemAltSupplier1').value,
+        altSupplier2: document.getElementById('itemAltSupplier2').value,
+        supplierNotes: document.getElementById('itemSupplierNotes').value.trim(),
+
+        // Physical
+        weight: Number(document.getElementById('itemWeight').value) || 0,
+        weightUnit: document.getElementById('itemWeightUnit').value,
+        grossWeight: Number(document.getElementById('itemGrossWeight').value) || 0,
+        length: Number(document.getElementById('itemLength').value) || 0,
+        width: Number(document.getElementById('itemWidth').value) || 0,
+        height: Number(document.getElementById('itemHeight').value) || 0,
+        dimensionUnit: document.getElementById('itemDimensionUnit').value,
+        volume: Number(document.getElementById('itemVolume').value) || 0,
+        volumeUnit: document.getElementById('itemVolumeUnit').value,
+        color: document.getElementById('itemColor').value.trim(),
+        size: document.getElementById('itemSize').value.trim(),
+        material: document.getElementById('itemMaterial').value.trim(),
+        countryOrigin: document.getElementById('itemCountryOrigin').value.trim(),
+        hsCode: document.getElementById('itemHsCode').value.trim(),
+        condition: document.getElementById('itemCondition').value,
+
+        // Tracking
+        trackSerial: document.getElementById('itemTrackSerial').checked,
+        trackBatch: document.getElementById('itemTrackBatch').checked,
+        trackExpiry: document.getElementById('itemTrackExpiry').checked,
+        warrantyPeriod: Number(document.getElementById('itemWarrantyPeriod').value) || 0,
+        warrantyUnit: document.getElementById('itemWarrantyUnit').value,
+        shelfLife: Number(document.getElementById('itemShelfLife').value) || 0,
+        isHazardous: document.getElementById('itemIsHazardous').checked,
+        isPerishable: document.getElementById('itemIsPerishable').checked,
+        requiresCert: document.getElementById('itemRequiresCert').checked,
+        hazardClass: document.getElementById('itemHazardClass').value.trim(),
+        unNumber: document.getElementById('itemUnNumber').value.trim(),
+        storageConditions: document.getElementById('itemStorageConditions').value.trim(),
+        complianceNotes: document.getElementById('itemComplianceNotes').value.trim(),
+
+        // Notes
+        notes: document.getElementById('itemNotes').value.trim(),
+
+        // Metadata
+        updatedAt: Date.now(),
+        updatedBy: { uid: currentUser?.uid, email: currentUser?.email }
+      };
+
+      try {
+        const itemId = editingItemId || db.ref().push().key;
+        itemData.id = itemId;
+        if (!editingItemId) {
+          itemData.createdAt = Date.now();
+          itemData.createdBy = { uid: currentUser?.uid, email: currentUser?.email };
+        }
+
+        await db.ref(`companies/${companyId}/inventory/items/${itemId}`).set(itemData);
+
+        successEl.textContent = 'Item saved successfully!';
+        successEl.classList.add('show');
+
+        // Reload data
+        await loadPageData();
+
+        setTimeout(() => closeItemModal(), 1000);
+      } catch (err) {
+        console.error('Error saving item:', err);
+        errorEl.textContent = 'Failed to save item. Please try again.';
+        errorEl.classList.add('show');
+      }
+    }
+
+    // Delete item
+    async function deleteItem() {
+      if (!editingItemId) return;
+      if (!confirm('Are you sure you want to delete this item?')) return;
+
+      try {
+        await db.ref(`companies/${companyId}/inventory/items/${editingItemId}`).remove();
+        await loadPageData();
         closeItemModal();
       } catch (err) {
-        console.error(err);
+        console.error('Error deleting item:', err);
         alert('Failed to delete item.');
       }
     }
-  // Use AuthManager and menu authorization as in project-list.html
-  function initializeMenuSystem() {
-    window.authManager = new AuthManager();
-    initializeMenuAuthorization();
-  }
+
+    // Export items
+    function exportItems() {
+      const items = Object.values(itemsCache);
+      if (items.length === 0) {
+        alert('No items to export.');
+        return;
+      }
+
+      const headers = ['Name', 'SKU', 'Category', 'Unit', 'Min Stock', 'Current Stock', 'Unit Price', 'Description'];
+      const rows = items.map(i => [
+        i.name || '', i.sku || '', i.category || '', i.uom || 'EA',
+        i.minStock || 0, i.currentStock || 0, i.unitPrice || 0, i.description || ''
+      ]);
+
+      const csv = [headers.join(','), ...rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(','))].join('\n');
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `inventory-items-${new Date().toISOString().slice(0,10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    // Helper
+    function escapeHtml(str) {
+      return String(str || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c] || c));
+    }
+
+    // ===== ROLE-BASED MENU AUTHORIZATION SYSTEM =====
+    let isMenuUpdateInProgress = false;
+
+    function resetMenuVisibility() {
+      document.querySelectorAll('[data-feature]').forEach(item => item.classList.remove('menu-visible'));
+      document.querySelectorAll('.menu-dropdown').forEach(dropdown => dropdown.classList.remove('menu-visible'));
+    }
+
+    function showBasicMenu() {
+      resetMenuVisibility();
+      const sidebar = document.querySelector('.sidebar');
+      if (sidebar) sidebar.classList.remove('menu-loading');
+      const homeItem = document.querySelector('[data-feature="home_view"]');
+      if (homeItem) homeItem.classList.add('menu-visible');
+    }
+
+    async function updateMenuWithFeatureAuthorization() {
+      if (isMenuUpdateInProgress) return;
+      isMenuUpdateInProgress = true;
+      try {
+        let currentUserData = null;
+        let companyIdVal = null;
+        let userRole = null;
+        if (window.authManager && window.authManager.currentUser) {
+          currentUserData = window.authManager.currentUser;
+          companyIdVal = currentUserData.companyId;
+          userRole = currentUserData.role;
+        } else if (firebase.auth().currentUser) {
+          currentUserData = firebase.auth().currentUser;
+        } else {
+          resetMenuVisibility();
+          return;
+        }
+        if (!companyIdVal && currentUserData) {
+          const companiesSnapshot = await firebase.database().ref('companies').once('value');
+          if (companiesSnapshot.exists()) {
+            const companies = companiesSnapshot.val();
+            for (const [cId, company] of Object.entries(companies)) {
+              if (company.status !== 'active') continue;
+              if (company.users && company.users[currentUserData.uid]) {
+                companyIdVal = cId;
+                userRole = company.users[currentUserData.uid].role || company.users[currentUserData.uid].userRole;
+                break;
+              }
+            }
+          }
+        }
+        if (!companyIdVal) { resetMenuVisibility(); return; }
+        const authorizedPages = await applyFeatureBasedMenuVisibility(companyIdVal);
+        if (userRole) await applyRoleBasedFiltering(companyIdVal, userRole, authorizedPages);
+      } catch (error) {
+        console.error('Menu authorization error:', error);
+        resetMenuVisibility();
+      } finally {
+        isMenuUpdateInProgress = false;
+      }
+    }
+
+    async function applyFeatureBasedMenuVisibility(companyIdVal) {
+      try {
+        const database = firebase.database();
+        const featuresSnapshot = await database.ref('/platformFeatures').once('value');
+        if (!featuresSnapshot.exists()) { resetMenuVisibility(); return; }
+        const featuresData = featuresSnapshot.val();
+        const companySnapshot = await database.ref(`/companies/${companyIdVal}`).once('value');
+        const companyData = companySnapshot.val();
+        if (!companyData) { resetMenuVisibility(); return; }
+        const subscribedFeatureIds = companyData.selectedFeatures || [];
+        if (subscribedFeatureIds.length === 0) { resetMenuVisibility(); return; }
+        const authorizedPages = [];
+        subscribedFeatureIds.forEach(featureId => {
+          const feature = featuresData[featureId];
+          if (feature && feature.status === 'active' && feature.authorizedPages) {
+            authorizedPages.push(...feature.authorizedPages);
+          }
+        });
+        resetMenuVisibility();
+        const authorizedFeatures = new Set();
+        const authorizedHrefs = new Set();
+        const featureAlias = (key) => {
+          if (!key) return key;
+          if (key === 'risk_view') return 'risk_management_section';
+          if (key === 'risk_management_section') return 'risk_view';
+          return null;
+        };
+        const normalizeHref = (href) => {
+          if (!href) return '';
+          try { const u = new URL(href, window.location.origin); return (u.pathname || '').replace(/^\//, ''); } catch { return String(href).replace(/^\//, ''); }
+        };
+        authorizedPages.forEach(pageInfo => {
+          if (pageInfo.feature) { authorizedFeatures.add(pageInfo.feature); const alias = featureAlias(pageInfo.feature); if (alias) authorizedFeatures.add(alias); }
+          if (pageInfo.href) authorizedHrefs.add(normalizeHref(pageInfo.href));
+          if (pageInfo.page) authorizedHrefs.add(normalizeHref(pageInfo.page));
+          if (pageInfo.url) authorizedHrefs.add(normalizeHref(pageInfo.url));
+        });
+        const allMenuItems = document.querySelectorAll('#roleBasedMenu li[data-feature]');
+        allMenuItems.forEach(menuItem => {
+          const featureAttribute = menuItem.getAttribute('data-feature');
+          const isDropdownContainer = menuItem.classList.contains('menu-dropdown');
+          const anchor = menuItem.querySelector('a[href]');
+          const href = anchor ? anchor.getAttribute('href') : '';
+          const normalized = normalizeHref(href);
+          const featureAuthorized = authorizedFeatures.has(featureAttribute);
+          const hrefAuthorized = normalized && authorizedHrefs.has(normalized);
+          const isAuthorized = featureAuthorized || hrefAuthorized;
+          if (isDropdownContainer) return;
+          if (isAuthorized) menuItem.classList.add('menu-visible');
+          else menuItem.classList.remove('menu-visible');
+        });
+        const dropdownMenus = document.querySelectorAll('#roleBasedMenu li.menu-dropdown');
+        dropdownMenus.forEach(dropdown => {
+          const dropdownFeature = dropdown.getAttribute('data-feature');
+          const submenuItems = dropdown.querySelectorAll('.submenu li[data-feature]');
+          let hasVisibleChildren = false;
+          submenuItems.forEach(submenuItem => { if (submenuItem.classList.contains('menu-visible')) hasVisibleChildren = true; });
+          if (hasVisibleChildren || authorizedFeatures.has(dropdownFeature)) dropdown.classList.add('menu-visible');
+          else dropdown.classList.remove('menu-visible');
+        });
+        return authorizedPages;
+      } catch (error) {
+        console.error('Feature menu error:', error);
+        resetMenuVisibility();
+        return [];
+      }
+    }
+
+    async function applyRoleBasedFiltering(companyIdVal, userRole, authorizedPages) {
+      try {
+        const database = firebase.database();
+        const permissionsRef = database.ref(`companies/${companyIdVal}/roles/${userRole}/permissions`);
+        const permissionsSnapshot = await permissionsRef.once('value');
+        if (!permissionsSnapshot.exists()) {
+          if (userRole === 'administrator') { showSidebarAfterAuth(); return; }
+          hideItemsRequiringPermissions();
+          showSidebarAfterAuth();
+          return;
+        }
+        const permissions = permissionsSnapshot.val();
+        filterMenuByPermissions(permissions);
+      } catch (error) {
+        console.error('Role filtering error:', error);
+        showSidebarAfterAuth();
+      }
+    }
+
+    function filterMenuByPermissions(permissions) {
+      if (!permissions) { hideItemsRequiringPermissions(); showSidebarAfterAuth(); return; }
+      const permissionAlias = (key) => {
+        if (!key) return key;
+        if (key === 'risk_view') return 'risk_management_section';
+        if (key === 'risk_management_section') return 'risk_view';
+        return null;
+      };
+      const itemsRequiringPermissions = document.querySelectorAll('#roleBasedMenu li[data-requires-permission]');
+      itemsRequiringPermissions.forEach(item => {
+        const requiresPermission = item.getAttribute('data-requires-permission');
+        const perm = permissions[requiresPermission];
+        const aliasKey = permissionAlias(requiresPermission);
+        const aliasPerm = aliasKey ? permissions[aliasKey] : undefined;
+        const hasViewPermission = (p) => p === true || (p && p.view === true);
+        const allowed = hasViewPermission(perm) || hasViewPermission(aliasPerm);
+        if (allowed) item.classList.add('menu-visible');
+        else item.classList.remove('menu-visible');
+      });
+      const dropdownMenus = document.querySelectorAll('#roleBasedMenu li.menu-dropdown');
+      dropdownMenus.forEach(dropdown => {
+        const submenuItems = dropdown.querySelectorAll('.submenu li.menu-visible');
+        const dropdownRequires = dropdown.getAttribute('data-requires-permission');
+        if (submenuItems.length === 0) {
+          if (dropdownRequires) {
+            const perm = permissions[dropdownRequires];
+            const aliasKey = permissionAlias(dropdownRequires);
+            const aliasPerm = aliasKey ? permissions[aliasKey] : undefined;
+            const hasViewPermission = (p) => p === true || (p && p.view === true);
+            const allowed = hasViewPermission(perm) || hasViewPermission(aliasPerm);
+            if (allowed) dropdown.classList.add('menu-visible');
+            else dropdown.classList.remove('menu-visible');
+          } else {
+            dropdown.classList.remove('menu-visible');
+          }
+        }
+      });
+      ensureHomeIsVisible();
+      showSidebarAfterAuth();
+    }
+
+    function hideItemsRequiringPermissions() {
+      const itemsRequiringPermissions = document.querySelectorAll('#roleBasedMenu li.menu-visible[data-requires-permission]');
+      itemsRequiringPermissions.forEach(item => item.classList.remove('menu-visible'));
+      const dropdownMenus = document.querySelectorAll('#roleBasedMenu li.menu-dropdown');
+      dropdownMenus.forEach(dropdown => {
+        const visibleSubmenuItems = dropdown.querySelectorAll('.submenu li.menu-visible');
+        if (visibleSubmenuItems.length === 0) dropdown.classList.remove('menu-visible');
+      });
+      ensureHomeIsVisible();
+    }
+
+    function ensureHomeIsVisible() {
+      const homeItem = document.querySelector('#roleBasedMenu li[data-feature="home_view"]');
+      if (homeItem && !homeItem.classList.contains('menu-visible')) homeItem.classList.add('menu-visible');
+    }
+
+    function showSidebarAfterAuth() {
+      const sidebar = document.querySelector('.sidebar');
+      if (sidebar) sidebar.classList.remove('menu-loading');
+    }
+
+    function initializeMenuAuthorization() {
+      const sidebar = document.querySelector('.sidebar');
+      if (sidebar) sidebar.classList.add('menu-loading');
+      updateMenuWithFeatureAuthorization();
+    }
+
+    window.updateMenuWithFeatureAuthorization = updateMenuWithFeatureAuthorization;
+
+    // Initialize menu authorization after authManager loads
+    const origInit = AuthManager.prototype.init;
+    AuthManager.prototype.init = async function() {
+      await origInit.call(this);
+      initializeMenuAuthorization();
+    };
+    // ===== END ROLE-BASED MENU AUTHORIZATION SYSTEM =====
   </script>
 </body>
 </html>

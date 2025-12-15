@@ -1640,6 +1640,9 @@
                                     this.companyId = fallbackCompanyId;
                                     console.log('✅ Company data loaded via fallback');
                                     await this.populateCompanyData();
+                                    // Ensure brand assets reflect current data
+                                    this.updateLogoDisplay();
+                                    this.updateHrStampDisplay();
                                     await this.loadUsers();
                                     await this.updateDashboardInfo();
                                     await this.loadCompanyLogo();
@@ -1670,6 +1673,8 @@
                                 await new Promise(resolve => setTimeout(resolve, 500));
                                 
                                 await this.populateCompanyData();
+                                this.updateLogoDisplay();
+                                this.updateHrStampDisplay();
                                 await this.loadUsers();
                                 await this.updateDashboardInfo();
                                 await this.loadCompanyLogo();
@@ -1750,6 +1755,7 @@
                 setElementValue('website', this.companyData.website);
                 setElementValue('country', this.companyData.country);
                 setElementValue('address', this.companyData.address);
+                setElementValue('footer', this.companyData.footer);
 
                 // Contact & Billing tab
                 setElementValue('contactName', this.companyData.contactName);
@@ -1827,6 +1833,9 @@
                     console.log('⚠️ User quota not found in local data, fetching from Firebase...');
                     try {
                         const quotaRef = db.ref(`companies/${this.companyId}/userQuota`);
+                // Update brand asset previews
+                this.updateLogoDisplay();
+                this.updateHrStampDisplay();
                         const quotaSnapshot = await quotaRef.once('value');
                         if (quotaSnapshot.exists()) {
                             maxUsers = quotaSnapshot.val();
@@ -2364,29 +2373,38 @@
             }
 
             async loadUsers() {
-                console.log('📊 Loading users for company:', this.companyId);
-                
-                if (!this.companyData || !this.companyData.users) {
-                    console.log('No users found in company data');
-                    this.users = []; // Store empty array
-                    await this.displayUsers([]);
-                    return;
+                try {
+                    console.log('📊 Loading users for company (fresh from DB):', this.companyId);
+                    if (!this.companyId) {
+                        console.warn('⚠️ Cannot load users: missing companyId');
+                        this.users = [];
+                        await this.displayUsers([]);
+                        return;
+                    }
+
+                    // Always fetch fresh users from Firebase to reflect latest changes (including conversion)
+                    const usersSnap = await db.ref(`companies/${this.companyId}/users`).once('value');
+                    const usersObj = usersSnap.exists() ? usersSnap.val() : {};
+
+                    // Keep local cache in sync
+                    if (!this.companyData) this.companyData = {};
+                    this.companyData.users = usersObj;
+
+                    const users = Object.entries(usersObj).map(([uid, userData]) => ({ uid, ...userData }));
+
+                    this.users = users; // Store for dashboard computations
+                    console.log(`✅ Loaded ${users.length} users from Firebase`);
+
+                    await this.displayUsers(users);
+                    await this.updateDashboardInfo(); // Ensure quota and counts update
+                    console.log('🔄 Dashboard info updated after loading users');
+                } catch (err) {
+                    console.error('❌ Failed to load users from Firebase:', err);
+                    // Fallback to in-memory if available
+                    const fallbackUsers = this.companyData?.users ? Object.entries(this.companyData.users).map(([uid, u]) => ({ uid, ...u })) : [];
+                    this.users = fallbackUsers;
+                    await this.displayUsers(fallbackUsers);
                 }
-
-                const users = Object.entries(this.companyData.users).map(([uid, userData]) => ({
-                    uid,
-                    ...userData
-                }));
-
-                // Store users in this.users for dashboard calculations
-                this.users = users;
-                console.log(`✅ Loaded ${users.length} users into this.users`);
-
-                await this.displayUsers(users);
-                
-                // Force dashboard update after users are loaded to ensure quota display is correct
-                await this.updateDashboardInfo();
-                console.log('🔄 Dashboard info updated after loading users');
             }
 
             async displayUsers(users) {
@@ -2983,6 +3001,62 @@
                     if (logoPlaceholder) logoPlaceholder.style.display = 'flex';
                     if (logoActions) logoActions.classList.add('hidden');
                     if (uploadText) uploadText.style.display = 'block';
+                }
+            }
+
+            // HR Stamp handlers
+            async handleHrStampUpload(event) {
+                try {
+                    const file = event?.target?.files?.[0];
+                    if (!file || !this.companyId) return;
+                    const storageRef = storage.ref(`company-hr-stamps/${this.companyId}/${file.name}`);
+                    const uploadTask = await storageRef.put(file);
+                    const downloadURL = await uploadTask.ref.getDownloadURL();
+                    await db.ref(`companies/${this.companyId}`).update({ hrStamp: downloadURL });
+                    if (!this.companyData) this.companyData = {};
+                    this.companyData.hrStamp = downloadURL;
+                    this.showNotification('HR stamp uploaded successfully!', 'success');
+                    this.updateHrStampDisplay();
+                } catch (error) {
+                    console.error('Error uploading HR stamp:', error);
+                    this.showNotification('Error uploading HR stamp: ' + error.message, 'error');
+                }
+            }
+
+            async removeHrStamp() {
+                try {
+                    if (!this.companyId) return;
+                    await db.ref(`companies/${this.companyId}`).update({ hrStamp: null });
+                    if (!this.companyData) this.companyData = {};
+                    this.companyData.hrStamp = null;
+                    this.showNotification('HR stamp removed successfully!', 'success');
+                    this.updateHrStampDisplay();
+                } catch (error) {
+                    console.error('Error removing HR stamp:', error);
+                    this.showNotification('Error removing HR stamp: ' + error.message, 'error');
+                }
+            }
+
+            updateHrStampDisplay() {
+                const stampPreview = document.getElementById('hrStampPreview');
+                const stampPlaceholder = document.getElementById('hrStampPlaceholder');
+                const stampActions = document.getElementById('hrStampActions');
+                const hasStamp = !!(this.companyData && this.companyData.hrStamp);
+
+                if (stampPreview) {
+                    if (hasStamp) {
+                        stampPreview.src = this.companyData.hrStamp;
+                        stampPreview.classList.add('visible');
+                    } else {
+                        stampPreview.src = '';
+                        stampPreview.classList.remove('visible');
+                    }
+                }
+                if (stampPlaceholder) {
+                    stampPlaceholder.style.display = hasStamp ? 'none' : 'flex';
+                }
+                if (stampActions) {
+                    stampActions.classList.toggle('hidden', !hasStamp);
                 }
             }
 
@@ -3625,10 +3699,26 @@
                         if (convertCheckbox && convertFields) {
                             convertCheckbox.checked = false;
                             convertFields.style.display = 'none';
-                            convertCheckbox.onchange = () => {
-                                const enabled = !!convertCheckbox.checked;
+
+                            // Also toggle the main email field visibility to avoid duplicate inputs during conversion
+                            const emailGroup = document.getElementById('editUserEmailGroup');
+                            const emailInput = document.getElementById('editUserEmail');
+
+                            const applyConvertToggleUI = (enabled) => {
                                 convertFields.style.display = enabled ? '' : 'none';
                                 requiredStars.forEach(s => { if (s) s.style.visibility = enabled ? 'visible' : 'hidden'; });
+                                if (emailGroup) {
+                                    emailGroup.style.display = enabled ? 'none' : '';
+                                }
+                                if (emailInput) {
+                                    try { emailInput.required = !enabled; } catch {}
+                                }
+                            };
+
+                            // Initialize and bind
+                            applyConvertToggleUI(false);
+                            convertCheckbox.onchange = () => {
+                                applyConvertToggleUI(!!convertCheckbox.checked);
                             };
                         }
                         if (convertEmailInput) {
@@ -4384,6 +4474,17 @@
                 try {
                     const roles = await this.loadCompanyRoles();
                     
+                    // Load role visibility settings
+                    let roleVisibility = null;
+                    try {
+                        roleVisibility = await window.getVisibleRolesForDropdown?.();
+                    } catch (e) {
+                        console.warn('Could not load role visibility settings:', e);
+                    }
+
+                    // Get the current user's role being edited (to always show it even if hidden)
+                    const currentUserRole = window.currentEditingUser?.role?.toLowerCase?.() || '';
+                    
                     // Populate roles dropdown for edit modal
                     const roleSelect = document.getElementById('editUserRole');
                     if (roleSelect && roles.length > 0) {
@@ -4394,7 +4495,17 @@
                             roleSelect.appendChild(firstOption);
                         }
 
+                        let addedCount = 0;
                         roles.forEach(role => {
+                            // Check if role is visible (null means all visible, otherwise check the map)
+                            const isVisible = roleVisibility === null || roleVisibility[role.id] === true;
+                            // Administrator is always visible
+                            // Also always show the current user's role so it can be preserved or changed
+                            const isCurrentUserRole = currentUserRole && role.id.toLowerCase() === currentUserRole;
+                            if (!isVisible && role.id !== 'administrator' && !isCurrentUserRole) {
+                                return; // Skip hidden roles (unless it's the user's current role)
+                            }
+
                             const option = document.createElement('option');
                             option.value = role.id;
                             
@@ -4411,9 +4522,10 @@
                                 option.title = role.description;
                             }
                             roleSelect.appendChild(option);
+                            addedCount++;
                         });
                         
-                        console.log(`✓ Populated editUserRole with ${roles.length} options`);
+                        console.log(`✓ Populated editUserRole with ${addedCount} visible roles (${roles.length} total, currentRole: ${currentUserRole})`);
                     }
                     
                     return roles;
@@ -4470,7 +4582,7 @@
                         console.warn('⚠️ No line managers available or element not found');
                     }
                     
-                    // Populate Roles dropdown (with same display format as add user modal)
+                    // Populate Roles dropdown (with same display format as add user modal, filtered by visibility)
                     const roleSelect = document.getElementById('editUserRole');
                     if (roleSelect && fieldOptions.roles.length > 0) {
                         // Clear existing options except the first one (placeholder)
@@ -4480,7 +4592,28 @@
                             roleSelect.appendChild(firstOption);
                         }
 
+                        // Load role visibility settings
+                        let roleVisibility = null;
+                        try {
+                            roleVisibility = await window.getVisibleRolesForDropdown?.();
+                        } catch (e) {
+                            console.warn('Could not load role visibility settings:', e);
+                        }
+
+                        // Get the current user's role being edited (to always show it even if hidden)
+                        const currentUserRole = window.currentEditingUser?.role?.toLowerCase?.() || '';
+
+                        let addedCount = 0;
                         fieldOptions.roles.forEach(role => {
+                            // Check if role is visible (null means all visible, otherwise check the map)
+                            const isVisible = roleVisibility === null || roleVisibility[role.id] === true;
+                            // Administrator is always visible
+                            // Also always show the current user's role so it can be preserved or changed
+                            const isCurrentUserRole = currentUserRole && role.id.toLowerCase() === currentUserRole;
+                            if (!isVisible && role.id !== 'administrator' && !isCurrentUserRole) {
+                                return; // Skip hidden roles (unless it's the user's current role)
+                            }
+
                             const option = document.createElement('option');
                             option.value = role.id;
                             
@@ -4498,9 +4631,10 @@
                                 option.title = role.description;
                             }
                             roleSelect.appendChild(option);
+                            addedCount++;
                         });
                         
-                        console.log(`✓ Populated editUserRole with ${fieldOptions.roles.length} options (same format as add user modal)`);
+                        console.log(`✓ Populated editUserRole with ${addedCount} visible roles (${fieldOptions.roles.length} total, currentRole: ${currentUserRole})`);
                     }
                     
                     console.log('✅ Edit user modal dropdowns populated successfully with IDENTICAL data to add user modal');
@@ -5342,6 +5476,18 @@
                     window.companyManagement.handleLogoUpload(event);
                 }
             };
+
+            // Expose HR stamp handlers for inline events
+            window.handleHrStampUpload = function(event) {
+                if (window.companyManagement && window.companyManagement.handleHrStampUpload) {
+                    window.companyManagement.handleHrStampUpload(event);
+                }
+            }
+            window.removeHrStamp = function() {
+                if (window.companyManagement && window.companyManagement.removeHrStamp) {
+                    window.companyManagement.removeHrStamp();
+                }
+            }
             
             window.removeLogo = function() {
                 if (window.companyManagement && window.companyManagement.removeLogo) {
@@ -5645,6 +5791,7 @@
                             <td style="text-align:center;"><input type="checkbox" data-perm="createWith" data-uid="${uid}" ${p.canCreateWithAccount ? 'checked' : ''}></td>
                             <td style="text-align:center;"><input type="checkbox" data-perm="createWithout" data-uid="${uid}" ${p.canCreateWithoutAccount !== false ? 'checked' : ''}></td>
                             <td style="text-align:center;"><button class="btn btn-secondary" type="button" title="Manage company name visibility" onclick="window.openCompanyVisibilityModal('${uid}')"><i class="fas fa-eye"></i> Manage</button></td>
+                            <td style="text-align:center;"><button class="btn btn-secondary" type="button" title="Manage which roles this user can see" onclick="window.openRoleVisibilityModal('${uid}')"><i class="fas fa-user-tag"></i> Manage</button></td>
                         `;
                         tbody.appendChild(tr);
                     });
@@ -5913,6 +6060,153 @@
                 } catch(e) {
                     console.error('Failed to save company visibility', e);
                     window.notificationManager?.addNotification({ type:'error', message:'Failed to save company visibility' });
+                }
+            };
+
+            // Role Visibility Management - Control which roles appear in role dropdown (per-user)
+            const ROLE_VIS_PATH = (companyId, uid) => `companies/${companyId}/accessControl/roleVisibility/${uid}`;
+
+            // Store current user UID being edited for role visibility
+            let roleVisibilityTargetUid = null;
+
+            window.openRoleVisibilityModal = async function(uid){
+                try {
+                    if (!uid) {
+                        window.notificationManager?.addNotification({ type:'warning', message:'User ID required' });
+                        return;
+                    }
+                    roleVisibilityTargetUid = uid;
+
+                    const companyId = window.companyManagement?.companyId || window.companyManagement?.getCurrentCompanyId?.();
+                    if (!companyId) {
+                        window.notificationManager?.addNotification({ type:'warning', message:'Company not loaded' });
+                        return;
+                    }
+
+                    // Get user info for display
+                    let userName = 'User';
+                    try {
+                        const userSnap = await db.ref(`users/${uid}`).once('value');
+                        const userData = userSnap.val();
+                        if (userData) {
+                            userName = userData.displayName || userData.name || userData.firstName || userData.email || 'User';
+                        }
+                    } catch(e) {
+                        console.warn('Could not load user name', e);
+                    }
+
+                    // Update modal title to show user name
+                    const modalTitle = document.querySelector('#roleVisibilityModal .modal-title');
+                    if (modalTitle) {
+                        modalTitle.innerHTML = `<i class="fas fa-user-tag"></i> Role Visibility for <strong>${userName}</strong>`;
+                    }
+
+                    // Load all available roles
+                    let allRoles = [];
+                    if (window.companyManagement && typeof window.companyManagement.loadCompanyRoles === 'function') {
+                        allRoles = await window.companyManagement.loadCompanyRoles();
+                    } else {
+                        // Fallback: load directly from Firebase
+                        const rolesSnap = await db.ref(`companies/${companyId}/roles`).once('value');
+                        const rolesData = rolesSnap.val() || {};
+                        allRoles = [
+                            { id: 'administrator', name: 'Administrator', description: 'Default administrator role', isSystemRole: true }
+                        ];
+                        Object.entries(rolesData).forEach(([id, data]) => {
+                            if (id !== 'administrator') {
+                                allRoles.push({ id, name: data.name || id, description: data.description || '' });
+                            }
+                        });
+                    }
+
+                    // Load current visibility settings for this specific user
+                    const visSnap = await db.ref(ROLE_VIS_PATH(companyId, uid)).once('value');
+                    const visibleRoles = visSnap.val() || null;
+                    // If null (not configured), all roles are visible by default
+                    const visibleSet = visibleRoles ? new Set(Object.keys(visibleRoles).filter(k => visibleRoles[k])) : null;
+
+                    // Build checkbox list
+                    const container = document.getElementById('roleVisibilityOptions');
+                    if (container) {
+                        container.innerHTML = '';
+                        allRoles.forEach(role => {
+                            const isChecked = visibleSet === null || visibleSet.has(role.id);
+                            const isAdmin = role.id === 'administrator';
+                            const row = document.createElement('label');
+                            row.className = 'checkbox-row';
+                            row.style.cssText = 'display:flex;align-items:center;gap:0.5rem;padding:0.5rem;border-radius:6px;cursor:pointer;transition:background 0.15s;';
+                            row.onmouseenter = () => row.style.background = '#f1f5f9';
+                            row.onmouseleave = () => row.style.background = '';
+                            row.innerHTML = `
+                                <input type="checkbox" class="rv-checkbox" value="${role.id}" ${isChecked ? 'checked' : ''} ${isAdmin ? 'disabled' : ''} style="width:18px;height:18px;cursor:pointer;">
+                                <span style="flex:1;">
+                                    <strong style="color:#1e293b;">${isAdmin ? '👑 ' : ''}${role.name}</strong>
+                                    ${role.description ? `<br><small style="color:#64748b;">${role.description}</small>` : ''}
+                                </span>
+                            `;
+                            container.appendChild(row);
+                        });
+
+                        // Add note about Administrator
+                        const note = document.createElement('div');
+                        note.style.cssText = 'margin-top:0.75rem;padding:0.5rem;background:#fef3c7;border-radius:6px;font-size:0.8rem;color:#92400e;';
+                        note.innerHTML = '<i class="fas fa-info-circle"></i> Administrator role is always visible and cannot be hidden.';
+                        container.appendChild(note);
+                    }
+
+                    const modal = document.getElementById('roleVisibilityModal');
+                    if (modal) { modal.style.display = ''; modal.classList.add('show'); }
+                } catch(e) {
+                    console.error('Failed to open role visibility modal', e);
+                    window.notificationManager?.addNotification({ type:'error', message:'Failed to load roles' });
+                }
+            };
+
+            window.saveRoleVisibility = async function(){
+                try {
+                    const companyId = window.companyManagement?.companyId || window.companyManagement?.getCurrentCompanyId?.();
+                    if (!companyId) return;
+                    if (!roleVisibilityTargetUid) {
+                        window.notificationManager?.addNotification({ type:'warning', message:'No user selected' });
+                        return;
+                    }
+
+                    const checks = Array.from(document.querySelectorAll('#roleVisibilityOptions .rv-checkbox'));
+                    const visibleRoles = {};
+                    checks.forEach(chk => {
+                        // Administrator is always visible even if disabled checkbox
+                        if (chk.value === 'administrator') {
+                            visibleRoles[chk.value] = true;
+                        } else {
+                            visibleRoles[chk.value] = chk.checked;
+                        }
+                    });
+
+                    await db.ref(ROLE_VIS_PATH(companyId, roleVisibilityTargetUid)).set(visibleRoles);
+                    window.notificationManager?.addNotification({ type:'success', message:'Role visibility settings saved' });
+                    roleVisibilityTargetUid = null;
+                    closeModal('roleVisibilityModal');
+                } catch(e) {
+                    console.error('Failed to save role visibility', e);
+                    window.notificationManager?.addNotification({ type:'error', message:'Failed to save role visibility' });
+                }
+            };
+
+            // Helper to get visible roles for the current logged-in user (for use in dropdown population)
+            window.getVisibleRolesForDropdown = async function(){
+                try {
+                    const companyId = window.companyManagement?.companyId || window.companyManagement?.getCurrentCompanyId?.();
+                    if (!companyId) return null;
+                    
+                    // Get current logged-in user's UID
+                    const currentUser = firebase.auth().currentUser;
+                    if (!currentUser || !currentUser.uid) return null;
+                    
+                    const visSnap = await db.ref(ROLE_VIS_PATH(companyId, currentUser.uid)).once('value');
+                    return visSnap.val(); // null means all visible, object means check each role
+                } catch(e) {
+                    console.warn('Could not load role visibility settings', e);
+                    return null;
                 }
             };
         })();
@@ -10353,32 +10647,63 @@
                         </div>
                         <div class="card-body">
                             <form id="companyProfileForm">
-                                <!-- Company Logo Section -->
-                                <div class="form-group" id="companyLogoGroup" style="margin-bottom: 3rem;">
-                                    <label for="companyLogo">Company Logo</label>
-                                    <div class="logo-upload-container" onclick="document.getElementById('logoFileInput').click()">
-                                        <img id="logoPreview" class="logo-preview" src="" alt="Logo Preview">
-                                        <div id="logoPlaceholder" class="logo-placeholder">
-                                            <i class="fas fa-image"></i>
+                                <!-- Brand Upload Row: Logo + HR Stamp side-by-side -->
+                                <div class="brand-upload-row" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-bottom:2rem;align-items:start;">
+                                    <!-- Company Logo Section -->
+                                    <div class="form-group" id="companyLogoGroup" style="margin: 0;">
+                                        <label for="companyLogo">Company Logo</label>
+                                        <div class="logo-upload-container" onclick="document.getElementById('logoFileInput').click()">
+                                            <img id="logoPreview" class="logo-preview" src="" alt="Logo Preview">
+                                            <div id="logoPlaceholder" class="logo-placeholder">
+                                                <i class="fas fa-image"></i>
+                                            </div>
+                                            <div class="logo-upload-text">
+                                                <h4>Upload Company Logo</h4>
+                                                <p>Click to browse or drag & drop<br>
+                                                Supported: JPG, PNG, SVG (Max: 2MB)<br>
+                                                Recommended: 400x400px</p>
+                                            </div>
+                                            <input type="file" id="logoFileInput" class="logo-file-input" accept="image/*" onchange="handleLogoUpload(event)">
                                         </div>
-                                        <div class="logo-upload-text">
-                                            <h4>Upload Company Logo</h4>
-                                            <p>Click to browse or drag & drop<br>
-                                            Supported: JPG, PNG, SVG (Max: 2MB)<br>
-                                            Recommended: 400x400px</p>
+                                        <div class="logo-actions hidden" id="logoActions">
+                                            <button type="button" class="btn-upload" onclick="document.getElementById('logoFileInput').click()">
+                                                <i class="fas fa-upload"></i> Change Logo
+                                            </button>
+                                            <button type="button" class="btn-remove-logo" onclick="removeLogo()">
+                                                <i class="fas fa-trash"></i> Remove
+                                            </button>
                                         </div>
-                                        <input type="file" id="logoFileInput" class="logo-file-input" accept="image/*" onchange="handleLogoUpload(event)">
+                                        <div class="form-hint">Logo will be displayed in the header and throughout the system</div>
+                                        <div class="form-error"></div>
                                     </div>
-                                    <div class="logo-actions hidden" id="logoActions">
-                                        <button type="button" class="btn-upload" onclick="document.getElementById('logoFileInput').click()">
-                                            <i class="fas fa-upload"></i> Change Logo
-                                        </button>
-                                        <button type="button" class="btn-remove-logo" onclick="removeLogo()">
-                                            <i class="fas fa-trash"></i> Remove
-                                        </button>
+
+                                    <!-- HR Stamp Section -->
+                                    <div class="form-group" id="hrStampGroup" style="margin: 0;">
+                                        <label for="hrStamp">HR Stamp</label>
+                                        <div class="logo-upload-container" onclick="document.getElementById('hrStampFileInput').click()">
+                                            <img id="hrStampPreview" class="logo-preview" src="" alt="HR Stamp Preview">
+                                            <div id="hrStampPlaceholder" class="logo-placeholder">
+                                                <i class="fas fa-stamp"></i>
+                                            </div>
+                                            <div class="logo-upload-text">
+                                                <h4>Upload HR Stamp</h4>
+                                                <p>Click to browse or drag & drop<br>
+                                                Supported: JPG, PNG, SVG (Max: 2MB)<br>
+                                                Recommended: 400x400px</p>
+                                            </div>
+                                            <input type="file" id="hrStampFileInput" class="logo-file-input" accept="image/*" onchange="handleHrStampUpload(event)">
+                                        </div>
+                                        <div class="logo-actions hidden" id="hrStampActions">
+                                            <button type="button" class="btn-upload" onclick="document.getElementById('hrStampFileInput').click()">
+                                                <i class="fas fa-upload"></i> Change Stamp
+                                            </button>
+                                            <button type="button" class="btn-remove-logo" onclick="removeHrStamp()">
+                                                <i class="fas fa-trash"></i> Remove
+                                            </button>
+                                        </div>
+                                        <div class="form-hint">HR stamp can be used on documents where applicable</div>
+                                        <div class="form-error"></div>
                                     </div>
-                                    <div class="form-hint">Logo will be displayed in the header and throughout the system</div>
-                                    <div class="form-error"></div>
                                 </div>
 
                                 <div class="form-grid form-grid-four">
@@ -10441,6 +10766,11 @@
                                     <div class="form-group col-span-2">
                                         <label for="address">Company Address</label>
                                         <textarea id="address" name="address" rows="1" placeholder="Enter your complete company address"></textarea>
+                                        <div class="form-error"></div>
+                                    </div>
+                                    <div class="form-group col-span-4">
+                                        <label for="footer">Footer</label>
+                                        <textarea id="footer" name="footer" rows="2" placeholder="Optional footer text for documents and pages"></textarea>
                                         <div class="form-error"></div>
                                     </div>
                                 </div>
@@ -10603,6 +10933,7 @@
                                             <th style="white-space:nowrap;">Create With Account</th>
                                             <th style="white-space:nowrap;">Create Without Account</th>
                                             <th style="white-space:nowrap;">Company Name Visibility</th>
+                                            <th style="white-space:nowrap;">Role Visibility</th>
                                         </tr>
                                     </thead>
                                     <tbody id="accessControlTableBody">
@@ -10849,12 +11180,8 @@
                                     <input type="radio" name="userAccountType" value="with-account" checked>
                                     With Account (can sign in)
                                 </label>
-                                <label style="display:flex; align-items:center; gap:.35rem;">
-                                    <input type="radio" name="userAccountType" value="without-account">
-                                    Without Account (reporting-only)
-                                </label>
                             </div>
-                            <small class="form-text text-muted">Reporting-only users can’t sign in. Email is optional and used for contact/reporting.</small>
+                            <small class="form-text text-muted">User will have a sign-in account. Email and password are required for login.</small>
                         </div>
                         
                         <div class="form-grid">
@@ -11230,7 +11557,7 @@
                         </div>
 
                         <div class="form-grid">
-                            <div class="form-group">
+                            <div class="form-group" id="editUserEmailGroup">
                                 <label for="editUserEmail" class="form-label">Email Address <span class="required">*</span></label>
                                 <input type="email" class="form-control" id="editUserEmail" name="editUserEmail" required placeholder="Enter email address">
                                 <div class="form-error"></div>
@@ -13174,26 +13501,39 @@
                 return false;
             }
             
-            // If quota allows, proceed with original function
-            // Enforce permission to see/use the Add modal
-            try {
-                const companyId = window.companyManagement?.companyId || window.companyManagement?.getCurrentCompanyId?.();
-                const me = window.companyManagement?.currentUser?.uid || window.companyManagement?.currentUser?.id;
-                if (companyId && me) {
-                    const pSnap0 = await db.ref(`companies/${companyId}/accessControl/tabVisibility/${me}`).once('value');
-                    const p0 = pSnap0.val() || {};
-                    if (p0.canSeeAddButton !== true) {
-                        showNotification('You do not have permission to add users.', 'warning');
-                        return false;
-                    }
-                }
-            } catch (permErr) { console.warn('Add modal permission check failed:', permErr); }
+            // Show modal IMMEDIATELY for better UX, then load data in background
             const modal = document.getElementById('addUserModal');
-            if (modal) {
-                modal.classList.add('show');
-                
-                // Load and populate dropdown fields with company-scoped data
-                await populateAddUserModalDropdowns();
+            if (!modal) return false;
+            
+            // Reset display style (closeModal sets it to 'none') and add show class
+            modal.style.display = '';
+            modal.classList.add('show');
+            
+            // Focus on first input right away
+            setTimeout(() => {
+                const firstInput = modal.querySelector('input');
+                if (firstInput) firstInput.focus();
+            }, 50);
+
+            // Load data and apply permissions in background (non-blocking)
+            (async () => {
+                try {
+                    // Permission check (non-blocking - if fails, close modal)
+                    const companyId = window.companyManagement?.companyId || window.companyManagement?.getCurrentCompanyId?.();
+                    const me = window.companyManagement?.currentUser?.uid || window.companyManagement?.currentUser?.id;
+                    if (companyId && me) {
+                        const pSnap0 = await db.ref(`companies/${companyId}/accessControl/tabVisibility/${me}`).once('value');
+                        const p0 = pSnap0.val() || {};
+                        if (p0.canSeeAddButton !== true) {
+                            showNotification('You do not have permission to add users.', 'warning');
+                            closeModal('addUserModal');
+                            return;
+                        }
+                    }
+                } catch (permErr) { console.warn('Add modal permission check failed:', permErr); }
+
+                // Load and populate dropdown fields with company-scoped data (background)
+                populateAddUserModalDropdowns().catch(e => console.warn('Dropdown population error:', e));
 
                 // Initialize account type UI toggles
                 try {
@@ -13207,8 +13547,8 @@
                     const passwordInput = document.getElementById('userPassword');
 
                     // Access-control-based restrictions for account type radios
-                    const withRadio = form.querySelector('input[name="userAccountType"][value="with-account"]');
-                    const withoutRadio = form.querySelector('input[name="userAccountType"][value="without-account"]');
+                    const withRadio = form?.querySelector('input[name="userAccountType"][value="with-account"]');
+                    const withoutRadio = form?.querySelector('input[name="userAccountType"][value="without-account"]');
                     try {
                         const companyId = window.companyManagement?.companyId || window.companyManagement?.getCurrentCompanyId?.();
                         const me = window.companyManagement?.currentUser?.uid || window.companyManagement?.currentUser?.id;
@@ -13224,8 +13564,6 @@
                                 withoutRadio.checked = true;
                             } else if (withoutRadio && withoutRadio.checked && withoutRadio.disabled && withRadio && !withRadio.disabled) {
                                 withRadio.checked = true;
-                            } else if (withRadio && withoutRadio && !withRadio.disabled && !withoutRadio.disabled) {
-                                // keep default selection
                             } else if (withRadio && withRadio.disabled && withoutRadio && withoutRadio.disabled) {
                                 // no allowed option; bail out
                                 showNotification('You do not have permission to create any type of user.', 'warning');
@@ -13311,15 +13649,8 @@
                 } catch (e) {
                     console.warn('Failed to initialize account type UI toggles:', e);
                 }
-                
-                // Focus on first input
-                setTimeout(() => {
-                    const firstInput = modal.querySelector('input');
-                    if (firstInput) {
-                        firstInput.focus();
-                    }
-                }, 100);
-            }
+            })(); // End of background async IIFE
+            
             return true;
         }
 
@@ -13397,7 +13728,7 @@
                     console.log(`✓ Populated userLineManager with ${fieldOptions.lineManagers.length} options`);
                 }
                 
-                // Populate Roles dropdown
+                // Populate Roles dropdown (filtered by visibility settings)
                 const roleSelect = document.getElementById('userRole');
                 if (roleSelect && fieldOptions.roles.length > 0) {
                     // Clear existing options except the first one (placeholder)
@@ -13407,7 +13738,23 @@
                         roleSelect.appendChild(firstOption);
                     }
 
+                    // Load role visibility settings
+                    let roleVisibility = null;
+                    try {
+                        roleVisibility = await window.getVisibleRolesForDropdown?.();
+                    } catch (e) {
+                        console.warn('Could not load role visibility settings:', e);
+                    }
+
+                    let addedCount = 0;
                     fieldOptions.roles.forEach(role => {
+                        // Check if role is visible (null means all visible, otherwise check the map)
+                        const isVisible = roleVisibility === null || roleVisibility[role.id] === true;
+                        // Administrator is always visible
+                        if (!isVisible && role.id !== 'administrator') {
+                            return; // Skip hidden roles
+                        }
+
                         const option = document.createElement('option');
                         option.value = role.id;
                         
@@ -13424,9 +13771,10 @@
                             option.title = role.description;
                         }
                         roleSelect.appendChild(option);
+                        addedCount++;
                     });
                     
-                    console.log(`✓ Populated userRole with ${fieldOptions.roles.length} options`);
+                    console.log(`✓ Populated userRole with ${addedCount} visible roles (${fieldOptions.roles.length} total)`);
                 }
 
                 // Populate Company/Subcontractor dropdown (main company + subcontractors)
@@ -13942,7 +14290,8 @@
                         throw new Error(`${field.charAt(0).toUpperCase() + field.slice(1)} is required`);
                     }
                 }
-                if (emailRequired) {
+                // If converting now, we'll validate the email in the conversion section instead of the main email field
+                if (emailRequired && !wantsConversion) {
                     if (!updatedUserData.email) {
                         throw new Error('Email is required');
                     }
@@ -14007,16 +14356,38 @@
                     if (!firebase.functions) {
                         throw new Error('Firebase Functions SDK not available');
                     }
-                    const fn = firebase.functions();
-                    let callable;
-                    try { callable = fn.httpsCallable('createAuthUser'); } catch {}
-                    if (!callable) {
-                        throw new Error('Unable to initialize conversion function');
-                    }
+
+                    // Helper: call createAuthUser with region fallback
+                    const callCreateAuthUser = async (payload) => {
+                        // Allow override via window.FUNCTIONS_REGION or localStorage('functionsRegion')
+                        const preferred = (typeof window !== 'undefined' && window.FUNCTIONS_REGION) ? window.FUNCTIONS_REGION : (localStorage.getItem('functionsRegion') || null);
+                        const candidatesRaw = [preferred, null, 'us-central1', 'europe-west1', 'asia-south1', 'asia-southeast1', 'asia-northeast1'];
+                        const regions = candidatesRaw.filter((r, idx) => candidatesRaw.indexOf(r) === idx); // de-dup
+                        let lastErr = null;
+                        for (const region of regions) {
+                            try {
+                                const fn = region ? firebase.app().functions(region) : firebase.functions();
+                                const callable = fn.httpsCallable('createAuthUser');
+                                console.log(`🔐 Attempting conversion via ${region || 'default'} region...`);
+                                const res = await callable(payload);
+                                console.log(`✅ Conversion succeeded via ${region || 'default'} region`);
+                                return res;
+                            } catch (e) {
+                                lastErr = e;
+                                const code = e?.code || (e?.details && e.details.code) || 'unknown';
+                                console.warn(`⚠️ Conversion via ${region || 'default'} region failed:`, code, e?.message || e);
+                                // For region issues, we try the next region; for explicit client errors, break early
+                                if (code && !['internal','not-found','unavailable','failed-precondition'].includes(code)) {
+                                    break;
+                                }
+                            }
+                        }
+                        throw lastErr || new Error('Failed to call conversion function');
+                    };
 
                     try {
-                        console.log('🔐 Converting user to sign-in account via callable...');
-                        const res = await callable({ uid: userId, email, password, displayName: mergedUserData.name || undefined, companyId });
+                        console.log('🔐 Converting user to sign-in account via callable (with region fallback)...');
+                        const res = await callCreateAuthUser({ uid: userId, email, password, displayName: mergedUserData.name || undefined, companyId });
                         console.log('✅ Conversion result:', res?.data || res);
                         // Update mergedUserData flags to reflect sign-in account
                         mergedUserData.email = email;
@@ -14026,8 +14397,20 @@
                         mergedUserData.authUid = userId;
                     } catch (convErr) {
                         console.error('❌ Conversion failed:', convErr);
-                        const msg = convErr?.message || (convErr?.code === 'already-exists' ? 'Email already in use' : 'Failed to convert user');
-                        throw new Error(msg);
+                        const code = convErr?.code || (convErr?.details && convErr.details.code) || '';
+                        const rawMsg = convErr?.message || '';
+                        let friendly = 'Failed to convert user';
+                        if (code === 'already-exists' || /email-already-in-use/i.test(rawMsg)) {
+                            friendly = 'Email already in use';
+                        } else if (code === 'permission-denied') {
+                            friendly = 'Permission denied for conversion';
+                        } else if (code === 'not-found') {
+                            friendly = 'Conversion service not found. Please deploy createAuthUser.';
+                        } else if (code === 'internal' || /internal/i.test(rawMsg)) {
+                            friendly = 'Conversion service error (likely wrong region or backend error)';
+                        }
+                        // Surface both friendly and technical code to help triage
+                        throw new Error(`${friendly}${code ? ` [${code}]` : ''}`);
                     }
                 }
 
@@ -17336,6 +17719,26 @@
             <div class="modal-footer">
                 <button class="btn" type="button" onclick="closeModal('companyVisibilityModal')">Cancel</button>
                 <button class="btn btn-primary" type="button" onclick="window.saveCompanyVisibility()">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Role Visibility Modal - Manage which roles appear in the role dropdown -->
+    <div id="roleVisibilityModal" class="modal" style="display:none;">
+        <div class="modal-dialog" style="max-width:500px;">
+            <div class="modal-header">
+                <h3><i class="fas fa-user-tag"></i> Manage Role Visibility</h3>
+                <button class="modal-close" onclick="closeModal('roleVisibilityModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p style="margin-bottom:0.75rem;color:#64748b;">Select which roles should appear in the role dropdown when creating new users. Unchecked roles will be hidden from the dropdown.</p>
+                <div id="roleVisibilityOptions" style="display:flex;flex-direction:column;gap:0.5rem;max-height:350px;overflow:auto;">
+                    <!-- Role checkboxes will be populated dynamically -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn" type="button" onclick="closeModal('roleVisibilityModal')">Cancel</button>
+                <button class="btn btn-primary" type="button" onclick="window.saveRoleVisibility()">Save</button>
             </div>
         </div>
     </div>
