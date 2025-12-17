@@ -576,6 +576,58 @@
 				</div>
 
 				<div class="settings-section">
+					<h3 onclick="toggleSettingsSection(this)"><i class="fas fa-tags"></i> Category Options <i class="fas fa-chevron-down toggle-icon"></i></h3>
+					<div class="settings-section-content">
+						<div id="categoryOptionsList" class="option-list">
+							<div class="empty-options">Loading...</div>
+						</div>
+						<div class="add-option-form">
+							<input type="text" id="newCategoryInput" placeholder="Enter new category..." />
+							<button type="button" onclick="addCategoryOption()"><i class="fas fa-plus"></i> Add Category</button>
+						</div>
+					</div>
+				</div>
+
+				<div class="settings-section">
+					<h3 onclick="toggleSettingsSection(this)"><i class="fas fa-exclamation-triangle"></i> Incident Category Options <i class="fas fa-chevron-down toggle-icon"></i></h3>
+					<div class="settings-section-content">
+						<div id="incidentCategoryOptionsList" class="option-list">
+							<div class="empty-options">Loading...</div>
+						</div>
+						<div class="add-option-form">
+							<input type="text" id="newIncidentCategoryInput" placeholder="Enter new incident category..." />
+							<button type="button" onclick="addIncidentCategoryOption()"><i class="fas fa-plus"></i> Add Incident Category</button>
+						</div>
+					</div>
+				</div>
+
+				<div class="settings-section">
+					<h3 onclick="toggleSettingsSection(this)"><i class="fas fa-band-aid"></i> Injury Type Options <i class="fas fa-chevron-down toggle-icon"></i></h3>
+					<div class="settings-section-content">
+						<div id="injuryTypeOptionsList" class="option-list">
+							<div class="empty-options">Loading...</div>
+						</div>
+						<div class="add-option-form">
+							<input type="text" id="newInjuryTypeInput" placeholder="Enter new injury type..." />
+							<button type="button" onclick="addInjuryTypeOption()"><i class="fas fa-plus"></i> Add Injury Type</button>
+						</div>
+					</div>
+				</div>
+
+				<div class="settings-section">
+					<h3 onclick="toggleSettingsSection(this)"><i class="fas fa-medkit"></i> Treatment Provided Options <i class="fas fa-chevron-down toggle-icon"></i></h3>
+					<div class="settings-section-content">
+						<div id="treatmentProvidedOptionsList" class="option-list">
+							<div class="empty-options">Loading...</div>
+						</div>
+						<div class="add-option-form">
+							<input type="text" id="newTreatmentProvidedInput" placeholder="Enter new treatment type..." />
+							<button type="button" onclick="addTreatmentProvidedOption()"><i class="fas fa-plus"></i> Add Treatment</button>
+						</div>
+					</div>
+				</div>
+
+				<div class="settings-section">
 					<h3 onclick="toggleSettingsSection(this)"><i class="fas fa-user-shield"></i> Access Control <i class="fas fa-chevron-down toggle-icon"></i></h3>
 					<div class="settings-section-content">
 						<p style="font-size:.75rem;color:#6b7280;margin-bottom:.8rem">Control which users can access the Incidents tab and Settings tab on this page.</p>
@@ -1509,7 +1561,11 @@ function printIncidentDetails() {
 // ===== SETTINGS TAB MANAGEMENT =====
 const settingsState = {
 	locations: [],
-	observationTypes: []
+	observationTypes: [],
+	categories: [],
+	incidentCategories: [],
+	injuryTypes: [],
+	treatmentProvided: []
 };
 
 function toggleSettingsSection(header) {
@@ -1567,9 +1623,17 @@ async function loadIncidentSettings() {
 		
 		settingsState.locations = settings.locations || [];
 		settingsState.observationTypes = settings.observationTypes || [];
+		settingsState.categories = settings.categories || [];
+		settingsState.incidentCategories = settings.incidentCategories || [];
+		settingsState.injuryTypes = settings.injuryTypes || [];
+		settingsState.treatmentProvided = settings.treatmentProvided || [];
 		
 		renderLocationOptions();
 		renderObservationTypeOptions();
+		renderCategoryOptions();
+		renderIncidentCategoryOptions();
+		renderInjuryTypeOptions();
+		renderTreatmentProvidedOptions();
 		loadIncidentAccessControl();
 	} catch (error) {
 		console.error('Error loading incident settings:', error);
@@ -1814,6 +1878,10 @@ async function saveIncidentSettings() {
 		await db.ref(`companies/${user.companyId}/incidentSettings`).update({
 			locations: settingsState.locations,
 			observationTypes: settingsState.observationTypes,
+			categories: settingsState.categories,
+			incidentCategories: settingsState.incidentCategories,
+			injuryTypes: settingsState.injuryTypes,
+			treatmentProvided: settingsState.treatmentProvided,
 			updatedAt: new Date().toISOString(),
 			updatedBy: user.uid
 		});
@@ -1939,6 +2007,310 @@ async function deleteObservationTypeOption(idx) {
 	}
 }
 
+// ===== CATEGORY OPTIONS =====
+function renderCategoryOptions() {
+	const container = document.getElementById('categoryOptionsList');
+	if (!container) return;
+	
+	if (settingsState.categories.length === 0) {
+		container.innerHTML = '<div class="empty-options">No categories defined. Add one below.</div>';
+		return;
+	}
+	
+	container.innerHTML = settingsState.categories.map((cat, idx) => `
+		<div class="option-item" data-index="${idx}">
+			<span>${escapeHtml(cat)}</span>
+			<button type="button" class="edit-btn" onclick="editCategoryOption(${idx})"><i class="fas fa-pen"></i></button>
+			<button type="button" class="delete-btn" onclick="deleteCategoryOption(${idx})"><i class="fas fa-trash"></i></button>
+		</div>
+	`).join('');
+}
+
+async function addCategoryOption() {
+	const input = document.getElementById('newCategoryInput');
+	const value = input.value.trim();
+	
+	if (!value) {
+		alert('Please enter a category name');
+		return;
+	}
+	
+	if (settingsState.categories.includes(value)) {
+		alert('This category already exists');
+		return;
+	}
+	
+	settingsState.categories.push(value);
+	if (await saveIncidentSettings()) {
+		input.value = '';
+		renderCategoryOptions();
+	} else {
+		settingsState.categories.pop();
+	}
+}
+
+function editCategoryOption(idx) {
+	const currentValue = settingsState.categories[idx];
+	const newValue = prompt('Edit category name:', currentValue);
+	
+	if (newValue === null || newValue.trim() === '') return;
+	if (newValue.trim() === currentValue) return;
+	
+	if (settingsState.categories.includes(newValue.trim()) && newValue.trim() !== currentValue) {
+		alert('This category already exists');
+		return;
+	}
+	
+	const oldValue = settingsState.categories[idx];
+	settingsState.categories[idx] = newValue.trim();
+	saveIncidentSettings().then(success => {
+		if (success) {
+			renderCategoryOptions();
+		} else {
+			settingsState.categories[idx] = oldValue;
+		}
+	});
+}
+
+async function deleteCategoryOption(idx) {
+	if (!confirm('Are you sure you want to delete this category?')) return;
+	
+	const removed = settingsState.categories.splice(idx, 1)[0];
+	if (await saveIncidentSettings()) {
+		renderCategoryOptions();
+	} else {
+		settingsState.categories.splice(idx, 0, removed);
+	}
+}
+
+// ===== INCIDENT CATEGORY OPTIONS =====
+function renderIncidentCategoryOptions() {
+	const container = document.getElementById('incidentCategoryOptionsList');
+	if (!container) return;
+	
+	if (settingsState.incidentCategories.length === 0) {
+		container.innerHTML = '<div class="empty-options">No incident categories defined. Add one below.</div>';
+		return;
+	}
+	
+	container.innerHTML = settingsState.incidentCategories.map((cat, idx) => `
+		<div class="option-item" data-index="${idx}">
+			<span>${escapeHtml(cat)}</span>
+			<button type="button" class="edit-btn" onclick="editIncidentCategoryOption(${idx})"><i class="fas fa-pen"></i></button>
+			<button type="button" class="delete-btn" onclick="deleteIncidentCategoryOption(${idx})"><i class="fas fa-trash"></i></button>
+		</div>
+	`).join('');
+}
+
+async function addIncidentCategoryOption() {
+	const input = document.getElementById('newIncidentCategoryInput');
+	const value = input.value.trim();
+	
+	if (!value) {
+		alert('Please enter an incident category');
+		return;
+	}
+	
+	if (settingsState.incidentCategories.includes(value)) {
+		alert('This incident category already exists');
+		return;
+	}
+	
+	settingsState.incidentCategories.push(value);
+	if (await saveIncidentSettings()) {
+		input.value = '';
+		renderIncidentCategoryOptions();
+	} else {
+		settingsState.incidentCategories.pop();
+	}
+}
+
+function editIncidentCategoryOption(idx) {
+	const currentValue = settingsState.incidentCategories[idx];
+	const newValue = prompt('Edit incident category:', currentValue);
+	
+	if (newValue === null || newValue.trim() === '') return;
+	if (newValue.trim() === currentValue) return;
+	
+	if (settingsState.incidentCategories.includes(newValue.trim()) && newValue.trim() !== currentValue) {
+		alert('This incident category already exists');
+		return;
+	}
+	
+	const oldValue = settingsState.incidentCategories[idx];
+	settingsState.incidentCategories[idx] = newValue.trim();
+	saveIncidentSettings().then(success => {
+		if (success) {
+			renderIncidentCategoryOptions();
+		} else {
+			settingsState.incidentCategories[idx] = oldValue;
+		}
+	});
+}
+
+async function deleteIncidentCategoryOption(idx) {
+	if (!confirm('Are you sure you want to delete this incident category?')) return;
+	
+	const removed = settingsState.incidentCategories.splice(idx, 1)[0];
+	if (await saveIncidentSettings()) {
+		renderIncidentCategoryOptions();
+	} else {
+		settingsState.incidentCategories.splice(idx, 0, removed);
+	}
+}
+
+// ===== INJURY TYPE OPTIONS =====
+function renderInjuryTypeOptions() {
+	const container = document.getElementById('injuryTypeOptionsList');
+	if (!container) return;
+	
+	if (settingsState.injuryTypes.length === 0) {
+		container.innerHTML = '<div class="empty-options">No injury types defined. Add one below.</div>';
+		return;
+	}
+	
+	container.innerHTML = settingsState.injuryTypes.map((type, idx) => `
+		<div class="option-item" data-index="${idx}">
+			<span>${escapeHtml(type)}</span>
+			<button type="button" class="edit-btn" onclick="editInjuryTypeOption(${idx})"><i class="fas fa-pen"></i></button>
+			<button type="button" class="delete-btn" onclick="deleteInjuryTypeOption(${idx})"><i class="fas fa-trash"></i></button>
+		</div>
+	`).join('');
+}
+
+async function addInjuryTypeOption() {
+	const input = document.getElementById('newInjuryTypeInput');
+	const value = input.value.trim();
+	
+	if (!value) {
+		alert('Please enter an injury type');
+		return;
+	}
+	
+	if (settingsState.injuryTypes.includes(value)) {
+		alert('This injury type already exists');
+		return;
+	}
+	
+	settingsState.injuryTypes.push(value);
+	if (await saveIncidentSettings()) {
+		input.value = '';
+		renderInjuryTypeOptions();
+	} else {
+		settingsState.injuryTypes.pop();
+	}
+}
+
+function editInjuryTypeOption(idx) {
+	const currentValue = settingsState.injuryTypes[idx];
+	const newValue = prompt('Edit injury type:', currentValue);
+	
+	if (newValue === null || newValue.trim() === '') return;
+	if (newValue.trim() === currentValue) return;
+	
+	if (settingsState.injuryTypes.includes(newValue.trim()) && newValue.trim() !== currentValue) {
+		alert('This injury type already exists');
+		return;
+	}
+	
+	const oldValue = settingsState.injuryTypes[idx];
+	settingsState.injuryTypes[idx] = newValue.trim();
+	saveIncidentSettings().then(success => {
+		if (success) {
+			renderInjuryTypeOptions();
+		} else {
+			settingsState.injuryTypes[idx] = oldValue;
+		}
+	});
+}
+
+async function deleteInjuryTypeOption(idx) {
+	if (!confirm('Are you sure you want to delete this injury type?')) return;
+	
+	const removed = settingsState.injuryTypes.splice(idx, 1)[0];
+	if (await saveIncidentSettings()) {
+		renderInjuryTypeOptions();
+	} else {
+		settingsState.injuryTypes.splice(idx, 0, removed);
+	}
+}
+
+// ===== TREATMENT PROVIDED OPTIONS =====
+function renderTreatmentProvidedOptions() {
+	const container = document.getElementById('treatmentProvidedOptionsList');
+	if (!container) return;
+	
+	if (settingsState.treatmentProvided.length === 0) {
+		container.innerHTML = '<div class="empty-options">No treatment types defined. Add one below.</div>';
+		return;
+	}
+	
+	container.innerHTML = settingsState.treatmentProvided.map((treatment, idx) => `
+		<div class="option-item" data-index="${idx}">
+			<span>${escapeHtml(treatment)}</span>
+			<button type="button" class="edit-btn" onclick="editTreatmentProvidedOption(${idx})"><i class="fas fa-pen"></i></button>
+			<button type="button" class="delete-btn" onclick="deleteTreatmentProvidedOption(${idx})"><i class="fas fa-trash"></i></button>
+		</div>
+	`).join('');
+}
+
+async function addTreatmentProvidedOption() {
+	const input = document.getElementById('newTreatmentProvidedInput');
+	const value = input.value.trim();
+	
+	if (!value) {
+		alert('Please enter a treatment type');
+		return;
+	}
+	
+	if (settingsState.treatmentProvided.includes(value)) {
+		alert('This treatment type already exists');
+		return;
+	}
+	
+	settingsState.treatmentProvided.push(value);
+	if (await saveIncidentSettings()) {
+		input.value = '';
+		renderTreatmentProvidedOptions();
+	} else {
+		settingsState.treatmentProvided.pop();
+	}
+}
+
+function editTreatmentProvidedOption(idx) {
+	const currentValue = settingsState.treatmentProvided[idx];
+	const newValue = prompt('Edit treatment type:', currentValue);
+	
+	if (newValue === null || newValue.trim() === '') return;
+	if (newValue.trim() === currentValue) return;
+	
+	if (settingsState.treatmentProvided.includes(newValue.trim()) && newValue.trim() !== currentValue) {
+		alert('This treatment type already exists');
+		return;
+	}
+	
+	const oldValue = settingsState.treatmentProvided[idx];
+	settingsState.treatmentProvided[idx] = newValue.trim();
+	saveIncidentSettings().then(success => {
+		if (success) {
+			renderTreatmentProvidedOptions();
+		} else {
+			settingsState.treatmentProvided[idx] = oldValue;
+		}
+	});
+}
+
+async function deleteTreatmentProvidedOption(idx) {
+	if (!confirm('Are you sure you want to delete this treatment type?')) return;
+	
+	const removed = settingsState.treatmentProvided.splice(idx, 1)[0];
+	if (await saveIncidentSettings()) {
+		renderTreatmentProvidedOptions();
+	} else {
+		settingsState.treatmentProvided.splice(idx, 0, removed);
+	}
+}
+
 // Allow Enter key to submit in input fields
 document.addEventListener('DOMContentLoaded', () => {
 	document.getElementById('newLocationInput')?.addEventListener('keypress', (e) => {
@@ -1946,6 +2318,18 @@ document.addEventListener('DOMContentLoaded', () => {
 	});
 	document.getElementById('newObservationTypeInput')?.addEventListener('keypress', (e) => {
 		if (e.key === 'Enter') addObservationTypeOption();
+	});
+	document.getElementById('newCategoryInput')?.addEventListener('keypress', (e) => {
+		if (e.key === 'Enter') addCategoryOption();
+	});
+	document.getElementById('newIncidentCategoryInput')?.addEventListener('keypress', (e) => {
+		if (e.key === 'Enter') addIncidentCategoryOption();
+	});
+	document.getElementById('newInjuryTypeInput')?.addEventListener('keypress', (e) => {
+		if (e.key === 'Enter') addInjuryTypeOption();
+	});
+	document.getElementById('newTreatmentProvidedInput')?.addEventListener('keypress', (e) => {
+		if (e.key === 'Enter') addTreatmentProvidedOption();
 	});
 });
 // ===== END SETTINGS TAB MANAGEMENT =====
@@ -3282,7 +3666,7 @@ function generateIncidentDemoSceneHTML() {
 	// Displays the exact incident.html form page for Incident reporting
 	return `
 		<div style="width:100%; height:100%; display:flex; font-family:Inter,system-ui,sans-serif; font-size:14px;">
-			<!-- Sidebar (250px like incident.html) -->
+			<!-- Sidebar -->
 			<div style="width:120px; background:#2c3e50; color:#fff; flex-shrink:0; overflow-y:auto;">
 				<div style="text-align:center; padding:0.5rem; border-bottom:1px solid rgba(255,255,255,0.1);">
 					<h2 style="font-size:0.6rem; margin:0;">Dreamex Datalab</h2>
@@ -3290,17 +3674,12 @@ function generateIncidentDemoSceneHTML() {
 				<ul style="list-style:none; margin:0.5rem 0; padding:0; font-size:0.55rem;">
 					<li><a href="#" style="color:#fff; text-decoration:none; display:flex; align-items:center; gap:0.3rem; padding:0.3rem 0.4rem; opacity:0.7;"><i class="fas fa-home"></i> Home</a></li>
 					<li><a href="#" style="color:#fff; text-decoration:none; display:flex; align-items:center; gap:0.3rem; padding:0.3rem 0.4rem; opacity:0.7;"><i class="fas fa-medkit"></i> Health</a></li>
-					<li><a href="#" style="color:#fff; text-decoration:none; display:flex; align-items:center; gap:0.3rem; padding:0.3rem 0.4rem; opacity:0.7;"><i class="fas fa-exclamation-triangle"></i> Risk Management</a></li>
 					<li>
 						<a href="#" style="color:#fff; text-decoration:none; display:flex; align-items:center; gap:0.3rem; padding:0.3rem 0.4rem; background:#3498db; border-radius:4px;"><i class="fas fa-shield-alt"></i> Safety</a>
 						<ul style="list-style:none; margin-left:0.5rem; padding:0; font-size:0.5rem;">
-							<li><a href="#" style="color:#fff; text-decoration:none; padding:0.2rem 0.4rem; display:block; opacity:0.7;">Training</a></li>
-							<li><a href="#" style="color:#fff; text-decoration:none; padding:0.2rem 0.4rem; display:block; opacity:0.7;">Job Safety Analysis</a></li>
-							<li><a href="#" style="color:#fff; text-decoration:none; padding:0.2rem 0.4rem; display:block; opacity:0.7;">Permit to Work</a></li>
 							<li><a href="#" style="color:#fff; text-decoration:none; padding:0.2rem 0.4rem; display:block; background:rgba(255,255,255,0.15); border-radius:3px;">Incident Reports</a></li>
 						</ul>
 					</li>
-					<li><a href="#" style="color:#fff; text-decoration:none; display:flex; align-items:center; gap:0.3rem; padding:0.3rem 0.4rem; opacity:0.7;"><i class="fas fa-search-plus"></i> Investigation</a></li>
 				</ul>
 			</div>
 			<!-- Main Content Area -->
@@ -3308,18 +3687,17 @@ function generateIncidentDemoSceneHTML() {
 				<!-- Top Nav -->
 				<header style="display:flex; justify-content:space-between; align-items:center; padding:0.3rem 0.5rem; background:#fff; box-shadow:0 2px 5px rgba(0,0,0,0.1); position:sticky; top:0; z-index:20;">
 					<div style="display:flex; align-items:center; gap:0.4rem;">
-						<button style="background:none; border:none; font-size:0.7rem; color:#666; padding:0.2rem;"><i class="fas fa-bars"></i></button>
 						<div style="width:20px; height:20px; background:#ef4444; border-radius:4px; display:flex; align-items:center; justify-content:center; color:#fff; font-size:0.5rem; font-weight:600;">DX</div>
 						<span style="font-weight:600; color:#2c3e50; font-size:0.6rem;">Company Name</span>
 					</div>
 					<div style="display:flex; align-items:center; gap:0.5rem;">
-						<button style="background:none; border:none; font-size:0.7rem; color:#555; position:relative;"><i class="fas fa-bell"></i></button>
-						<div style="width:20px; height:20px; background:#64748b; border-radius:50%; overflow:hidden;"></div>
+						<button style="background:none; border:none; font-size:0.7rem; color:#555;"><i class="fas fa-bell"></i></button>
+						<div style="width:20px; height:20px; background:#64748b; border-radius:50%;"></div>
 					</div>
 				</header>
 				<!-- Page Header -->
 				<div style="background:#fff; color:#2c3e50; padding:0.5rem; margin:0.4rem; display:flex; justify-content:space-between; align-items:center; box-shadow:0 2px 4px rgba(0,0,0,0.1); border:1px solid #e0e0e0;">
-					<h1 style="margin:0; font-size:0.8rem; display:flex; align-items:center; gap:0.4rem;"><i class="fas fa-exclamation-triangle"></i> Report Incident</h1>
+					<h1 style="margin:0; font-size:0.8rem; display:flex; align-items:center; gap:0.4rem;"><i class="fas fa-exclamation-triangle" style="color:#ef4444;"></i> Report Incident</h1>
 					<a href="#" style="background:#2c3e50; color:#fff; border:none; padding:0.3rem 0.5rem; border-radius:4px; font-size:0.55rem; text-decoration:none;"><i class="fas fa-table-list"></i></a>
 				</div>
 				<!-- Form Content (scrollable) -->
@@ -3329,103 +3707,209 @@ function generateIncidentDemoSceneHTML() {
 						<div style="background:#fff; border:1px solid #e0e0e0; border-radius:6px; padding:0.5rem; margin-bottom:0.4rem; box-shadow:0 2px 4px rgba(0,0,0,0.05);">
 							<h3 style="margin:0 0 0.4rem; color:#2c3e50; font-size:0.7rem; border-bottom:1px solid #eee; padding-bottom:0.3rem;">Basic Information</h3>
 							<div style="display:flex; flex-wrap:wrap; gap:0.4rem;">
-								<div style="flex:1 1 45%;">
+								<div style="flex:1 1 22%;">
 									<label style="display:block; margin-bottom:0.15rem; font-weight:600; font-size:0.55rem;">Reference</label>
 									<div id="incReference" style="width:100%; padding:0.3rem; border:1px solid #ced4da; border-radius:4px; font-size:0.55rem; background:#f8f9fa; color:#6b7280;">INC-2024-0108</div>
 								</div>
-								<div style="flex:1 1 45%;">
+								<div style="flex:1 1 22%;">
 									<label style="display:block; margin-bottom:0.15rem; font-weight:600; font-size:0.55rem;">Title *</label>
 									<div id="incTitle" style="width:100%; padding:0.3rem; border:1px solid #ced4da; border-radius:4px; font-size:0.55rem; background:#fff; color:#9ca3af; min-height:1.2rem;">Brief title...</div>
 								</div>
-								<div style="flex:1 1 45%;">
+								<div style="flex:1 1 22%;">
 									<label style="display:block; margin-bottom:0.15rem; font-weight:600; font-size:0.55rem;">Severity *</label>
 									<div id="incSeverity" style="width:100%; padding:0.3rem; border:1px solid #ced4da; border-radius:4px; font-size:0.55rem; background:#fff; color:#9ca3af;">Select Severity</div>
 								</div>
-								<div style="flex:1 1 45%;">
+								<div style="flex:1 1 22%;">
 									<label style="display:block; margin-bottom:0.15rem; font-weight:600; font-size:0.55rem;">Event Type</label>
 									<div id="incEventType" style="width:100%; padding:0.3rem; border:1px solid #ef4444; border-radius:4px; font-size:0.55rem; background:#fef2f2; color:#dc2626; font-weight:600;">Incident</div>
 								</div>
-								<div style="flex:1 1 45%;">
+							</div>
+							<div style="display:flex; flex-wrap:wrap; gap:0.4rem; margin-top:0.4rem;">
+								<div style="flex:1 1 22%;">
 									<label style="display:block; margin-bottom:0.15rem; font-weight:600; font-size:0.55rem;">Date & Time *</label>
 									<div id="incDate" style="width:100%; padding:0.3rem; border:1px solid #ced4da; border-radius:4px; font-size:0.55rem; background:#fff; color:#9ca3af;">Select date...</div>
 								</div>
-								<div style="flex:1 1 45%;">
+								<div style="flex:1 1 22%;">
 									<label style="display:block; margin-bottom:0.15rem; font-weight:600; font-size:0.55rem;">Status</label>
 									<div id="incStatus" style="width:100%; padding:0.3rem; border:1px solid #ced4da; border-radius:4px; font-size:0.55rem; background:#fff; color:#374151;">Open</div>
 								</div>
-								<div style="flex:1 1 45%;">
+								<div style="flex:1 1 22%;">
 									<label style="display:block; margin-bottom:0.15rem; font-weight:600; font-size:0.55rem;">Location *</label>
 									<div id="incLocation" style="width:100%; padding:0.3rem; border:1px solid #ced4da; border-radius:4px; font-size:0.55rem; background:#fff; color:#9ca3af;">Select Location</div>
 								</div>
-								<div style="flex:1 1 45%;">
+								<div style="flex:1 1 22%;">
 									<label style="display:block; margin-bottom:0.15rem; font-weight:600; font-size:0.55rem;">Department *</label>
 									<div id="incDepartment" style="width:100%; padding:0.3rem; border:1px solid #ced4da; border-radius:4px; font-size:0.55rem; background:#fff; color:#9ca3af;">Select Department</div>
 								</div>
-								<div style="flex:1 1 45%;">
+							</div>
+							<div style="display:flex; flex-wrap:wrap; gap:0.4rem; margin-top:0.4rem;">
+								<div style="flex:1 1 30%;">
 									<label style="display:block; margin-bottom:0.15rem; font-weight:600; font-size:0.55rem;">Assigned To</label>
-									<div id="incAssignedTo" style="width:100%; padding:0.3rem; border:1px solid #ced4da; border-radius:4px; font-size:0.55rem; background:#fff; color:#9ca3af;">Select Person</div>
+									<div id="incAssignedTo" style="width:100%; padding:0.3rem; border:1px solid #ced4da; border-radius:4px; font-size:0.55rem; background:#fff; color:#9ca3af;">Type to search...</div>
 								</div>
-								<div style="flex:1 1 45%;">
+								<div style="flex:1 1 30%;">
 									<label style="display:block; margin-bottom:0.15rem; font-weight:600; font-size:0.55rem;">Reported By</label>
 									<div id="incReportedBy" style="width:100%; padding:0.3rem; border:1px solid #ced4da; border-radius:4px; font-size:0.55rem; background:#f8f9fa; color:#6b7280;">John Smith</div>
 								</div>
-								<div style="flex:1 1 45%;">
+								<div style="flex:1 1 30%;">
 									<label style="display:block; margin-bottom:0.15rem; font-weight:600; font-size:0.55rem;">Date Reported</label>
 									<div id="incDateReported" style="width:100%; padding:0.3rem; border:1px solid #ced4da; border-radius:4px; font-size:0.55rem; background:#f8f9fa; color:#6b7280;">2024-12-17</div>
 								</div>
 							</div>
 						</div>
+						
 						<!-- Event-specific Details Section -->
 						<div style="background:#fff; border:1px solid #e0e0e0; border-radius:6px; padding:0.5rem; margin-bottom:0.4rem; box-shadow:0 2px 4px rgba(0,0,0,0.05);">
 							<h3 style="margin:0 0 0.4rem; color:#2c3e50; font-size:0.7rem; border-bottom:1px solid #eee; padding-bottom:0.3rem;">Event-specific Details</h3>
+							
+							<!-- Description -->
 							<div style="margin-bottom:0.4rem;">
 								<label style="display:block; margin-bottom:0.15rem; font-weight:600; font-size:0.55rem;">Description *</label>
 								<div id="incDescription" style="width:100%; padding:0.3rem; border:1px solid #ced4da; border-radius:4px; font-size:0.55rem; background:#fff; min-height:2rem; color:#9ca3af;">Describe what happened...</div>
 							</div>
-							<!-- Incident-specific fields -->
+							
+							<!-- Incident Category -->
+							<div style="margin-bottom:0.4rem;">
+								<label style="display:block; margin-bottom:0.15rem; font-weight:600; font-size:0.55rem;">Incident Category</label>
+								<div id="incCategory" style="width:100%; padding:0.3rem; border:1px solid #ced4da; border-radius:4px; font-size:0.55rem; background:#fff; color:#9ca3af;">Select Category</div>
+							</div>
+							
+							<!-- Injury Checkbox Toggle (matching original incident.html) -->
+							<div class="form-group" style="margin-bottom:0.4rem;">
+								<div id="incInjuryCheckboxRow" style="display:flex; align-items:center; gap:0.4rem; margin-bottom:0.4rem;">
+									<input type="checkbox" id="incInjuryCheckbox" style="width:14px; height:14px; cursor:pointer; accent-color:#ef4444;">
+									<label style="font-weight:600; font-size:0.55rem; cursor:pointer; margin:0;">Injury Occurred</label>
+								</div>
+								<div id="incInjuryFields" style="display:none; padding:0.5rem; background:#f8f9fa; border:1px solid #e0e0e0; border-radius:6px;">
+									<div style="display:flex; flex-wrap:wrap; gap:0.4rem; margin-bottom:0.4rem;">
+										<div style="flex:1 1 30%;">
+											<label style="display:block; font-size:0.5rem; font-weight:600; margin-bottom:0.1rem;">Injury Type *</label>
+											<div id="incInjuryType" style="padding:0.25rem; border:1px solid #ced4da; border-radius:4px; font-size:0.5rem; background:#fff; color:#9ca3af;">Select Injury Type</div>
+										</div>
+										<div style="flex:1 1 30%;">
+											<label style="display:block; font-size:0.5rem; font-weight:600; margin-bottom:0.1rem;">Injured Person *</label>
+											<div id="incInjuredPerson" style="padding:0.25rem; border:1px solid #ced4da; border-radius:4px; font-size:0.5rem; background:#fff; color:#9ca3af;">Name of injured person</div>
+										</div>
+										<div style="flex:1 1 30%;">
+											<label style="display:block; font-size:0.5rem; font-weight:600; margin-bottom:0.1rem;">Body Part Affected</label>
+											<div id="incBodyPart" style="padding:0.25rem; border:1px solid #ced4da; border-radius:4px; font-size:0.5rem; background:#fff; color:#9ca3af;">e.g., Hand, Back, Head</div>
+										</div>
+									</div>
+									<div style="display:flex; flex-wrap:wrap; gap:0.4rem;">
+										<div style="flex:1 1 30%;">
+											<label style="display:block; font-size:0.5rem; font-weight:600; margin-bottom:0.1rem;">Treatment Provided</label>
+											<div id="incTreatment" style="padding:0.25rem; border:1px solid #ced4da; border-radius:4px; font-size:0.5rem; background:#fff; color:#9ca3af;">Select</div>
+										</div>
+										<div style="flex:1 1 30%;">
+											<label style="display:block; font-size:0.5rem; font-weight:600; margin-bottom:0.1rem;">Lost Time Injury</label>
+											<div id="incLostTimeInjury" style="padding:0.25rem; border:1px solid #ced4da; border-radius:4px; font-size:0.5rem; background:#fff; color:#9ca3af;">Select</div>
+										</div>
+										<div style="flex:1 1 30%;" id="incDaysLostGroup" style="display:none;">
+											<label style="display:block; font-size:0.5rem; font-weight:600; margin-bottom:0.1rem;">Days Lost *</label>
+											<div id="incDaysLostInjury" style="padding:0.25rem; border:1px solid #ced4da; border-radius:4px; font-size:0.5rem; background:#fff; color:#9ca3af;">0</div>
+										</div>
+									</div>
+								</div>
+							</div>
+							
+							<!-- Property Damage Checkbox Toggle (matching original incident.html) -->
+							<div class="form-group" style="margin-bottom:0.4rem;">
+								<div id="incPropertyCheckboxRow" style="display:flex; align-items:center; gap:0.4rem; margin-bottom:0.4rem;">
+									<input type="checkbox" id="incPropertyCheckbox" style="width:14px; height:14px; cursor:pointer; accent-color:#eab308;">
+									<label style="font-weight:600; font-size:0.55rem; cursor:pointer; margin:0;">Property Damage Occurred</label>
+								</div>
+								<div id="incPropertyFields" style="display:none; padding:0.5rem; background:#f8f9fa; border:1px solid #e0e0e0; border-radius:6px;">
+									<div style="display:flex; flex-wrap:wrap; gap:0.4rem; margin-bottom:0.4rem;">
+										<div style="flex:1 1 30%;">
+											<label style="display:block; font-size:0.5rem; font-weight:600; margin-bottom:0.1rem;">Damage Type *</label>
+											<div id="incDamageType" style="padding:0.25rem; border:1px solid #ced4da; border-radius:4px; font-size:0.5rem; background:#fff; color:#9ca3af;">Select Property Damage</div>
+										</div>
+										<div style="flex:1 1 30%;">
+											<label style="display:block; font-size:0.5rem; font-weight:600; margin-bottom:0.1rem;">Damaged Asset/Equipment *</label>
+											<div id="incDamagedAsset" style="padding:0.25rem; border:1px solid #ced4da; border-radius:4px; font-size:0.5rem; background:#fff; color:#9ca3af;">Describe the damaged asset</div>
+										</div>
+										<div style="flex:1 1 30%;">
+											<label style="display:block; font-size:0.5rem; font-weight:600; margin-bottom:0.1rem;">Estimated Cost</label>
+											<div id="incEstimatedCost" style="padding:0.25rem; border:1px solid #ced4da; border-radius:4px; font-size:0.5rem; background:#fff; color:#9ca3af;">0.00</div>
+										</div>
+									</div>
+									<div>
+										<label style="display:block; font-size:0.5rem; font-weight:600; margin-bottom:0.1rem;">Damage Description</label>
+										<div id="incDamageDesc" style="padding:0.25rem; border:1px solid #ced4da; border-radius:4px; font-size:0.5rem; background:#fff; color:#9ca3af; min-height:1.5rem;">Describe the extent of damage</div>
+									</div>
+								</div>
+							</div>
+						</div>
+						
+						<!-- Actions Section -->
+						<div style="background:#fff; border:1px solid #e0e0e0; border-radius:6px; padding:0.5rem; margin-bottom:0.4rem; box-shadow:0 2px 4px rgba(0,0,0,0.05);">
+							<h3 style="margin:0 0 0.4rem; color:#2c3e50; font-size:0.7rem; border-bottom:1px solid #eee; padding-bottom:0.3rem;">Actions</h3>
+							
+							<!-- Immediate Actions -->
+							<div style="margin-bottom:0.4rem;">
+								<label style="display:block; margin-bottom:0.15rem; font-weight:600; font-size:0.55rem;">Immediate Actions</label>
+								<div id="incImmediateActions" style="width:100%; padding:0.3rem; border:1px solid #ced4da; border-radius:4px; font-size:0.55rem; background:#fff; min-height:1.5rem; color:#9ca3af;">Actions taken immediately...</div>
+							</div>
+							
+							<!-- Corrective Actions -->
+							<div style="margin-bottom:0.4rem;">
+								<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.3rem;">
+									<label style="font-weight:600; font-size:0.55rem;"><i class="fas fa-tasks"></i> Corrective Actions</label>
+									<button id="incAddActionBtn" type="button" style="background:#2c3e50; color:#fff; border:none; padding:0.2rem 0.4rem; border-radius:4px; font-size:0.5rem;"><i class="fas fa-plus"></i> Add Action</button>
+								</div>
+								<div id="incCorrectiveActions" style="color:#666; font-style:italic; text-align:center; padding:0.5rem; font-size:0.5rem;">No corrective actions added.</div>
+							</div>
+							
+							<!-- Due Date -->
+							<div>
+								<label style="display:block; margin-bottom:0.15rem; font-weight:600; font-size:0.55rem;">Due Date</label>
+								<div id="incDueDate" style="width:30%; padding:0.3rem; border:1px solid #ced4da; border-radius:4px; font-size:0.55rem; background:#fff; color:#9ca3af;">Select date...</div>
+							</div>
+						</div>
+						
+						<!-- Incident Extra Fields Section -->
+						<div style="background:#fff; border:1px solid #e0e0e0; border-radius:6px; padding:0.5rem; margin-bottom:0.4rem; box-shadow:0 2px 4px rgba(0,0,0,0.05);">
+							<h3 style="margin:0 0 0.4rem; color:#2c3e50; font-size:0.7rem; border-bottom:1px solid #eee; padding-bottom:0.3rem;">Additional Incident Details</h3>
+							
 							<div style="display:flex; flex-wrap:wrap; gap:0.4rem; margin-bottom:0.4rem;">
-								<div style="flex:1 1 100%;">
-									<label style="display:block; margin-bottom:0.15rem; font-weight:600; font-size:0.55rem; color:#ef4444;">Incident Category</label>
-									<div id="incCategory" style="width:100%; padding:0.3rem; border:1px solid #ced4da; border-radius:4px; font-size:0.55rem; background:#fff; color:#9ca3af;">Select Category</div>
+								<div style="flex:1 1 30%;">
+									<label style="display:block; margin-bottom:0.15rem; font-weight:600; font-size:0.55rem;">Injured Person</label>
+									<div id="incExtraInjured" style="width:100%; padding:0.3rem; border:1px solid #ced4da; border-radius:4px; font-size:0.55rem; background:#fff; color:#9ca3af;">Name (if any)...</div>
+								</div>
+								<div style="flex:1 1 30%;">
+									<label style="display:block; margin-bottom:0.15rem; font-weight:600; font-size:0.55rem;">Lost Time</label>
+									<div id="incExtraLostTime" style="width:100%; padding:0.3rem; border:1px solid #ced4da; border-radius:4px; font-size:0.55rem; background:#fff; color:#9ca3af;">Select...</div>
+								</div>
+								<div style="flex:1 1 30%;">
+									<label style="display:block; margin-bottom:0.15rem; font-weight:600; font-size:0.55rem;">Days Lost</label>
+									<div id="incExtraDaysLost" style="width:100%; padding:0.3rem; border:1px solid #ced4da; border-radius:4px; font-size:0.55rem; background:#fff; color:#9ca3af;">0</div>
 								</div>
 							</div>
-							<!-- Injury Toggle -->
-							<div id="incInjurySection" style="padding:0.4rem; background:#fef2f2; border-radius:4px; border:1px solid #fecaca; margin-bottom:0.4rem;">
-								<div style="display:flex; align-items:center; gap:0.3rem; margin-bottom:0.3rem;">
-									<div id="incInjuryToggle" style="width:28px; height:16px; background:#d1d5db; border-radius:8px; position:relative; cursor:pointer;">
-										<span style="position:absolute;left:3px;top:50%;transform:translateY(-50%);width:10px;height:10px;background:white;border-radius:50%;transition:all 0.2s;"></span>
-									</div>
-									<label style="font-weight:600; font-size:0.55rem; color:#ef4444;">Injury Occurred</label>
-								</div>
-								<div id="incInjuryDetails" style="display:none; flex-wrap:wrap; gap:0.3rem;">
-									<div style="flex:1 1 30%;">
-										<label style="display:block; font-size:0.5rem; color:#666;">Injury Type</label>
-										<div id="incInjuryType" style="padding:0.2rem; border:1px solid #ced4da; border-radius:3px; font-size:0.5rem; background:#fff; color:#9ca3af;">Select...</div>
-									</div>
-									<div style="flex:1 1 30%;">
-										<label style="display:block; font-size:0.5rem; color:#666;">Injured Person</label>
-										<div id="incInjuredPerson" style="padding:0.2rem; border:1px solid #ced4da; border-radius:3px; font-size:0.5rem; background:#fff; color:#9ca3af;">Name...</div>
-									</div>
-									<div style="flex:1 1 30%;">
-										<label style="display:block; font-size:0.5rem; color:#666;">Body Part</label>
-										<div id="incBodyPart" style="padding:0.2rem; border:1px solid #ced4da; border-radius:3px; font-size:0.5rem; background:#fff; color:#9ca3af;">Part...</div>
-									</div>
-								</div>
-							</div>
+							
 							<!-- Root Cause -->
 							<div style="margin-bottom:0.4rem;">
 								<label style="display:block; margin-bottom:0.15rem; font-weight:600; font-size:0.55rem;">Root Cause *</label>
 								<div id="incRootCause" style="width:100%; padding:0.3rem; border:1px solid #ced4da; border-radius:4px; font-size:0.55rem; background:#fff; min-height:1.5rem; color:#9ca3af;">Root cause analysis...</div>
 							</div>
-							<!-- Corrective Actions -->
+							
+							<!-- Contributing Factors -->
 							<div style="margin-bottom:0.4rem;">
-								<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.3rem;">
-									<label style="font-weight:600; font-size:0.55rem;"><i class="fas fa-tasks"></i> Corrective Actions</label>
-									<button id="incAddActionBtn" type="button" style="background:#2c3e50; color:#fff; border:none; padding:0.2rem 0.4rem; border-radius:4px; font-size:0.5rem;"><i class="fas fa-plus"></i> Add</button>
+								<label style="display:block; margin-bottom:0.15rem; font-weight:600; font-size:0.55rem;">Contributing Factors</label>
+								<div id="incContributing" style="width:100%; padding:0.3rem; border:1px solid #ced4da; border-radius:4px; font-size:0.55rem; background:#fff; min-height:1.5rem; color:#9ca3af;">List contributing factors...</div>
+							</div>
+							
+							<div style="display:flex; flex-wrap:wrap; gap:0.4rem;">
+								<div style="flex:1 1 45%;">
+									<label style="display:block; margin-bottom:0.15rem; font-weight:600; font-size:0.55rem;">Equipment Involved</label>
+									<div id="incEquipment" style="width:100%; padding:0.3rem; border:1px solid #ced4da; border-radius:4px; font-size:0.55rem; background:#fff; color:#9ca3af;">Equipment or asset...</div>
 								</div>
-								<div id="incCorrectiveActions" style="color:#666; font-style:italic; text-align:center; padding:0.5rem; font-size:0.5rem;">No corrective actions added.</div>
+								<div style="flex:1 1 45%;">
+									<label style="display:block; margin-bottom:0.15rem; font-weight:600; font-size:0.55rem;">Witnesses</label>
+									<div id="incWitnesses" style="width:100%; padding:0.3rem; border:1px solid #ced4da; border-radius:4px; font-size:0.55rem; background:#fff; color:#9ca3af;">Names of witnesses...</div>
+								</div>
 							</div>
 						</div>
+						
 						<!-- Attachments Section -->
 						<div style="background:#fff; border:1px solid #e0e0e0; border-radius:6px; padding:0.5rem; margin-bottom:0.4rem; box-shadow:0 2px 4px rgba(0,0,0,0.05);">
 							<h3 style="margin:0 0 0.4rem; color:#2c3e50; font-size:0.7rem; border-bottom:1px solid #eee; padding-bottom:0.3rem;">Attachments</h3>
@@ -3435,6 +3919,7 @@ function generateIncidentDemoSceneHTML() {
 							<small style="margin-left:0.3rem; color:#666; font-size:0.45rem;">Max 5MB each</small>
 							<div id="incFileList" style="display:none; margin-top:0.5rem;"></div>
 						</div>
+						
 						<!-- Action Buttons -->
 						<div style="display:flex; gap:0.3rem; justify-content:flex-end; padding:0.3rem 0;">
 							<button type="button" style="padding:0.3rem 0.6rem; background:#6c757d; color:#fff; border:none; border-radius:4px; font-size:0.55rem;">Cancel</button>
@@ -3453,9 +3938,6 @@ function generateIncidentDemoSceneHTML() {
 				</div>
 				<h3 style="color:#1f2937; margin:0 0 0.2rem; font-size:0.8rem;">Incident Reported!</h3>
 				<p style="color:#6b7280; font-size:0.65rem; margin:0;">Reference: <strong style="color:#ef4444;">INC-2024-0108</strong></p>
-				<div style="margin-top:0.5rem; padding:0.3rem; background:#fee2e2; border-radius:4px; border-left:3px solid #ef4444;">
-					<p style="margin:0; font-size:0.55rem; color:#991b1b;"><i class="fas fa-info-circle"></i> Your incident has been submitted successfully!</p>
-				</div>
 			</div>
 		</div>
 	`;
@@ -3523,34 +4005,52 @@ function updateIncidentDemoScene(stepIndex) {
 	}
 	
 	// Get all form field elements
-	const reference = document.getElementById('incReference');
 	const title = document.getElementById('incTitle');
 	const severity = document.getElementById('incSeverity');
-	const eventType = document.getElementById('incEventType');
 	const date = document.getElementById('incDate');
-	const status = document.getElementById('incStatus');
 	const location = document.getElementById('incLocation');
 	const department = document.getElementById('incDepartment');
 	const assignedTo = document.getElementById('incAssignedTo');
-	const reportedBy = document.getElementById('incReportedBy');
-	const dateReported = document.getElementById('incDateReported');
 	const description = document.getElementById('incDescription');
 	const category = document.getElementById('incCategory');
-	const injuryToggle = document.getElementById('incInjuryToggle');
-	const injuryDetails = document.getElementById('incInjuryDetails');
+	const injuryCheckbox = document.getElementById('incInjuryCheckbox');
+	const injuryCheckboxRow = document.getElementById('incInjuryCheckboxRow');
+	const injuryFields = document.getElementById('incInjuryFields');
 	const injuryType = document.getElementById('incInjuryType');
 	const injuredPerson = document.getElementById('incInjuredPerson');
 	const bodyPart = document.getElementById('incBodyPart');
-	const rootCause = document.getElementById('incRootCause');
+	const treatment = document.getElementById('incTreatment');
+	const lostTimeInjury = document.getElementById('incLostTimeInjury');
+	const daysLostInjury = document.getElementById('incDaysLostInjury');
+	const propertyCheckbox = document.getElementById('incPropertyCheckbox');
+	const propertyCheckboxRow = document.getElementById('incPropertyCheckboxRow');
+	const propertyFields = document.getElementById('incPropertyFields');
+	const damageType = document.getElementById('incDamageType');
+	const damagedAsset = document.getElementById('incDamagedAsset');
+	const estimatedCost = document.getElementById('incEstimatedCost');
+	const damageDesc = document.getElementById('incDamageDesc');
+	const immediateActions = document.getElementById('incImmediateActions');
 	const addActionBtn = document.getElementById('incAddActionBtn');
 	const correctiveActions = document.getElementById('incCorrectiveActions');
+	const dueDate = document.getElementById('incDueDate');
+	const extraInjured = document.getElementById('incExtraInjured');
+	const extraLostTime = document.getElementById('incExtraLostTime');
+	const extraDaysLost = document.getElementById('incExtraDaysLost');
+	const rootCause = document.getElementById('incRootCause');
+	const contributing = document.getElementById('incContributing');
+	const equipment = document.getElementById('incEquipment');
+	const witnesses = document.getElementById('incWitnesses');
 	const uploadBtn = document.getElementById('incUploadBtn');
 	const fileList = document.getElementById('incFileList');
 	const submitBtn = document.getElementById('incSubmitBtn');
 	const success = document.getElementById('incSuccessMsg');
 	
 	// All highlightable elements
-	const allFields = [reference, title, severity, eventType, date, status, location, department, assignedTo, reportedBy, dateReported, description, category, injuryToggle, rootCause, addActionBtn, uploadBtn, submitBtn];
+	const allFields = [title, severity, date, location, department, assignedTo, description, category, 
+		injuryCheckboxRow, injuryType, injuredPerson, bodyPart, treatment, lostTimeInjury, daysLostInjury,
+		propertyCheckboxRow, damageType, damagedAsset, estimatedCost, damageDesc, immediateActions,
+		addActionBtn, dueDate, extraInjured, extraLostTime, extraDaysLost, rootCause, contributing,
+		equipment, witnesses, uploadBtn, submitBtn];
 	
 	// Reset all highlights
 	allFields.forEach(el => {
@@ -3560,162 +4060,202 @@ function updateIncidentDemoScene(stepIndex) {
 		}
 	});
 	
-	// Hide success message unless final step
+	// Hide success message unless final step (step 37)
 	if (success) {
-		success.style.display = (stepIndex >= 15) ? 'flex' : 'none';
+		success.style.display = (stepIndex >= 37) ? 'flex' : 'none';
 	}
+	
+	// Helper function for filled field style
+	const fillField = (el, value, isActive) => {
+		if (!el) return;
+		el.style.boxShadow = isActive ? '0 0 0 3px rgba(239,68,68,0.6)' : 'none';
+		el.style.borderColor = '#22c55e';
+		el.style.color = '#1f2937';
+		el.style.background = '#f0fdf4';
+		el.textContent = value;
+	};
 	
 	// Step 1: Fill Title
-	if (stepIndex >= 1 && title) {
-		title.style.boxShadow = stepIndex === 1 ? '0 0 0 3px rgba(239,68,68,0.6)' : 'none';
-		title.style.borderColor = '#22c55e';
-		title.style.color = '#1f2937';
-		title.style.background = '#f0fdf4';
-		title.textContent = 'Slip and fall in cafeteria';
-	}
+	if (stepIndex >= 1) fillField(title, 'Slip and fall in cafeteria', stepIndex === 1);
 	
 	// Step 2: Fill Severity
-	if (stepIndex >= 2 && severity) {
-		severity.style.boxShadow = stepIndex === 2 ? '0 0 0 3px rgba(239,68,68,0.6)' : 'none';
-		severity.style.borderColor = '#22c55e';
-		severity.style.color = '#dc2626';
-		severity.style.background = '#fef2f2';
-		severity.style.fontWeight = '600';
-		severity.textContent = 'High';
+	if (stepIndex >= 2) {
+		if (severity) {
+			severity.style.boxShadow = stepIndex === 2 ? '0 0 0 3px rgba(239,68,68,0.6)' : 'none';
+			severity.style.borderColor = '#22c55e';
+			severity.style.color = '#dc2626';
+			severity.style.background = '#fef2f2';
+			severity.style.fontWeight = '600';
+			severity.textContent = 'High';
+		}
 	}
 	
 	// Step 3: Fill Date
-	if (stepIndex >= 3 && date) {
-		date.style.boxShadow = stepIndex === 3 ? '0 0 0 3px rgba(239,68,68,0.6)' : 'none';
-		date.style.borderColor = '#22c55e';
-		date.style.color = '#1f2937';
-		date.style.background = '#f0fdf4';
-		date.textContent = '2024-12-17 12:15';
-	}
+	if (stepIndex >= 3) fillField(date, '2024-12-17 12:15', stepIndex === 3);
 	
 	// Step 4: Fill Location
-	if (stepIndex >= 4 && location) {
-		location.style.boxShadow = stepIndex === 4 ? '0 0 0 3px rgba(239,68,68,0.6)' : 'none';
-		location.style.borderColor = '#22c55e';
-		location.style.color = '#1f2937';
-		location.style.background = '#f0fdf4';
-		location.textContent = 'Main Building - Cafeteria';
-	}
+	if (stepIndex >= 4) fillField(location, 'Main Building - Cafeteria', stepIndex === 4);
 	
 	// Step 5: Fill Department
-	if (stepIndex >= 5 && department) {
-		department.style.boxShadow = stepIndex === 5 ? '0 0 0 3px rgba(239,68,68,0.6)' : 'none';
-		department.style.borderColor = '#22c55e';
-		department.style.color = '#1f2937';
-		department.style.background = '#f0fdf4';
-		department.textContent = 'Operations';
-	}
+	if (stepIndex >= 5) fillField(department, 'Operations', stepIndex === 5);
 	
 	// Step 6: Fill Assigned To
-	if (stepIndex >= 6 && assignedTo) {
-		assignedTo.style.boxShadow = stepIndex === 6 ? '0 0 0 3px rgba(239,68,68,0.6)' : 'none';
-		assignedTo.style.borderColor = '#22c55e';
-		assignedTo.style.color = '#1f2937';
-		assignedTo.style.background = '#f0fdf4';
-		assignedTo.textContent = 'Safety Manager - David Lee';
-	}
+	if (stepIndex >= 6) fillField(assignedTo, 'Safety Manager - David Lee', stepIndex === 6);
 	
 	// Step 7: Fill Description
-	if (stepIndex >= 7 && description) {
-		description.style.boxShadow = stepIndex === 7 ? '0 0 0 3px rgba(239,68,68,0.6)' : 'none';
-		description.style.borderColor = '#22c55e';
-		description.style.color = '#1f2937';
-		description.style.background = '#f0fdf4';
-		description.textContent = 'Employee slipped on wet floor near the food service area. Minor knee injury reported. First aid was administered on site.';
-	}
+	if (stepIndex >= 7) fillField(description, 'Employee slipped on wet floor near the food service area. Minor knee injury reported. First aid was administered on site.', stepIndex === 7);
 	
 	// Step 8: Fill Category
-	if (stepIndex >= 8 && category) {
-		category.style.boxShadow = stepIndex === 8 ? '0 0 0 3px rgba(239,68,68,0.6)' : 'none';
-		category.style.borderColor = '#22c55e';
-		category.style.color = '#1f2937';
-		category.style.background = '#f0fdf4';
-		category.textContent = 'Slip/Trip/Fall';
+	if (stepIndex >= 8) fillField(category, 'Slip/Trip/Fall', stepIndex === 8);
+	
+	// Step 9: Check Injury Occurred checkbox
+	if (stepIndex >= 9 && injuryCheckbox && injuryFields && injuryCheckboxRow) {
+		injuryCheckboxRow.style.boxShadow = stepIndex === 9 ? '0 0 0 3px rgba(239,68,68,0.6)' : 'none';
+		injuryCheckboxRow.style.borderRadius = '4px';
+		injuryCheckbox.checked = true;
+		injuryFields.style.display = 'block';
 	}
 	
-	// Step 9: Toggle Injury ON and fill details
-	if (stepIndex >= 9 && injuryToggle && injuryDetails) {
-		injuryToggle.style.boxShadow = stepIndex === 9 ? '0 0 0 3px rgba(239,68,68,0.6)' : 'none';
-		injuryToggle.style.background = '#ef4444';
-		injuryToggle.innerHTML = '<span style="position:absolute;right:3px;top:50%;transform:translateY(-50%);width:10px;height:10px;background:white;border-radius:50%;"></span>';
-		injuryDetails.style.display = 'flex';
-		if (injuryType) {
-			injuryType.style.borderColor = '#22c55e';
-			injuryType.style.color = '#1f2937';
-			injuryType.style.background = '#f0fdf4';
-			injuryType.textContent = 'Sprain';
+	// Step 10: Fill Injury Type
+	if (stepIndex >= 10) fillField(injuryType, 'Sprain', stepIndex === 10);
+	
+	// Step 11: Fill Injured Person
+	if (stepIndex >= 11) fillField(injuredPerson, 'Sarah Johnson', stepIndex === 11);
+	
+	// Step 12: Fill Body Part
+	if (stepIndex >= 12) fillField(bodyPart, 'Knee', stepIndex === 12);
+	
+	// Step 13: Fill Treatment
+	if (stepIndex >= 13) fillField(treatment, 'First Aid', stepIndex === 13);
+	
+	// Step 14: Fill Lost Time Injury
+	if (stepIndex >= 14) fillField(lostTimeInjury, 'Yes', stepIndex === 14);
+	
+	// Step 15: Fill Days Lost
+	if (stepIndex >= 15) fillField(daysLostInjury, '3', stepIndex === 15);
+	
+	// Step 16: Check Property Damage Occurred checkbox
+	if (stepIndex >= 16 && propertyCheckbox && propertyFields && propertyCheckboxRow) {
+		propertyCheckboxRow.style.boxShadow = stepIndex === 16 ? '0 0 0 3px rgba(239,68,68,0.6)' : 'none';
+		propertyCheckboxRow.style.borderRadius = '4px';
+		propertyCheckbox.checked = true;
+		propertyFields.style.display = 'block';
+	}
+	
+	// Step 17: Fill Damage Type
+	if (stepIndex >= 17) fillField(damageType, 'Equipment', stepIndex === 17);
+	
+	// Step 18: Fill Damaged Asset
+	if (stepIndex >= 18) fillField(damagedAsset, 'Floor tile cracked', stepIndex === 18);
+	
+	// Step 19: Fill Estimated Cost
+	if (stepIndex >= 19) fillField(estimatedCost, '$250.00', stepIndex === 19);
+	
+	// Step 20: Fill Damage Description
+	if (stepIndex >= 20) fillField(damageDesc, 'Floor tile cracked from impact during the fall', stepIndex === 20);
+	
+	// Step 21: Fill Immediate Actions
+	if (stepIndex >= 21) fillField(immediateActions, 'Area cordoned off, wet floor signs placed, cleaning scheduled, injured person received first aid', stepIndex === 21);
+	
+	// Step 22: Click Add Corrective Action
+	if (stepIndex >= 22 && addActionBtn) {
+		addActionBtn.style.boxShadow = stepIndex === 22 ? '0 0 0 3px rgba(239,68,68,0.6)' : 'none';
+		addActionBtn.style.background = stepIndex === 22 ? '#ef4444' : '#2c3e50';
+	}
+	
+	// Steps 23-26: Corrective Action form building
+	if (stepIndex >= 23 && correctiveActions) {
+		let html = '<div style="background:#f8f9fa; border:1px solid #e0e0e0; border-radius:6px; padding:0.4rem; text-align:left;">';
+		html += '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.3rem;">';
+		html += '<span style="font-weight:600; color:#2c3e50; font-size:0.55rem;">Action #1</span>';
+		html += '<button type="button" style="background:#dc2626; color:#fff; border:none; width:16px; height:16px; border-radius:50%; font-size:0.4rem; cursor:pointer;">×</button>';
+		html += '</div>';
+		
+		// Description field (full width)
+		html += '<div style="margin-bottom:0.3rem;">';
+		html += '<label style="display:block; font-size:0.45rem; color:#666; margin-bottom:0.1rem;">Action Description *</label>';
+		if (stepIndex >= 24) {
+			html += '<div id="incActionDesc" style="padding:0.25rem; border:1px solid ' + (stepIndex === 23 ? '#ef4444' : '#22c55e') + '; border-radius:3px; font-size:0.5rem; background:' + (stepIndex >= 24 ? '#f0fdf4' : '#fff') + '; color:' + (stepIndex >= 24 ? '#1f2937' : '#9ca3af') + '; min-height:1rem;' + (stepIndex === 23 ? 'box-shadow:0 0 0 3px rgba(239,68,68,0.6);' : '') + '">Install Wet Floor Warning Signs at all entry points when cleaning</div>';
+		} else {
+			html += '<div id="incActionDesc" style="padding:0.25rem; border:1px solid #ef4444; border-radius:3px; font-size:0.5rem; background:#fff; color:#9ca3af; min-height:1rem; box-shadow:0 0 0 3px rgba(239,68,68,0.6);">Enter description...</div>';
 		}
-		if (injuredPerson) {
-			injuredPerson.style.borderColor = '#22c55e';
-			injuredPerson.style.color = '#1f2937';
-			injuredPerson.style.background = '#f0fdf4';
-			injuredPerson.textContent = 'Sarah Johnson';
+		html += '</div>';
+		
+		// 3-column row: Responsible Person | Due Date | Status
+		html += '<div style="display:flex; gap:0.3rem; flex-wrap:wrap;">';
+		
+		// Responsible Person
+		html += '<div style="flex:1 1 30%;">';
+		html += '<label style="display:block; font-size:0.45rem; color:#666; margin-bottom:0.1rem;">Responsible Person *</label>';
+		if (stepIndex >= 25) {
+			html += '<div style="padding:0.2rem; border:1px solid ' + (stepIndex === 24 ? '#ef4444' : '#22c55e') + '; border-radius:3px; font-size:0.5rem; background:' + (stepIndex >= 25 ? '#f0fdf4' : '#fff') + '; color:' + (stepIndex >= 25 ? '#1f2937' : '#9ca3af') + ';' + (stepIndex === 24 ? 'box-shadow:0 0 0 3px rgba(239,68,68,0.6);' : '') + '">David Lee</div>';
+		} else {
+			html += '<div style="padding:0.2rem; border:1px solid #ced4da; border-radius:3px; font-size:0.5rem; background:#fff; color:#9ca3af;">Select...</div>';
 		}
-		if (bodyPart) {
-			bodyPart.style.borderColor = '#22c55e';
-			bodyPart.style.color = '#1f2937';
-			bodyPart.style.background = '#f0fdf4';
-			bodyPart.textContent = 'Knee';
+		html += '</div>';
+		
+		// Due Date
+		html += '<div style="flex:1 1 30%;">';
+		html += '<label style="display:block; font-size:0.45rem; color:#666; margin-bottom:0.1rem;">Due Date *</label>';
+		if (stepIndex >= 26) {
+			html += '<div style="padding:0.2rem; border:1px solid ' + (stepIndex === 25 ? '#ef4444' : '#22c55e') + '; border-radius:3px; font-size:0.5rem; background:' + (stepIndex >= 26 ? '#f0fdf4' : '#fff') + '; color:' + (stepIndex >= 26 ? '#1f2937' : '#9ca3af') + ';' + (stepIndex === 25 ? 'box-shadow:0 0 0 3px rgba(239,68,68,0.6);' : '') + '">2024-12-20</div>';
+		} else {
+			html += '<div style="padding:0.2rem; border:1px solid #ced4da; border-radius:3px; font-size:0.5rem; background:#fff; color:#9ca3af;">Select...</div>';
 		}
+		html += '</div>';
+		
+		// Status
+		html += '<div style="flex:1 1 30%;">';
+		html += '<label style="display:block; font-size:0.45rem; color:#666; margin-bottom:0.1rem;">Status</label>';
+		if (stepIndex >= 26) {
+			html += '<div style="padding:0.2rem; border:1px solid #22c55e; border-radius:3px; font-size:0.5rem; background:#fef9c3; color:#854d0e; font-weight:600;">Pending</div>';
+		} else {
+			html += '<div style="padding:0.2rem; border:1px solid #ced4da; border-radius:3px; font-size:0.5rem; background:#fff; color:#9ca3af;">Select...</div>';
+		}
+		html += '</div>';
+		
+		html += '</div>'; // end row
+		html += '</div>'; // end card
+		
+		correctiveActions.innerHTML = html;
 	}
 	
-	// Step 10: Fill Root Cause
-	if (stepIndex >= 10 && rootCause) {
-		rootCause.style.boxShadow = stepIndex === 10 ? '0 0 0 3px rgba(239,68,68,0.6)' : 'none';
-		rootCause.style.borderColor = '#22c55e';
-		rootCause.style.color = '#1f2937';
-		rootCause.style.background = '#f0fdf4';
-		rootCause.textContent = 'Wet floor from spilled beverage. No warning signs were placed. Cleaning staff not notified promptly.';
-	}
+	// Step 27: Fill Due Date
+	if (stepIndex >= 27) fillField(dueDate, '2024-12-24', stepIndex === 27);
 	
-	// Step 11: Click Add Corrective Action
-	if (stepIndex >= 11 && addActionBtn) {
-		addActionBtn.style.boxShadow = stepIndex === 11 ? '0 0 0 3px rgba(239,68,68,0.6)' : 'none';
-		addActionBtn.style.background = '#ef4444';
-		addActionBtn.style.color = 'white';
-	}
+	// Step 28: Fill Extra Injured Person
+	if (stepIndex >= 28) fillField(extraInjured, 'Sarah Johnson', stepIndex === 28);
 	
-	// Step 12: Show Corrective Action Added (matching original incident.html layout)
-	if (stepIndex >= 12 && correctiveActions) {
-		let actionFormHTML = '<div style="background:#f8f9fa; border:1px solid #e0e0e0; border-radius:6px; padding:0.4rem; text-align:left;">';
-		
-		// Action Header
-		actionFormHTML += '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.2rem;">';
-		actionFormHTML += '<span style="font-weight:600; color:#2c3e50; font-size:0.5rem;">Action #1</span>';
-		actionFormHTML += '<span style="background:#fef9c3; color:#854d0e; padding:1px 6px; border-radius:9999px; font-size:0.4rem; font-weight:600;">PENDING</span>';
-		actionFormHTML += '</div>';
-		
-		// Description (full width)
-		actionFormHTML += '<div style="font-size:0.45rem; color:#1f2937; margin-bottom:0.15rem;">Install Wet Floor Warning Signs - Place warning signs at all entry points when cleaning</div>';
-		
-		// Responsible Person | Due Date
-		actionFormHTML += '<div style="display:flex; gap:0.5rem; font-size:0.4rem; color:#6b7280;">';
-		actionFormHTML += '<span><i class="fas fa-user"></i> David Lee</span>';
-		actionFormHTML += '<span><i class="fas fa-calendar"></i> 2024-12-18</span>';
-		actionFormHTML += '</div>';
-		
-		actionFormHTML += '</div>';
-		correctiveActions.innerHTML = actionFormHTML;
-	}
+	// Step 29: Fill Extra Lost Time
+	if (stepIndex >= 29) fillField(extraLostTime, 'Yes', stepIndex === 29);
 	
-	// Step 13: Upload Attachment
-	if (stepIndex >= 13 && uploadBtn && fileList) {
-		uploadBtn.style.boxShadow = stepIndex === 13 ? '0 0 0 3px rgba(239,68,68,0.6)' : 'none';
-		uploadBtn.style.background = '#ef4444';
-		uploadBtn.style.color = 'white';
+	// Step 30: Fill Extra Days Lost
+	if (stepIndex >= 30) fillField(extraDaysLost, '3', stepIndex === 30);
+	
+	// Step 31: Fill Root Cause
+	if (stepIndex >= 31) fillField(rootCause, 'Wet floor from spilled beverage. No warning signs were placed. Cleaning staff not notified promptly.', stepIndex === 31);
+	
+	// Step 32: Fill Contributing Factors
+	if (stepIndex >= 32) fillField(contributing, 'Inadequate floor drainage, delayed spill response, lack of non-slip mats in high-traffic area', stepIndex === 32);
+	
+	// Step 33: Fill Equipment
+	if (stepIndex >= 33) fillField(equipment, 'Beverage dispenser, floor tiles', stepIndex === 33);
+	
+	// Step 34: Fill Witnesses
+	if (stepIndex >= 34) fillField(witnesses, 'Mike Brown, Jane Wilson', stepIndex === 34);
+	
+	// Step 35: Upload Attachment
+	if (stepIndex >= 35 && uploadBtn && fileList) {
+		uploadBtn.style.boxShadow = stepIndex === 35 ? '0 0 0 3px rgba(239,68,68,0.6)' : 'none';
+		uploadBtn.style.background = stepIndex === 35 ? '#ef4444' : '#6c757d';
 		fileList.style.display = 'block';
 		fileList.innerHTML = '<div style="display:flex;align-items:center;gap:8px;padding:8px;background:#fef2f2;border-radius:6px;border:1px solid #fecaca;"><i class="fas fa-image" style="color:#ef4444;"></i><span style="font-size:0.55rem;color:#991b1b;flex:1;">incident_scene_photo.jpg</span><span style="font-size:0.5rem;color:#6b7280;">1.2 MB</span></div>';
 	}
 	
-	// Step 14: Highlight Submit button
-	if (stepIndex === 14 && submitBtn) {
-		submitBtn.style.boxShadow = '0 0 0 3px rgba(239,68,68,0.6)';
-		submitBtn.style.background = '#22c55e';
+	// Step 36: Highlight Submit button
+	if (stepIndex >= 36 && submitBtn) {
+		submitBtn.style.boxShadow = stepIndex === 36 ? '0 0 0 3px rgba(239,68,68,0.6)' : 'none';
+		submitBtn.style.background = stepIndex === 36 ? '#22c55e' : '#2c3e50';
 	}
 }
 
