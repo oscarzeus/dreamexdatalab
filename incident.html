@@ -679,6 +679,8 @@
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
+<!-- EmailJS for notifications -->
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <script>
 // Firebase configuration (match project-list centralized auth)
 const firebaseConfig = {
@@ -2221,6 +2223,60 @@ async function loadDepartments(companyId){ const sel=document.getElementById('de
 async function loadUsers(){ /* Users are now loaded via loadAllUsers for search functionality */ }
 
 let allUsers = [];
+let jobTitlesMap = {}; // Map of job title value to label
+
+async function loadJobTitlesMap(companyId) {
+	jobTitlesMap = {};
+	if (!companyId) return;
+	
+	try {
+		const snapshot = await db.ref(`companies/${companyId}/fieldOptions/job-title`).once('value');
+		if (snapshot.exists()) {
+			const data = snapshot.val();
+			if (Array.isArray(data)) {
+				data.forEach(item => {
+					if (item && typeof item === 'object' && item.value) {
+						jobTitlesMap[item.value] = item.label || item.value;
+					} else if (typeof item === 'string') {
+						jobTitlesMap[item] = item;
+					}
+				});
+			} else if (typeof data === 'object') {
+				Object.values(data).forEach(item => {
+					if (item && typeof item === 'object' && item.value) {
+						jobTitlesMap[item.value] = item.label || item.value;
+					}
+				});
+			}
+		}
+		console.log(`✅ Loaded ${Object.keys(jobTitlesMap).length} job titles for lookup`);
+	} catch (error) {
+		console.error('Error loading job titles map:', error);
+	}
+}
+
+function resolveJobTitle(userData) {
+	// Try multiple fields for job title
+	let jobTitle = userData.jobTitleLabel || '';
+	
+	// If jobTitleLabel is empty, try to resolve from jobTitle value
+	if (!jobTitle && userData.jobTitle) {
+		// Check if it's a key that needs to be resolved
+		jobTitle = jobTitlesMap[userData.jobTitle] || userData.jobTitle;
+	}
+	
+	// Try position field
+	if (!jobTitle && userData.position) {
+		jobTitle = jobTitlesMap[userData.position] || userData.position;
+	}
+	
+	// Format hyphenated titles to title case
+	if (jobTitle && jobTitle.includes('-')) {
+		jobTitle = jobTitle.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+	}
+	
+	return jobTitle;
+}
 
 async function loadAllUsers(companyId) {
 	allUsers = [];
@@ -2231,25 +2287,24 @@ async function loadAllUsers(companyId) {
 	}
 	
 	try {
-		// Load users from company scope only (same as investigation-create.html)
+		// Load job titles map first for proper label resolution
+		await loadJobTitlesMap(companyId);
+		
+		// Load users from company scope only
 		const usersRef = db.ref(`companies/${companyId}/users`);
 		const snapshot = await usersRef.once('value');
 		
 		if (snapshot.exists()) {
 			const users = snapshot.val();
 			Object.entries(users).forEach(([uid, userData]) => {
-				// Filter out admin users (same as investigation-create.html)
-				if (userData.role === 'admin') return;
+				// Include all users (both admin and standard) so same person with multiple accounts appears
 				
 				const displayName = userData.displayName || userData.name || userData.email || 'Unknown';
-				let jobTitle = userData.jobTitleLabel || userData.jobTitle || userData.position || '';
-				
-				// Format job title same as investigation-create.html
-				if (jobTitle && jobTitle.includes('-')) {
-					jobTitle = jobTitle.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-				}
+				const jobTitle = resolveJobTitle(userData);
 				
 				const department = userData.department || userData.dept || '';
+				const employeeId = userData.employeeId || userData.staffId || '';
+				const userRole = userData.role || 'standard';
 				
 				allUsers.push({
 					id: uid,
@@ -2257,13 +2312,15 @@ async function loadAllUsers(companyId) {
 					title: jobTitle,
 					department: department,
 					email: userData.email || '',
+					employeeId: employeeId,
+					role: userRole,
 					companyId: companyId,
-					searchText: `${displayName} ${jobTitle} ${department} ${userData.email || ''}`.toLowerCase()
+					searchText: `${displayName} ${jobTitle} ${department} ${employeeId} ${userData.email || ''}`.toLowerCase()
 				});
 			});
 		}
 		
-		console.log(`✅ Loaded ${allUsers.length} users from company scope (excluding admins)`);
+		console.log(`✅ Loaded ${allUsers.length} users from company scope (including all roles)`);
 	} catch (error) {
 		console.error('❌ Error loading users:', error);
 		allUsers = [];
@@ -2287,7 +2344,7 @@ function showSearchResults(users) {
 			const div = document.createElement('div');
 			div.className = 'search-result';
 			div.innerHTML = `
-				<div class="user-name">${user.name}</div>
+				<div class="user-name">${user.name}${user.employeeId ? ` <span style="color:#6b7280;font-weight:normal;">(${user.employeeId})</span>` : ''}</div>
 				${user.title ? `<div class="user-title">${user.title}</div>` : ''}
 			`;
 			div.onclick = () => selectUser(user);
@@ -2306,8 +2363,8 @@ function selectUser(user) {
 	// Set the hidden input value
 	assignedToInput.value = user.id;
 	
-	// Show selected user in search input
-	searchInput.value = user.name + (user.title ? ` (${user.title})` : '');
+	// Show selected user in search input - display name and employee ID
+	searchInput.value = user.name + (user.employeeId ? ` (${user.employeeId})` : '');
 	resultsDiv.style.display = 'none';
 }
 
@@ -2519,6 +2576,206 @@ async function waitForCompanyId(timeoutMs=6000){
 		},150);
 	});
 }
+
+// ========== Email Notification Function ==========
+const EMAILJS_CONFIG = {
+	publicKey: 'fHs6oaqQgkcPoUwpv',
+	serviceId: 'service_p2e9swy',
+	templateId: 'template_rew55vo'
+};
+
+// Initialize EmailJS
+if (typeof emailjs !== 'undefined') {
+	emailjs.init(EMAILJS_CONFIG.publicKey);
+}
+
+// Send incident notification email
+async function sendIncidentNotificationEmail(companyId, incident, eventType, isUpdate = false) {
+	if (!companyId || !incident) return;
+	
+	try {
+		// Check if notifications are enabled for this event type and action
+		const settingsSnap = await db.ref(`companies/${companyId}/incidentSettings/notifications`).once('value');
+		const settings = settingsSnap.val() || {};
+		
+		// Map event types to settings and recipient paths
+		const typeConfig = {
+			'incident': { onSubmission: 'incidentOnSubmission', onUpdate: 'incidentOnUpdate', recipients: 'incidentRecipients', label: 'Incident' },
+			'near-miss': { onSubmission: 'nearMissOnSubmission', onUpdate: 'nearMissOnUpdate', recipients: 'nearMissRecipients', label: 'Near Miss' },
+			'observation': { onSubmission: 'observationOnSubmission', onUpdate: 'observationOnUpdate', recipients: 'observationRecipients', label: 'Observation' }
+		};
+		
+		const config = typeConfig[eventType?.toLowerCase()] || typeConfig['incident'];
+		
+		// Check if notification should be sent based on submission/update setting
+		const settingKey = isUpdate ? config.onUpdate : config.onSubmission;
+		const isEnabled = isUpdate ? (settings[settingKey] === true) : (settings[settingKey] !== false);
+		
+		if (!isEnabled) {
+			console.log(`Notifications disabled for ${eventType} ${isUpdate ? 'updates' : 'submissions'}`);
+			return;
+		}
+		
+		// Get recipients for this event type
+		const recipients = settings[config.recipients] || {};
+		const emails = Object.values(recipients).map(r => r.email).filter(e => e);
+		
+		if (emails.length === 0) {
+			console.log(`No notification recipients configured for ${eventType}`);
+			return;
+		}
+		
+		// Get company info
+		const companySnap = await db.ref(`companies/${companyId}`).once('value');
+		const company = companySnap.val() || {};
+		const companyName = company.companyName || 'Company';
+		
+		if (typeof emailjs === 'undefined') {
+			console.warn('EmailJS not loaded, cannot send notification');
+			return;
+		}
+		
+		// Send to each recipient individually
+		for (const email of emails) {
+			try {
+				const reporterName = incident.reportedByName || incident.reportedBy || 'HSE System';
+				const eventDate = incident.date || incident.incidentDate || new Date().toLocaleDateString();
+				const refNumber = incident.referenceNumber || incident.id || 'N/A';
+				const severityText = (incident.severity || 'Not specified').charAt(0).toUpperCase() + (incident.severity || 'Not specified').slice(1);
+				
+				// Determine action text based on submission/update
+				const actionText = isUpdate ? 'has been updated' : 'has been reported';
+				const subjectPrefix = isUpdate ? 'Updated' : 'New';
+				const notificationContext = isUpdate ? 'HSE Event Update Notification' : 'New HSE Event Notification';
+				
+				// Format message to match Position Approval Request design
+				const messageBody = `Dear HSE Team,
+
+${isUpdate ? 'An existing' : 'A new'} ${config.label.toLowerCase()} ${actionText} and requires your attention.
+
+EVENT DETAILS:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Event Type: ${config.label}
+Title: ${incident.title || 'Untitled'}
+Reference Number: ${refNumber}
+Date of Event: ${eventDate}
+Location: ${incident.location || 'Not specified'}
+Severity Level: ${severityText}
+Department: ${incident.department || 'Not specified'}
+Reported By: ${reporterName}
+Status: ${incident.status || (isUpdate ? 'Updated' : 'Open')}
+
+DESCRIPTION:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+${incident.description || 'No description provided'}
+
+${incident.immediateActions ? `IMMEDIATE ACTIONS TAKEN:\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n${incident.immediateActions}\n\n` : ''}Please review this ${config.label.toLowerCase()} through the HSE System and take appropriate action.
+
+Review Link: ${window.location.origin}/incidentboard.html
+
+Best regards,
+${companyName} HSE System
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+This is an automated notification from the HSE Management System.
+If you have questions, please contact your HSE department.`;
+
+				// EmailJS template variables - matching position approval template structure
+				const emailData = {
+					// Basic email configuration
+					to_email: email,
+					to_name: 'HSE Team',
+					from_name: companyName + ' HSE System',
+					subject: `[HSE Alert] ${subjectPrefix} ${config.label}: ${incident.title || 'Untitled'} - ${refNumber}`,
+					
+					// Main message content
+					message: messageBody,
+					
+					// Position approval template compatible variables
+					position_title: `${config.label}: ${incident.title || 'Untitled'}`,
+					position_code: refNumber,
+					department: incident.department || config.label,
+					requesting_manager: reporterName,
+					request_date: eventDate,
+					
+					// Employment/Event details (mapped for template compatibility)
+					employment_type: config.label,
+					work_location: incident.location || 'Not specified',
+					working_hours: eventDate,
+					contract_duration: severityText,
+					reporting_manager: reporterName,
+					budget_code: refNumber,
+					
+					// Severity as salary fields for visual display
+					salary_min: severityText,
+					salary_max: incident.status || (isUpdate ? 'Updated' : 'Open'),
+					annual_budget_impact: config.label,
+					benefits_package: incident.department || 'HSE',
+					department_budget: isUpdate ? 'Event Updated' : 'New Event',
+					
+					// Approval workflow fields
+					current_stage: '1',
+					total_stages: '1',
+					approver_role: 'HSE Reviewer',
+					approval_type: 'Review Required',
+					notification_context: notificationContext,
+					
+					// Business justification (event details)
+					business_need: incident.description || 'No description provided',
+					key_responsibilities: incident.immediateActions || 'Review and take appropriate action',
+					required_skills: `Location: ${incident.location || 'Not specified'}`,
+					required_experience: `Severity: ${severityText}`,
+					priority_level: incident.severity || 'medium',
+					
+					// Action links
+					approval_link: `${window.location.origin}/incidentboard.html`,
+					system_link: `${window.location.origin}/incidentboard.html`,
+					
+					// Company information
+					company_name: companyName,
+					company_email: 'info@dreamexdatalab.com',
+					company_initial: companyName.charAt(0).toUpperCase(),
+					
+					// Contact information
+					hr_email: 'hse@dreamexdatalab.com',
+					budget_team_email: 'hse@dreamexdatalab.com',
+					
+					// System information
+					request_id: refNumber,
+					generation_timestamp: new Date().toLocaleString(),
+					submission_date: eventDate,
+					
+					// HSE specific variables (for custom templates)
+					incident_type: config.label,
+					incident_title: incident.title || 'Untitled',
+					incident_date: eventDate,
+					incident_location: incident.location || 'Not specified',
+					incident_severity: severityText,
+					incident_description: incident.description || 'No description provided',
+					incident_status: incident.status || (isUpdate ? 'Updated' : 'Open'),
+					incident_department: incident.department || 'Not specified',
+					incident_reporter: reporterName,
+					immediate_actions: incident.immediateActions || 'N/A',
+					reference_number: refNumber,
+					is_update: isUpdate ? 'Yes' : 'No',
+					event_action: isUpdate ? 'Updated' : 'New Submission'
+				};
+				
+				const response = await emailjs.send(EMAILJS_CONFIG.serviceId, EMAILJS_CONFIG.templateId, emailData);
+				console.log('Notification sent to:', email, response);
+			} catch (err) {
+				console.error('Failed to send notification to:', email, err);
+			}
+		}
+		
+		console.log(`Notification emails sent for ${eventType} ${isUpdate ? 'update' : 'submission'}`);
+	} catch (error) {
+		console.error('Error sending incident notification:', error);
+	}
+}
+// ========== End Email Notification Function ==========
 
 (async function initIncidentPage(){
 	await waitForCompanyId();
@@ -2787,7 +3044,16 @@ async function waitForCompanyId(timeoutMs=6000){
 				updatedAt: new Date().toISOString(),
 			};
 			if(!id) payload.createdAt=new Date().toISOString(); else { const snap=await ref.once('value'); payload.createdAt=snap.val()?.createdAt||new Date().toISOString(); }
+			const isUpdate = !!id;
 			await ref.update(payload);
+			
+			// Send notification email
+			try {
+				await sendIncidentNotificationEmail(companyId, payload, payload.eventType || 'incident', isUpdate);
+			} catch (notifErr) {
+				console.error('Notification error:', notifErr);
+			}
+			
 			alert(id?'Incident updated':'Incident created');
 			location.href='incidentboard.html';
 		}catch(err){
