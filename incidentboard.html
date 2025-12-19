@@ -813,22 +813,6 @@
 								<span style="font-size:.75rem;color:#9ca3af;font-style:italic;">No recipients configured</span>
 							</div>
 						</div>
-						
-						<!-- Test Notification Buttons -->
-						<div id="testNotificationButtonsSection" style="padding-top:12px;border-top:1px solid #e5e7eb;display:none;">
-							<div style="font-size:.75rem;color:#6b7280;margin-bottom:10px;">Send test notification to verify email delivery:</div>
-							<div style="display:flex;flex-wrap:wrap;gap:8px;">
-								<button type="button" onclick="sendTestNotification('incident')" style="padding:8px 14px;font-size:.75rem;background:#fee2e2;color:#991b1b;border:1px solid #fecaca;border-radius:6px;cursor:pointer;display:flex;align-items:center;gap:6px;">
-									<i class="fas fa-paper-plane"></i> Test Incident
-								</button>
-								<button type="button" onclick="sendTestNotification('nearMiss')" style="padding:8px 14px;font-size:.75rem;background:#fef3c7;color:#92400e;border:1px solid #fde68a;border-radius:6px;cursor:pointer;display:flex;align-items:center;gap:6px;">
-									<i class="fas fa-paper-plane"></i> Test Near Miss
-								</button>
-								<button type="button" onclick="sendTestNotification('observation')" style="padding:8px 14px;font-size:.75rem;background:#dbeafe;color:#1e40af;border:1px solid #bfdbfe;border-radius:6px;cursor:pointer;display:flex;align-items:center;gap:6px;">
-									<i class="fas fa-paper-plane"></i> Test Observation
-								</button>
-							</div>
-						</div>
 					</div>
 				</div>
 
@@ -848,12 +832,11 @@
 										<th>Job Title</th>
 										<th style="text-align:center">Incidents Tab</th>
 										<th style="text-align:center">Settings Tab</th>
-										<th style="text-align:center">Notifications</th>
 										<th style="text-align:center">Actions</th>
 									</tr>
 								</thead>
 								<tbody id="incidentAccessControlTableBody">
-									<tr><td colspan="7" style="text-align:center;color:#9ca3af">Loading...</td></tr>
+									<tr><td colspan="6" style="text-align:center;color:#9ca3af">Loading...</td></tr>
 								</tbody>
 							</table>
 						</div>
@@ -888,10 +871,6 @@
 					<label class="checkbox-item">
 						<input type="checkbox" id="acSettingsTab">
 						Settings Tab
-					</label>
-					<label class="checkbox-item">
-						<input type="checkbox" id="acNotifications">
-						Notification Test Buttons
 					</label>
 				</div>
 			</div>
@@ -2293,7 +2272,7 @@ function renderIncidentAccessControlTable(users, perms, roles) {
 	const permUserIds = Object.keys(perms || {});
 	
 	if (permUserIds.length === 0) {
-		tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#9ca3af">No users configured. Click "Add User" to add access control.</td></tr>';
+		tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#9ca3af">No users configured. Click "Add User" to add access control.</td></tr>';
 		return;
 	}
 	
@@ -2311,7 +2290,6 @@ function renderIncidentAccessControlTable(users, perms, roles) {
 				<td>${escapeHtml(jobTitle)}</td>
 				<td style="text-align:center"><input type="checkbox" data-uid="${uid}" data-perm="incidents" ${p.canSeeIncidentsTab !== false ? 'checked' : ''} onchange="updateIncidentAccessPerm(this)"></td>
 				<td style="text-align:center"><input type="checkbox" data-uid="${uid}" data-perm="settings" ${p.canSeeSettingsTab ? 'checked' : ''} onchange="updateIncidentAccessPerm(this)"></td>
-				<td style="text-align:center"><input type="checkbox" data-uid="${uid}" data-perm="notifications" ${p.canSeeNotifications ? 'checked' : ''} onchange="updateIncidentAccessPerm(this)"></td>
 				<td style="text-align:center"><button class="delete-btn" onclick="removeIncidentAccessUser('${uid}')" title="Remove user"><i class="fas fa-trash"></i></button></td>
 			</tr>
 		`;
@@ -2328,7 +2306,6 @@ async function updateIncidentAccessPerm(checkbox) {
 	
 	if (perm === 'incidents') update.canSeeIncidentsTab = checkbox.checked;
 	if (perm === 'settings') update.canSeeSettingsTab = checkbox.checked;
-	if (perm === 'notifications') update.canSeeNotifications = checkbox.checked;
 	
 	try {
 		await db.ref(`companies/${user.companyId}/incidentSettings/accessControl/${uid}`).update(update);
@@ -2406,13 +2383,11 @@ async function saveIncidentAccessControl() {
 	
 	const canSeeIncidentsTab = document.getElementById('acIncidentsTab').checked;
 	const canSeeSettingsTab = document.getElementById('acSettingsTab').checked;
-	const canSeeNotifications = document.getElementById('acNotifications').checked;
 	
 	try {
 		await db.ref(`companies/${user.companyId}/incidentSettings/accessControl/${uid}`).set({
 			canSeeIncidentsTab,
-			canSeeSettingsTab,
-			canSeeNotifications
+			canSeeSettingsTab
 		});
 		
 		closeIncidentAccessControlModal();
@@ -2444,7 +2419,6 @@ async function applyIncidentTabVisibility() {
 		const settingsBtn = document.querySelector('.tab-btn[data-tab="settings"]');
 		const incidentsTab = document.getElementById('incidentsTab');
 		const settingsTab = document.getElementById('settingsTab');
-		const testNotificationSection = document.getElementById('testNotificationButtonsSection');
 		
 		// Incidents tab - default ALLOW unless explicitly disabled
 		const allowIncidents = p.canSeeIncidentsTab !== false;
@@ -2470,12 +2444,6 @@ async function applyIncidentTabVisibility() {
 			}
 		}
 		if (settingsTab && !allowSettings) settingsTab.classList.remove('active');
-		
-		// Test Notification buttons - default DENY unless explicitly granted
-		const allowNotifications = p.canSeeNotifications === true;
-		if (testNotificationSection) {
-			testNotificationSection.style.display = allowNotifications ? 'block' : 'none';
-		}
 		
 		// If current active tab is hidden, switch to the first visible one
 		const activeTab = document.querySelector('.tab-btn.active');
@@ -2718,126 +2686,6 @@ async function removeEventRecipient(eventType, uid) {
 	} catch (error) {
 		console.error('Error removing recipient:', error);
 		alert('Failed to remove recipient');
-	}
-}
-
-// Send test notification for a specific event type
-async function sendTestNotification(eventType) {
-	console.log('sendTestNotification called for:', eventType);
-	
-	const user = authManager?.currentUser;
-	if (!user || !user.companyId) {
-		alert('User not authenticated');
-		return;
-	}
-	
-	// Map eventType to Firebase path and display name
-	const typeConfig = {
-		incident: { path: 'incidentRecipients', label: 'Incident' },
-		nearMiss: { path: 'nearMissRecipients', label: 'Near Miss' },
-		observation: { path: 'observationRecipients', label: 'Observation' }
-	};
-	const config = typeConfig[eventType];
-	if (!config) {
-		alert('Invalid event type');
-		return;
-	}
-	
-	try {
-		const recipientsSnap = await db.ref(`companies/${user.companyId}/incidentSettings/notifications/${config.path}`).once('value');
-		const recipients = recipientsSnap.val() || {};
-		console.log('Recipients data:', recipients);
-		
-		const emails = Object.values(recipients).map(r => r.email).filter(e => e);
-		console.log('Extracted emails:', emails);
-		
-		if (emails.length === 0) {
-			alert(`No recipients configured for ${config.label} notifications. Add recipients first.`);
-			return;
-		}
-		
-		// Get company info for branding
-		const companySnap = await db.ref(`companies/${user.companyId}`).once('value');
-		const company = companySnap.val() || {};
-		const companyName = company.companyName || 'Your Company';
-		
-		if (typeof emailjs === 'undefined') {
-			alert('EmailJS library not loaded. Please refresh the page.');
-			return;
-		}
-		
-		// Send to each recipient individually
-		let successCount = 0;
-		let failCount = 0;
-		
-		for (const email of emails) {
-			try {
-				// Format message to match Position Approval Request design
-				const messageBody = `A new ${config.label.toLowerCase()} has been reported and requires your attention.
-
-EVENT DETAILS:
-
-Event Type: ${config.label}
-Title: Test ${config.label} Notification
-Reference: TEST-${Date.now().toString().slice(-6)}
-Date: ${new Date().toLocaleDateString()}
-Location: N/A
-Severity: N/A
-
-Description:
-This is a test notification to verify ${config.label.toLowerCase()} email delivery.
-
-Please review this event through the HSE System.
-
-View Event: ${window.location.origin}/incidentboard.html
-
-Best regards,
-${companyName} HSE System`;
-
-				const testData = {
-					to_email: email,
-					to_name: 'HSE Team',
-					from_name: companyName + ' HSE System',
-					subject: `[HSE Alert] Test ${config.label} Notification - ${companyName}`,
-					message: messageBody,
-					// Variables matching position approval template structure
-					position_title: `Test ${config.label} Notification`,
-					department: config.label,
-					requesting_manager: 'HSE System',
-					request_date: new Date().toLocaleDateString(),
-					position_code: 'TEST-' + Date.now().toString().slice(-6),
-					approval_link: window.location.origin + '/incidentboard.html',
-					company_name: companyName,
-					company_email: 'info@dreamexdatalab.com',
-					// HSE specific variables
-					incident_type: config.label,
-					incident_title: `Test ${config.label} Notification`,
-					incident_date: new Date().toLocaleDateString(),
-					incident_location: 'N/A',
-					incident_severity: 'N/A',
-					incident_description: `This is a test notification to verify ${config.label.toLowerCase()} email delivery.`,
-					reference_number: 'TEST-' + Date.now().toString().slice(-6)
-				};
-				
-				console.log('Sending test notification to:', email);
-				const response = await emailjs.send(EMAILJS_CONFIG.serviceId, EMAILJS_CONFIG.templateId, testData);
-				console.log('Test notification sent successfully:', response);
-				successCount++;
-			} catch (err) {
-				console.error('Failed to send to:', email, err);
-				failCount++;
-			}
-		}
-		
-		if (successCount > 0) {
-			alert(`${config.label} test notification sent to ${successCount} recipient(s)`);
-		}
-		if (failCount > 0) {
-			alert(`Failed to send to ${failCount} recipient(s)`);
-		}
-	} catch (error) {
-		console.error('Error sending test notification:', error);
-		alert('Failed to send test notification: ' + error.message);
 	}
 }
 
