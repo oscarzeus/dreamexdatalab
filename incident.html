@@ -63,7 +63,10 @@
 		.search-result:last-child{border-bottom:none}
 		.search-result .user-name{font-weight:600;color:#333}
 		.search-result .user-title{font-size:.8rem;color:#666;margin-top:2px}
-		/* Corrective Actions dynamic section */
+		/* Action search results */
+		.action-search-results{position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #ced4da;border-top:none;border-radius:0 0 6px 6px;max-height:200px;overflow-y:auto;z-index:100;display:none}
+		/* Observation action search results */
+		.obs-action-search-results{position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #ced4da;border-top:none;border-radius:0 0 6px 6px;max-height:200px;overflow-y:auto;z-index:100;display:none}
 		.corrective-actions-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
 		.corrective-actions-header h4{margin:0;font-size:1rem;color:var(--primary-color)}
 		.btn-add-action{background:var(--primary-color);color:#fff;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-size:.85rem;display:flex;align-items:center;gap:6px;transition:background .2s}
@@ -1451,63 +1454,36 @@ function removeObsCorrectiveAction(actionId) {
 function initializeObsActionSearch(searchInput) {
 	if (!searchInput) return;
 	
-	let searchTimeout;
-	searchInput.addEventListener('input', function() {
-		clearTimeout(searchTimeout);
-		const query = this.value.trim().toLowerCase();
-		const resultsDiv = this.parentElement.querySelector('.obs-action-search-results');
-		
-		if (query.length < 2) {
-			resultsDiv.innerHTML = '';
+	const hiddenInput = searchInput.parentElement.querySelector('.obs-action-responsible-id');
+	const resultsDiv = searchInput.parentElement.querySelector('.obs-action-search-results');
+	
+	searchInput.addEventListener('input', (e) => {
+		const query = e.target.value.trim();
+		if (query.length >= 2) {
+			const results = searchUsers(query);
+			showObsSearchResults(results, resultsDiv, searchInput, hiddenInput);
+		} else {
 			resultsDiv.style.display = 'none';
-			return;
 		}
-		
-		searchTimeout = setTimeout(() => {
-			firebase.database().ref('users').once('value').then(snapshot => {
-				const users = snapshot.val();
-				if (!users) {
-					resultsDiv.innerHTML = '<div class="search-result" style="color:#888">No users found</div>';
-					resultsDiv.style.display = 'block';
-					return;
-				}
-				
-				const matches = [];
-				Object.entries(users).forEach(([uid, user]) => {
-					const name = (user.name || user.displayName || '').toLowerCase();
-					const email = (user.email || '').toLowerCase();
-					if (name.includes(query) || email.includes(query)) {
-						matches.push({ uid, name: user.name || user.displayName || email, email: user.email });
-					}
-				});
-				
-				if (matches.length === 0) {
-					resultsDiv.innerHTML = '<div class="search-result" style="color:#888">No matches found</div>';
-				} else {
-					resultsDiv.innerHTML = matches.slice(0, 5).map(u => 
-						`<div class="search-result" data-uid="${u.uid}" data-name="${u.name}">${u.name} <small style="color:#888">${u.email}</small></div>`
-					).join('');
-					
-					resultsDiv.querySelectorAll('.search-result[data-uid]').forEach(item => {
-						item.addEventListener('click', function() {
-							const container = this.closest('.search-container');
-							container.querySelector('.obs-action-responsible-search').value = this.dataset.name;
-							container.querySelector('.obs-action-responsible-id').value = this.dataset.uid;
-							resultsDiv.style.display = 'none';
-						});
-					});
-				}
-				resultsDiv.style.display = 'block';
-			});
-		}, 300);
 	});
 	
-	// Hide dropdown on blur
-	searchInput.addEventListener('blur', function() {
-		setTimeout(() => {
-			const resultsDiv = this.parentElement.querySelector('.obs-action-search-results');
+	searchInput.addEventListener('keydown', (e) => {
+		if (e.key === 'Enter') {
+			e.preventDefault();
+			const query = searchInput.value.trim();
+			if (query.length >= 2) {
+				const results = searchUsers(query);
+				if (results.length > 0) {
+					selectObsUser(results[0], searchInput, hiddenInput, resultsDiv);
+				}
+			}
+		}
+	});
+	
+	document.addEventListener('click', (e) => {
+		if (!searchInput.parentElement.contains(e.target)) {
 			resultsDiv.style.display = 'none';
-		}, 200);
+		}
 	});
 }
 
@@ -1672,6 +1648,33 @@ function showActionSearchResults(users, resultsDiv, searchInput, hiddenInput) {
 }
 
 function selectActionUser(user, searchInput, hiddenInput, resultsDiv) {
+	hiddenInput.value = user.id;
+	searchInput.value = user.name + (user.title ? ` (${user.title})` : '');
+	resultsDiv.style.display = 'none';
+}
+
+function showObsSearchResults(users, resultsDiv, searchInput, hiddenInput) {
+	resultsDiv.innerHTML = '';
+	
+	if (users.length === 0) {
+		resultsDiv.innerHTML = '<div class="search-result">No users found</div>';
+	} else {
+		users.forEach(user => {
+			const div = document.createElement('div');
+			div.className = 'search-result';
+			div.innerHTML = `
+				<div class="user-name">${user.name}</div>
+				${user.title ? `<div class="user-title">${user.title}</div>` : ''}
+			`;
+			div.onclick = () => selectObsUser(user, searchInput, hiddenInput, resultsDiv);
+			resultsDiv.appendChild(div);
+		});
+	}
+	
+	resultsDiv.style.display = 'block';
+}
+
+function selectObsUser(user, searchInput, hiddenInput, resultsDiv) {
 	hiddenInput.value = user.id;
 	searchInput.value = user.name + (user.title ? ` (${user.title})` : '');
 	resultsDiv.style.display = 'none';
@@ -2330,7 +2333,7 @@ async function loadAllUsers(companyId) {
 function searchUsers(query) {
 	if (!query || query.length < 2) return [];
 	const searchTerm = query.toLowerCase();
-	return allUsers.filter(user => user.searchText.includes(searchTerm)).slice(0, 10);
+	return allUsers.filter(user => user.name.toLowerCase().startsWith(searchTerm)).slice(0, 10);
 }
 
 function showSearchResults(users) {
@@ -2616,9 +2619,23 @@ async function sendIncidentNotificationEmail(companyId, incident, eventType, isU
 			return;
 		}
 		
-		// Get recipients for this event type
+		// Get recipients for this event type from notification settings
 		const recipients = settings[config.recipients] || {};
 		const emails = Object.values(recipients).map(r => r.email).filter(e => e);
+		
+		// Also add the assigned user (responsible person) to the notification list
+		if (incident.assignedTo) {
+			try {
+				const assignedUserSnap = await db.ref(`companies/${companyId}/users/${incident.assignedTo}`).once('value');
+				const assignedUser = assignedUserSnap.val();
+				if (assignedUser && assignedUser.email && !emails.includes(assignedUser.email)) {
+					emails.push(assignedUser.email);
+					console.log('Added assigned user to notification recipients:', assignedUser.email);
+				}
+			} catch (err) {
+				console.warn('Could not fetch assigned user for notification:', err);
+			}
+		}
 		
 		if (emails.length === 0) {
 			console.log(`No notification recipients configured for ${eventType}`);
