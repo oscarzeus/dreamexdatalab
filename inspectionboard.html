@@ -1,0 +1,1860 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,1.0">
+    <title>HSE System - Inspection Board</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* Company branding (match project-list.html) */
+        .company-branding { display: flex; align-items: center; gap: 0.5rem; }
+        #headerCompanyLogo { width: 32px; height: 32px; object-fit: contain; display: none; }
+        #headerCompanyName { font-weight: 600; font-size: 0.85rem; }
+        .inspection-board-container {
+            max-width: 100%;
+            /* Further reduced top margin to tighten space under top navigation */
+            margin: 20px auto 0; /* was 40px */
+            padding: 16px 20px 20px; /* slightly less top padding */
+        }
+
+        /* Adopt staff page header styling */
+        /* Staff-style header replication */
+        .page-header {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: #fff;
+            padding: 0.45rem 0.65rem; /* slightly reduced vertical padding */
+            border-radius: 0;
+            margin: 0.15rem 0 0.35rem 0; /* decreased margins to pull header closer */
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 8px 22px rgba(0,0,0,0.16), 0 5px 14px rgba(0,0,0,0.12); /* subtle reduction */
+            font-size: 0.9rem;
+        }
+        .page-header i {
+            font-size: 1rem;
+        }
+        .page-header h1 {
+            color: #fff;
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            font-size: 0.9rem;
+            margin: 0;
+            font-weight: 600;
+        }
+        .page-actions { display: flex; gap: 0.5rem; }
+        .btn-add-new {
+            background: none;
+            border: none;
+            color: #fff;
+            padding: 0.4rem;
+            font-size: 1.2rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-decoration: none;
+        }
+        .btn-add-new:hover { color: rgba(255,255,255,0.8); transform: scale(1.1); }
+        .btn-add-new i { font-size: 1.2rem; }
+        .page-header .header-meta .badge {
+            background:#f2f4f6;
+            color:#555;
+        }
+
+        .board-actions {
+            display: flex;
+            gap: 15px;
+        }
+
+        .filter-section {
+            background-color: #fff;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            /* Put all filter controls on one horizontal line */
+            display: flex;
+            gap: 12px;
+            flex-wrap: nowrap;
+            align-items: flex-end;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        /* Flatten rows into the main flex container so all groups share the same line */
+        .filter-row { 
+            display: contents; 
+        }
+
+        .filter-group {
+            flex: 0 0 auto;
+            min-width: 200px;
+        }
+
+        .filter-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+
+        .filter-control {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .table-container {
+            background: #fff;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+
+        .inspections-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+
+        .inspections-table th {
+            background-color: #f8f9fa;
+            padding: 12px 15px;
+            text-align: left;
+            font-weight: 600;
+            color: #495057;
+            border-bottom: 2px solid #dee2e6;
+        }
+
+        .inspections-table td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #dee2e6;
+            vertical-align: middle;
+        }
+
+        .inspections-table tbody tr:hover {
+            background-color: #f8f9fa;
+        }
+
+        .inspections-table tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        .inspection-title {
+            font-weight: 600;
+            color: #2c3e50;
+        }
+
+        .inspection-status {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+            display: inline-block;
+        }
+
+        .status-pending {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .status-in-progress {
+            background: #cce5ff;
+            color: #004085;
+        }
+
+        .status-completed {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-overdue {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .priority-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 5px;
+        }
+
+        .priority-critical {
+            background-color: #dc3545;
+        }
+
+        .priority-high {
+            background-color: #fd7e14;
+        }
+
+        .priority-medium {
+            background-color: #ffc107;
+        }
+
+        .priority-low {
+            background-color: #28a745;
+        }
+
+        .priority-text {
+            text-transform: capitalize;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 5px;
+        }
+
+        .action-btn {
+            background: none;
+            border: none;
+            color: #6c757d;
+            cursor: pointer;
+            padding: 5px 8px;
+            border-radius: 4px;
+            transition: background-color 0.2s;
+            font-size: 14px;
+        }
+
+        .action-btn:hover {
+            background-color: #e9ecef;
+            color: #3498db;
+        }
+
+        .action-btn.edit-btn:hover {
+            color: #28a745;
+        }
+
+        .action-btn.delete-btn:hover {
+            color: #dc3545;
+        }
+
+        .badge {
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 500;
+            margin-left: 5px;
+        }
+
+        .badge-recurring {
+            background-color: #e9ecef;
+            color: #495057;
+        }
+
+        @media (max-width: 768px) {
+            .table-container {
+                overflow-x: auto;
+            }
+            
+            .inspections-table {
+                min-width: 800px;
+            }
+            
+            .inspections-table th,
+            .inspections-table td {
+                padding: 8px 10px;
+                font-size: 13px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Left Sidebar -->
+        <nav class="sidebar">
+            <div class="logo">
+                <h2>Dreamex Datalab</h2>
+            </div>
+            <ul class="menu">
+                <li class="menu-dropdown" data-feature="health_view">
+                    <a href="#"><i class="fas fa-medkit"></i> Health</a>
+                    <ul class="submenu">
+                        <li data-feature="health_assessment_view"><a href="health-assessment.html">Assessment</a></li>
+                        <li data-feature="health_consultation_view"><a href="health-consultation.html">Consultation</a></li>
+                        <li data-feature="medical_folder_view"><a href="medical-folder.html">Medical Folder</a></li>
+                    </ul>
+                </li>
+                <li class="menu-dropdown active" data-feature="safety_view">
+                    <a href="#" class="active"><i class="fas fa-shield-alt"></i> Safety</a>
+                    <ul class="submenu">
+                        <li data-feature="training_view"><a href="trainingboard.html">Training</a></li>
+                        <li data-feature="risk_view"><a href="riskboard.html">Risk Management</a></li>
+                        <li data-feature="jsa_view"><a href="jsaboard.html">Job Safety Analysis</a></li>
+                        <li data-feature="ptw_view"><a href="ptwboard.html">Permit to Work</a></li>
+                        <li data-feature="incident_view"><a href="incidentboard.html">Incident Reports</a></li>
+                        <li data-feature="inspection_view"><a href="inspectionboard.html" class="active">Inspection</a></li>
+                        <li data-feature="audit_view"><a href="auditboard.html">Audit</a></li>
+                    </ul>
+                </li>
+                <li class="menu-dropdown" data-feature="environment_view">
+                    <a href="#"><i class="fas fa-leaf"></i> Environment</a>
+                    <ul class="submenu">
+                        <li data-feature="water_view"><a href="waterboard.html">Water Quality</a></li>
+                    </ul>
+                </li>
+                <li class="menu-dropdown" data-feature="security_view">
+                    <a href="#"><i class="fas fa-lock"></i> Security</a>
+                    <ul class="submenu">
+                        <li data-feature="access_view"><a href="accessboard.html">Access Request</a></li>
+                        <li data-feature="removal_view"><a href="removalboard.html">Property Removal</a></li>
+                    </ul>
+                </li>
+                <li data-feature="logistics_view"><a href="#"><i class="fas fa-truck"></i> Logistics</a></li>
+                <li class="menu-dropdown" data-feature="hr_view">
+                    <a href="#"><i class="fas fa-users"></i> HR</a>
+                    <ul class="submenu">
+                        <li data-feature="staff_management_view"><a href="staff.html">Staffing</a></li>
+                    </ul>
+                </li>
+                <li class="menu-dropdown" data-feature="settings_view">
+                    <a href="#"><i class="fas fa-cog"></i> Settings</a>
+                    <ul class="submenu">
+                        <li data-feature="account_settings_view"><a href="account.html">Account Settings</a></li>
+                        <li data-feature="company_management_view"><a href="companyboard.html">Company Management</a></li>
+                        <li data-feature="approval_settings_view"><a href="approval-settings.html">Approval Flow Settings</a></li>
+                        <li data-feature="field_setup_view"><a href="fieldsetup.html">Field Setup</a></li>
+                        <li data-feature="preferences_view"><a href="preferences.html">Preferences</a></li>
+                        <li data-feature="notification_settings_view"><a href="notification-settings.html">Notification Settings</a></li>
+                        <li data-feature="audit_log_view"><a href="auditlog.html">Audit Log</a></li>
+                        <li data-feature="user_management_view"><a href="users.html">User & Role Management</a></li>
+                        <li data-feature="role_permissions_view"><a href="roles.html">Role Permissions</a></li>
+                    </ul>
+                </li>
+            </ul>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Top Navigation -->
+            <header class="top-nav">
+                <div class="company-branding">
+                    <img id="headerCompanyLogo" alt="Company Logo" />
+                    <span id="headerCompanyName"></span>
+                </div>
+                <div class="top-nav-right">
+                    <div class="notifications">
+                        <button id="notificationBtn" class="notification-btn">
+                            <i class="fas fa-bell"></i>
+                            <span class="notification-badge">0</span>
+                        </button>
+                        <div class="notification-dropdown">
+                            <div class="notification-header">
+                                <h3>Notifications</h3>
+                                <button class="mark-all-read">Mark all as read</button>
+                            </div>
+                            <div class="notification-list">
+                                <!-- Notifications will be dynamically added here -->
+                            </div>
+                        </div>
+                    </div>
+                    <div class="user-profile">
+                        <button id="userProfileBtn" class="profile-btn">
+                            <img src="assets/default-avatar.svg" alt="User Avatar">
+                        </button>
+                        <div class="profile-dropdown">
+                            <ul>
+                                <li><a href="account.html"><i class="fas fa-user"></i> Account Settings</a></li>
+                                <li><a href="#"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Inspection Board Content -->
+            <div class="inspection-board-container">
+                <div class="page-header">
+                    <div style="display:flex; align-items:center; gap:0.6rem;">
+                        <i class="fas fa-clipboard-check" aria-hidden="true"></i>
+                        <span>Inspection Management</span>
+                    </div>
+                    <div class="page-actions">
+                        <button type="button" class="btn-add-new" id="createInspectionBtn" aria-label="Create Inspection" title="Create Inspection">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Tab Navigation -->
+                <div class="inspection-tab-bar" style="display:flex;gap:8px;margin:4px 0 14px 0;flex-wrap:wrap;">
+                    <button type="button" class="tab-btn active" data-tab="inspections" style="background:#007bff;color:#fff;border:none;padding:6px 14px;border-radius:4px;font-size:12px;font-weight:600;cursor:pointer;">Inspections</button>
+                    <button type="button" class="tab-btn" data-tab="templates" style="background:#f1f3f5;color:#333;border:1px solid #ced4da;padding:6px 14px;border-radius:4px;font-size:12px;font-weight:600;cursor:pointer;">Templates</button>
+                    <button type="button" class="tab-btn" data-tab="settings" style="background:#f1f3f5;color:#333;border:1px solid #ced4da;padding:6px 14px;border-radius:4px;font-size:12px;font-weight:600;cursor:pointer;">Settings</button>
+                </div>
+
+                <!-- Templates Tab Content -->
+                <div id="tab-templates" style="display:none;">
+                    <div class="template-designer" style="background:#fff;border:1px solid #ddd;border-radius:8px;padding:16px;margin-bottom:22px;box-shadow:0 2px 4px rgba(0,0,0,.05);">
+                        <h3 style="margin-top:0;font-size:1rem;display:flex;align-items:center;gap:8px;"><i class="fas fa-layer-group" style="color:#007bff;"></i> Audit Checklist Templates</h3>
+                        <p style="margin:4px 0 12px 0;font-size:12px;color:#555;">Create and reuse audit checklist templates. Saved templates are company-scoped.</p>
+                        <div class="template-bar" style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin-bottom:14px;">
+                            <div style="flex:2;min-width:220px;">
+                                <label style="font-size:12px;font-weight:600;">New Template Name</label>
+                                <input type="text" id="boardTemplateName" class="form-control" placeholder="e.g. ISO 27001 Core Controls" style="padding:6px 10px;">
+                            </div>
+                            <div style="flex:2;min-width:220px;">
+                                <label style="font-size:12px;font-weight:600;">Existing Templates</label>
+                                <select id="boardTemplateSelect" class="form-control" style="padding:6px 10px;">
+                                    <option value="">-- Select Template --</option>
+                                </select>
+                            </div>
+                            <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                                <button type="button" id="boardSaveTemplateBtn" class="btn btn-sm" style="background:#17a2b8;color:#fff;border:none;padding:6px 10px;border-radius:4px;font-size:12px;font-weight:600;">Save Template</button>
+                                <button type="button" id="boardLoadTemplateBtn" class="btn btn-sm" style="background:#6c757d;color:#fff;border:none;padding:6px 10px;border-radius:4px;font-size:12px;font-weight:600;">Load Template</button>
+                                <button type="button" id="boardRefreshTemplatesBtn" class="btn btn-sm" style="background:#5a6268;color:#fff;border:none;padding:6px 10px;border-radius:4px;font-size:12px;font-weight:600;">Refresh</button>
+                                <button type="button" id="boardAddItemBtn" class="btn btn-sm" style="background:#007bff;color:#fff;border:none;padding:6px 10px;border-radius:4px;font-size:12px;font-weight:600;">Add Item</button>
+                                <button type="button" id="boardClearItemsBtn" class="btn btn-sm" style="background:#dc3545;color:#fff;border:none;padding:6px 10px;border-radius:4px;font-size:12px;font-weight:600;">Clear Items</button>
+                                <button type="button" id="boardDeleteTemplateBtn" class="btn btn-sm" style="background:#bd2130;color:#fff;border:none;padding:6px 10px;border-radius:4px;font-size:12px;font-weight:600;">Delete Template</button>
+                            </div>
+                            <div id="boardTemplateStatus" style="font-size:12px;color:#007bff;flex:1;min-width:160px;"></div>
+                        </div>
+                        <div id="boardTemplateItems" class="audit-checklist-items" style="margin-bottom:12px;"></div>
+                        <template id="boardAuditChecklistItemTemplate">
+                            <div class="audit-item" data-index="{{index}}" style="border:1px solid #ddd;padding:10px;border-radius:6px;margin-bottom:10px;position:relative;background:#fafafa;">
+                                <button type="button" class="remove-audit-item" title="Remove" style="position:absolute;top:6px;right:6px;background:transparent;border:none;color:#d00;font-size:16px;line-height:1;">&times;</button>
+                                <div class="form-row" style="display:flex;gap:10px;flex-wrap:nowrap;align-items:flex-end;">
+                                    <div class="form-group" style="flex:2 1 240px;min-width:0;">
+                                        <label>Item Title</label>
+                                        <input type="text" class="form-control audit-item-title" placeholder="e.g. Verify ISO 9001 documentation">
+                                    </div>
+                                    <div class="form-group" style="flex:0 0 120px;min-width:120px;">
+                                        <label>Weight (%)</label>
+                                        <input type="number" min="0" max="100" class="form-control audit-item-weight" placeholder="Optional">
+                                    </div>
+                                    <div class="form-group" style="flex:0 0 150px;min-width:150px;">
+                                        <label>Risk Level</label>
+                                        <select class="form-control audit-item-risk">
+                                            <option value="low">Low</option>
+                                            <option value="medium" selected>Medium</option>
+                                            <option value="high">High</option>
+                                            <option value="critical">Critical</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group" style="flex:1 1 100%;min-width:260px;">
+                                        <label>Criteria / Description</label>
+                                        <textarea class="form-control audit-item-description" rows="2" placeholder="Acceptance criteria, evidence required"></textarea>
+                                    </div>
+                                </div>
+                                <div class="form-row" style="margin-top:6px;">
+                                    <div class="form-group" style="flex:2;min-width:240px;">
+                                        <label>Attach Document</label>
+                                        <input type="file" class="form-control audit-item-file" accept=".pdf,.doc,.docx,.xlsx,.xls,.ppt,.pptx,.jpg,.jpeg,.png,.txt">
+                                        <small class="text-muted">Max 5MB each. Common office & image formats.</small>
+                                        <div class="audit-item-file-info" style="font-size:12px;color:#555;margin-top:4px;display:none;"></div>
+                                    </div>
+                                    <div class="form-group" style="flex:1;min-width:140px;">
+                                        <label>File Status</label>
+                                        <div class="audit-item-file-status" style="padding:8px;border:1px dashed #ccc;border-radius:4px;background:#fff;font-size:12px;color:#666;">No file selected</div>
+                                    </div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group" style="flex:1;min-width:220px;">
+                                        <label>Notes</label>
+                                        <input type="text" class="form-control audit-item-notes" placeholder="Short internal note">
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- Settings Tab Content -->
+                <div id="tab-settings" style="display:none;">
+                    <div class="template-designer" style="background:#fff;border:1px solid #ddd;border-radius:8px;padding:16px;margin-bottom:22px;box-shadow:0 2px 4px rgba(0,0,0,.05);">
+                        <h3 style="margin-top:0;font-size:1rem;display:flex;align-items:center;gap:8px;"><i class="fas fa-user-shield" style="color:#007bff;"></i> Inspection Board Access Control</h3>
+                        <p style="margin:4px 0 12px 0;font-size:12px;color:#555;">Manage who can see each tab. Add users and toggle their access below.</p>
+                        <div id="ibAccessStatus" style="font-size:12px;color:#007bff;margin-bottom:10px;"></div>
+                        <div class="table-wrapper" style="overflow:auto;">
+                            <table class="users-table" style="width:100%;border-collapse:collapse;">
+                                <thead>
+                                    <tr>
+                                        <th style="text-align:left;">User</th>
+                                        <th style="text-align:left;">Email</th>
+                                        <th style="text-align:left;">Role</th>
+                                        <th style="white-space:nowrap;">Inspections Tab</th>
+                                        <th style="white-space:nowrap;">Templates Tab</th>
+                                        <th style="white-space:nowrap;">Settings Tab</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="ibAccessTableBody">
+                                    <!-- Rows populated dynamically -->
+                                </tbody>
+                            </table>
+                        </div>
+                        <div style="display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap;">
+                            <select id="ibUserSelect" class="form-control" style="min-width:260px;padding:6px 8px;"></select>
+                            <button type="button" id="ibAddUserBtn" class="btn btn-sm" style="background:#007bff;color:#fff;border:none;padding:8px 14px;border-radius:4px;font-size:12px;font-weight:600;">
+                                <i class="fas fa-plus"></i> Add User
+                            </button>
+                            <button type="button" id="ibReloadBtn" class="btn btn-sm" style="background:#6c757d;color:#fff;border:none;padding:8px 14px;border-radius:4px;font-size:12px;font-weight:600;">Reload</button>
+                        </div>
+                        <div style="margin-top:12px;color:#666;font-size:11px;">
+                            Default behavior: if a user is not listed, they can see all tabs. Uncheck to deny specific tabs.
+                        </div>
+                    </div>
+                </div>
+
+                <div id="tab-inspections">
+                <!-- Filters Section -->
+                <div class="filter-section">
+                    <div class="filter-row">
+                        <div class="filter-group">
+                            <label for="statusFilter">Status</label>
+                            <select id="statusFilter" class="filter-control">
+                                <option value="">All Statuses</option>
+                                <option value="pending">Pending</option>
+                                <option value="in-progress">In Progress</option>
+                                <option value="completed">Completed</option>
+                                <option value="overdue">Overdue</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label for="priorityFilter">Priority</label>
+                            <select id="priorityFilter" class="filter-control">
+                                <option value="">All Priorities</option>
+                                <option value="critical">Critical</option>
+                                <option value="high">High</option>
+                                <option value="medium">Medium</option>
+                                <option value="low">Low</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label for="typeFilter">Type</label>
+                            <select id="typeFilter" class="filter-control">
+                                <option value="">All Types</option>
+                                <!-- Inspection types will be loaded dynamically -->
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label for="departmentFilter">Department</label>
+                            <select id="departmentFilter" class="filter-control">
+                                <option value="">All Departments</option>
+                                <!-- Departments will be loaded from settings -->
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label for="locationFilter">Location</label>
+                            <select id="locationFilter" class="filter-control">
+                                <option value="">All Locations</option>
+                                <!-- Locations will be loaded dynamically -->
+                            </select>
+                        </div>
+                    </div>
+                    <div class="filter-row">
+                        <div class="filter-group">
+                            <label for="dateRangeFilter">Date Range</label>
+                            <div style="display: flex; gap: 10px;">
+                                <input type="date" id="startDateFilter" class="filter-control">
+                                <input type="date" id="endDateFilter" class="filter-control">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Inspections Table -->
+                <div class="table-container">
+                    <table class="inspections-table" id="inspectionsTable">
+                        <thead>
+                            <tr>
+                                <th>Title</th>
+                                <th>Type</th>
+                                <th>Department</th>
+                                <th>Location</th>
+                                <!-- Priority column hidden -->
+                                <th>Status</th>
+                                <!-- Assignee column hidden -->
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="inspectionsTableBody">
+                            <!-- Inspection rows will be dynamically added here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div> <!-- end inspection-board-container -->
+        </main>
+    </div>
+
+    <!-- Inspection Details Modal -->
+    <div id="inspectionModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Inspection Details</h3>
+                <button class="close-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <!-- Content will be dynamically populated -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" id="closeModal">Close</button>
+                <button type="button" class="btn btn-success" id="approveInspection">Approve</button>
+                <button type="button" class="btn btn-danger" id="declineInspection">Decline</button>
+            </div>
+        </div>
+    </div>
+
+    <footer></footer>
+
+    <style>
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+        }
+
+        .modal.show {
+            display: block;
+        }
+
+        .modal-content {
+            position: relative;
+            background-color: #fff;
+            margin: 50px auto;
+            padding: 0;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 800px;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 20px;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .modal-header h3 {
+            margin: 0;
+            color: #2c3e50;
+        }
+
+        .close-modal {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #6c757d;
+        }
+
+        .close-modal:hover {
+            color: #dc3545;
+        }
+
+        .modal-body {
+            padding: 20px;
+        }
+
+        .modal-footer {
+            padding: 15px 20px;
+            border-top: 1px solid #dee2e6;
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        .inspection-details {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .detail-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .detail-group label {
+            font-weight: 600;
+            color: #495057;
+        }
+
+        .detail-group p {
+            margin: 0;
+            color: #6c757d;
+        }
+
+        @media (max-width: 768px) {
+            .modal-content {
+                margin: 20px;
+                width: auto;
+            }
+        }
+    </style>
+
+    <!-- Firebase Scripts -->
+        <script src="vendor/firebase/firebase-app-compat.js"></script>
+        <script src="vendor/firebase/firebase-database-compat.js"></script>
+        <script src="vendor/firebase/firebase-auth-compat.js"></script>
+        <script src="vendor/firebase/firebase-storage-compat.js"></script>
+        <script>
+            (function () {
+                function load(src) {
+                    var s = document.createElement('script');
+                    s.src = src;
+                    document.head.appendChild(s);
+                }
+                function ensureFirebase() {
+                    try {
+                        if (!(window.firebase && window.firebase.app)) throw new Error('no firebase');
+                    } catch (e) {
+                        load('https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js');
+                        load('https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js');
+                        load('https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js');
+                        load('https://www.gstatic.com/firebasejs/9.22.0/firebase-storage-compat.js');
+                    }
+                }
+                if (document.readyState === 'loading') {
+                    document.addEventListener('DOMContentLoaded', ensureFirebase);
+                } else {
+                    ensureFirebase();
+                }
+            })();
+        </script>
+                <script>
+                    // Ensure user avatar shows: use auth photoURL if present, else local default SVG
+                    (function(){
+                        function setAvatar(){
+                            var img = document.querySelector('.profile-btn img');
+                            if(!img) return;
+                            try {
+                                var user = (firebase && firebase.auth && firebase.auth().currentUser) || null;
+                                var storedUser = null; try { storedUser = JSON.parse(localStorage.getItem('currentUser')||'null'); } catch(e){}
+                                var photo = (user && (user.photoURL || user.photoUrl)) || (storedUser && (storedUser.photoURL || storedUser.photoUrl));
+                                if (photo) img.src = photo; else img.src = 'assets/default-avatar.svg';
+                            } catch(e) { img.src = 'assets/default-avatar.svg'; }
+                        }
+                        function onReady(fn){ if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', fn); else fn(); }
+                        function tryRun(n){ try{ if(window.firebase && firebase.apps && firebase.apps.length){ setAvatar(); return; } }catch(e){}
+                            if(n>0) setTimeout(function(){ tryRun(n-1); }, 300); }
+                        onReady(function(){ tryRun(20); });
+                    })();
+                </script>
+                        <script>
+                            // Centralized AuthManager (aligned with incidentboard/project-list)
+                            class AuthManager{
+                                constructor(){ this.currentUser=this.getCurrentUser(); this.currentCompany=null; this.init(); }
+                                getCurrentUser(){ try{ return JSON.parse(localStorage.getItem('currentUser')||'null'); }catch{ return null; } }
+                                setCurrentUser(u){ localStorage.setItem('currentUser', JSON.stringify(u)); localStorage.setItem('user', JSON.stringify(u)); this.currentUser=u; }
+                                async init(){ if(!this.currentUser){ window.location.href='login.html'; return; } await this.loadUserCompany(); await this.updateUIForAuthenticatedUser(); this.bindProfileDropdown(); }
+                                async loadUserCompany(){ if(!this.currentUser) return; try{ const snap=await firebase.database().ref('companies').once('value'); if(!snap.exists()) return; const companies=snap.val(); for(const [cid,comp] of Object.entries(companies)){ if(comp.status!=='active') continue; if(comp.users){ for(const [uid,u] of Object.entries(comp.users)){ if(u.authUid===this.currentUser.uid || uid===this.currentUser.uid){ this.currentUser.companyId=cid; this.currentUser.companyName=comp.companyName; this.currentUser.role=u.role||u.userRole||'user'; this.currentCompany=comp; this.setCurrentUser(this.currentUser); return; } } } } }catch(e){} }
+                                getUserDisplayName(){ if(!this.currentUser) return 'User'; const n=v=>typeof v==='string'?v.trim().replace(/\s+/g,' '):''; const cand=[this.currentUser.displayName,this.currentUser.name,this.currentUser.username]; for(const c of cand){ const cleaned=n(c); if(cleaned) return cleaned; } if(this.currentUser.email) return n(this.currentUser.email.split('@')[0])||'User'; return 'User'; }
+                                getUserInitials(){ const dn=this.getUserDisplayName(); const parts=dn.split(' ').filter(Boolean); if(parts.length===1) return parts[0].substring(0,2).toUpperCase(); return parts.slice(0,2).map(p=>p[0]).join('').toUpperCase(); }
+                                async getUserAvatarUrl(){ if(!this.currentUser) return null; const companyId=this.currentUser.companyId||'default'; const paths=[`companies/${companyId}/avatars/${this.currentUser.uid}/profile.jpg`,`companies/${companyId}/avatars/${this.currentUser.uid}/profile.png`,`companies/${companyId}/avatars/${this.currentUser.uid}/profile.jpeg`,`companies/${companyId}/avatars/${this.currentUser.uid}/avatar.jpg`,`companies/${companyId}/avatars/${this.currentUser.uid}/avatar.png`,`avatars/${this.currentUser.uid}/profile.jpg`,`avatars/${this.currentUser.uid}/profile.png`,`avatars/${this.currentUser.uid}/avatar.jpg`,`avatars/${this.currentUser.uid}/avatar.png`,`profiles/${this.currentUser.uid}/profile.jpg`,`profiles/${this.currentUser.uid}/profile.png`]; for(const p of paths){ try{ const ref=firebase.storage().ref(p); const url=await ref.getDownloadURL(); return url; }catch(err){ /* try next */ } } return null; }
+                                async updateUIForAuthenticatedUser(){ const btn=document.getElementById('userProfileBtn'); const list=document.querySelector('.profile-dropdown ul'); if(!btn||!list||!this.currentUser) return; const displayName=this.getUserDisplayName(); const email=this.currentUser.email||''; let avatarUrl=null; try{ avatarUrl=await this.getUserAvatarUrl(); }catch(e){}
+                                    const btnImg=btn.querySelector('img'); if(avatarUrl&&btnImg){ btnImg.src=avatarUrl; btnImg.alt=displayName+' Avatar'; btnImg.style.display='block'; btnImg.onerror=()=>{ btnImg.style.display='none'; btn.innerHTML=`<div style=\"width:38px;height:38px;border-radius:50%;background:#3498db;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:.8rem;\">${this.getUserInitials()}</div>`; }; } else { /* keep default/avatar initials handled elsewhere */ }
+                                    const avatarHtml= avatarUrl? `<img src=\"${avatarUrl}\" alt=\"${displayName} Avatar\" style=\"width:32px;height:32px;border-radius:50%;object-fit:cover;\">` : `<div style=\"width:32px;height:32px;border-radius:50%;background:#3498db;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:12px;\">${this.getUserInitials()}</div>`;
+                                    list.innerHTML=`<li style=\"border-bottom:1px solid #eee;padding:12px 16px;background:#f8f9fa;\"><div style=\"display:flex;align-items:center;gap:12px;\">${avatarHtml}<div><div style=\"font-weight:600;color:#333;font-size:14px;margin-bottom:2px;\">${displayName}</div><div style=\"color:#666;font-size:12px;\">${email}</div></div></div></li><li><a href=\"profile.html\"><i class=\"fas fa-user\"></i> Profile</a></li><li><a href=\"account.html\"><i class=\"fas fa-cog\"></i> Account Settings</a></li><li><a href=\"#\" id=\"logoutLink\"><i class=\"fas fa-sign-out-alt\"></i> Sign out</a></li>`;
+                                    list.querySelector('#logoutLink')?.addEventListener('click', e=>{ e.preventDefault(); this.logout(); });
+                                }
+                                bindProfileDropdown(){ const btn=document.getElementById('userProfileBtn'); const dd=document.querySelector('.profile-dropdown'); if(btn&&dd){ btn.addEventListener('click', e=>{ e.stopPropagation(); dd.classList.toggle('show'); }); document.addEventListener('click', e=>{ if(!btn.contains(e.target)) dd.classList.remove('show'); }); } }
+                                async logout(){ try{ await firebase.auth().signOut(); localStorage.removeItem('currentUser'); localStorage.removeItem('user'); window.location.href='login.html'; }catch(error){ console.error('Logout error:',error); localStorage.removeItem('currentUser'); localStorage.removeItem('user'); window.location.href='login.html'; } }
+                            }
+                            // Initialize centralized auth and expose globally
+                            (function(){
+                                function initWhenReady(attempts){
+                                    try{ if(window.firebase && firebase.apps && firebase.apps.length){ window.authManager=new AuthManager(); return; } }catch(e){}
+                                    if(attempts>0) setTimeout(()=>initWhenReady(attempts-1),300);
+                                }
+                                if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',()=>initWhenReady(20)); else initWhenReady(20);
+                            })();
+                        </script>
+                <script>
+                    // Load company name and logo into header (based on project-list.html)
+                    async function loadCompanyBranding() {
+                        try {
+                            var headerLogo = document.getElementById('headerCompanyLogo');
+                            var headerCompanyName = document.getElementById('headerCompanyName');
+                            if (!headerLogo || !headerCompanyName) return;
+
+                            var currentUser = null;
+                            try {
+                                var storedUser = localStorage.getItem('currentUser');
+                                if (storedUser) currentUser = JSON.parse(storedUser);
+                            } catch (e) {}
+
+                            if (!currentUser) {
+                                headerCompanyName.textContent = '';
+                                headerLogo.style.display = 'none';
+                                return;
+                            }
+
+                            var db = firebase.database();
+                            var snap = await db.ref('companies').once('value');
+                            if (!snap.exists()) {
+                                headerCompanyName.textContent = '';
+                                headerLogo.style.display = 'none';
+                                return;
+                            }
+
+                            var companies = snap.val();
+                            var companyId = currentUser.companyId || null;
+                            if (!companyId) {
+                                for (var cId in companies) {
+                                    var company = companies[cId];
+                                    if (!company || company.status !== 'active') continue;
+                                    if (company.users && (company.users[currentUser.uid] || company.users[currentUser.authUid])) {
+                                        companyId = cId;
+                                        break;
+                                    }
+                                }
+                            }
+
+                            if (companyId && companies[companyId]) {
+                                var c = companies[companyId];
+                                var name = c.companyName || c.name || '';
+                                var logoUrl = c.logoUrl || c.logo || '';
+                                headerCompanyName.textContent = name;
+                                if (logoUrl) {
+                                    headerLogo.src = logoUrl;
+                                    headerLogo.style.display = 'block';
+                                } else {
+                                    headerLogo.style.display = 'none';
+                                }
+                            } else {
+                                headerCompanyName.textContent = '';
+                                headerLogo.style.display = 'none';
+                            }
+                        } catch (err) {
+                            try {
+                                var headerLogo = document.getElementById('headerCompanyLogo');
+                                var headerCompanyName = document.getElementById('headerCompanyName');
+                                if (headerCompanyName) headerCompanyName.textContent = '';
+                                if (headerLogo) headerLogo.style.display = 'none';
+                            } catch (e) {}
+                        }
+                    }
+                            (function(){
+                                function onReady(fn){
+                                    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', fn); else fn();
+                                }
+                                function tryLoad(attempts){
+                                    try {
+                                        if (window.firebase && firebase.apps && firebase.apps.length) {
+                                            loadCompanyBranding();
+                                            return;
+                                        }
+                                    } catch(e) {}
+                                    if (attempts > 0) setTimeout(function(){ tryLoad(attempts-1); }, 300);
+                                }
+                                onReady(function(){ tryLoad(20); });
+                            })();
+                </script>
+    
+    <!-- Export functionality removed: XLSX library no longer needed -->
+    
+    <!-- Your custom scripts -->
+    <script src="js/firebase-config.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/inspectionboard.js"></script>
+    <script>
+        // Firebase configuration and initialization
+        const firebaseConfig = {
+            apiKey: "AIzaSyCUTmTn0rRBb0M-UkQJxnUMrWqXYU_BgIc",
+            authDomain: "users-8be65.firebaseapp.com",
+            databaseURL: "https://users-8be65-default-rtdb.firebaseio.com",
+            projectId: "users-8be65",
+            storageBucket: "users-8be65.firebasestorage.app",
+            messagingSenderId: "829083030831",
+            appId: "1:829083030831:web:36a370e62691e560bc3dda"
+        };
+
+        // Initialize Firebase
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        } else {
+            firebase.app();
+        }
+
+        const database = firebase.database();
+        const auth = firebase.auth();
+
+        // Department options cache
+        let DEPT_OPTIONS = [];
+        let DEPT_MAP = new Map(); // value -> label
+
+        async function loadDepartmentOptions(companyId){
+            // Fallback defaults (match settings.html)
+            const defaultOptions = [
+                { label: 'Information Technology', value: 'it', enabled: true },
+                { label: 'Human Resources', value: 'hr', enabled: true },
+                { label: 'Finance', value: 'finance', enabled: true },
+                { label: 'Operations', value: 'operations', enabled: true },
+                { label: 'Marketing', value: 'marketing', enabled: true },
+                { label: 'Sales', value: 'sales', enabled: true }
+            ];
+
+            function setMaps(list){
+                DEPT_OPTIONS = Array.isArray(list) ? list.filter(o=>o && (o.enabled!==false)) : [];
+                DEPT_MAP = new Map(DEPT_OPTIONS.map(o => [String(o.value||'').toLowerCase(), o.label]));
+            }
+
+            try{
+                if(!companyId){ setMaps(defaultOptions); return; }
+                // Try primary company path first
+                const primaryRef = firebase.database().ref(`companies/${companyId}/fieldOptions/department`);
+                let snap = await primaryRef.once('value');
+                if(!snap.exists()){
+                    // Fallback to settings path
+                    const fallbackRef = firebase.database().ref(`companies/${companyId}/settings/fieldOptions/department`);
+                    snap = await fallbackRef.once('value');
+                }
+                if(snap.exists()){
+                    const val = snap.val();
+                    if(Array.isArray(val)) { setMaps(val); return; }
+                }
+                // Fallback to localStorage
+                const lsCompany = localStorage.getItem(`fieldOptions_${companyId}_department`);
+                if(lsCompany){ try{ setMaps(JSON.parse(lsCompany)); return; }catch(e){} }
+                const ls = localStorage.getItem(`fieldOptions_department`);
+                if(ls){ try{ setMaps(JSON.parse(ls)); return; }catch(e){} }
+                setMaps(defaultOptions);
+            }catch(err){
+                console.warn('Department options load failed, using defaults', err);
+                setMaps(defaultOptions);
+            }
+        }
+
+        // ================= Templates Tab Logic =================
+        (function initTemplatesTab(){
+            const tabButtons = document.querySelectorAll('.tab-btn');
+            const tabInspections = document.getElementById('tab-inspections');
+            const tabTemplates = document.getElementById('tab-templates');
+            const tabSettings = document.getElementById('tab-settings');
+            if(!tabButtons.length || !tabInspections || !tabTemplates) return;
+            tabButtons.forEach(btn => btn.addEventListener('click', () => {
+                tabButtons.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                const target = btn.dataset.tab;
+                if(target==='templates'){
+                    tabTemplates.style.display='block';
+                    tabInspections.style.display='none';
+                    if (tabSettings) tabSettings.style.display='none';
+                } else if (target==='settings') {
+                    if (tabSettings) tabSettings.style.display='block';
+                    tabTemplates.style.display='none';
+                    tabInspections.style.display='none';
+                } else {
+                    tabTemplates.style.display='none';
+                    tabInspections.style.display='block';
+                    if (tabSettings) tabSettings.style.display='none';
+                }
+            }));
+
+            // Template designer elements
+            const itemsContainer = document.getElementById('boardTemplateItems');
+            const itemTemplate = document.getElementById('boardAuditChecklistItemTemplate');
+            const addItemBtn = document.getElementById('boardAddItemBtn');
+            const clearItemsBtn = document.getElementById('boardClearItemsBtn');
+            const saveTemplateBtn = document.getElementById('boardSaveTemplateBtn');
+            const loadTemplateBtn = document.getElementById('boardLoadTemplateBtn');
+            const refreshTemplatesBtn = document.getElementById('boardRefreshTemplatesBtn');
+            const deleteTemplateBtn = document.getElementById('boardDeleteTemplateBtn');
+            const templateNameInput = document.getElementById('boardTemplateName');
+            const templateSelect = document.getElementById('boardTemplateSelect');
+            const templateStatus = document.getElementById('boardTemplateStatus');
+            let currentEditingTemplateId = null;
+
+            let itemCounter = 0;
+
+            function addItem(prefill){
+                if(!itemTemplate) return;
+                const clone = itemTemplate.content.firstElementChild.cloneNode(true);
+                const idx = itemCounter++;
+                clone.dataset.index = idx;
+                if(prefill){
+                    clone.querySelector('.audit-item-title').value = prefill.title || '';
+                    clone.querySelector('.audit-item-description').value = prefill.description || '';
+                    clone.querySelector('.audit-item-risk').value = prefill.risk || 'medium';
+                    clone.querySelector('.audit-item-weight').value = prefill.weight || '';
+                    clone.querySelector('.audit-item-notes').value = prefill.notes || '';
+                    // Render file metadata if template item carried file info in future version
+                    if (prefill.file && prefill.file.name) {
+                        const info = clone.querySelector('.audit-item-file-info');
+                        if (info) {
+                            info.style.display = 'block';
+                            const linkHtml = prefill.file.downloadURL
+                                ? `<a href="${prefill.file.downloadURL}" target="_blank">${prefill.file.name}</a>`
+                                : prefill.file.name;
+                            info.innerHTML = `Attached: ${linkHtml}`;
+                        }
+                        const status = clone.querySelector('.audit-item-file-status');
+                        if (status) status.textContent = 'File attached';
+                        clone.dataset.fileMeta = JSON.stringify(prefill.file);
+                    }
+                }
+                clone.querySelector('.remove-audit-item').addEventListener('click',()=> clone.remove());
+                // File input handling for new attachments
+                const fileInput = clone.querySelector('.audit-item-file');
+                const fileInfo = clone.querySelector('.audit-item-file-info');
+                const fileStatus = clone.querySelector('.audit-item-file-status');
+                fileInput?.addEventListener('change', (e)=>{
+                    const file = e.target.files && e.target.files[0];
+                    if(!file){
+                        if(fileInfo) fileInfo.style.display='none';
+                        if(fileStatus) fileStatus.textContent='No file selected';
+                        delete clone.dataset.fileLocal; delete clone.dataset.fileMeta;
+                        return;
+                    }
+                    if(file.size > 5*1024*1024){
+                        alert('File too large. Max 5MB.');
+                        e.target.value='';
+                        return;
+                    }
+                    if(fileInfo){
+                        fileInfo.style.display='block';
+                        fileInfo.textContent = `Selected: ${file.name} (${Math.ceil(file.size/1024)} KB)`;
+                    }
+                    if(fileStatus) fileStatus.textContent='Ready to upload';
+                    clone.dataset.fileLocal = idx; // key by index
+                    window.__boardTemplateFiles = window.__boardTemplateFiles || {};
+                    window.__boardTemplateFiles[idx] = file;
+                });
+                itemsContainer.appendChild(clone);
+            }
+            addItemBtn?.addEventListener('click', ()=> addItem());
+            clearItemsBtn?.addEventListener('click', ()=>{ if(!itemsContainer.children.length) return; if(confirm('Clear all items?')) itemsContainer.innerHTML=''; });
+
+            function collectItems(){
+                // Allow placeholders: if title/description left blank, store them as empty and keep item only if at least one field exists
+                return Array.from(itemsContainer.querySelectorAll('.audit-item')).map(el => {
+                    const fileMetaRaw = el.dataset.fileMeta ? JSON.parse(el.dataset.fileMeta) : null;
+                    const obj = {
+                        title: el.querySelector('.audit-item-title')?.value.trim() || '',
+                        description: el.querySelector('.audit-item-description')?.value.trim() || '',
+                        risk: el.querySelector('.audit-item-risk')?.value || 'medium',
+                        weight: el.querySelector('.audit-item-weight')?.value || '',
+                        notes: el.querySelector('.audit-item-notes')?.value.trim() || '',
+                        file: fileMetaRaw || null
+                    };
+                    return obj;
+                }).filter(it => (it.title || it.description || it.notes || it.file));
+            }
+
+            async function loadTemplates(){
+                templateSelect.innerHTML = '<option value="">-- Select Template --</option>';
+                templateStatus.textContent = 'Loading...';
+                try{
+                    const storedUserRaw = localStorage.getItem('currentUser');
+                    const storedUser = storedUserRaw ? JSON.parse(storedUserRaw) : null;
+                    const companyId = storedUser && storedUser.companyId ? storedUser.companyId : null;
+                    if(!companyId){ templateStatus.textContent='No company context'; return; }
+                    const snap = await database.ref(`companies/${companyId}/auditChecklistTemplates`).once('value');
+                    if(snap.exists()){
+                        snap.forEach(child => {
+                            const tpl = child.val();
+                            const opt = document.createElement('option');
+                            opt.value = child.key;
+                            opt.textContent = tpl.name || child.key;
+                            opt.dataset.items = JSON.stringify(tpl.items || []);
+                            templateSelect.appendChild(opt);
+                        });
+                        templateStatus.textContent='Templates loaded';
+                    } else {
+                        templateStatus.textContent='No templates yet';
+                    }
+                }catch(err){ console.error('Template load error:',err); templateStatus.textContent='Load failed'; }
+            }
+
+            async function saveTemplate(){
+                const name = (templateNameInput.value || '').trim();
+                if(!name){ alert('Enter a template name'); return; }
+                // Allow saving if at least one placeholder item exists, even if all fields empty
+                let items = collectItems();
+                if(!items.length){
+                    const rawCount = itemsContainer.querySelectorAll('.audit-item').length;
+                    if(rawCount === 0){
+                        alert('Add at least one item before saving');
+                        return;
+                    } else {
+                        // Preserve blank items as stubs
+                        items = Array.from(itemsContainer.querySelectorAll('.audit-item')).map((el, idx) => ({
+                            title: '', description: '', risk: 'medium', weight: '', notes: '', file: null, stub: true
+                        }));
+                    }
+                }
+                templateStatus.textContent='Saving...';
+                try{
+                    const storedUserRaw = localStorage.getItem('currentUser');
+                    const storedUser = storedUserRaw ? JSON.parse(storedUserRaw) : null;
+                    const companyId = storedUser && storedUser.companyId ? storedUser.companyId : null;
+                    if(!companyId){ alert('No company context'); templateStatus.textContent='Save failed'; return; }
+                    // Determine if creating new or updating existing
+                    let ref, templateId;
+                    if (currentEditingTemplateId) {
+                        templateId = currentEditingTemplateId;
+                        ref = database.ref(`companies/${companyId}/auditChecklistTemplates/${templateId}`);
+                    } else {
+                        ref = database.ref(`companies/${companyId}/auditChecklistTemplates`).push();
+                        templateId = ref.key;
+                    }
+
+                    // Upload any locally selected files tied to items
+                    const filesMap = window.__boardTemplateFiles || {};
+                    const uploadTasks = [];
+                    items.forEach((it, index) => {
+                        // Find corresponding DOM element to see if a local file exists
+                        const el = itemsContainer.querySelector(`.audit-item[data-index="${index}"]`);
+                        const localKey = el && el.dataset.fileLocal ? Number(el.dataset.fileLocal) : null;
+                        const file = (localKey!=null) ? filesMap[localKey] : null;
+                        if (file) {
+                            const safeName = file.name.replace(/[^a-zA-Z0-9_.-]+/g,'_');
+                            const stamp = Date.now();
+                            const path = `companies/${companyId}/audit-templates/${templateId}/items/${index}-${stamp}-${safeName}`;
+                            const storageRef = firebase.storage().ref().child(path);
+                            uploadTasks.push(
+                                storageRef.put(file).then(()=> storageRef.getDownloadURL()).then(url => {
+                                    it.file = {
+                                        name: file.name,
+                                        path,
+                                        downloadURL: url,
+                                        size: file.size,
+                                        type: file.type,
+                                        uploadedAt: new Date().toISOString()
+                                    };
+                                })
+                            );
+                        }
+                    });
+
+                    if(uploadTasks.length){ templateStatus.textContent = `Uploading ${uploadTasks.length} file(s)...`; }
+                    await Promise.all(uploadTasks);
+
+                    // Write data (use set for new or update existing)
+                    const payload = { name, items, updatedAt:new Date().toISOString() };
+                    if (!currentEditingTemplateId) {
+                        payload.createdAt = new Date().toISOString();
+                        payload.createdBy = storedUser?.uid || null;
+                    }
+                    await ref.set(payload);
+                    templateStatus.textContent = currentEditingTemplateId ? 'Template updated' : 'Template saved';
+                    templateNameInput.value='';
+                    // Clear temp file map
+                    window.__boardTemplateFiles = {};
+                    // Reset editing state after successful save
+                    currentEditingTemplateId = null;
+                    templateSelect.value = '';
+                    await loadTemplates();
+                }catch(err){ console.error('Save error:',err); templateStatus.textContent='Save failed'; }
+            }
+
+            function applyTemplate(){
+                const selected = templateSelect.value;
+                if(!selected){ alert('Select a template'); return; }
+                const opt = templateSelect.querySelector(`option[value="${selected}"]`);
+                if(!opt){ alert('Template not found'); return; }
+                try{
+                    const items = JSON.parse(opt.dataset.items || '[]');
+                    itemsContainer.innerHTML=''; itemCounter=0; items.forEach(it=> addItem(it));
+                    // Enter editing state
+                    currentEditingTemplateId = selected;
+                    templateNameInput.value = opt.textContent || '';
+                    templateStatus.textContent = `Loaded '${opt.textContent}' (editing)`;
+                }catch(e){ console.error('Apply error:',e); alert('Failed to apply template'); }
+            }
+
+            saveTemplateBtn?.addEventListener('click', saveTemplate);
+            loadTemplateBtn?.addEventListener('click', applyTemplate);
+            refreshTemplatesBtn?.addEventListener('click', loadTemplates);
+            deleteTemplateBtn?.addEventListener('click', async ()=>{
+                try{
+                    const storedUserRaw = localStorage.getItem('currentUser');
+                    const storedUser = storedUserRaw ? JSON.parse(storedUserRaw) : null;
+                    const companyId = storedUser && storedUser.companyId ? storedUser.companyId : null;
+                    if(!companyId){ alert('No company context'); return; }
+
+                    // Prefer currently editing template; else use selection
+                    const selectedId = currentEditingTemplateId || templateSelect.value;
+                    if(!selectedId){ alert('Select a template to delete'); return; }
+
+                    const opt = templateSelect.querySelector(`option[value="${selectedId}"]`);
+                    const name = (opt?.textContent || templateNameInput.value || selectedId);
+                    if(!confirm(`Delete template "${name}"? This cannot be undone.`)) return;
+
+                    templateStatus.textContent = 'Deleting template...';
+
+                    // 1) Delete DB record
+                    await database.ref(`companies/${companyId}/auditChecklistTemplates/${selectedId}`).remove();
+
+                    // 2) Best-effort: delete stored files for this template
+                    try{
+                        const prefixRef = firebase.storage().ref().child(`companies/${companyId}/audit-templates/${selectedId}/items`);
+                        const list = await prefixRef.listAll();
+                        if(list.items && list.items.length){
+                            await Promise.all(list.items.map(it => it.delete().catch(()=>{})));
+                        }
+                        // Try to clean up parent folder markers if any (optional, may fail silently)
+                        if(list.prefixes && list.prefixes.length){
+                            await Promise.all(list.prefixes.map(pref => pref.listAll().then(res => Promise.all(res.items.map(i=>i.delete().catch(()=>{}))))));
+                        }
+                    }catch(storageErr){ /* ignore cleanup errors */ }
+
+                    // 3) Reset UI state
+                    if(currentEditingTemplateId === selectedId){ currentEditingTemplateId = null; }
+                    templateNameInput.value = '';
+                    itemsContainer.innerHTML = '';
+                    templateSelect.value = '';
+                    await loadTemplates();
+                    templateStatus.textContent = 'Template deleted';
+                }catch(err){ console.error('Delete error:', err); templateStatus.textContent = 'Delete failed'; }
+            });
+            // Initial load
+            loadTemplates();
+        })();
+
+        // ================= Settings Tab Logic (User-based tab visibility) =================
+        (function initInspectionBoardAccess(){
+            const statusEl = document.getElementById('ibAccessStatus');
+            const addBtn = document.getElementById('ibAddUserBtn');
+            const reloadBtn = document.getElementById('ibReloadBtn');
+            const userSelect = document.getElementById('ibUserSelect');
+            const tbody = document.getElementById('ibAccessTableBody');
+            if(!statusEl || !addBtn || !reloadBtn || !userSelect || !tbody) return;
+
+            function getCompanyId(){ try { const u = JSON.parse(localStorage.getItem('currentUser')||'null'); return u?.companyId||null; } catch(e){ return null; } }
+            function getCurrentUserId(){ try { const u = JSON.parse(localStorage.getItem('currentUser')||'null'); return u?.uid || u?.id || null; } catch(e){ return null; } }
+
+            async function loadUsersAndPerms(){
+                statusEl.textContent = 'Loading users...';
+                const companyId = getCompanyId(); if(!companyId){ statusEl.textContent='No company context'; return {users:{},perms:{}}; }
+                try {
+                    const [usersSnap, permsSnap] = await Promise.all([
+                        database.ref(`companies/${companyId}/users`).once('value'),
+                        database.ref(`companies/${companyId}/inspectionBoard/userTabVisibility`).once('value')
+                    ]);
+                    return { users: usersSnap.val()||{}, perms: permsSnap.val()||{} };
+                } catch(e){ console.error('Failed to load users/perms', e); statusEl.textContent='Load failed'; return {users:{},perms:{}}; }
+            }
+
+            function populateAddSelect(users, perms){
+                userSelect.innerHTML = '<option value="">-- Select User to Add Explicit Control --</option>';
+                Object.entries(users).forEach(([uid,u])=>{
+                    if(perms[uid]) return; // already managed
+                    const name = u.name || `${u.firstName||''} ${u.lastName||''}`.trim() || '(No name)';
+                    const email = u.email || '-';
+                    const opt = document.createElement('option');
+                    opt.value = uid; opt.textContent = `${name}${email && email!=='-'?` (${email})`:''}`;
+                    userSelect.appendChild(opt);
+                });
+            }
+
+            function renderPerms(users, perms){
+                tbody.innerHTML='';
+                const keys = Object.keys(perms);
+                if(!keys.length){
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = '<td colspan="6" style="text-align:center;color:#64748b;font-size:12px;">No explicit user visibility rules. All users can see all tabs.</td>';
+                    tbody.appendChild(tr);
+                } else {
+                    keys.forEach(uid=>{
+                        const u = users[uid]||{}; const p = perms[uid]||{};
+                        const name = u.name || `${u.firstName||''} ${u.lastName||''}`.trim() || '(No name)';
+                        const email = u.email || '-';
+                        const role = u.role || 'User';
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                            <td>${name}</td>
+                            <td>${email}</td>
+                            <td><span class="role-badge role-${(role||'user').toString().toLowerCase()}">${role}</span></td>
+                            <td style="text-align:center;"><input type="checkbox" data-uid="${uid}" data-field="canSeeInspections" ${p.canSeeInspections!==false? 'checked':''}></td>
+                            <td style="text-align:center;"><input type="checkbox" data-uid="${uid}" data-field="canSeeTemplates" ${p.canSeeTemplates===true? 'checked':''}></td>
+                            <td style="text-align:center;"><input type="checkbox" data-uid="${uid}" data-field="canSeeSettings" ${p.canSeeSettings===true? 'checked':''}></td>
+                        `;
+                        tbody.appendChild(tr);
+                    });
+                }
+
+                // attach change handler once
+                tbody.onchange = async (e)=>{
+                    const target = e.target; if(!target.matches('input[type="checkbox"][data-uid]')) return;
+                    const uid = target.getAttribute('data-uid'); const field = target.getAttribute('data-field');
+                    const companyId = getCompanyId(); if(!companyId||!uid||!field) return;
+                    try {
+                        await database.ref(`companies/${companyId}/inspectionBoard/userTabVisibility/${uid}`).update({ [field]: target.checked });
+                        if(getCurrentUserId()===uid){ applyVisibilityForCurrentUser(); }
+                        statusEl.textContent='Updated';
+                    } catch(err){ console.error('Update failed', err); statusEl.textContent='Update failed'; }
+                };
+            }
+
+            async function reload(){
+                const {users, perms} = await loadUsersAndPerms();
+                renderPerms(users, perms); populateAddSelect(users, perms);
+                statusEl.textContent = 'Loaded';
+            }
+
+            addBtn.addEventListener('click', async ()=>{
+                const uid = userSelect.value; if(!uid){ statusEl.textContent='Select a user first'; return; }
+                const companyId = getCompanyId(); if(!companyId){ statusEl.textContent='No company context'; return; }
+                statusEl.textContent='Adding user...';
+                try {
+                    await database.ref(`companies/${companyId}/inspectionBoard/userTabVisibility/${uid}`).set({
+                        canSeeInspections:true, canSeeTemplates:true, canSeeSettings:true, addedAt: new Date().toISOString()
+                    });
+                    userSelect.value='';
+                    await reload();
+                    statusEl.textContent='User added';
+                    applyVisibilityForCurrentUser();
+                } catch(e){ console.error('Add failed', e); statusEl.textContent='Add failed'; }
+            });
+            reloadBtn.addEventListener('click', reload);
+
+            async function applyVisibilityForCurrentUser(){
+                const companyId = getCompanyId(); const uid = getCurrentUserId(); if(!companyId||!uid) return;
+                try {
+                    const snap = await database.ref(`companies/${companyId}/inspectionBoard/userTabVisibility/${uid}`).once('value');
+                    const p = snap.val();
+                    // Default policy: inspections visible to all; templates & settings hidden unless explicitly granted
+                    const canInspections = !p || p.canSeeInspections !== false; // still allow override to false if stored
+                    const canTemplates   = p ? p.canSeeTemplates === true : false;
+                    const canSettings    = p ? p.canSeeSettings === true : false;
+                    const map = { inspections: canInspections, templates: canTemplates, settings: canSettings };
+                    document.querySelectorAll('.tab-btn').forEach(btn=>{
+                        const t = btn.dataset.tab; if(map[t]!==undefined){ btn.style.display = map[t] ? '' : 'none'; }
+                    });
+                    // Panel visibility
+                    const panels = { inspections: document.getElementById('tab-inspections'), templates: document.getElementById('tab-templates'), settings: document.getElementById('tab-settings') };
+                    Object.entries(panels).forEach(([k,el])=>{ if(el) el.style.display = map[k] ? el.style.display : 'none'; });
+                    // Switch if active hidden
+                    const activeBtn = document.querySelector('.tab-btn.active');
+                    if(activeBtn && activeBtn.style.display==='none'){
+                        const order=['inspections','templates','settings'];
+                        const next = order.find(t=>map[t]);
+                        if(next){
+                            document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+                            const nextBtn=document.querySelector(`.tab-btn[data-tab="${next}"]`); nextBtn?.classList.add('active');
+                            if(panels.inspections) panels.inspections.style.display = next==='inspections'? 'block':'none';
+                            if(panels.templates) panels.templates.style.display = next==='templates'? 'block':'none';
+                            if(panels.settings) panels.settings.style.display = next==='settings'? 'block':'none';
+                        }
+                    }
+                }catch(e){ console.warn('Failed to apply user-based tab visibility', e); }
+            }
+
+            // initial load
+            reload().then(applyVisibilityForCurrentUser);
+            window.applyInspectionBoardVisibility = applyVisibilityForCurrentUser; // expose
+        })();
+
+        function departmentLabel(value){
+            if(value==null) return '';
+            const key = String(value).toLowerCase();
+            return DEPT_MAP.get(key) || String(value);
+        }
+
+        document.addEventListener('DOMContentLoaded', async function() {
+            // Resolve company ID early for department options
+            let user = null; try { user = JSON.parse(localStorage.getItem('currentUser') || 'null'); } catch(e) {}
+            const companyId = user && user.companyId ? user.companyId : null;
+
+            await loadDepartmentOptions(companyId);
+
+            // Load and initialize data
+            loadInspections();
+            loadFilters();
+            
+            // Add event listeners
+            addEventListeners();
+        });
+
+        function loadInspections() {
+            const tableBody = document.getElementById('inspectionsTableBody');
+            if (!tableBody) return;
+
+            // Resolve company ID from centralized auth/currentUser
+            let user = null;
+            try { user = JSON.parse(localStorage.getItem('currentUser') || 'null'); } catch(e) { user = null; }
+            const companyId = user && user.companyId ? user.companyId : null;
+
+            // If no company context, show gentle prompt
+            if (!companyId) {
+                tableBody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;color:#666;">Login to view your company inspections.</td></tr>';
+                return;
+            }
+
+            const refPath = `companies/${companyId}/inspections`;
+            const ref = database.ref(refPath);
+
+            // Keep last loaded items for quick local filtering of occurrences
+            let lastItems = [];
+
+            // Real-time listener
+            ref.on('value', (snapshot) => {
+                const data = snapshot.val() || {};
+                lastItems = Object.entries(data).map(([id, v]) => ({ id, ...v }));
+                renderInspections(lastItems);
+            }, (err) => {
+                console.error('Failed to load inspections:', err);
+                tableBody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;color:#721c24;background:#f8d7da;">Failed to load inspections. Please refresh.</td></tr>';
+            });
+
+            // Cache for occurrences per seriesId to avoid repeated queries
+            const occurrencesCache = new Map();
+
+            function renderInspections(items){
+                // Show only top-level inspections (exclude child occurrences to avoid duplication)
+                const topLevel = items.filter(it => !it.seriesId || it.seriesId === it.id);
+                if (!topLevel.length) {
+                    tableBody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;color:#666;">No inspections found.</td></tr>';
+                    return;
+                }
+                
+                topLevel.sort((a,b)=>{
+                    const at=a.createdAt||a.dateCreated||a.created_on||a.date; 
+                    const bt=b.createdAt||b.dateCreated||b.created_on||b.date;
+                    return (new Date(bt||0)) - (new Date(at||0));
+                });
+
+                tableBody.innerHTML = '';
+                for(const it of topLevel){
+                    const status = (it.status||'pending').toLowerCase();
+                    const priority = (it.priority||it.inspectionPriority||'low').toLowerCase();
+                    const type = it.inspectionType || it.type || '';
+                    const loc = it.locationName || it.location || '';
+                    const title = it.title || it.inspectionTitle || 'Inspection';
+                    const date = it.createdAt || it.dateCreated || it.date || '';
+                    const scheduledTop = it.seriesOriginalDate || it.requestedDate || it.plannedDate || it.startDate || it.nextOccurrence || it.nextOccurrenceDate || it.scheduledDate || it.dateScheduled || it.targetDate || date;
+                    const assignee = it.assignedToName || it.assignedTo || '';
+                    const deptVal = it.department || it.departmentId || it.dept || '';
+                    const dept = departmentLabel(deptVal);
+                    const recurring = (it.frequency && it.frequency !== 'one-time');
+
+                    const row = document.createElement('tr');
+                    row.dataset.id = it.id;
+                    if (it.seriesId) row.dataset.seriesId = it.seriesId;
+                    if (date) row.dataset.date = date;
+                    // dataset attributes for reliable filtering
+                    row.dataset.status = status;
+                    row.dataset.priority = priority;
+                    row.dataset.type = String(type||'').toLowerCase();
+                    row.dataset.department = String(deptVal||'').toLowerCase();
+                    row.dataset.departmentLabel = String(dept||'').toLowerCase();
+                    row.dataset.location = String(loc||'').toLowerCase();
+                    if (recurring) row.classList.add('has-occurrences');
+                    row.innerHTML = `
+                        <td>
+                            <div class="inspection-title">${escapeHtml(title)}</div>
+                            ${recurring ? '<span class="badge badge-recurring">Recurring</span>' : ''}
+                        </td>
+                        <td>${escapeHtml(type)}</td>
+                        <td>${escapeHtml(dept)}</td>
+                        <td>${escapeHtml(loc)}</td>
+                        <td><span class="inspection-status ${statusClass(status)}">${statusLabel(status)}</span></td>
+                        <td>
+                            <div class="action-buttons">
+                                <button class="action-btn" title="View" onclick="(event||window.event).stopPropagation(); viewInspection('${it.id}')">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                                <button class="action-btn edit-btn" title="Edit" data-inspection-date="${scheduledTop}" onclick="(event||window.event).stopPropagation(); editInspection('${it.id}')">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button class="action-btn delete-btn" title="Delete" onclick="(event||window.event).stopPropagation(); deleteInspection('${it.id}')">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </td>
+                    `;
+
+                    // Clicking a row toggles its occurrences (series instances), if applicable
+                    row.addEventListener('click', () => toggleOccurrences(row, it));
+
+                    tableBody.appendChild(row);
+                }
+            }
+
+            async function fetchOccurrences(seriesKey){
+                if (occurrencesCache.has(seriesKey)) return occurrencesCache.get(seriesKey);
+                // Query all inspections with seriesId == seriesKey
+                const q = database.ref(refPath).orderByChild('seriesId').equalTo(seriesKey);
+                const snap = await q.once('value');
+                const children = [];
+                if (snap.exists()) {
+                    const val = snap.val();
+                    for (const [cid, c] of Object.entries(val)) {
+                        children.push({ id: cid, ...c });
+                    }
+                }
+                // Sort by requested or created date
+                children.sort((a,b)=>{
+                    const at=a.seriesOriginalDate||a.requestedDate||a.createdAt||a.date;
+                    const bt=b.seriesOriginalDate||b.requestedDate||b.createdAt||b.date;
+                    return (new Date(at||0)) - (new Date(bt||0));
+                });
+                occurrencesCache.set(seriesKey, children);
+                return children;
+            }
+
+            function buildOccurrencesRow(parentRow, seriesKey, parentItem){
+                const tr = document.createElement('tr');
+                tr.className = 'occurrences-row';
+                tr.dataset.parentId = seriesKey;
+                const td = document.createElement('td');
+                td.colSpan = 6;
+                td.innerHTML = `
+                    <div style="padding:10px 8px;background:#fcfcfc;border-top:1px solid #eee;">
+                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+                            <strong>Occurrences in series</strong>
+                            <button class="action-btn" style="font-size:12px" onclick="(event||window.event).stopPropagation(); this.closest('tr').remove();">Hide</button>
+                        </div>
+                        <div class="occ-list" style="overflow:auto;">
+                            <table style="width:100%;border-collapse:collapse;font-size:13px;">
+                                <thead>
+                                    <tr style="background:#f2f4f6;">
+                                        <th style="text-align:left;padding:6px 8px;">Title</th>
+                                        <th style="text-align:left;padding:6px 8px;">Type</th>
+                                        <th style="text-align:left;padding:6px 8px;">Location</th>
+                                        <!-- Priority column hidden -->
+                                        <th style="text-align:left;padding:6px 8px;">Status</th>
+                                        <th style="text-align:left;padding:6px 8px;">Scheduled</th>
+                                        <!-- Assignee column hidden -->
+                                        <th style="text-align:left;padding:6px 8px;">Actions</th>
+                                    </tr>
+                                </thead>
+                <tbody class="occ-tbody">
+                    <tr><td colspan="6" style="padding:10px 8px;color:#666;">Loading occurrences…</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>`;
+                tr.appendChild(td);
+
+                // Insert after parent
+                parentRow.parentNode.insertBefore(tr, parentRow.nextSibling);
+
+                // Populate occurrences using locally loaded items first for instant feedback
+                populateOccurrencesTable(tr, seriesKey);
+                // Then refresh from DB to ensure completeness
+                fetchOccurrences(seriesKey)
+                    .then(() => populateOccurrencesTable(tr, seriesKey))
+                    .catch(err => {
+                        const body = tr.querySelector('.occ-tbody');
+                        body.innerHTML = `<tr><td colspan="9" style="padding:10px 8px;color:#721c24;background:#f8d7da;">Failed to load occurrences.</td></tr>`;
+                        console.error('Failed to load occurrences', err);
+                    });
+
+                return tr;
+            }
+
+            function populateOccurrencesTable(containerRow, seriesKey){
+                const body = containerRow.querySelector('.occ-tbody');
+                // Combine cached fetch results with locally loaded items
+                const fetched = occurrencesCache.get(seriesKey) || [];
+                const local = lastItems.filter(x => (x.seriesId ? x.seriesId : x.id) === seriesKey);
+                // Merge by id (avoid duplicates)
+                const map = new Map();
+                for (const it of [...local, ...fetched]) map.set(it.id, it);
+                let rows = Array.from(map.values());
+                // Exclude the parent inspection (id===seriesKey and no seriesId) to prevent duplication
+                rows = rows.filter(r => !(r.id === seriesKey && !r.seriesId));
+                if (!rows.length) {
+                    body.innerHTML = `<tr><td colspan="6" style="padding:10px 8px;color:#666;">No generated occurrences yet. The parent inspection is scheduled but no child instances exist.</td></tr>`;
+                    return;
+                }
+                // Sort chronologically by original/requested/created date
+                rows.sort((a,b)=>{
+                    const at=a.seriesOriginalDate||a.requestedDate||a.createdAt||a.date;
+                    const bt=b.seriesOriginalDate||b.requestedDate||b.createdAt||b.date;
+                    return (new Date(at||0)) - (new Date(bt||0));
+                });
+                body.innerHTML = '';
+                for (const ch of rows) {
+                    const chStatus = (ch.status||'pending').toLowerCase();
+                    const chAssignee = ch.assignedToName || ch.assignedTo || '';
+                    const chTitle = ch.title || ch.inspectionTitle || 'Inspection';
+                    const chType = ch.inspectionType || ch.type || '';
+                    const chLoc = ch.locationName || ch.location || '';
+                    const chPriority = (ch.priority||ch.inspectionPriority||'low').toLowerCase();
+                    const chScheduled = ch.seriesOriginalDate || ch.requestedDate || ch.plannedDate || ch.startDate || ch.nextOccurrence || ch.nextOccurrenceDate || ch.scheduledDate || ch.dateScheduled || ch.targetDate || '';
+                    // Created hidden in occurrences table per request
+                    const chCreated = ch.createdAt || ch.date || '';
+                    const r = document.createElement('tr');
+                    r.innerHTML = `
+                        <td style="padding:6px 8px;">${escapeHtml(chTitle)}</td>
+                        <td style="padding:6px 8px;">${escapeHtml(chType)}</td>
+                        <td style="padding:6px 8px;">${escapeHtml(chLoc)}</td>
+                        <td style="padding:6px 8px;"><span class="inspection-status ${statusClass(chStatus)}">${statusLabel(chStatus)}</span></td>
+                        <td style="padding:6px 8px;">${formatDate(chScheduled)}</td>
+                        <td style="padding:6px 8px;">
+                            <button class="action-btn" title="View" onclick="(event||window.event).stopPropagation(); viewInspection('${ch.id}')"><i class="fas fa-eye"></i></button>
+                            <button class="action-btn edit-btn" title="Edit" data-inspection-date="${chScheduled}" onclick="(event||window.event).stopPropagation(); editInspection('${ch.id}')"><i class="fas fa-edit"></i></button>
+                        </td>`;
+                    // Allow quick open on double-click of an occurrence row
+                    r.addEventListener('dblclick', (ev)=>{ ev.stopPropagation(); editInspection(ch.id); });
+                    body.appendChild(r);
+                }
+            }
+
+            function toggleOccurrences(row, item){
+                // Determine series key: if item is child (has seriesId), use that, else use its own id
+                const seriesKey = item.seriesId ? item.seriesId : item.id;
+                // If there's already an occurrences row right after, remove it (collapse)
+                const next = row.nextElementSibling;
+                if (next && next.classList.contains('occurrences-row')) {
+                    next.remove();
+                    return;
+                }
+                // Insert new occurrences row
+                buildOccurrencesRow(row, seriesKey, item);
+            }
+
+            function statusClass(s){
+                switch(s){
+                    case 'in-progress': return 'status-in-progress';
+                    case 'completed': return 'status-completed';
+                    case 'overdue': return 'status-overdue';
+                    default: return 'status-pending';
+                }
+            }
+            function statusLabel(s){
+                switch(s){
+                    case 'in-progress': return 'In Progress';
+                    case 'completed': return 'Completed';
+                    case 'overdue': return 'Overdue';
+                    default: return 'Pending';
+                }
+            }
+            function priorityBadge(p){
+                const cls = p==='critical'?'priority-critical':p==='high'?'priority-high':p==='medium'?'priority-medium':'priority-low';
+                const label = p.charAt(0).toUpperCase()+p.slice(1);
+                return `<span class="priority-indicator ${cls}"></span><span class="priority-text">${label}</span>`;
+            }
+            function formatDate(d){
+                try{ if(!d) return ''; const dt=new Date(d); if(isNaN(dt)) return ''; return dt.toLocaleDateString(); }catch{ return ''; }
+            }
+            function escapeHtml(str){
+                if(str==null) return '';
+                return String(str).replace(/[&<>"]|'/g, m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m]));
+            }
+            // Hide edit buttons for inspections whose scheduled date is still in the future
+            document.addEventListener('DOMContentLoaded', function(){
+                const parseDateFlexible = (raw) => {
+                    if(!raw) return null;
+                    if(raw instanceof Date) return isNaN(raw)?null:raw;
+                    // Epoch number as string
+                    if(/^\d{10,13}$/.test(raw)) { const num = parseInt(raw,10); return new Date(num < 1e12 ? num*1000 : num); }
+                    // YYYY-MM-DD or YYYY/MM/DD
+                    if(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/.test(raw)) {
+                        const [_,y,m,d] = raw.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/); return new Date(parseInt(y,10), parseInt(m,10)-1, parseInt(d,10));
+                    }
+                    // Try native Date parse (handles ISO 8601)
+                    const dt = new Date(raw);
+                    if(!isNaN(dt)) return dt;
+                    return null;
+                };
+                const startOfDay = (dt) => new Date(dt.getFullYear(), dt.getMonth(), dt.getDate());
+                const todayStart = startOfDay(new Date()).getTime();
+
+                const hideFutureEdits = () => {
+                    document.querySelectorAll('.action-btn.edit-btn[data-inspection-date]').forEach(btn => {
+                        const raw = btn.getAttribute('data-inspection-date');
+                        const dt = parseDateFlexible(raw);
+                        if(!dt) return; // unknown date -> leave visible
+                        const sched = startOfDay(dt).getTime();
+                        if (sched > todayStart) {
+                            if(btn.style.display !== 'none') {
+                                btn.style.display = 'none';
+                                btn.insertAdjacentHTML('afterend', '<span class="edit-locked" title="Editing unlocks on the inspection date" style="color:#999;font-size:12px;margin-left:6px;">Locked</span>');
+                            }
+                        } else {
+                            // If date now reached and previously locked, restore button
+                            if(btn.style.display === 'none') {
+                                btn.style.display = '';
+                                const lockLabel = btn.nextElementSibling;
+                                if(lockLabel && lockLabel.classList.contains('edit-locked')) lockLabel.remove();
+                            }
+                        }
+                    });
+                };
+
+                hideFutureEdits();
+                const table = document.getElementById('inspectionTable');
+                if (table) {
+                    const observer = new MutationObserver(() => hideFutureEdits());
+                    observer.observe(table, { childList: true, subtree: true });
+                }
+            });
+        
+        }
+
+        function loadFilters() {
+            // Populate Department filter from DEPT_OPTIONS
+            const deptSelect = document.getElementById('departmentFilter');
+            if (deptSelect) {
+                // Clear keeping the first option
+                deptSelect.innerHTML = '<option value="">All Departments</option>';
+                DEPT_OPTIONS.forEach(opt => {
+                    if (!opt || opt.enabled===false) return;
+                    const o = document.createElement('option');
+                    o.value = opt.value;
+                    o.textContent = opt.label;
+                    deptSelect.appendChild(o);
+                });
+            }
+        }
+
+        function addEventListeners() {
+            // Add filter event listeners
+            const filters = ['statusFilter', 'priorityFilter', 'typeFilter', 'departmentFilter', 'locationFilter', 'startDateFilter', 'endDateFilter'];
+            filters.forEach(filterId => {
+                const filter = document.getElementById(filterId);
+                if (filter) {
+                    filter.addEventListener('change', applyFilters);
+                }
+            });
+
+            // New Inspection button (now icon-only)
+            const createBtn = document.getElementById('createInspectionBtn');
+            if (createBtn) {
+                createBtn.addEventListener('click', () => {
+                    window.location.href = 'inspection.html';
+                });
+            }
+        }
+
+        function applyFilters() {
+            // Get filter values (lowercased for consistent compare)
+            const statusFilter = (document.getElementById('statusFilter')?.value || '').toLowerCase();
+            const priorityFilter = (document.getElementById('priorityFilter')?.value || '').toLowerCase();
+            const typeFilter = (document.getElementById('typeFilter')?.value || '').toLowerCase();
+            const locationFilter = (document.getElementById('locationFilter')?.value || '').toLowerCase();
+            const departmentFilter = (document.getElementById('departmentFilter')?.value || '').toLowerCase();
+            // Assignee filter removed
+            const startDate = document.getElementById('startDateFilter')?.value;
+            const endDate = document.getElementById('endDateFilter')?.value;
+
+            const startOfDay = (dt) => new Date(dt.getFullYear(), dt.getMonth(), dt.getDate());
+
+            // Get all table rows
+            const tableBody = document.getElementById('inspectionsTableBody');
+            const rows = tableBody.querySelectorAll('tr');
+
+            rows.forEach(row => {
+                if (row.classList.contains('occurrences-row')) return; // Skip helper rows here
+
+                let show = true;
+
+                // Status filter
+                if (statusFilter) {
+                    const s = (row.dataset.status || '').toLowerCase();
+                    if (!s.includes(statusFilter)) show = false;
+                }
+
+                // Priority filter
+                if (show && priorityFilter) {
+                    const p = (row.dataset.priority || '').toLowerCase();
+                    if (!p.includes(priorityFilter)) show = false;
+                }
+
+                // Type filter
+                if (show && typeFilter) {
+                    const t = (row.dataset.type || '').toLowerCase();
+                    if (!t.includes(typeFilter)) show = false;
+                }
+
+                // Department filter (by value or label)
+                if (show && departmentFilter) {
+                    const dv = (row.dataset.department || '').toLowerCase();
+                    const dl = (row.dataset.departmentLabel || '').toLowerCase();
+                    if (!(dv.includes(departmentFilter) || dl.includes(departmentFilter))) show = false;
+                }
+
+                // Location filter
+                if (show && locationFilter) {
+                    const loc = (row.dataset.location || '').toLowerCase();
+                    if (!loc.includes(locationFilter)) show = false;
+                }
+
+                // Date range filter
+                if (show && (startDate || endDate)) {
+                    const rowDateRaw = row.getAttribute('data-date');
+                    if (rowDateRaw) {
+                        const dt = new Date(rowDateRaw);
+                        if (!isNaN(dt)){
+                            const dSod = startOfDay(dt).getTime();
+                            if (startDate) {
+                                const s = new Date(startDate);
+                                const sSod = startOfDay(s).getTime();
+                                if (dSod < sSod) show = false;
+                            }
+                            if (show && endDate) {
+                                const e = new Date(endDate);
+                                const eSod = startOfDay(e).getTime();
+                                if (dSod > eSod) show = false;
+                            }
+                        }
+                    }
+                }
+
+                row.style.display = show ? '' : 'none';
+                // If this row has an occurrences row immediately after it, match its visibility
+                const next = row.nextElementSibling;
+                if (next && next.classList.contains('occurrences-row')) {
+                    next.style.display = show ? '' : 'none';
+                }
+            });
+        }
+
+        // exportInspections removed
+
+        // Action functions for table buttons
+        function viewInspection(id) {
+            console.log('View inspection:', id);
+            // Implementation for viewing inspection details
+        }
+
+        function editInspection(id) {
+            window.location.href = `inspection.html?id=${id}`;
+        }
+
+        function deleteInspection(id) {
+            if (confirm('Are you sure you want to delete this inspection?')) {
+                // Get company ID
+                let user = null;
+                try { user = JSON.parse(localStorage.getItem('currentUser') || 'null'); } catch(e) { user = null; }
+                const companyId = user && user.companyId ? user.companyId : null;
+                
+                if (companyId) {
+                    database.ref(`companies/${companyId}/inspections/${id}`).remove()
+                        .then(() => {
+                            console.log('Inspection deleted successfully');
+                        })
+                        .catch(error => {
+                            console.error('Error deleting inspection:', error);
+                            alert('Error deleting inspection. Please try again.');
+                        });
+                }
+            }
+        }
+
+        // Add more functions as needed
+    </script>
+    <script src="js/notifications.js"></script>
+    <script type="module" src="js/auth.js"></script>
+    <script type="module" src="js/main.js"></script>
+    <script type="module" src="js/inspectionboard.js"></script>
+</body>
+</html>

@@ -202,7 +202,7 @@ body { font-family:var(--font-family); font-size:var(--base-font-size); line-hei
         /* Specific layout for reference number row */
         .form-row.basic-info-row{grid-template-columns:1fr}
         /* Specific layout for personnel information row */
-        .form-row.personnel-info-row{grid-template-columns:150px 160px 180px 140px}
+        .form-row.personnel-info-row{grid-template-columns:150px 160px 180px 140px 160px}
         .form-group{display:flex;flex-direction:column;min-width:0;margin-bottom:.5rem}
         .form-group label{font-weight:600;margin-bottom:3px;font-size:.75rem}
         .form-group input,.form-group select,.form-group textarea{width:100%;padding:.5rem .65rem;border:1px solid #d0d7de;border-radius:6px;font-size:.75rem;background:#fff}
@@ -515,6 +515,10 @@ body { font-family:var(--font-family); font-size:var(--base-font-size); line-hei
                                 <div class="form-group">
                                     <label for="contactPhone">Contact Phone*</label>
                                     <input type="tel" id="contactPhone" name="contactPhone" readonly required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="lineManager">Line Manager</label>
+                                    <input type="text" id="lineManager" name="lineManager" readonly>
                                 </div>
                             </div>
                         </fieldset>
@@ -1712,7 +1716,7 @@ body { font-family:var(--font-family); font-size:var(--base-font-size); line-hei
         this.initializeData();
       }, 1000);
     }
-      async initializeData(){ try{ await Promise.all([this.loadLocations(),this.loadCompanyOptions(),this.setCurrentUserAsRequester(),this.setCurrentUserCompany(),this.setCurrentUserDepartment(),this.setCurrentUserContactPhone()]); await this.loadAccessRequestData(); this.generateReferenceNumber(); this.initializeVisitor0Fields(); }catch(e){ console.error('Data load error',e); window.notificationManager?.addNotification({type:'Error',message:'Failed to load form data.'}); } }
+      async initializeData(){ try{ await Promise.all([this.loadLocations(),this.loadCompanyOptions(),this.setCurrentUserAsRequester(),this.setCurrentUserCompany(),this.setCurrentUserDepartment(),this.setCurrentUserContactPhone(),this.setCurrentUserLineManager()]); await this.loadAccessRequestData(); this.generateReferenceNumber(); this.initializeVisitor0Fields(); }catch(e){ console.error('Data load error',e); window.notificationManager?.addNotification({type:'Error',message:'Failed to load form data.'}); } }
       qs(id){return document.getElementById(id);} val(id){return this.qs(id)?.value||'';}
       initializeForm(){ const form=this.qs('accessRequestForm'); if(!form)return; form.addEventListener('submit',e=>{e.preventDefault(); this.submitAccessRequest(form);}); 
         
@@ -1952,39 +1956,66 @@ body { font-family:var(--font-family); font-size:var(--base-font-size); line-hei
         if(!requesterField) return;
         
         try {
-          // Wait for auth state to be ready
-          let currentUser = firebase.auth().currentUser;
-          
-          if(!currentUser) {
-            console.log('⏳ Waiting for authentication state...');
-            // Wait for auth state change
-            currentUser = await new Promise((resolve, reject) => {
-              const timeout = setTimeout(() => {
-                reject(new Error('Authentication timeout'));
-              }, 5000); // 5 second timeout
-              
-              const unsubscribe = firebase.auth().onAuthStateChanged(user => {
-                clearTimeout(timeout);
-                unsubscribe();
-                resolve(user);
-              });
-            });
-          }
-          
-          if(!currentUser) {
-            console.warn('No authenticated user found after waiting');
+          // Get current user info from AuthManager
+          const currentUser = window.authManager?.currentUser;
+          if(!currentUser || !currentUser.uid) {
+            console.warn('No authenticated user found for requester setup');
             requesterField.value = 'Not authenticated';
             return;
           }
           
-          console.log(`🔐 Found authenticated user: ${currentUser.uid}`);
+          const companyId = currentUser.companyId;
+          if(!companyId) {
+            console.warn('No company ID found for requester setup');
+            requesterField.value = 'No company context';
+            return;
+          }
           
-          // Get user details from database
-          const userSnap = await firebase.database().ref(`users/${currentUser.uid}`).once('value');
+          console.log(`🔐 Setting requester for user: ${currentUser.uid} in company: ${companyId}`);
           
-          if(userSnap.exists()) {
-            const userData = userSnap.val();
-            const displayName = `${userData.firstName || ''} ${userData.lastName || ''}`.trim() || 
+          // Get user data from company users directory (where companymanagement.html stores user info)
+          const companyUserSnap = await firebase.database().ref(`companies/${companyId}/users/${currentUser.uid}`).once('value');
+          
+          if(companyUserSnap.exists()) {
+            const userData = companyUserSnap.val();
+            console.log('📋 Company user data loaded:', userData);
+            
+            // Set the display name (requester name)
+            const displayName = userData.name || 
+                               `${userData.firstName || ''} ${userData.lastName || ''}`.trim() || 
+                               userData.displayName ||
+                               userData.fullName ||
+                               userData.email || 
+                               currentUser.email || 
+                               'Current User';
+            
+            requesterField.value = displayName;
+            
+            // Set the employeeUserId field with the actual employee ID from companymanagement.html
+            if(userIdField) {
+              // Use employeeId from company user record if available, otherwise fall back to UID
+              const employeeIdFromCompany = userData.employeeId || userData.employeeCode || userData.empCode;
+              if(employeeIdFromCompany) {
+                userIdField.value = employeeIdFromCompany;
+                console.log(`✅ Set employee ID: ${employeeIdFromCompany}`);
+              } else {
+                userIdField.value = currentUser.uid;
+                console.log(`⚠️ No employee ID found in company record, using UID: ${currentUser.uid}`);
+              }
+            }
+            
+            console.log(`✅ Set requester from company users: ${displayName} (Employee ID: ${userIdField?.value})`);
+            return;
+          }
+          
+          // Fallback: Get user details from global users database
+          console.log('🔄 Company user data not found, trying global users...');
+          const globalUserSnap = await firebase.database().ref(`users/${currentUser.uid}`).once('value');
+          
+          if(globalUserSnap.exists()) {
+            const userData = globalUserSnap.val();
+            const displayName = userData.name ||
+                               `${userData.firstName || ''} ${userData.lastName || ''}`.trim() || 
                                userData.displayName || 
                                userData.email || 
                                currentUser.email || 
@@ -1992,19 +2023,27 @@ body { font-family:var(--font-family); font-size:var(--base-font-size); line-hei
             
             requesterField.value = displayName;
             if(userIdField) {
-              userIdField.value = currentUser.uid;
+              // Check for employee ID in global user record
+              const employeeIdFromGlobal = userData.employeeId || userData.employeeCode || userData.empCode;
+              if(employeeIdFromGlobal) {
+                userIdField.value = employeeIdFromGlobal;
+                console.log(`✅ Set employee ID from global users: ${employeeIdFromGlobal}`);
+              } else {
+                userIdField.value = currentUser.uid;
+                console.log(`⚠️ No employee ID found in global record, using UID: ${currentUser.uid}`);
+              }
             }
             
-            console.log(`✅ Set requester to: ${displayName} (${currentUser.uid})`);
+            console.log(`✅ Set requester from global users: ${displayName} (Employee ID: ${userIdField?.value})`);
           } else {
-            // Fallback to auth info if user not found in database
+            // Final fallback to auth info if user not found in database
             const displayName = currentUser.displayName || currentUser.email || 'Current User';
             requesterField.value = displayName;
             if(userIdField) {
               userIdField.value = currentUser.uid;
             }
             
-            console.log(`✅ Set requester to: ${displayName} (from auth, user not in database)`);
+            console.log(`⚠️ User not found in database, using auth info: ${displayName} (UID: ${currentUser.uid})`);
           }
           
         } catch(error) {
@@ -2109,74 +2148,79 @@ body { font-family:var(--font-family); font-size:var(--base-font-size); line-hei
         if(!departmentField) return;
         
         try {
-          // Get current user info from Firebase Auth
-          let currentUser = firebase.auth().currentUser;
-          
-          if(!currentUser) {
-            // Wait for auth state if not immediately available
-            currentUser = await new Promise((resolve, reject) => {
-              const timeout = setTimeout(() => {
-                reject(new Error('Authentication timeout'));
-              }, 5000);
-              
-              const unsubscribe = firebase.auth().onAuthStateChanged(user => {
-                clearTimeout(timeout);
-                unsubscribe();
-                resolve(user);
-              });
-            });
-          }
-          
-          if(!currentUser) {
+          // Get current user info from AuthManager
+          const currentUser = window.authManager?.currentUser;
+          if(!currentUser || !currentUser.uid) {
             console.warn('No authenticated user found for department setup');
             departmentField.value = 'Not authenticated';
             return;
           }
           
-          // Get user details from database
-          const userSnap = await firebase.database().ref(`users/${currentUser.uid}`).once('value');
+          const companyId = currentUser.companyId;
+          if(!companyId) {
+            console.warn('No company ID found for department setup');
+            departmentField.value = 'No company context';
+            return;
+          }
           
-          if(userSnap.exists()) {
-            const userData = userSnap.val();
+          // First try company-scoped user data (where companymanagement.html stores user info)
+          const companyUserSnap = await firebase.database().ref(`companies/${companyId}/users/${currentUser.uid}`).once('value');
+          
+          if(companyUserSnap.exists()) {
+            const userData = companyUserSnap.val();
+            console.log('📋 Company user data loaded:', userData);
+            
+            // Use department name directly if available, or fall back to department ID
+            let departmentName = userData.department || userData.departmentName;
+            let departmentId = userData.departmentId || userData.department;
+            
+            if(departmentName) {
+              departmentField.value = departmentName;
+              if(departmentIdField && departmentId) {
+                departmentIdField.value = departmentId;
+              }
+              
+              // Store in departmentOptions for reference number generation
+              if(departmentId) {
+                this.departmentOptions[departmentId] = departmentName;
+              }
+              
+              console.log(`✅ Set department from company users: ${departmentName}${departmentId ? ` (${departmentId})` : ''}`);
+              return;
+            }
+          }
+          
+          // Fallback to global user data if company user data doesn't exist or has no department
+          console.log('🔄 Trying global user data as fallback...');
+          const globalUserSnap = await firebase.database().ref(`users/${currentUser.uid}`).once('value');
+          
+          if(globalUserSnap.exists()) {
+            const userData = globalUserSnap.val();
             const userDepartmentId = userData.department || userData.departmentId;
             
             if(userDepartmentId) {
-              // Get company ID to load department options
-              const companyId = window.authManager?.currentUser?.companyId;
-              if(companyId) {
-                // Load department name from company scope
-                const deptSnap = await firebase.database().ref(`companies/${companyId}/fieldOptions/department/${userDepartmentId}`).once('value');
+              // Try to get department name from company field options
+              const deptSnap = await firebase.database().ref(`companies/${companyId}/fieldOptions/department/${userDepartmentId}`).once('value');
+              
+              if(deptSnap.exists()) {
+                const deptData = deptSnap.val();
+                const departmentName = deptData.label || deptData.name || deptData.value || userDepartmentId;
                 
-                if(deptSnap.exists()) {
-                  const deptData = deptSnap.val();
-                  const departmentName = deptData.label || deptData.name || deptData.value || userDepartmentId;
-                  
-                  departmentField.value = departmentName;
-                  if(departmentIdField) {
-                    departmentIdField.value = userDepartmentId;
-                  }
-                  
-                  // Store in departmentOptions for reference number generation
-                  this.departmentOptions[userDepartmentId] = departmentName;
-                  
-                  console.log(`✅ Set department to: ${departmentName} (${userDepartmentId})`);
-                } else {
-                  // Fallback: use department ID as display name
-                  departmentField.value = userDepartmentId;
-                  if(departmentIdField) {
-                    departmentIdField.value = userDepartmentId;
-                  }
-                  this.departmentOptions[userDepartmentId] = userDepartmentId;
-                  console.warn(`⚠️ Department name not found, using ID: ${userDepartmentId}`);
+                departmentField.value = departmentName;
+                if(departmentIdField) {
+                  departmentIdField.value = userDepartmentId;
                 }
+                
+                this.departmentOptions[userDepartmentId] = departmentName;
+                console.log(`✅ Set department from global user + field options: ${departmentName} (${userDepartmentId})`);
               } else {
-                // No company context, use department ID as display
+                // Use department ID as display name
                 departmentField.value = userDepartmentId;
                 if(departmentIdField) {
                   departmentIdField.value = userDepartmentId;
                 }
                 this.departmentOptions[userDepartmentId] = userDepartmentId;
-                console.warn(`⚠️ No company context for department lookup`);
+                console.warn(`⚠️ Department name not found in field options, using ID: ${userDepartmentId}`);
               }
             } else {
               departmentField.value = 'No department assigned';
@@ -2199,57 +2243,155 @@ body { font-family:var(--font-family); font-size:var(--base-font-size); line-hei
         if(!contactPhoneField) return;
         
         try {
-          // Wait for auth state to be ready
-          let currentUser = firebase.auth().currentUser;
-          
-          if(!currentUser) {
-            console.log('⏳ Waiting for authentication state for contact phone...');
-            // Wait for auth state change
-            currentUser = await new Promise((resolve, reject) => {
-              const timeout = setTimeout(() => {
-                reject(new Error('Authentication timeout'));
-              }, 5000); // 5 second timeout
-              
-              const unsubscribe = firebase.auth().onAuthStateChanged(user => {
-                clearTimeout(timeout);
-                unsubscribe();
-                resolve(user);
-              });
-            });
-          }
-          
-          if(!currentUser) {
-            console.warn('No authenticated user found for contact phone');
+          // Get current user info from AuthManager
+          const currentUser = window.authManager?.currentUser;
+          if(!currentUser || !currentUser.uid) {
+            console.warn('No authenticated user found for contact phone setup');
+            contactPhoneField.value = 'Not authenticated';
             return;
           }
           
-          console.log(`📞 Loading contact phone for user: ${currentUser.uid}`);
+          const companyId = currentUser.companyId;
+          if(!companyId) {
+            console.warn('No company ID found for contact phone setup');
+            contactPhoneField.value = 'No company context';
+            return;
+          }
           
-          // Get user details from database
-          const userSnap = await firebase.database().ref(`users/${currentUser.uid}`).once('value');
+          // First try company-scoped user data (where companymanagement.html stores user info)
+          const companyUserSnap = await firebase.database().ref(`companies/${companyId}/users/${currentUser.uid}`).once('value');
           
-          if(userSnap.exists()) {
-            const userData = userSnap.val();
+          if(companyUserSnap.exists()) {
+            const userData = companyUserSnap.val();
+            console.log('📋 Company user data loaded for contact phone:', userData);
             
-            // Try multiple phone field names (phone, phoneNumber, mobile, contactPhone)
-            const userPhone = userData.phone || 
-                             userData.phoneNumber || 
-                             userData.mobile || 
-                             userData.contactPhone || 
-                             '';
+            // Use phone from company user record
+            const userPhone = userData.phone || userData.contactPhone || userData.phoneNumber;
             
             if(userPhone) {
               contactPhoneField.value = userPhone;
-              console.log(`✅ Set contact phone to: ${userPhone}`);
+              console.log(`✅ Set contact phone from company users: ${userPhone}`);
+              return;
+            }
+          }
+          
+          // Fallback to global user data if company user data doesn't exist or has no phone
+          console.log('🔄 Trying global user data for contact phone...');
+          const globalUserSnap = await firebase.database().ref(`users/${currentUser.uid}`).once('value');
+          
+          if(globalUserSnap.exists()) {
+            const userData = globalUserSnap.val();
+            const userPhone = userData.phone || userData.contactPhone || userData.phoneNumber;
+            
+            if(userPhone) {
+              contactPhoneField.value = userPhone;
+              console.log(`✅ Set contact phone from global users: ${userPhone}`);
             } else {
-              console.log(`ℹ️ No phone number found for user: ${currentUser.uid}`);
+              contactPhoneField.value = '';
+              console.warn(`⚠️ User has no contact phone assigned`);
             }
           } else {
-            console.warn(`⚠️ User data not found for contact phone: ${currentUser.uid}`);
+            contactPhoneField.value = 'User not found in database';
+            console.warn(`⚠️ User data not found for: ${currentUser.uid}`);
           }
           
         } catch(error) {
           console.error('Error setting current user contact phone:', error);
+          contactPhoneField.value = 'Error loading contact phone';
+        }
+      }
+      
+      async setCurrentUserLineManager(){
+        const lineManagerField = this.qs('lineManager');
+        
+        if(!lineManagerField) return;
+        
+        try {
+          // Get current user info from AuthManager
+          const currentUser = window.authManager?.currentUser;
+          if(!currentUser || !currentUser.uid) {
+            console.warn('No authenticated user found for line manager setup');
+            lineManagerField.value = 'Not authenticated';
+            return;
+          }
+          
+          const companyId = currentUser.companyId;
+          if(!companyId) {
+            console.warn('No company ID found for line manager setup');
+            lineManagerField.value = 'No company context';
+            return;
+          }
+          
+          // Get user data from company users directory (where companymanagement.html stores user info)
+          const companyUserSnap = await firebase.database().ref(`companies/${companyId}/users/${currentUser.uid}`).once('value');
+          
+          if(companyUserSnap.exists()) {
+            const userData = companyUserSnap.val();
+            console.log('📋 Company user data loaded for line manager:', userData);
+            
+            // Get line manager name and job title from company user record
+            let lineManagerName = userData.lineManager || userData.lineManagerName || '';
+            let lineManagerJobTitle = '';
+            
+            // If we have lineManagerId but no name, resolve ID to name and get job title
+            if ((!lineManagerName || /^(uid_|[A-Za-z0-9_-]{15,})$/.test(String(lineManagerName).trim())) && userData.lineManagerId) {
+              const managerSnap = await firebase.database().ref(`companies/${companyId}/users/${userData.lineManagerId}`).once('value');
+              if(managerSnap.exists()) {
+                const managerData = managerSnap.val();
+                lineManagerName = managerData.name || managerData.displayName || managerData.fullName || '';
+                lineManagerJobTitle = managerData.jobTitle || managerData.role || '';
+                console.log(`🔄 Resolved line manager ID to name: ${lineManagerName}, job title: ${lineManagerJobTitle}`);
+              }
+            } else if (userData.lineManagerId) {
+              // If we have the name but need to get the job title from the line manager's user record
+              const managerSnap = await firebase.database().ref(`companies/${companyId}/users/${userData.lineManagerId}`).once('value');
+              if(managerSnap.exists()) {
+                const managerData = managerSnap.val();
+                lineManagerJobTitle = managerData.jobTitle || managerData.role || '';
+                console.log(`🔄 Got line manager job title: ${lineManagerJobTitle}`);
+              }
+            }
+            
+            // Clean formatting like "Name (Dept - Title)"
+            if (lineManagerName) {
+              const nameOnly = lineManagerName.match(/^([^()\-]+?)(?:\s*\([^)]*\))?(?:\s*-\s*.*)?$/);
+              lineManagerField.value = (nameOnly ? nameOnly[1] : lineManagerName).trim();
+              console.log(`✅ Set line manager: ${lineManagerField.value}`);
+              
+              // Store job title in a data attribute for later use in form submission
+              if (lineManagerJobTitle) {
+                lineManagerField.setAttribute('data-job-title', lineManagerJobTitle);
+                console.log(`✅ Set line manager job title: ${lineManagerJobTitle}`);
+              }
+            } else {
+              lineManagerField.value = 'No line manager assigned';
+              console.warn(`⚠️ User has no line manager assigned`);
+            }
+          } else {
+            // Fallback to global user data
+            console.log('🔄 Trying global user data for line manager...');
+            const globalUserSnap = await firebase.database().ref(`users/${currentUser.uid}`).once('value');
+            
+            if(globalUserSnap.exists()) {
+              const userData = globalUserSnap.val();
+              const lineManagerName = userData.lineManager || userData.lineManagerName || '';
+              
+              if(lineManagerName) {
+                lineManagerField.value = lineManagerName;
+                console.log(`✅ Set line manager from global users: ${lineManagerName}`);
+              } else {
+                lineManagerField.value = 'No line manager assigned';
+                console.warn(`⚠️ User has no line manager in global record`);
+              }
+            } else {
+              lineManagerField.value = 'User not found in database';
+              console.warn(`⚠️ User data not found for: ${currentUser.uid}`);
+            }
+          }
+          
+        } catch(error) {
+          console.error('Error setting current user line manager:', error);
+          lineManagerField.value = 'Error loading line manager';
         }
       }
       
@@ -2622,6 +2764,45 @@ body { font-family:var(--font-family); font-size:var(--base-font-size); line-hei
 
           // Payload
           const now=new Date().toISOString();
+          
+          // Ensure requester name is the current logged-in user's name
+          let requesterName = this.val('employeeId');
+          if(!requesterName || requesterName === 'Not authenticated' || requesterName === 'Error loading user' || requesterName === 'Current User') {
+            // Get name from AuthManager first
+            requesterName = window.authManager?.getUserDisplayName?.() || '';
+            if(!requesterName || requesterName === 'User') {
+              // Try from authManager currentUser
+              const authUser = window.authManager?.currentUser;
+              if(authUser) {
+                requesterName = authUser.name || authUser.displayName || `${authUser.firstName || ''} ${authUser.lastName || ''}`.trim() || authUser.email || 'Current User';
+              } else {
+                requesterName = currentUser.displayName || currentUser.email || 'Current User';
+              }
+            }
+          }
+          
+          
+          // Get actual employee ID from company users record for storage
+          let actualEmployeeId = this.val('employeeUserId') || currentUser.uid;
+          try {
+            const companyId = window.authManager?.currentUser?.companyId;
+            if (companyId) {
+              const companyUserSnap = await firebase.database().ref(`companies/${companyId}/users/${currentUser.uid}`).once('value');
+              if (companyUserSnap.exists()) {
+                const userData = companyUserSnap.val();
+                const employeeIdFromCompany = userData.employeeId || userData.employeeCode || userData.empCode;
+                if (employeeIdFromCompany) {
+                  actualEmployeeId = employeeIdFromCompany;
+                  console.log(`✅ Using employee ID from company record: ${actualEmployeeId}`);
+                } else {
+                  console.warn(`⚠️ No employee ID found in company record for ${currentUser.uid}, using UID`);
+                }
+              }
+            }
+          } catch (e) {
+            console.warn('Failed to get employee ID from company record:', e);
+          }
+          
           const payload={
             referenceNumber:this.val('referenceNumber'),
             purpose:this.val('purpose'),
@@ -2629,8 +2810,12 @@ body { font-family:var(--font-family); font-size:var(--base-font-size); line-hei
             toBeReturned:this.val('toBeReturned'),
             department:this.val('departmentId')||this.val('department'),
             departmentName:this.val('department'),
-            employeeId:this.val('employeeUserId')||currentUser.uid,
-            requesterName:this.val('employeeId'),
+            employeeId: actualEmployeeId,
+            requesterName: requesterName,
+            requesterLineManager: this.val('lineManager'),
+            requesterLineManagerTitle: this.qs('lineManager')?.getAttribute('data-job-title') || '',
+            submittedBy: currentUser.uid,
+            submittedByName: requesterName,
             companyName:this.val('companyName'),
             companyId:this.val('companyId')||companyId,
             contactPhone:this.val('contactPhone'),

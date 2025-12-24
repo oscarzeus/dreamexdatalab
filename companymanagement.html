@@ -2797,28 +2797,29 @@
                         const initialPassword = formData.get('userPassword');
                         if (!initialPassword || initialPassword.trim().length < 6) {
                             this.showNotification('Password must be at least 6 characters long', 'error');
+                            this.userCreationInProgress = false;
                             return;
                         }
 
-                        // Create user in Firebase Auth
+                        // Create user in Firebase Auth - Firebase handles duplicate email detection
                         const userCredential = await auth.createUserWithEmailAndPassword(userData.email, initialPassword);
-                        const user = userCredential.user;
+                        const newUser = userCredential.user;
 
                         // Add user to company structure
-                        await db.ref(`companies/${this.companyId}/users/${user.uid}`).set({
+                        await db.ref(`companies/${this.companyId}/users/${newUser.uid}`).set({
                             ...userData,
-                            authUid: user.uid,
-                            userId: user.uid,
-                            uid: user.uid
+                            authUid: newUser.uid,
+                            userId: newUser.uid,
+                            uid: newUser.uid
                         });
 
                         // Add user to global users collection
-                        await db.ref(`users/${user.uid}`).set({
+                        await db.ref(`users/${newUser.uid}`).set({
                             ...userData,
-                            uid: user.uid,
-                            authUid: user.uid
+                            uid: newUser.uid,
+                            authUid: newUser.uid
                         });
-                        createdUserId = user.uid;
+                        createdUserId = newUser.uid;
                     } else {
                         // Create reporting-only user without Firebase Auth
                         // Generate a unique key under users path
@@ -2889,7 +2890,26 @@
 
                 } catch (error) {
                     console.error('Error creating user:', error);
-                    this.showNotification('Error creating user: ' + error.message, 'error');
+                    console.error('Error code:', error.code);
+                    console.error('Error message:', error.message);
+                    
+                    // Provide user-friendly error messages for common Firebase Auth errors
+                    let errorMessage = error.message;
+                    if (error.code === 'auth/email-already-in-use') {
+                        errorMessage = 'This email address is already registered. Please use a different email or check if the user already exists.';
+                    } else if (error.code === 'auth/invalid-email') {
+                        errorMessage = 'The email address format is invalid. Please enter a valid email.';
+                    } else if (error.code === 'auth/weak-password') {
+                        errorMessage = 'The password is too weak. Please use at least 6 characters.';
+                    } else if (error.code === 'auth/operation-not-allowed') {
+                        errorMessage = 'Email/password accounts are not enabled. Please contact support.';
+                    } else if (error.code === 'auth/too-many-requests') {
+                        errorMessage = 'Too many failed attempts. Please try again later.';
+                    } else {
+                        // For debugging: show the actual error code and message
+                        errorMessage = `Error (${error.code}): ${error.message}`;
+                    }
+                    this.showNotification(errorMessage, 'error');
                 } finally {
                     this.userCreationInProgress = false;
                 }
@@ -5760,30 +5780,44 @@
                 return { users: usersSnap.val() || {}, perms: permsSnap.val() || {} };
             }
 
-            function renderAccessControlTable(companyId, users, perms) {
+            async function renderAccessControlTable(companyId, users, perms) {
                 const tbody = document.getElementById('accessControlTableBody');
                 if (!tbody) return;
                 tbody.innerHTML = '';
+
+                // Load company roles to get role names
+                let rolesMap = { administrator: 'Administrator' };
+                try {
+                    const rolesSnap = await db.ref(`companies/${companyId}/roles`).once('value');
+                    const rolesData = rolesSnap.val() || {};
+                    Object.entries(rolesData).forEach(([id, data]) => {
+                        rolesMap[id] = data.name || id;
+                    });
+                } catch(e) {
+                    console.warn('Could not load roles for display', e);
+                }
 
                 // Only include users that already have an explicit permission record
                 const permUserIds = Object.keys(perms || {});
                 if (permUserIds.length === 0) {
                     const tr = document.createElement('tr');
-                    tr.innerHTML = `<td colspan="10" style="text-align:center; color:#64748b;">No users found</td>`;
+                    tr.innerHTML = `<td colspan="11" style="text-align:center; color:#64748b;">No users found</td>`;
                     tbody.appendChild(tr);
                 } else {
                     permUserIds.forEach((uid) => {
                         const u = users[uid] || {};
                         const name = u.name || `${u.firstName || ''} ${u.lastName || ''}`.trim() || '(No name)';
                         const email = (u.accountType === 'without-account' || u.reportingOnly === true || u.canSignIn === false) ? '-' : (u.email || '-');
-                        const role = u.role || 'User';
+                        const roleId = u.role || 'User';
+                        // Look up the role display name from rolesMap
+                        const roleDisplayName = rolesMap[roleId] || roleId;
                         const p = perms[uid] || {};
 
                         const tr = document.createElement('tr');
                         tr.innerHTML = `
                             <td>${name}</td>
                             <td>${email}</td>
-                            <td><span class="role-badge role-${(role || 'user').toString().toLowerCase()}">${role}</span></td>
+                            <td><span class="role-badge role-${(roleId || 'user').toString().toLowerCase()}">${roleDisplayName}</span></td>
                             <td style="text-align:center;"><input type="checkbox" data-perm="profile" data-uid="${uid}" ${p.canSeeProfileTab !== false ? 'checked' : ''}></td>
                             <td style="text-align:center;"><input type="checkbox" data-perm="users" data-uid="${uid}" ${p.canSeeUsersTab ? 'checked' : ''}></td>
                             <td style="text-align:center;"><input type="checkbox" data-perm="subscription" data-uid="${uid}" ${p.canSeeSubscriptionTab ? 'checked' : ''}></td>
