@@ -2170,11 +2170,57 @@ body { font-family:var(--font-family); font-size:var(--base-font-size); line-hei
             const userData = companyUserSnap.val();
             console.log('📋 Company user data loaded:', userData);
             
-            // Use department name directly if available, or fall back to department ID
-            let departmentName = userData.department || userData.departmentName;
-            let departmentId = userData.departmentId || userData.department;
+            // Get department - could be stored as name or ID
+            let departmentValue = userData.department || userData.departmentName;
+            let departmentName = '';
+            let departmentId = '';
             
-            if(departmentName) {
+            if(departmentValue) {
+              // First, try to resolve department ID to name from field options
+              try {
+                const deptOptionsSnap = await firebase.database().ref(`companies/${companyId}/fieldOptions/department`).once('value');
+                if(deptOptionsSnap.exists()) {
+                  const deptOptions = deptOptionsSnap.val() || {};
+                  
+                  // Check if departmentValue is an ID that maps to a department option
+                  if(deptOptions[departmentValue]) {
+                    const deptData = deptOptions[departmentValue];
+                    departmentName = deptData.label || deptData.name || deptData.value || departmentValue;
+                    departmentId = departmentValue;
+                    console.log(`✅ Resolved department ID "${departmentValue}" to name "${departmentName}"`);
+                  } else {
+                    // Look for matching label in department options
+                    const foundDept = Object.entries(deptOptions).find(([key, val]) => {
+                      if (typeof val === 'object' && val.label) {
+                        return val.label === departmentValue || val.name === departmentValue || val.value === departmentValue;
+                      }
+                      return val === departmentValue;
+                    });
+                    
+                    if(foundDept) {
+                      const [key, val] = foundDept;
+                      departmentName = typeof val === 'object' ? (val.label || val.name || val.value) : val;
+                      departmentId = key;
+                      console.log(`✅ Found department by name match: "${departmentName}" (${departmentId})`);
+                    } else {
+                      // Use the raw value as department name (exact value from user record)
+                      departmentName = departmentValue;
+                      departmentId = userData.departmentId || departmentValue;
+                      console.log(`✅ Using exact department name from user record: "${departmentName}"`);
+                    }
+                  }
+                } else {
+                  // No department options available, use exact value from user record
+                  departmentName = departmentValue;
+                  departmentId = userData.departmentId || departmentValue;
+                  console.log(`✅ No department options found, using exact value: "${departmentName}"`);
+                }
+              } catch(e) {
+                console.warn('Error resolving department name:', e);
+                departmentName = departmentValue;
+                departmentId = userData.departmentId || departmentValue;
+              }
+              
               departmentField.value = departmentName;
               if(departmentIdField && departmentId) {
                 departmentIdField.value = departmentId;

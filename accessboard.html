@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+ <!DOCTYPE html>
 <html lang="en">
 <head>
 	<meta charset="UTF-8">
@@ -2064,6 +2064,34 @@
 						       } else {
 							       console.log('❌ Approval flow not configured or disabled');
 						       }
+						       
+						       // ADDITIONAL CHECK: Also check per-request selectedRoles for approval assignments
+						       console.log('🔍 Checking per-request selectedRoles assignments');
+						       for (const request of this.allRequests) {
+							       if (request.selectedRoles && typeof request.selectedRoles === 'object') {
+								       let foundInThisRequest = false;
+								       for (const levelKey of Object.keys(request.selectedRoles)) {
+									       const levelArr = request.selectedRoles[levelKey];
+									       if (Array.isArray(levelArr)) {
+										       for (const approver of levelArr) {
+											       const aVal = (approver && (approver.value || approver.uid || approver.id || approver.userId)) || '';
+											       const aEmail = (approver && (approver.email || approver.userEmail)) ? String(approver.email || approver.userEmail).toLowerCase().trim() : '';
+											       const aName = (approver && (approver.name || approver.text || approver.displayName)) ? String(approver.name || approver.text || approver.displayName).toLowerCase().trim() : '';
+											       
+											       if (aVal === userId || (aEmail && aEmail === userEmail) || (aName && userName && aName === userName)) {
+												       console.log(`✅ User assigned to request ${request.id} via selectedRoles (${levelKey})`);
+												       if (!approvalFlowAssignedRequests.find(r => r.id === request.id)) {
+													       approvalFlowAssignedRequests.push(request);
+												       }
+												       foundInThisRequest = true;
+												       break;
+											       }
+										       }
+										       if (foundInThisRequest) break;
+									       }
+								       }
+							       }
+						       }
 					       } catch (e) {
 						       console.error('❌ Error loading approval flow for visibility check:', e);
 					       }
@@ -2571,6 +2599,149 @@
 			} catch(err){
 				console.error('Export preview PDF failed', err);
 				alert('Failed to export preview as PDF: ' + (err.message||err));
+			}
+		}
+
+		// Export the Gate Pass modal A4 sheet as PDF (same display as leave details modal)
+		async exportModalA4AsPdf(rec){
+			try{
+				// Allow passing an ID string; resolve to record
+				if (rec && typeof rec === 'string') {
+					const found = this.allRequests?.find(r=>r.id===rec);
+					if (found) rec = found; else rec = { id: rec };
+				}
+				const originalContainer = this.modal.root?.querySelector('.a4-sheet');
+				if(!originalContainer){ alert('Nothing to export'); return; }
+				
+				// Wait for approval flow to finish loading (check if still showing loading spinner)
+				const approvalContent = originalContainer.querySelector('#approvalFlowContent');
+				if (approvalContent && approvalContent.classList.contains('approval-flow-loading')) {
+					console.log('🔄 Waiting for approval flow to load...');
+					// Wait up to 5 seconds for approval flow to load
+					let attempts = 0;
+					while (approvalContent.classList.contains('approval-flow-loading') && attempts < 50) {
+						await new Promise(resolve => setTimeout(resolve, 100));
+						attempts++;
+					}
+					if (attempts >= 50) {
+						console.warn('⚠️ Approval flow still loading after 5 seconds, proceeding with export');
+					} else {
+						console.log('✅ Approval flow loaded, proceeding with export');
+					}
+				}
+				
+				// Ensure libs
+				if(!window.jspdf){ await this._loadScriptOnce('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'); }
+				if(!window.html2canvas){ await this._loadScriptOnce('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'); }
+
+				// Clone the container to a fixed off-screen element for proper rendering
+				const clone = originalContainer.cloneNode(true);
+				clone.style.cssText = `
+					position: fixed !important;
+					left: 0 !important;
+					top: 0 !important;
+					width: 794px !important;
+					min-height: auto !important;
+					padding: 20px !important;
+					margin: 0 !important;
+					background: #ffffff !important;
+					box-shadow: none !important;
+					border: none !important;
+					border-radius: 0 !important;
+					z-index: 99999 !important;
+					transform: none !important;
+					opacity: 1 !important;
+					visibility: visible !important;
+					overflow: visible !important;
+				`;
+				
+				// Remove any hidden/collapsed elements and ensure all text is visible
+				clone.querySelectorAll('*').forEach(el => {
+					const style = window.getComputedStyle(el);
+					if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') {
+						el.style.display = el.tagName === 'SPAN' ? 'inline' : 'block';
+						el.style.visibility = 'visible';
+						el.style.opacity = '1';
+					}
+				});
+				
+				document.body.appendChild(clone);
+				
+				// Wait for fonts and images to load
+				await document.fonts?.ready;
+				await new Promise(resolve => setTimeout(resolve, 200));
+				
+				// Debug: log content before capture
+				console.log('📄 Content to capture:', clone.innerText.substring(0, 200), '...');
+				console.log('📏 Clone dimensions:', clone.scrollWidth, 'x', clone.scrollHeight);
+				
+				// Inline images to avoid CORS/taint issues
+				const imgs = Array.from(clone.querySelectorAll('img'));
+				const toDataUrl = async (url)=>{
+					try {
+						const res = await fetch(url, {mode:'cors', credentials:'omit'});
+						const blob = await res.blob();
+						return await new Promise((resolve)=>{ const fr=new FileReader(); fr.onload=()=>resolve(fr.result); fr.readAsDataURL(blob); });
+					} catch(e) { return null; }
+				};
+				for(const img of imgs){
+					try{
+						const src = img.getAttribute('src')||'';
+						if(!src || src.startsWith('data:')) continue;
+						const dataUrl = await toDataUrl(src);
+						if(dataUrl) img.setAttribute('src', dataUrl);
+					}catch(e){ /* skip image on failure */ }
+				}
+
+				// Render cloned container to canvas at high quality
+				const canvas = await window.html2canvas(clone, { 
+					scale: 2, 
+					backgroundColor: '#ffffff', 
+					useCORS: true, 
+					allowTaint: true, 
+					logging: true,
+					width: 794,
+					height: clone.scrollHeight,
+					windowWidth: 794,
+					windowHeight: clone.scrollHeight,
+					x: 0,
+					y: 0,
+					scrollX: 0,
+					scrollY: 0
+				});
+				
+				// Remove the clone
+				document.body.removeChild(clone);
+
+				const imgData = canvas.toDataURL('image/png');
+				const pdf = new window.jspdf.jsPDF({ unit: 'pt', format: 'a4', orientation: 'portrait' });
+				const pageWidth = pdf.internal.pageSize.getWidth();  // 595.28pt
+				const pageHeight = pdf.internal.pageSize.getHeight(); // 841.89pt
+				const margin = 20;
+				const imgWidth = pageWidth - margin * 2;
+				const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+				let heightLeft = imgHeight;
+				let position = margin;
+				
+				// First page
+				pdf.addImage(imgData, 'PNG', margin, position, imgWidth, imgHeight);
+				heightLeft -= (pageHeight - margin * 2);
+				
+				// Additional pages if needed
+				while(heightLeft > 0){
+					pdf.addPage();
+					position = margin - (imgHeight - heightLeft);
+					pdf.addImage(imgData, 'PNG', margin, position, imgWidth, imgHeight);
+					heightLeft -= (pageHeight - margin * 2);
+				}
+
+				const filename = `gate_pass_${rec?.referenceNumber || rec?.id || 'modal'}.pdf`;
+				pdf.save(filename);
+				console.log('✅ PDF exported successfully:', filename);
+			} catch(err){
+				console.error('Export modal PDF failed', err);
+				alert('Failed to export PDF: ' + (err.message||err));
 			}
 		}
 		buildModalContent(rec){ 
@@ -3214,7 +3385,7 @@
 						
 						approvalRows.push(`
 							<tr>
-								<td>${approverTitle ? `${approverName}<br><span style="font-size:.55rem;color:#6b7280;">${this.escape(approverTitle)}</span>` : approverName}</td>
+								<td style="text-align:left;">${approverTitle ? `${approverName}<br><span style="font-size:.55rem;color:#6b7280;">${this.escape(approverTitle)}</span>` : approverName}</td>
 								<td><span class="status-chip ${statusClass}">${statusText}</span></td>
 								<td>${timestamp}</td>
 								<td style="text-align:center;">${signature}</td>
@@ -3230,7 +3401,7 @@
 				return `
 					<table class="a4-info-table">
 						<thead>
-							<tr><th>Approver(s)</th><th style="width:90px;">Status</th><th style="width:140px;">Timestamp</th><th style="width:100px;">Signature</th></tr>
+							<tr><th style="text-align:left;">Approver(s)</th><th style="width:90px;">Status</th><th style="width:140px;">Timestamp</th><th style="width:100px;">Signature</th></tr>
 						</thead>
 						<tbody>
 							${approvalRows.join('')}
@@ -3330,10 +3501,13 @@
 				console.log('❌ NOT adding Decline button:', { canApprove, isSubmitted, isUpdated, status });
 			}
 			
-			// Export button - always show
+			// Export/Print buttons - always show
 			if (canExport) {
 				buttons += `
-					<button type="button" class="btn btn-info" onclick="event.stopPropagation(); console.log('PDF Button clicked for:', '${rec.id}'); window.accessBoardManager?.exportAccessRequest('${rec.id}');" title="Export as PDF">
+					<button type="button" class="btn btn-secondary" onclick="event.stopPropagation(); window.print();" title="Print">
+						<i class="fas fa-print"></i>
+					</button>
+					<button type="button" class="btn btn-info" onclick="event.stopPropagation(); console.log('PDF Button clicked for:', '${rec.id}'); window.accessBoardManager?.exportModalA4AsPdf('${rec.id}');" title="Save as PDF">
 						<i class="fas fa-file-pdf"></i>
 					</button>
 				`;
