@@ -2698,7 +2698,6 @@
 						   const canViewAllPerm = userAccessSettings.canViewAll === true;
 						   if (canViewAllPerm) {
 							   canViewAll = true;
-							   console.log('✅ User has canViewAll permission from access control settings');
 						   }
 					   } catch(e) { 
 						   console.warn('canViewAll check failed', e); 
@@ -2743,7 +2742,6 @@
 								   }
 								   return allowedAreas.some(a => a.toLowerCase().trim() === requestArea);
 							   });
-							   console.log('📍 User restricted to areas:', allowedAreas, '- showing', this.userFilteredRequests.length, 'of', this.allRequests.length, 'requests (own requests always visible)');
 						   } else {
 							   // No area restriction - show all
 							   this.userFilteredRequests = this.allRequests;
@@ -2802,7 +2800,6 @@
 					       
 					       // CRITICAL FIX: Check if user is eligible to approve any request based on approval flow configuration
 					       let approvalFlowAssignedRequests = [];
-					       console.log('🔍 Checking approval flow assignments for user:', userId);
 					       try {
 						       const approvalFlowRef = firebase.database().ref(`companies/${companyId}/approvalFlows/access`);
 						       const approvalSnapshot = await approvalFlowRef.once('value');
@@ -2811,45 +2808,21 @@
 						       // Store approval flow config for later use in rendering
 						       this._approvalFlowConfig = approvalConfig;
 						       
-						       console.log('📋 Approval flow config loaded:', approvalConfig);
-						       
 						       if (approvalConfig && approvalConfig.enabled && Array.isArray(approvalConfig.levels)) {
-							       console.log('✅ Approval flow is enabled with', approvalConfig.levels.length, 'levels');
-							       
 							       for (const request of this.allRequests) {
-								       let canApproveThisRequest = false;
-								       
 								       try {
 									       for (const level of approvalConfig.levels) {
-										       console.log(`🔍 Checking level ${level.level} (${level.approverType}=${level.value}) for request ${request.id}`);
 										       const canApproveAtLevel = await this.checkApprovalPermissionForLevel(level, currentUser, request);
-										       console.log(`📊 Can approve level ${level.level}:`, canApproveAtLevel);
-										       
 										       if (canApproveAtLevel) {
-											       console.log(`✅ User can approve request ${request.id} at level ${level.level}`);
 											       approvalFlowAssignedRequests.push(request);
-											       canApproveThisRequest = true;
-											       break; // Found at least one level they can approve, no need to check others for this request
+											       break;
 										       }
 									       }
-									       
-									       if (!canApproveThisRequest) {
-										       console.log(`❌ User cannot approve request ${request.id} at any level`);
-									       }
-									       
-								       } catch (e) {
-									       console.warn('Error checking approval permission for request', request.id, e);
-								       }
+								       } catch (e) { /* skip request on error */ }
 							       }
-							       
-							       console.log('📊 Total requests assigned via approval flow:', approvalFlowAssignedRequests.length);
-							       
-						       } else {
-							       console.log('❌ Approval flow not configured or disabled');
 						       }
 						       
-						       // ADDITIONAL CHECK: Also check per-request selectedRoles for approval assignments
-						       console.log('🔍 Checking per-request selectedRoles assignments');
+						       // Check per-request selectedRoles for approval assignments
 						       for (const request of this.allRequests) {
 							       if (request.selectedRoles && typeof request.selectedRoles === 'object') {
 								       let foundInThisRequest = false;
@@ -2862,7 +2835,6 @@
 											       const aName = (approver && (approver.name || approver.text || approver.displayName)) ? String(approver.name || approver.text || approver.displayName).toLowerCase().trim() : '';
 											       
 											       if (aVal === userId || (aEmail && aEmail === userEmail) || (aName && userName && aName === userName)) {
-												       console.log(`✅ User assigned to request ${request.id} via selectedRoles (${levelKey})`);
 												       if (!approvalFlowAssignedRequests.find(r => r.id === request.id)) {
 													       approvalFlowAssignedRequests.push(request);
 												       }
@@ -2898,18 +2870,9 @@
 							       }
 							       return allowedAreas.some(a => a.toLowerCase().trim() === requestArea);
 						       });
-						       console.log('📍 User restricted to areas:', allowedAreas, '- filtered to', filteredRequests.length, 'requests');
 					       }
 					       
 					       this.userFilteredRequests = filteredRequests;
-					       console.log('📊 Access filter counts:', {
-						       all: this.allRequests.length,
-						       createdBy: createdByUser.length,
-						       assignedTo: assignedToUser.length,
-						       approvalFlowAssigned: approvalFlowAssignedRequests.length,
-						       afterAreaFilter: filteredRequests.length,
-						       final: this.userFilteredRequests.length
-					       });
 				       }
 			       } else {
 				       this.userFilteredRequests = [];
@@ -2917,62 +2880,94 @@
 			       // Resolve requester names (replace emails with full names where possible)
 			       try{
 				       await this.resolveRequesterNames();
-			       } catch(e){ console.warn('Requester name resolution failed',e); }
+			       } catch(e){ /* silently fail */ }
 			       this.applyFilters();
 			       // Load approver info from approval flow config (async, will re-render when done)
-			       this.loadApproverInfoForRecords().catch(e => console.warn('Approver info load failed', e));
+			       this.loadApproverInfoForRecords().catch(e => {});
 		       });
 	       }
 
 		// Try to replace requester email/identifiers with full display names when available
 		async resolveRequesterNames(){
 			if(!Array.isArray(this.allRequests) || this.allRequests.length===0) return;
-			// Cache of users when we need to search by email
-			if(!this._usersCacheAll) this._usersCacheAll=null;
-			const promises=this.allRequests.map(async rec=>{
-				try{
-					// If requesterName already looks like a proper name (no @), still compute employee code then skip name resolution
+			
+			// Pre-load all users cache once for batch resolution
+			if(this._usersCacheAll === null || this._usersCacheAll === undefined) {
+				try {
+					const usnap = await firebase.database().ref('users').once('value');
+					this._usersCacheAll = usnap.exists() ? usnap.val() : {};
+				} catch(e) { this._usersCacheAll = {}; }
+			}
+			
+			// Process all records synchronously using cached data (no async per-record)
+			for (const rec of this.allRequests) {
+				try {
+					// If requesterName already looks like a proper name (no @), just compute employee ID
 					if(rec.requesterName && typeof rec.requesterName==='string' && rec.requesterName.indexOf('@')===-1){
-						try { const emp = await this.getRequesterEmployeeId(rec); if(emp) rec._displayEmployeeId = emp; } catch(_e){}
-						return;
+						this.getRequesterEmployeeIdSync(rec);
+						continue;
 					}
-					// Prefer explicit userId fields
+					
+					// Prefer explicit userId fields - look up from cache
 					const uid = rec.userId || rec.requesterUserId || rec.requesterUid || rec.employeeUserId || rec.requesterEmployeeId;
-					if(uid){
-						const snap = await firebase.database().ref(`users/${uid}`).once('value');
-						if(snap.exists()){
-							const u = snap.val();
-							rec.requesterName = u.displayName || u.name || u.username || u.email || rec.requesterName;
-							// Also compute display employee ID for this record
-							try { const emp = await this.getRequesterEmployeeId(rec); if(emp) rec._displayEmployeeId = emp; } catch(_e){}
-							return;
-						}
+					if(uid && this._usersCacheAll && this._usersCacheAll[uid]){
+						const u = this._usersCacheAll[uid];
+						rec.requesterName = u.displayName || u.name || u.username || u.email || rec.requesterName;
+						this.getRequesterEmployeeIdSync(rec);
+						continue;
 					}
-					// If requesterName is an email, try to lookup user by email from users list
+					
+					// If requesterName is an email, try to lookup user by email from cached users list
 					const maybeEmail = (rec.requesterName && rec.requesterName.includes('@')) ? rec.requesterName : (rec.requesterEmail || rec.requester);
 					if(maybeEmail && typeof maybeEmail==='string' && maybeEmail.includes('@')){
-						if(this._usersCacheAll===null){
-							const usnap = await firebase.database().ref('users').once('value');
-							this._usersCacheAll = usnap.exists() ? usnap.val() : {};
-						}
+						const emailLower = maybeEmail.toLowerCase();
+						let found = false;
 						for(const [k,u] of Object.entries(this._usersCacheAll||{})){
-							if(u && u.email && u.email.toLowerCase()===maybeEmail.toLowerCase()){
+							if(u && u.email && u.email.toLowerCase()===emailLower){
 								rec.requesterName = u.displayName || u.name || u.username || u.email;
-								try { const emp = await this.getRequesterEmployeeId(rec); if(emp) rec._displayEmployeeId = emp; } catch(_e){}
-								return;
+								this.getRequesterEmployeeIdSync(rec);
+								found = true;
+								break;
 							}
 						}
-						// fallback: infer from email local-part
-						const inferred = maybeEmail.split('@')[0].replace(/[._]/g,' ').split(' ').map(w=> w.charAt(0).toUpperCase()+w.slice(1)).join(' ');
-						rec.requesterName = inferred || rec.requesterName;
-						try { const emp = await this.getRequesterEmployeeId(rec); if(emp) rec._displayEmployeeId = emp; } catch(_e){}
-						return;
+						if (!found) {
+							// fallback: infer from email local-part
+							const inferred = maybeEmail.split('@')[0].replace(/[._]/g,' ').split(' ').map(w=> w.charAt(0).toUpperCase()+w.slice(1)).join(' ');
+							rec.requesterName = inferred || rec.requesterName;
+							this.getRequesterEmployeeIdSync(rec);
+						}
 					}
-				}catch(e){
-					console.warn('Error resolving requester name for', rec.id, e);
+				}catch(e){ /* skip on error */ }
+			}
+		}
+		
+		// Synchronous version of getRequesterEmployeeId using cached company users
+		getRequesterEmployeeIdSync(rec){
+			try{
+				if(rec && rec._displayEmployeeId) return rec._displayEmployeeId;
+				const companyUsers = this.companyUsersCache || {};
+				const uid = rec?.userId || rec?.requesterUserId || rec?.requesterUid || rec?.employeeUserId || rec?.requesterEmployeeId;
+				let code = '';
+				if(uid && companyUsers && companyUsers[uid]){
+					const u = companyUsers[uid] || {};
+					code = u.employeeId || u.employeeCode || u.empCode || u.code || '';
 				}
-			});
-			await Promise.all(promises);
+				// fallback by email match if no uid hit
+				if(!code){
+					const email = (rec?.requesterEmail || rec?.requester || '').toLowerCase();
+					if(email && companyUsers){
+						for(const k in companyUsers){
+							const u = companyUsers[k];
+							const uEmail = String(u?.email||'').toLowerCase();
+							if(uEmail && uEmail===email){ code = u.employeeId || u.employeeCode || u.empCode || u.code || ''; if(code) break; }
+						}
+					}
+				}
+				// Final fallback to any existing field in the record
+				code = code || rec?.employeeCode || rec?.empCode || rec?.employee_id || rec?.employeeId || rec?.requesterEmployeeId || '';
+				rec._displayEmployeeId = code;
+				return code;
+			}catch(e){ return rec?.employeeId || rec?.requesterEmployeeId || ''; }
 		}
 
 		// ===== Company users directory helpers =====
@@ -3114,7 +3109,6 @@
 			try {
 				// First try to get the line manager name that was saved when the request was submitted
 				if (record.requesterLineManager) {
-					console.log('✅ Using saved line manager from request:', record.requesterLineManager);
 					return this.escape(record.requesterLineManager);
 				}
 				
@@ -3122,68 +3116,50 @@
 				const companyUsers = this.companyUsersCache || {};
 				const submitterUid = record.submittedBy || record.createdBy || record.userId;
 				
-				console.log('🔍 Fallback - getApproverDisplayName - Record:', {
-					id: record.id,
-					submittedBy: record.submittedBy,
-					createdBy: record.createdBy,
-					userId: record.userId,
-					finalSubmitterUid: submitterUid
-				});
-				
-				if (!submitterUid) {
-					console.log('❌ No submitter UID found');
-					return '';
-				}
+				if (!submitterUid) return '';
 				
 				const submitter = companyUsers[submitterUid];
-				console.log('👤 Submitter data:', submitter);
 				
 				if (submitter) {
 					// Prefer the explicit line manager name saved by companymanagement.html
 					let lmName = submitter.lineManager || submitter.lineManagerName || '';
-					console.log('📋 Line manager name from submitter:', lmName);
 					
 					// If only ID is stored or name is empty, resolve ID to name
 					if ((!lmName || /^(uid_|[A-Za-z0-9_-]{15,})$/.test(String(lmName).trim())) && submitter.lineManagerId && companyUsers[submitter.lineManagerId]) {
 						const manager = companyUsers[submitter.lineManagerId];
 						lmName = manager?.name || manager?.displayName || manager?.fullName || '';
-						console.log('🎯 Resolved line manager from ID:', submitter.lineManagerId, '→', lmName);
 					}
 					
 					// Clean formatting like "Name (Dept - Title)"
 					if (lmName) {
 						const nameOnly = lmName.match(/^([^()\-]+?)(?:\s*\([^)]*\))?(?:\s*-\s*.*)?$/);
-						const result = this.escape((nameOnly ? nameOnly[1] : lmName).trim());
-						console.log('✅ Final line manager name:', result);
-						return result;
-					} else {
-						console.log('⚠️ No line manager name found for submitter');
+						return this.escape((nameOnly ? nameOnly[1] : lmName).trim());
 					}
-				} else {
-					console.log('❌ Submitter not found in company users cache');
 				}
 				return '';
 			} catch (e) {
-				console.error('Error getting approver display name:', e);
 				return '';
 			}
 		}
 		
 		// Get approver display with job title for table column (from approval flow config)
 		getApproverWithTitle(record) {
+			// Helper: Format job title - convert hyphenated values to title case (e.g., 'hse-manager' -> 'HSE Manager')
+			const formatJobTitle = (value) => {
+				if (!value || value === '-') return '';
+				return value.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ');
+			};
+			
 			try {
-				console.log(`🔍 getApproverWithTitle for record ${record.id}`, this._approverCache?.[record.id]);
 				// First try to get from cached approval flow data
 				const approverInfo = this._approverCache?.[record.id];
 				if (approverInfo) {
-					console.log(`✅ Using cached approver info for ${record.id}:`, approverInfo);
-					if (approverInfo.title) {
-						return `<span class="approver-name">${this.escape(approverInfo.name)}</span><br><span class="approver-title" style="font-size:.65rem;color:#6b7280;">${this.escape(approverInfo.title)}</span>`;
+					const formattedTitle = formatJobTitle(approverInfo.title);
+					if (formattedTitle) {
+						return `<span class="approver-name">${this.escape(approverInfo.name)}</span><br><span class="approver-title" style="font-size:.65rem;color:#6b7280;">${this.escape(formattedTitle)}</span>`;
 					}
 					return this.escape(approverInfo.name);
 				}
-				
-				console.log(`⚠️ No cached approver info for ${record.id}, trying direct resolution`);
 				
 				// Try to resolve directly from company users if cache is missing
 				const companyUsers = this.companyUsersCache || {};
@@ -3193,9 +3169,8 @@
 				if (submitter && submitter.lineManagerId && companyUsers[submitter.lineManagerId]) {
 					const manager = companyUsers[submitter.lineManagerId];
 					const managerName = manager.name || manager.displayName || manager.fullName || '';
-					const managerTitle = (manager.jobTitle || manager.title || manager.jobTitleName || manager.position || manager.designation || '').trim();
-					
-					console.log(`🎯 Direct resolution for ${record.id}:`, { name: managerName, title: managerTitle });
+					const rawTitle = (manager.jobTitle || manager.title || manager.jobTitleName || manager.position || manager.designation || '').trim();
+					const managerTitle = formatJobTitle(rawTitle);
 					
 					if (managerName && managerTitle) {
 						return `<span class="approver-name">${this.escape(managerName)}</span><br><span class="approver-title" style="font-size:.65rem;color:#6b7280;">${this.escape(managerTitle)}</span>`;
@@ -3204,12 +3179,10 @@
 					}
 				}
 				
-				console.log(`⚠️ Direct resolution failed for ${record.id}, falling back to getApproverDisplayName`);
 				// Fallback to line manager name without title while loading
 				const name = this.getApproverDisplayName(record);
 				return name ? this.escape(name) : '';
 			} catch (e) {
-				console.error('Error getting approver with title:', e);
 				return this.getApproverDisplayName(record);
 			}
 		}
@@ -3218,25 +3191,17 @@
 		async loadApproverInfoForRecords() {
 			try {
 				const companyId = window.authManager?.currentUser?.companyId;
-				if (!companyId) {
-					console.warn('🚫 loadApproverInfoForRecords: No company ID');
-					return;
-				}
+				if (!companyId) return;
 				
 				// Fetch approval flow config
 				const configSnap = await firebase.database().ref(`companies/${companyId}/approvalFlows/access`).once('value');
 				const config = configSnap.val();
-				console.log('📋 loadApproverInfoForRecords: Config loaded:', config);
 				
-				if (!config || !config.enabled) {
-					console.warn('🚫 loadApproverInfoForRecords: Config disabled or missing');
-					return;
-				}
+				if (!config || !config.enabled) return;
 				
 				// Check for both selectedRoles and levels structures
 				let approverLevels = [];
 				if (config.selectedRoles && typeof config.selectedRoles === 'object') {
-					console.log('📋 Using selectedRoles structure');
 					const levelKeys = Object.keys(config.selectedRoles).sort();
 					if (levelKeys.length > 0) {
 						const firstLevelConfig = config.selectedRoles[levelKeys[0]];
@@ -3245,22 +3210,17 @@
 						}
 					}
 				} else if (Array.isArray(config.levels) && config.levels.length > 0) {
-					console.log('📋 Using levels structure');
 					approverLevels = config.levels.map((level, index) => ({
 						level: index + 1,
 						config: level
 					}));
 				}
 				
-				if (approverLevels.length === 0) {
-					console.warn('🚫 loadApproverInfoForRecords: No approver levels found');
-					return;
-				}
+				if (approverLevels.length === 0) return;
 				
 				// Ensure company users are loaded
 				await this.ensureCompanyUsersLoaded();
 				const companyUsers = this.companyUsersCache || {};
-				console.log('👥 Company users loaded:', Object.keys(companyUsers).length);
 				
 				// Initialize cache
 				this._approverCache = this._approverCache || {};
@@ -3333,10 +3293,7 @@
 					}
 					
 					this._approverCache[record.id] = { name: approverName, title: approverTitle };
-					console.log(`🏷️  Cached approver for ${record.id}:`, { name: approverName, title: approverTitle });
 				}
-				
-				console.log('✅ Approver cache populated with', Object.keys(this._approverCache).length, 'records');
 				
 				// Re-render to show updated approver info
 				this.render();
@@ -4104,12 +4061,26 @@
 						user = findUserByEmail(h.approverEmail);
 					}
 					const name = (user?.name || user?.displayName || h?.approverName || '').trim() || 'Approver';
-					const title = (user?.jobTitle || user?.title || user?.jobTitleName || user?.position || user?.designation || user?.role || '').trim();
+					let title = (user?.jobTitle || user?.title || user?.jobTitleName || user?.position || user?.designation || '').trim();
+					// Format job title - convert hyphenated values to title case
+					title = formatJobTitle(title);
+					// IMPORTANT: Don't use title if it's the same as the name
+					if (title && title.toLowerCase() === name.toLowerCase()) {
+						title = '';
+					}
 					return { user, name, title, display: title ? `${name} — ${title}` : name };
 				};
+				// Helper: Format job title - convert hyphenated values to title case (e.g., 'hse-manager' -> 'HSE Manager')
+				const formatJobTitle = (value) => {
+					if (!value || value === '-') return '';
+					return value.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ');
+				};
+				
 				// Helper: best-effort job title resolver from company management user record
 				const getUserJobTitle = (u) => {
-					return (u?.jobTitle || u?.title || u?.jobTitleName || u?.position || u?.designation || u?.role || '').trim();
+					// NOTE: Exclude 'role' as it sometimes contains the user's name, not their job title
+					const rawTitle = (u?.jobTitle || u?.title || u?.jobTitleName || u?.position || u?.designation || '').trim();
+					return formatJobTitle(rawTitle);
 				};
 				
 				// Build approval stages from configuration
@@ -4200,9 +4171,13 @@
 										const submitter = companyUsers[submitterUid];
 										const manager = (submitter.lineManagerId && companyUsers[submitter.lineManagerId]) ? companyUsers[submitter.lineManagerId] : null;
 										const savedTitle = (rec.requesterLineManagerTitle || '').trim();
-											const managerTitle = savedTitle || getUserJobTitle(manager);
-											// Prefer dropdown label if present; fallback to manager title
-											approverTitle = (approverConfig.text || '').trim() || managerTitle || 'Line Manager';
+										const managerTitle = savedTitle || getUserJobTitle(manager);
+										// ONLY use actual job title from user record, NOT config.text (it's usually the name)
+										if (managerTitle && managerTitle.toLowerCase() !== (approverName || '').toLowerCase()) {
+											approverTitle = managerTitle;
+										} else {
+											approverTitle = 'Line Manager';
+										}
 										if (managerTitle && !savedTitle) console.log(`✅ Got line manager job title from company data: ${managerTitle}`);
 									} else {
 										approverTitle = 'Line Manager';
@@ -4214,11 +4189,15 @@
 							} else if (approverId && companyUsers[approverId]) {
 								const approverData = companyUsers[approverId];
 								approverName = approverData.name || approverData.displayName || approverConfig.text || 'Unknown Approver';
-								approverTitle = approverData.jobTitle || approverData.role || '';
+								const rawTitleCandidate = (approverData.jobTitle || approverData.position || approverData.designation || '').trim();
+								const titleCandidate = formatJobTitle(rawTitleCandidate);
+								// Only use title if it's different from the name
+								approverTitle = (titleCandidate && titleCandidate.toLowerCase() !== (approverName || '').toLowerCase()) ? titleCandidate : '';
 								console.log(`✅ Resolved approver: ${approverName} (${approverTitle})`);
 							} else {
 								// Fallback to config text/email if user not found; try resolving by email or name for title
 								approverName = approverConfig.text || approverConfig.value || 'Unknown Approver';
+								approverTitle = ''; // Start with empty title
 								let resolved = null;
 								if (approverConfig.email) {
 									resolved = findUserByEmail(approverConfig.email);
@@ -4227,10 +4206,12 @@
 									resolved = findUserByName(approverName);
 								}
 								if (resolved) {
-									approverTitle = (resolved.jobTitle || resolved.title || resolved.jobTitleName || resolved.position || resolved.designation || resolved.role || '').trim();
-									console.log(`✅ Resolved approver by ${approverConfig.email? 'email':'name'}: ${approverName} (${approverTitle})`);
-								} else {
-									console.log(`⚠️ Using fallback name without user match: ${approverName}`);
+									const rawResolvedTitle = (resolved.jobTitle || resolved.title || resolved.jobTitleName || resolved.position || resolved.designation || '').trim();
+									const resolvedTitle = formatJobTitle(rawResolvedTitle);
+									// Only use title if it's different from the name
+									if (resolvedTitle && resolvedTitle.toLowerCase() !== (approverName || '').toLowerCase()) {
+										approverTitle = resolvedTitle;
+									}
 								}
 							}
 						}
@@ -4374,31 +4355,35 @@
 							} else if (approverId && companyUsers[approverId]) {
 								const approverData = companyUsers[approverId];
 								approverName = approverData.name || approverData.displayName || approverConfig.text || 'Unknown';
-								// Prefer company directory job title first
-								let titleFromUser = (approverData.jobTitle || approverData.title || approverData.jobTitleName || approverData.position || approverData.designation || approverData.role || '').trim();
-								if (titleFromUser) {
+								// Prefer company directory job title first - ONLY use actual job title fields
+								const rawTitleFromUser = (approverData.jobTitle || approverData.title || approverData.jobTitleName || approverData.position || approverData.designation || '').trim();
+								const titleFromUser = formatJobTitle(rawTitleFromUser);
+								// IMPORTANT: Only set title if it exists and is NOT the same as the name
+								if (titleFromUser && titleFromUser.toLowerCase() !== (approverName || '').toLowerCase()) {
 									approverTitle = titleFromUser;
 								} else {
-									const cfgText = (approverConfig.text || '').trim();
-									if (cfgText && cfgText.toLowerCase() !== (approverName || '').trim().toLowerCase()) {
-										approverTitle = cfgText;
-									}
+									// No job title found - leave empty, do NOT use config.text (it's often the name)
+									approverTitle = '';
 								}
 							} else {
-								// Fallback to config; use dropdown text as the job title display when available
+								// Approver not found in companyUsers - try to resolve by email/name
 								approverName = approverConfig.text || approverConfig.value || 'Unknown';
-								approverTitle = (approverConfig.text || '').trim();
-								// If config lacked a clear label, try resolving user by email or name for a title
-								if (!approverTitle) {
-									let resolved = null;
-									if (approverConfig.email) {
-										resolved = findUserByEmail(approverConfig.email);
-									}
-									if (!resolved && approverName) {
-										resolved = findUserByName(approverName);
-									}
-									if (resolved) {
-										approverTitle = (resolved.jobTitle || resolved.title || resolved.jobTitleName || resolved.position || resolved.designation || resolved.role || '').trim();
+								approverTitle = ''; // Start with empty title
+								
+								// Try resolving user by email or name to get their job title
+								let resolved = null;
+								if (approverConfig.email) {
+									resolved = findUserByEmail(approverConfig.email);
+								}
+								if (!resolved && approverName) {
+									resolved = findUserByName(approverName);
+								}
+								if (resolved) {
+									const rawResolvedTitle = (resolved.jobTitle || resolved.title || resolved.jobTitleName || resolved.position || resolved.designation || '').trim();
+									const resolvedTitle = formatJobTitle(rawResolvedTitle);
+									// Only use title if it's different from the name
+									if (resolvedTitle && resolvedTitle.toLowerCase() !== (approverName || '').toLowerCase()) {
+										approverTitle = resolvedTitle;
 									}
 								}
 							}
@@ -4450,7 +4435,10 @@
 						
 						approvalRows.push(`
 							<tr>
-								<td style="text-align:left;">${approverTitle ? `${approverName}<br><span style="font-size:.55rem;color:#6b7280;">${this.escape(approverTitle)}</span>` : approverName}</td>
+								<td style="text-align:left;">
+									<span class="approver-fullname">${this.escape(approverName)}</span><br>
+									<span class="approver-job">${this.escape(approverTitle)}</span>
+								</td>
 								<td><span class="status-chip ${statusClass}">${statusText}</span></td>
 								<td>${timestamp}</td>
 								<td style="text-align:center;">${signature}</td>

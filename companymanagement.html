@@ -40,6 +40,10 @@
                 const userCredential = await auth.signInWithEmailAndPassword(email, password);
                 const user = userCredential.user;
                 
+                // Update lastLogin timestamp in root users node
+                const now = new Date().toISOString();
+                await db.ref(`users/${user.uid}/lastLogin`).set(now);
+                
                 // Get user role and other data from the database
                 const userRef = db.ref(`users/${user.uid}`);
                 return new Promise((resolve, reject) => {
@@ -2392,10 +2396,36 @@
 
                     const users = Object.entries(usersObj).map(([uid, userData]) => ({ uid, ...userData }));
 
-                    this.users = users; // Store for dashboard computations
-                    console.log(`✅ Loaded ${users.length} users from Firebase`);
+                    // Fetch lastLogin from root /users/{uid} node for users with auth accounts
+                    const usersWithLastLogin = await Promise.all(users.map(async (user) => {
+                        try {
+                            // Only fetch for users with actual accounts (not reporting-only)
+                            const hasAccount = user.authUid || (user.accountType !== 'without-account' && user.canSignIn !== false && user.reportingOnly !== true);
+                            if (hasAccount) {
+                                const authUid = user.authUid || user.uid;
+                                const rootUserSnap = await db.ref(`users/${authUid}`).once('value');
+                                if (rootUserSnap.exists()) {
+                                    const rootUserData = rootUserSnap.val();
+                                    // Use lastLogin from root user node if available
+                                    if (rootUserData.lastLogin) {
+                                        user.lastLogin = rootUserData.lastLogin;
+                                    } else if (rootUserData.lastSignIn) {
+                                        user.lastLogin = rootUserData.lastSignIn;
+                                    } else if (rootUserData.lastLoginAt) {
+                                        user.lastLogin = rootUserData.lastLoginAt;
+                                    }
+                                }
+                            }
+                        } catch (e) {
+                            console.warn(`⚠️ Could not fetch lastLogin for user ${user.uid}:`, e.message);
+                        }
+                        return user;
+                    }));
 
-                    await this.displayUsers(users);
+                    this.users = usersWithLastLogin; // Store for dashboard computations
+                    console.log(`✅ Loaded ${usersWithLastLogin.length} users from Firebase (with lastLogin)`);
+
+                    await this.displayUsers(usersWithLastLogin);
                     await this.updateDashboardInfo(); // Ensure quota and counts update
                     console.log('🔄 Dashboard info updated after loading users');
                 } catch (err) {
@@ -14680,7 +14710,7 @@
 
             const lastLoginElement = document.getElementById('detailLastLogin');
             if (lastLoginElement) {
-                const lastLogin = userData.lastLogin ? new Date(userData.lastLogin).toLocaleDateString() : 'Never';
+                const lastLogin = userData.lastLogin ? new Date(userData.lastLogin).toLocaleString() : 'Never';
                 lastLoginElement.textContent = lastLogin;
             }
 
@@ -16544,7 +16574,7 @@
 
             // Last Login Cell
             const lastLoginCell = document.createElement('td');
-            const lastLogin = user.lastLogin ? new Date(user.lastLogin).toLocaleDateString() : 'Never';
+            const lastLogin = user.lastLogin ? new Date(user.lastLogin).toLocaleString() : 'Never';
             lastLoginCell.textContent = lastLogin;
 
             // Actions Cell
