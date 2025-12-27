@@ -1783,8 +1783,8 @@
 				// Store release button permission globally for modal button checks
 				window._canSeeReleaseButton = p && p.canSeeReleaseButton === true;
 
-				// Store release button permission globally for modal button checks
-				window._canSeeReleaseButton = p && p.canSeeReleaseButton === true;
+				// Store user's allowed areas globally for release button area checks
+				window._userAllowedAreas = (p && Array.isArray(p.allowedAreas)) ? p.allowedAreas : [];
 
 				// If current active tab is hidden, switch to board
 				const activeTab = document.querySelector('.tab-btn.active');
@@ -3304,7 +3304,7 @@
 		
 		canEdit(record){ const cu=window.authManager?.currentUser; if(!cu) return false; if(cu.role && ['admin','superadmin','company_admin','hr_manager'].some(r=> (cu.role||'').toLowerCase().includes(r))) return true; return record.userId===cu.uid; }
 		
-		// Check if current user can release the gate pass (creator/requester)
+		// Check if current user can release the gate pass (creator/requester OR authorized for the area)
 		canRelease(record) {
 			const cu = window.authManager?.currentUser;
 			if (!cu) return false;
@@ -3312,7 +3312,7 @@
 			const userId = cu.uid || cu.id;
 			const userEmail = (cu.email || '').toLowerCase().trim();
 			
-			// Only the creator/requester can release
+			// Creator/requester can always release their own requests
 			const isCreator = (
 				record.userId === userId ||
 				record.createdBy === userId ||
@@ -3329,7 +3329,28 @@
 				(typeof record.requester === 'string' && record.requester.toLowerCase() === userEmail)
 			);
 			
-			return isCreator;
+			if (isCreator) return true;
+			
+			// If user has release button permission, check if they are authorized for the request's area
+			if (window._canSeeReleaseButton === true) {
+				const allowedAreas = window._userAllowedAreas || [];
+				
+				// If no area restrictions, user can release any request
+				if (allowedAreas.length === 0) return true;
+				
+				// Get the request's area
+				let requestArea = (record.area || '').toLowerCase().trim();
+				if (!requestArea && Array.isArray(record.visitors) && record.visitors.length > 0) {
+					requestArea = (record.visitors[0].area || '').toLowerCase().trim();
+				}
+				
+				// Check if request's area is in user's allowed areas
+				if (requestArea && allowedAreas.some(a => a.toLowerCase().trim() === requestArea)) {
+					return true;
+				}
+			}
+			
+			return false;
 		}
 		
 		// Release gate pass for approval
