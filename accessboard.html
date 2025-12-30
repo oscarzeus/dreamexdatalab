@@ -3602,11 +3602,16 @@
 				rec.status = 'released';
 				rec.releasedAt = new Date().toISOString();
 				rec.releasedBy = cu.uid;
+				rec.releasedByName = cu.name || cu.displayName || cu.email;
 				
 				window.notificationManager?.addNotification({
 					type: 'success',
 					message: 'Gate pass released for approval'
 				});
+				
+				// Refresh modal content to show updated status
+				const m = this.modal;
+				if (m.body) m.body.innerHTML = this.buildModalContent(rec);
 				
 				// Refresh modal buttons
 				await this.updateModalActionButtons(rec);
@@ -4182,7 +4187,7 @@
 			// Use setTimeout to ensure DOM is ready
 			setTimeout(() => {
 				this.loadApprovalFlowAsync(rec);
-				this.loadGatePassStamp(); // Load stamp after modal content is ready
+				this.loadGatePassStamp(rec); // Load stamp after modal content is ready (only for approved)
 			}, 100);
 			
 			return `
@@ -4194,9 +4199,16 @@
 </div>`;
 		}
 		
-		// Load and display gate pass stamp in modal
-		async loadGatePassStamp() {
+		// Load and display gate pass stamp in modal (only for approved requests)
+		async loadGatePassStamp(rec) {
 			try {
+				// Only show stamp for approved requests
+				if (!rec || rec.status !== 'approved') {
+					const stampSection = document.getElementById('gatePassStampSection');
+					if (stampSection) stampSection.style.display = 'none';
+					return;
+				}
+				
 				const companyId = window.authManager?.currentUser?.companyId;
 				if (!companyId) return;
 				
@@ -5420,12 +5432,20 @@
 					// Update local record to reflect new state immediately
 					const localRec = (this.accessRequests||this.allRequests||[]).find(r => r.id === id);
 					if (localRec) {
-						localRec.status = updateData.status;
-						localRec.approvalHistory = updateData.approvalHistory;
+						// Merge all updateData into local record
+						Object.assign(localRec, updateData);
+						
+						// Refresh modal content to show updated status, stamp, timestamp, signature
+						const m = this.modal;
+						if (m.body) m.body.innerHTML = this.buildModalContent(localRec);
+						
+						// Reload approval flow and stamp
 						this.loadApprovalFlowAsync(localRec);
+						this.loadGatePassStamp(localRec);
 						this.updateModalActionButtons(localRec);
 					}
-					this.loadAccessRequests();
+					// Refresh data display
+					this.load(currentUser.companyId);
 				}).catch(error => {
 					console.error(`Error ${status === 'approved' ? 'approving' : 'declining'} access request:`, error);
 					alert(`Failed to ${status === 'approved' ? 'approve' : 'decline'} access request: ${error.message}`);
@@ -5473,9 +5493,16 @@
 						console.log(`✅ Access request ${status === 'approved' ? 'approved' : 'declined'} successfully`);
 						const localRec = (this.accessRequests||this.allRequests||[]).find(r => r.id === id);
 						if (localRec) {
-							localRec.status = updateData.status;
-							localRec.approvalHistory = updateData.approvalHistory;
+							// Merge all updateData into local record
+							Object.assign(localRec, updateData);
+							
+							// Refresh modal content to show updated status, stamp, timestamp, signature
+							const m = this.modal;
+							if (m.body) m.body.innerHTML = this.buildModalContent(localRec);
+							
+							// Reload approval flow and stamp
 							this.loadApprovalFlowAsync(localRec);
+							this.loadGatePassStamp(localRec);
 							this.updateModalActionButtons(localRec);
 						}
 					}).catch(error => {
