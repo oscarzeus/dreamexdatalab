@@ -1,4 +1,4 @@
- !DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 	<meta charset="UTF-8">
@@ -557,6 +557,23 @@
 	.delete-btn { background:#fee2e2; color:#dc2626; border:none; padding:4px 8px; border-radius:4px; cursor:pointer; font-size:.7rem; }
 	.delete-btn:hover { background:#fecaca; }
 
+	/* Stamp Upload Styles */
+	.stamp-upload-container { display:flex; align-items:center; gap:1.2rem; padding:1rem; border:2px dashed #d1d5db; border-radius:10px; cursor:pointer; transition:border-color .2s, background .2s; background:#fafbfc; }
+	.stamp-upload-container:hover { border-color:var(--primary-color); background:#f8fafc; }
+	.stamp-preview { width:120px; height:120px; object-fit:contain; border-radius:8px; display:none; background:#fff; border:1px solid #e5e7eb; }
+	.stamp-preview.visible { display:block; }
+	.stamp-placeholder { width:120px; height:120px; display:flex; align-items:center; justify-content:center; background:#f3f4f6; border-radius:8px; color:#9ca3af; font-size:2.5rem; }
+	.stamp-upload-text { flex:1; }
+	.stamp-upload-text h4 { margin:0 0 4px 0; font-size:.9rem; color:#374151; font-weight:600; }
+	.stamp-upload-text p { margin:0; font-size:.75rem; color:#6b7280; line-height:1.5; }
+	.stamp-file-input { display:none; }
+	.stamp-actions { margin-top:.8rem; display:flex; gap:8px; }
+	.stamp-actions.hidden { display:none; }
+	.stamp-actions .btn-upload { background:var(--primary-color); color:#fff; border:none; padding:6px 12px; border-radius:6px; font-size:.75rem; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:6px; }
+	.stamp-actions .btn-remove { background:#fee2e2; color:#dc2626; border:none; padding:6px 12px; border-radius:6px; font-size:.75rem; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:6px; }
+	.stamp-actions .btn-upload:hover { opacity:.9; }
+	.stamp-actions .btn-remove:hover { background:#fecaca; }
+
 	/* Approval Flow Table Styles - Matching Access Board */
 	.a4-info-table { width:100%; border-collapse:collapse; font-size:0.66rem; margin-top:8px; }
 	.a4-info-table thead, .a4-info-table tbody, .a4-info-table tr { display:revert; }
@@ -917,7 +934,7 @@
 				<div class="page-header">
 					<h1><i class="fas fa-suitcase-rolling"></i> Travel Management</h1>
 					<div class="page-actions">
-						<button id="newTravelRequestBtn" class="btn btn-primary"><i class="fas fa-plus"></i></button>
+						<button id="newTravelRequestBtn" class="btn" style="background:transparent;border:none;color:#fff;box-shadow:none;padding:0.5rem;"><i class="fas fa-plus"></i></button>
 					</div>
 				</div>
 
@@ -1122,6 +1139,35 @@
 											<tr><td colspan="9" style="text-align:center;color:#9ca3af">Loading...</td></tr>
 										</tbody>
 									</table>
+								</div>
+							</div>
+						</div>
+
+						<!-- Travel Stamp Section -->
+						<div class="settings-section">
+							<h3 onclick="toggleSettingsSection(this)"><i class="fas fa-stamp"></i> Approval Stamp <i class="fas fa-chevron-down toggle-icon"></i></h3>
+							<div class="settings-section-content">
+								<p style="font-size:.75rem;color:#6b7280;margin-bottom:.8rem">Upload a stamp image that will be displayed on approved travel requests and travel orders.</p>
+								<div class="stamp-upload-container" onclick="document.getElementById('travelStampFileInput').click()">
+									<img id="travelStampPreview" class="stamp-preview" src="" alt="Travel Stamp Preview">
+									<div id="travelStampPlaceholder" class="stamp-placeholder">
+										<i class="fas fa-stamp"></i>
+									</div>
+									<div class="stamp-upload-text">
+										<h4>Upload Approval Stamp</h4>
+										<p>Click to browse or drag & drop<br>
+										Supported: JPG, PNG, SVG (Max: 2MB)<br>
+										Recommended: 400x400px transparent PNG</p>
+									</div>
+									<input type="file" id="travelStampFileInput" class="stamp-file-input" accept="image/*" onchange="handleTravelStampUpload(event)">
+								</div>
+								<div class="stamp-actions hidden" id="travelStampActions">
+									<button type="button" class="btn-upload" onclick="event.stopPropagation(); document.getElementById('travelStampFileInput').click()">
+										<i class="fas fa-upload"></i> Change Stamp
+									</button>
+									<button type="button" class="btn-remove" onclick="event.stopPropagation(); removeTravelStamp()">
+										<i class="fas fa-trash"></i> Remove
+									</button>
 								</div>
 							</div>
 						</div>
@@ -1549,7 +1595,7 @@
 			getUserInitials(){ const n=this.getUserDisplayName(); const parts=n.split(' ').filter(Boolean); if(parts.length===1) return parts[0].substring(0,2).toUpperCase(); return (parts[0][0]+parts[1][0]).toUpperCase(); }
 			async getUserAvatarUrl(){ try { const storage=window.firebase.storage(); const avatarRef = storage.ref(`avatars/${this.currentUser.uid}/profile.jpg`); return await avatarRef.getDownloadURL(); } catch(e){ return null; } }
 			generateInitialsAvatar(name,img){ const initials=this.getUserInitials(); const bg=['#3498db','#e74c3c','#2ecc71','#9b59b6','#f39c12'][initials.charCodeAt(0)%5]; const svg=`<svg width="40" height="40" xmlns='http://www.w3.org/2000/svg'><rect width='40' height='40' rx='20' fill='${bg}'/><text x='20' y='24' font-size='14' font-family='Arial' fill='#fff' text-anchor='middle' font-weight='600'>${initials}</text></svg>`; img.src='data:image/svg+xml;base64,'+btoa(svg); }
-			async populateUserProfile(){ const btn=document.getElementById('userProfileBtn'); if(!btn || !this.currentUser) return; const img=btn.querySelector('img'); const url=await this.getUserAvatarUrl(); if(url){ img.src=url; } else { this.generateInitialsAvatar(this.getUserDisplayName(), img); } const dropdown=document.querySelector('.profile-dropdown ul'); if(dropdown){ dropdown.innerHTML=`<li style='padding:10px 14px; border-bottom:1px solid #eee; display:flex; align-items:center; gap:10px;'><div style='width:32px;height:32px;border-radius:50%;overflow:hidden;'>${url? `<img src='${url}' style='width:32px;height:32px;object-fit:cover;'/>`: `<div style="width:32px;height:32px;border-radius:50%;background:#3498db;display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:600;">${this.getUserInitials()}</div>`}</div><div style='display:flex;flex-direction:column;'><strong style='font-size:12px;'>${this.getUserDisplayName()}</strong><span style='font-size:10px;color:#666;'>${this.currentUser.email||''}</span></div></li><li><a href='#' id='logoutLink'><i class='fas fa-sign-out-alt'></i> Logout</a></li>`; const logoutLink=document.getElementById('logoutLink'); if(logoutLink){ logoutLink.addEventListener('click', e=>{ e.preventDefault(); localStorage.removeItem('currentUser'); localStorage.removeItem('user'); window.location.href='index.html'; }); } } }
+			async populateUserProfile(){ const btn=document.getElementById('userProfileBtn'); if(!btn || !this.currentUser) return; const img=btn.querySelector('img'); const url=await this.getUserAvatarUrl(); if(url){ img.src=url; } else { this.generateInitialsAvatar(this.getUserDisplayName(), img); } const dropdown=document.querySelector('.profile-dropdown ul'); if(dropdown){ dropdown.innerHTML=`<li style='padding:10px 14px; border-bottom:1px solid #eee; display:flex; align-items:center; gap:10px;'><div style='width:32px;height:32px;border-radius:50%;overflow:hidden;'>${url? `<img src='${url}' style='width:32px;height:32px;object-fit:cover;'/>`: `<div style="width:32px;height:32px;border-radius:50%;background:#3498db;display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:600;">${this.getUserInitials()}</div>`}</div><div style='display:flex;flex-direction:column;'><strong style='font-size:12px;'>${this.getUserDisplayName()}</strong><span style='font-size:10px;color:#666;'>${this.currentUser.email||''}</span></div></li><li><a href='profile.html'><i class='fas fa-user'></i> Profile</a></li><li><a href='#' id='logoutLink'><i class='fas fa-sign-out-alt'></i> Logout</a></li>`; const logoutLink=document.getElementById('logoutLink'); if(logoutLink){ logoutLink.addEventListener('click', e=>{ e.preventDefault(); localStorage.removeItem('currentUser'); localStorage.removeItem('user'); window.location.href='index.html'; }); } } }
 			resetMenuVisibility(){ document.querySelectorAll('[data-feature]').forEach(i=> i.classList.remove('menu-visible')); document.querySelectorAll('.menu-dropdown').forEach(d=> d.classList.remove('menu-visible')); }
 		}
 
@@ -2934,6 +2980,9 @@ const peopleInfo = Array.isArray(req.people) && req.people.length? `${req.people
 	<div class="a4-section">
 		<div class="a4-section-title"><i class="fas fa-stamp"></i><span class="section-text">Approval Flow</span></div>
 		<div id="travelSectionApproval" style="margin-top:8px;"></div>
+		<div id="travelRequestStampSection" style="display:none;text-align:left;margin-top:-10px;">
+			<img id="travelRequestStampImg" src="" alt="Approval Stamp" style="max-width:150px;max-height:150px;opacity:.85;" />
+		</div>
 	</div>
 </div>
 `;
@@ -2944,6 +2993,11 @@ const peopleInfo = Array.isArray(req.people) && req.people.length? `${req.people
 		
 		// Populate approval flow section
 		await populateApprovalFlowA4(req);
+		
+		// Load and display stamp if request is Approved
+		if (req.status === 'Approved') {
+			loadAndDisplayRequestStamp();
+		}
 		
 		// Update footer buttons based on permissions
 		await updateModalFooterButtons(req);
@@ -2960,6 +3014,27 @@ const peopleInfo = Array.isArray(req.people) && req.people.length? `${req.people
 			// Small delay to ensure content is fully rendered
 			setTimeout(() => window.print(), 100);
 		};
+	}
+	
+	// Load and display stamp on approved travel request
+	async function loadAndDisplayRequestStamp() {
+		try {
+			const user = window.authManager?.currentUser;
+			if (!user || !user.companyId) return;
+			
+			const snap = await firebase.database().ref(`companies/${user.companyId}/travelSettings/travelStamp`).once('value');
+			const stampUrl = snap.val();
+			
+			const stampSection = document.getElementById('travelRequestStampSection');
+			const stampImg = document.getElementById('travelRequestStampImg');
+			
+			if (stampUrl && stampSection && stampImg) {
+				stampImg.src = stampUrl;
+				stampSection.style.display = 'block';
+			}
+		} catch (error) {
+			console.warn('Could not load travel stamp:', error);
+		}
 	}
 	
 	function closeTravelModal() {
@@ -3293,15 +3368,17 @@ const peopleInfo = Array.isArray(req.people) && req.people.length? `${req.people
 						
 						timestamp = fmtDate(approvalRecord.approvedAt || approvalRecord.submittedAt || approvalRecord.timestamp);
 						
-						// Get signature
-						let signatureUrl = approvalRecord.signature || '';
+						// Get signature - ALWAYS use real-time Firebase signature first, fallback to stored
 						const approverUidValue = approvalRecord.userId || approvalRecord.approvedBy || approvalRecord.approverUid || approvalRecord.approverId || '';
+						let signatureUrl = '';
 						
-						// Use signature maps exactly like leave modal
-						if (!signatureUrl && approverUidValue && signatureMapById[approverUidValue]) {
+						// Priority: 1) Real-time signature by UID, 2) Real-time signature by name, 3) Stored signature
+						if (approverUidValue && signatureMapById[approverUidValue]) {
 							signatureUrl = signatureMapById[approverUidValue];
-						} else if (!signatureUrl && approverName) {
-							signatureUrl = signatureMap[approverName.toLowerCase()] || '';
+						} else if (approverName && signatureMap[approverName.toLowerCase()]) {
+							signatureUrl = signatureMap[approverName.toLowerCase()];
+						} else {
+							signatureUrl = approvalRecord.signature || '';
 						}
 						
 						// Only show signature image if URL is valid and not empty (exact same check as leave modal)
@@ -3726,6 +3803,22 @@ const peopleInfo = Array.isArray(req.people) && req.people.length? `${req.people
 			if(e.target === modal){ 
 				closeTravelModal(); 
 			} 
+		});
+		
+		// Listen for signature updates from profile.html (cross-tab communication)
+		window.addEventListener('storage', async (e) => {
+			if (e.key === 'signatureUpdated' && e.newValue) {
+				try {
+					const data = JSON.parse(e.newValue);
+					console.log('[Travel] Signature updated in another tab:', data);
+					// If the travel modal is open, refresh the approval flow section
+					const modal = document.getElementById('travelDetailsModal');
+					if (modal && !modal.classList.contains('hidden') && window.currentViewRequest) {
+						console.log('[Travel] Refreshing approval flow for request:', window.currentViewRequest.firebaseKey);
+						await populateApprovalFlowA4(window.currentViewRequest);
+					}
+				} catch(err) { console.warn('[Travel] Failed to process signature update:', err); }
+			}
 		});
 	});
 	function openEditModal(req){ populateForm(req,false); // ensure meta bar visible
@@ -4163,6 +4256,7 @@ const peopleInfo = Array.isArray(req.people) && req.people.length? `${req.people
 				renderTravelRequests();
 			} else if (tabName === 'settings') {
 				loadTravelAccessControl();
+				loadTravelStamp();
 			}
 		}
 
@@ -4170,6 +4264,103 @@ const peopleInfo = Array.isArray(req.people) && req.people.length? `${req.people
 		function toggleSettingsSection(header) {
 			const section = header.parentElement;
 			section.classList.toggle('collapsed');
+		}
+
+		// ===== TRAVEL STAMP FUNCTIONS =====
+		async function handleTravelStampUpload(event) {
+			try {
+				const file = event?.target?.files?.[0];
+				if (!file) return;
+
+				const user = window.authManager?.currentUser;
+				if (!user || !user.companyId) {
+					alert('Unable to upload: Company not found');
+					return;
+				}
+
+				// Validate file size (max 2MB)
+				if (file.size > 2 * 1024 * 1024) {
+					alert('File too large. Maximum size is 2MB.');
+					return;
+				}
+
+				// Validate file type
+				if (!file.type.startsWith('image/')) {
+					alert('Please upload an image file (JPG, PNG, SVG).');
+					return;
+				}
+
+				const storageRef = firebase.storage().ref(`company-travel-stamps/${user.companyId}/${file.name}`);
+				const uploadTask = await storageRef.put(file);
+				const downloadURL = await uploadTask.ref.getDownloadURL();
+
+				await firebase.database().ref(`companies/${user.companyId}/travelSettings`).update({ travelStamp: downloadURL });
+
+				// Update display
+				updateTravelStampDisplay(downloadURL);
+
+				window.notificationManager?.addNotification({ type: 'success', message: 'Travel stamp uploaded successfully!' });
+			} catch (error) {
+				console.error('Error uploading travel stamp:', error);
+				alert('Error uploading stamp: ' + error.message);
+			}
+		}
+
+		async function removeTravelStamp() {
+			if (!confirm('Are you sure you want to remove the approval stamp?')) return;
+
+			try {
+				const user = window.authManager?.currentUser;
+				if (!user || !user.companyId) return;
+
+				await firebase.database().ref(`companies/${user.companyId}/travelSettings`).update({ travelStamp: null });
+
+				updateTravelStampDisplay(null);
+
+				window.notificationManager?.addNotification({ type: 'success', message: 'Travel stamp removed successfully!' });
+			} catch (error) {
+				console.error('Error removing travel stamp:', error);
+				alert('Error removing stamp: ' + error.message);
+			}
+		}
+
+		function updateTravelStampDisplay(stampUrl) {
+			const stampPreview = document.getElementById('travelStampPreview');
+			const stampPlaceholder = document.getElementById('travelStampPlaceholder');
+			const stampActions = document.getElementById('travelStampActions');
+
+			const hasStamp = !!stampUrl;
+
+			if (stampPreview) {
+				if (hasStamp) {
+					stampPreview.src = stampUrl;
+					stampPreview.classList.add('visible');
+				} else {
+					stampPreview.src = '';
+					stampPreview.classList.remove('visible');
+				}
+			}
+
+			if (stampPlaceholder) {
+				stampPlaceholder.style.display = hasStamp ? 'none' : 'flex';
+			}
+
+			if (stampActions) {
+				stampActions.classList.toggle('hidden', !hasStamp);
+			}
+		}
+
+		async function loadTravelStamp() {
+			try {
+				const user = window.authManager?.currentUser;
+				if (!user || !user.companyId) return;
+
+				const snap = await firebase.database().ref(`companies/${user.companyId}/travelSettings/travelStamp`).once('value');
+				const stampUrl = snap.val();
+				updateTravelStampDisplay(stampUrl);
+			} catch (error) {
+				console.error('Error loading travel stamp:', error);
+			}
 		}
 
 		// ===== TRAVEL ACCESS CONTROL FUNCTIONS =====
@@ -5903,10 +6094,10 @@ Approved Date: ${order.approvedAt ? new Date(order.approvedAt).toLocaleDateStrin
 										</td>
 										<td style="padding:6px 8px;color:#059669;">
 											<i class="fas fa-plane-departure" style="color:${traveler.needsDeparture ? '#059669' : '#9ca3af'};"></i> 
-											<span style="${traveler.needsDeparture ? '' : 'color:#9ca3af;text-decoration:line-through;'}">${traveler.departureDate ? formatDateDisplay(traveler.departureDate) : 'N/A'}</span>
+											<span style="${traveler.needsDeparture ? '' : 'color:#9ca3af;'}">${traveler.departureDate ? formatDateDisplay(traveler.departureDate) : 'N/A'}</span>
 										</td>
 										<td style="padding:6px 8px;color:#dc2626;">
-											${traveler.returnDate ? `<i class="fas fa-plane-arrival" style="color:${traveler.needsReturn ? '#dc2626' : '#9ca3af'};"></i> <span style="${traveler.needsReturn ? '' : 'color:#9ca3af;text-decoration:line-through;'}">${formatDateDisplay(traveler.returnDate)}</span>` : '—'}
+											${traveler.returnDate ? `<i class="fas fa-plane-arrival" style="color:${traveler.needsReturn ? '#dc2626' : '#9ca3af'};"></i> <span style="${traveler.needsReturn ? '' : 'color:#9ca3af;'}">${formatDateDisplay(traveler.returnDate)}</span>` : '—'}
 										</td>
 										<td style="padding:6px 8px;color:#7c3aed;">
 											<i class="fas fa-route" style="color:#7c3aed;"></i> ${traveler.tripType === 'round-trip' ? 'Round Trip' : traveler.tripType === 'one-way' ? 'One Way' : 'N/A'}
@@ -6599,6 +6790,27 @@ Approved Date: ${order.approvedAt ? new Date(order.approvedAt).toLocaleDateStrin
 			window.currentViewingOrderKey = null;
 		}
 
+		// Load and display stamp on approved travel order
+		async function loadAndDisplayOrderStamp() {
+			try {
+				const user = window.authManager?.currentUser;
+				if (!user || !user.companyId) return;
+				
+				const snap = await firebase.database().ref(`companies/${user.companyId}/travelSettings/travelStamp`).once('value');
+				const stampUrl = snap.val();
+				
+				const stampSection = document.getElementById('travelOrderStampSection');
+				const stampImg = document.getElementById('travelOrderStampImg');
+				
+				if (stampUrl && stampSection && stampImg) {
+					stampImg.src = stampUrl;
+					stampSection.style.display = 'block';
+				}
+			} catch (error) {
+				console.warn('Could not load travel stamp:', error);
+			}
+		}
+
 		// Check if current user has permission to see approval buttons
 		async function checkTravelApprovalButtonsPermission() {
 			const user = window.authManager?.currentUser;
@@ -6913,7 +7125,7 @@ Approved Date: ${order.approvedAt ? new Date(order.approvedAt).toLocaleDateStrin
 								ot.departureDate === t.departureDate
 							);
 						});
-						const depDateStyle = departureAlreadyBooked ? 'color:#9ca3af;text-decoration:line-through;' : '';
+						const depDateStyle = departureAlreadyBooked ? 'color:#9ca3af;' : '';
 						const depDateTitle = departureAlreadyBooked ? ' title="Departure already covered by another travel order"' : '';
 						const depDateSuffix = departureAlreadyBooked ? ' <span style="color:#10b981;font-size:.6rem;font-weight:500;"><i class="fas fa-check-circle"></i> Booked</span>' : '';
 						
@@ -7007,6 +7219,9 @@ Approved Date: ${order.approvedAt ? new Date(order.approvedAt).toLocaleDateStrin
 			</thead>
 			<tbody>${rows}</tbody>
 		</table>
+		<div id="travelOrderStampSection" style="display:none;text-align:left;margin-top:-10px;">
+			<img id="travelOrderStampImg" src="" alt="Approval Stamp" style="max-width:150px;max-height:150px;opacity:.85;" />
+		</div>
 	</div>`;
 				};
 				
@@ -7088,6 +7303,11 @@ Approved Date: ${order.approvedAt ? new Date(order.approvedAt).toLocaleDateStrin
 				// Render to modal body
 				const modalBody = document.getElementById('viewTravelOrderBody');
 				modalBody.innerHTML = a4Content;
+				
+				// Load and display stamp if order is Approved
+				if (order.status === 'Approved') {
+					loadAndDisplayOrderStamp();
+				}
 				
 				// Attach event handlers
 				document.getElementById('closeViewTravelOrderModalBtn').onclick = closeViewTravelOrderModal;
