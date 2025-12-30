@@ -540,6 +540,10 @@
             object-fit: cover;
             border-radius: 50%;
         }
+
+        /* When an avatar photo is present, hide initials + camera overlay (match header behavior) */
+        .profile-avatar.has-photo #profileInitials { display: none; }
+        .profile-avatar.has-photo .avatar-upload-btn { display: none; }
         
         .avatar-upload-btn {
             position: absolute;
@@ -1730,6 +1734,15 @@
                         </li>
                     </ul>
                 </li>
+                <!-- Investigation (separate section - matching project-list.html) -->
+                <li class="menu-dropdown" data-feature="investigation_view" data-requires-permission="investigation_view">
+                    <a href="#"><i class="fas fa-search-plus"></i> Investigation</a>
+                    <ul class="submenu">
+                        <li data-feature="investigation_dashboard_view" data-requires-permission="investigation_dashboard_view"><a href="investigation-dashboard.html">Investigation Dashboard</a></li>
+                        <li data-feature="investigation_list_view" data-requires-permission="investigation_list_view"><a href="investigation-list.html">Investigation List</a></li>
+                        <li data-feature="create_investigation_view" data-requires-permission="create_investigation_view"><a href="investigation-create.html">Create Investigation</a></li>
+                    </ul>
+                </li>
                 <!-- Risk Management (separate section) -->
                 <li class="menu-dropdown" data-feature="risk_view" data-requires-permission="risk_view">
                     <a href="#"><i class="fas fa-exclamation-triangle"></i> Risk Management</a>
@@ -1748,14 +1761,14 @@
                         <li data-feature="water_view"><a href="waterboard.html">Water Quality</a></li>
                     </ul>
                 </li>
-                <li class="menu-dropdown" data-feature="security_view">
+                <li class="menu-dropdown" data-feature="security_view" data-requires-permission="security_view">
                     <a href="#"><i class="fas fa-lock"></i> Security</a>
                     <ul class="submenu">
-                        <li data-feature="access_view"><a href="accessboard.html">Access Request</a></li>
-                        <li data-feature="access_daily_view"><a href="accessdaily.html">Daily Access Control</a></li>
-                        <li data-feature="removal_view"><a href="removalboard.html">Property Removal</a></li>
-                    
-						<li data-feature="security_level_evaluation_view" data-requires-permission="security_level_evaluation_view"><a href="seclevel.html">Security Level Evaluation</a></li></ul>
+                        <li data-feature="access_view" data-requires-permission="access_view"><a href="accessboard.html">Access Request</a></li>
+                        <li data-feature="access_daily_view" data-requires-permission="access_daily_view"><a href="accessdaily.html">Daily Access Control</a></li>
+                        <li data-feature="removal_view" data-requires-permission="removal_view"><a href="removalboard.html">Property Removal</a></li>
+						<li data-feature="security_level_evaluation_view" data-requires-permission="security_level_evaluation_view"><a href="seclevel.html">Security Level Evaluation</a></li>
+                    </ul>
                 </li>
                 <li class="menu-dropdown" data-feature="logistics_view" data-requires-permission="logistics_view">
                     <a href="#"><i class="fas fa-truck"></i> Logistics</a>
@@ -1949,13 +1962,13 @@
                 <!-- Tab Navigation -->
                 <div class="profile-tabs content-tabs">
                     <div class="tab-navigation">
-                        <button class="tab-nav-btn active tab-authorized" data-tab="personal" title="Personal Info">
+                        <button class="tab-nav-btn active" data-tab="personal" title="Personal Info">
                             <i class="fas fa-user"></i>
                         </button>
-                        <button class="tab-nav-btn tab-authorized" data-tab="security" title="Security">
+                        <button class="tab-nav-btn" data-tab="security" title="Security">
                             <i class="fas fa-shield-alt"></i>
                         </button>
-                        <button class="tab-nav-btn tab-authorized" data-tab="activity" title="Activity">
+                        <button class="tab-nav-btn" data-tab="activity" title="Activity">
                             <i class="fas fa-history"></i>
                         </button>
                         <button class="tab-nav-btn" data-tab="preferences" title="Preferences">
@@ -1987,7 +2000,7 @@
                     <!-- Tab Content -->
                     <div class="tab-content">
                         <!-- Personal Information Tab -->
-                        <div class="tab-pane active pane-authorized" id="personal">
+                        <div class="tab-pane active" id="personal">
                             <div class="tab-card">
                                 <div class="tab-card-body">
                                     <form id="personalInfoForm">
@@ -2032,7 +2045,7 @@
                         </div>
 
                         <!-- Security Settings Tab -->
-                        <div class="tab-pane pane-authorized" id="security">
+                        <div class="tab-pane" id="security">
                             <div class="tab-card">
                                 <div class="tab-card-body">
                                     <form id="securityForm">
@@ -2123,7 +2136,7 @@
                         </div>
 
                         <!-- Recent Activity Tab -->
-                        <div class="tab-pane pane-authorized" id="activity">
+                        <div class="tab-pane" id="activity">
                             <div class="tab-card">
                                 <div class="tab-card-body">
                                     <div id="recentActivity">
@@ -3305,6 +3318,12 @@
             
             async initHeaderAndProfile() {
                 try {
+                    // Apply tab visibility FIRST so all tabs appear at once (no flash)
+                    try { await this.applyProfileTabVisibilityFromDb(); } catch {}
+                    
+                    // Load profile image immediately (for the avatar above tabs)
+                    try { await this.loadProfileImage(); } catch {}
+                    
                     await this.loadCompanyInfo(); // Load company info first
                     await this.loadUserCompany(); // Load user's company association
                     if (this.currentCompany && (this.currentCompany.companyName || this.currentCompany.name)) {
@@ -3329,8 +3348,6 @@
                     this.loadProfileAccessControl();
                     // Load saved signature preview if available
                     try { await this.loadSavedSignaturePreview(); } catch {}
-                    // Apply tab visibility for the current user (if AC exists)
-                    try { await this.applyProfileTabVisibilityFromDb(); } catch {}
                 } catch (err) {
                     console.error('Error initializing header and profile:', err);
                 }
@@ -3995,50 +4012,45 @@
             async loadProfileImage() {
                 if (!this.currentUser) return;
 
-                // Get company ID for scoped path
-                const companyId = this.currentUser.companyId || 'default';
-                console.log('🏢 Loading profile image for company:', companyId);
+                try {
+                    // Use the same getUserAvatarUrl method as the header for consistency
+                    const imageUrl = await this.getUserAvatarUrl();
 
-                // Use the same getUserAvatarUrl method as the header for consistency
-                const imageUrl = await this.getUserAvatarUrl();
-                
-                if (imageUrl) {
-                    console.log(`✅ Found profile image`);
-                    
-                    // Update profile avatar (preserve the upload button)
                     const profileAvatar = document.getElementById('profileAvatar');
-                    const userAvatar = document.getElementById('userAvatar');
-                    
-                    if (profileAvatar) {
-                        // Remove initials div if exists
-                        const initialsDiv = document.getElementById('profileInitials');
-                        if (initialsDiv) initialsDiv.remove();
-                        
-                        // Check if image already exists, if not create it
-                        let img = profileAvatar.querySelector('img:not(.avatar-upload-btn img)');
-                        if (!img) {
-                            img = document.createElement('img');
-                            profileAvatar.insertBefore(img, profileAvatar.firstChild);
-                        }
-                        img.src = imageUrl;
-                        img.alt = 'Profile Photo';
-                        img.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:50%;';
-                    }
-                    
-                    if (userAvatar) {
-                        userAvatar.src = imageUrl;
-                    }
-                    
-                    return; // Success
-                }
+                    const headerBtn = document.getElementById('userProfileBtn');
+                    const headerImg = headerBtn ? headerBtn.querySelector('img') : null;
 
-                // No image found, use initials
-                console.log('No profile image found, using initials');
-                // Generate initials avatar for header
-                const userAvatar = document.getElementById('userAvatar');
-                if (userAvatar && this.currentUser) {
-                    const displayName = this.currentUser.name || this.currentUser.displayName || this.currentUser.email.split('@')[0];
-                    this.generateInitialsAvatar(displayName, userAvatar);
+                    if (imageUrl) {
+                        // Update profile avatar (keep structure, just show photo + hide overlays)
+                        if (profileAvatar) {
+                            profileAvatar.classList.add('has-photo');
+
+                            const initialsDiv = document.getElementById('profileInitials');
+                            if (initialsDiv) initialsDiv.style.display = 'none';
+
+                            let img = profileAvatar.querySelector('img');
+                            if (!img) {
+                                img = document.createElement('img');
+                                profileAvatar.insertBefore(img, profileAvatar.firstChild);
+                            }
+                            img.src = imageUrl;
+                            img.alt = 'Profile Photo';
+                        }
+
+                        // Ensure header uses the same image (real-time)
+                        if (headerImg) {
+                            headerImg.src = imageUrl;
+                            headerImg.alt = (this.currentUser.displayName || this.currentUser.name || 'User') + ' Avatar';
+                            headerImg.style.display = 'block';
+                        }
+
+                        return;
+                    }
+
+                    // No image found: ensure photo mode is off and initials remain
+                    if (profileAvatar) profileAvatar.classList.remove('has-photo');
+                } catch (e) {
+                    console.warn('loadProfileImage failed:', e);
                 }
             }
 
@@ -10788,7 +10800,8 @@
             async getUserAvatarUrl() {
                 if (!this.currentUser) return null;
                 const companyId = this.currentUser.companyId || 'default';
-                const uid = this.currentUser.uid;
+                const uid = this.currentUser.uid || this.currentUser.userId || this.currentUser.id;
+                if (!uid) return null;
                 const possiblePaths = [
                     `companies/${companyId}/avatars/${uid}/profile.jpg`,
                     `companies/${companyId}/avatars/${uid}/profile.png`,
@@ -10841,28 +10854,29 @@
                     
                     console.log('✅ Profile image uploaded to:', imageRef.fullPath);
                     
-                    // Update profile avatar immediately (preserve upload button)
+                    // Update profile avatar immediately (match header image, hide overlays)
                     const profileAvatar = document.getElementById('profileAvatar');
-                    const userAvatar = document.getElementById('userAvatar');
-                    
                     if (profileAvatar) {
-                        // Remove initials div if exists
+                        profileAvatar.classList.add('has-photo');
+
                         const initialsDiv = document.getElementById('profileInitials');
-                        if (initialsDiv) initialsDiv.remove();
-                        
-                        // Check if image already exists, if not create it
-                        let img = profileAvatar.querySelector('img:not(.avatar-upload-btn img)');
+                        if (initialsDiv) initialsDiv.style.display = 'none';
+
+                        let img = profileAvatar.querySelector('img');
                         if (!img) {
                             img = document.createElement('img');
                             profileAvatar.insertBefore(img, profileAvatar.firstChild);
                         }
                         img.src = imageUrl;
                         img.alt = 'Profile Photo';
-                        img.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:50%;';
                     }
-                    
-                    if (userAvatar) {
-                        userAvatar.src = imageUrl;
+
+                    // Update header profile button image immediately
+                    const headerBtn = document.getElementById('userProfileBtn');
+                    const headerImg = headerBtn ? headerBtn.querySelector('img') : null;
+                    if (headerImg) {
+                        headerImg.src = imageUrl;
+                        headerImg.style.display = 'block';
                     }
                     
                     // Update user record
@@ -11272,8 +11286,18 @@
             }
         }
 
-        // Feature-based authorization system that takes priority over role permissions (exactly as in dashboard.html)
+        // Flag to prevent multiple simultaneous menu updates
+        let isMenuUpdateInProgress = false;
+
+        // Feature-based authorization system that takes priority over role permissions (exactly as in project-list.html)
         async function updateMenuWithFeatureAuthorization() {
+            // Prevent multiple simultaneous executions
+            if (isMenuUpdateInProgress) {
+                console.log('🔄 Menu update already in progress, skipping...');
+                return;
+            }
+            
+            isMenuUpdateInProgress = true;
             console.log('🎯 Starting feature-based menu authorization for profile.html...');
             
             try {
@@ -11285,11 +11309,11 @@
                 if (window.authManager && window.authManager.currentUser) {
                     currentUser = window.authManager.currentUser;
                     companyId = currentUser.companyId;
-                    userRole = currentUser.role || null;
-                    console.log('👤 Using AuthManager - User:', currentUser.email, 'Company ID:', companyId);
+                    userRole = currentUser.role;
+                    console.log('👤 Using AuthManager - User:', currentUser.email, 'Company ID:', companyId, 'Role:', userRole);
                 } else if (firebase.auth().currentUser) {
                     currentUser = firebase.auth().currentUser;
-                    console.log('👤 Using Firebase auth - will search for company');
+                    console.log('👤 Using Firebase auth - will search for company and role');
                 } else {
                     console.log('❌ No authenticated user found');
                     resetMenuVisibility();
@@ -11298,7 +11322,7 @@
                 
                 // If no company ID from authManager, search companies collection
                 if (!companyId && currentUser) {
-                    console.log('� Searching for user company...');
+                    console.log('🔍 Searching for user company and role...');
                     const database = firebase.database();
                     const companiesRef = database.ref('companies');
                     const companiesSnapshot = await companiesRef.once('value');
@@ -11311,7 +11335,8 @@
                             
                             if (company.users && company.users[currentUser.uid]) {
                                 companyId = cId;
-                                console.log(`✅ Found user in company: ${companyId} (${company.name})`);
+                                userRole = company.users[currentUser.uid].role || company.users[currentUser.uid].userRole;
+                                console.log(`✅ Found user in company: ${companyId} (${company.name}) with role: ${userRole}`);
                                 break;
                             }
                         }
@@ -11324,32 +11349,27 @@
                     return;
                 }
                 
-                // If role is not available from authManager snapshot, fetch from users collection
-                if (!userRole && currentUser && currentUser.uid) {
-                    try {
-                        const userSnap = await firebase.database().ref(`users/${currentUser.uid}`).once('value');
-                        if (userSnap.exists()) {
-                            const u = userSnap.val();
-                            userRole = u.role || null;
-                        }
-                    } catch (e) {
-                        console.warn('⚠️ Could not fetch user role from DB:', e);
-                    }
+                if (!userRole) {
+                    console.warn('⚠️ No user role found, proceeding with company features only');
                 }
-
-                // 1) Apply feature-based authorization (company subscribed features)
-                await applyFeatureBasedMenuVisibility(companyId);
-
-                // 2) Apply role-based filtering within authorized features (as in riskboard.html)
+                
+                // STEP 1: Apply company feature-based authorization
+                console.log('🏢 STEP 1: Applying company feature authorization...');
+                const authorizedPages = await applyFeatureBasedMenuVisibility(companyId);
+                
+                // STEP 2: Filter by user role permissions within authorized features
                 if (userRole) {
-                    await applyRolePermissionFiltering(companyId, userRole);
+                    console.log('👤 STEP 2: Applying role-based filtering within authorized features...');
+                    await applyRoleBasedFiltering(companyId, userRole, authorizedPages);
                 } else {
-                    console.log('⚠️ No user role found; skipping role-based filtering');
+                    console.log('⚠️ STEP 2: Skipping role-based filtering (no role found)');
                 }
                 
             } catch (error) {
                 console.error('❌ Error in feature-based menu authorization:', error);
                 resetMenuVisibility();
+            } finally {
+                isMenuUpdateInProgress = false;
             }
         }
 
@@ -11473,65 +11493,216 @@
             }
         }
 
-        // Intersect menu visibility with role permissions (add-visibility + alias)
-        async function applyRolePermissionFiltering(companyId, userRole) {
+        // Apply role-based filtering within authorized features (exactly as in project-list.html)
+        async function applyRoleBasedFiltering(companyId, userRole, authorizedPages) {
             try {
-                const db = firebase.database();
-                const permSnap = await db.ref(`companies/${companyId}/roles/${userRole}/permissions`).once('value');
-                if (!permSnap.exists()) {
-                    console.log(`⚠️ No permissions found for role ${userRole} in company ${companyId}. Skipping role filter.`);
+                console.log('👤 Applying role-based filtering for role:', userRole);
+                
+                // Get user role permissions from company
+                const database = firebase.database();
+                const permissionsRef = database.ref(`companies/${companyId}/roles/${userRole}/permissions`);
+                const permissionsSnapshot = await permissionsRef.once('value');
+                
+                if (!permissionsSnapshot.exists()) {
+                    console.log(`⚠️ No permissions found for role ${userRole} in company ${companyId}`);
+                    
+                    // Try to get all roles to see what's available
+                    const allRolesRef = database.ref(`companies/${companyId}/roles`);
+                    const allRolesSnapshot = await allRolesRef.once('value');
+                    
+                    if (allRolesSnapshot.exists()) {
+                        const allRoles = allRolesSnapshot.val();
+                        console.log('🔍 Available roles in company:', Object.keys(allRoles));
+                        
+                        // Enhanced debugging for administrator role
+                        if (userRole === 'administrator') {
+                            console.log('🔑 ADMINISTRATOR - Full roles data:', allRoles);
+                            if (allRoles.administrator) {
+                                console.log('🔑 ADMINISTRATOR role found in company:', allRoles.administrator);
+                                if (allRoles.administrator.permissions) {
+                                    console.log('🔑 ADMINISTRATOR permissions found:', allRoles.administrator.permissions);
+                                    filterMenuByPermissions(allRoles.administrator.permissions);
+                                    return;
+                                }
+                            }
+                        }
+                        
+                        // Check if the role exists with different casing or format
+                        const roleKeys = Object.keys(allRoles);
+                        const matchingRole = roleKeys.find(key => 
+                            key.toLowerCase() === userRole.toLowerCase() ||
+                            key.replace(/\s+/g, '').toLowerCase() === userRole.replace(/\s+/g, '').toLowerCase()
+                        );
+                        
+                        if (matchingRole && allRoles[matchingRole].permissions) {
+                            console.log(`✅ Found matching role: ${matchingRole}`);
+                            const permissions = allRoles[matchingRole].permissions;
+                            filterMenuByPermissions(permissions);
+                            return;
+                        }
+                    }
+                    
+                    // CRITICAL: If user is administrator but no permissions found, provide full access as fallback
+                    if (userRole === 'administrator') {
+                        console.log('🔑 ADMINISTRATOR FALLBACK - Skipping role filtering (keeping all company features visible)');
+                        showSidebarAfterAuth();
+                        return;
+                    }
+                    
+                    // For other roles without permissions, hide all items with permission requirements
+                    console.log('❌ No valid permissions found - filtering out items requiring permissions');
+                    hideItemsRequiringPermissions();
+                    showSidebarAfterAuth();
                     return;
                 }
+                
+                const permissions = permissionsSnapshot.val();
+                console.log('✅ Loaded role permissions:', permissions);
+                
+                // Apply permission-based filtering
+                filterMenuByPermissions(permissions);
+                
+            } catch (error) {
+                console.error('❌ Error applying role-based filtering:', error);
+                // Don't hide everything on error - keep company features visible
+                showSidebarAfterAuth();
+            }
+        }
 
-                const permissions = permSnap.val() || {};
-                console.log('🔐 Loaded role permissions:', Object.keys(permissions));
+        // Filter currently visible menu items by role permissions
+        function filterMenuByPermissions(permissions) {
+            console.log('🔍 Filtering visible menu items by role permissions...');
+            
+            if (!permissions) {
+                console.log('⚠️ No permissions object provided');
+                hideItemsRequiringPermissions();
+                showSidebarAfterAuth();
+                return;
+            }
+            const permissionAlias = (key) => {
+                if (!key) return key;
+                if (key === 'risk_view') return 'risk_management_section';
+                if (key === 'risk_management_section') return 'risk_view';
+                return null;
+            };
 
-                const hasView = (permKey) => {
-                    if (!permKey) return false;
-                    const p = permissions[permKey];
-                    const direct = p === true || (p && p.view === true);
-                    if (direct) return true;
-                    if (permKey === 'risk_view') {
-                        const a = permissions['risk_management_section'];
-                        return a === true || (a && a.view === true);
-                    }
-                    if (permKey === 'risk_management_section') {
-                        const a = permissions['risk_view'];
-                        return a === true || (a && a.view === true);
-                    }
-                    return false;
-                };
+            // Evaluate all permission-gated items (allow role permissions to add visibility too)
+            const itemsRequiringPermissions = document.querySelectorAll('#roleBasedMenu li[data-requires-permission]');
+            console.log(`🎯 Found ${itemsRequiringPermissions.length} items requiring permissions to check`);
 
-                // Evaluate all permission-gated items and add/remove visibility
-                const permItems = document.querySelectorAll('#roleBasedMenu li[data-requires-permission]');
-                let changed = 0;
-                permItems.forEach(item => {
-                    const requiresPermission = item.getAttribute('data-requires-permission');
-                    const allowed = hasView(requiresPermission);
-                    if (allowed) {
-                        if (!item.classList.contains('menu-visible')) { item.classList.add('menu-visible'); changed++; }
-                    } else {
-                        if (item.classList.contains('menu-visible')) { item.classList.remove('menu-visible'); changed++; }
-                    }
-                });
+            let hiddenCount = 0;
+            let shownByPermission = 0;
 
-                // Re-evaluate dropdown visibility: show if has any visible child OR the dropdown itself is permitted
-                const dropdowns = document.querySelectorAll('#roleBasedMenu li.menu-dropdown');
-                dropdowns.forEach(dropdown => {
-                    const dropdownPerm = dropdown.getAttribute('data-requires-permission');
-                    const hasVisibleChildren = dropdown.querySelectorAll('.submenu li.menu-visible').length > 0;
-                    const dropdownAllowed = hasView(dropdownPerm);
-                    if (hasVisibleChildren || dropdownAllowed) {
-                        dropdown.classList.add('menu-visible');
+            itemsRequiringPermissions.forEach(item => {
+                const requiresPermission = item.getAttribute('data-requires-permission');
+                const feature = item.getAttribute('data-feature');
+
+                const perm = permissions[requiresPermission];
+                const aliasKey = permissionAlias(requiresPermission);
+                const aliasPerm = aliasKey ? permissions[aliasKey] : undefined;
+
+                const hasViewPermission = (p) => p === true || (p && p.view === true);
+                const allowed = hasViewPermission(perm) || hasViewPermission(aliasPerm);
+
+                if (allowed) {
+                    if (!item.classList.contains('menu-visible')) shownByPermission++;
+                    item.classList.add('menu-visible');
+                    console.log(`✅ Showing by permission: ${feature} (requires: ${requiresPermission}${aliasKey ? ` | alias: ${aliasKey}` : ''})`);
+                } else {
+                    if (item.classList.contains('menu-visible')) hiddenCount++;
+                    item.classList.remove('menu-visible');
+                    console.log(`❌ Hiding (no permission): ${feature} (requires: ${requiresPermission}${aliasKey ? ` | alias: ${aliasKey}` : ''})`);
+                }
+            });
+
+            // Re-check dropdown menus after permission filtering
+            const dropdownMenus = document.querySelectorAll('#roleBasedMenu li.menu-dropdown');
+            dropdownMenus.forEach(dropdown => {
+                const submenuItems = dropdown.querySelectorAll('.submenu li.menu-visible');
+                const dropdownFeature = dropdown.getAttribute('data-feature');
+                const dropdownRequires = dropdown.getAttribute('data-requires-permission');
+
+                if (submenuItems.length === 0) {
+                    if (dropdownRequires) {
+                        const perm = permissions[dropdownRequires];
+                        const aliasKey = permissionAlias(dropdownRequires);
+                        const aliasPerm = aliasKey ? permissions[aliasKey] : undefined;
+                        const hasViewPermission = (p) => p === true || (p && p.view === true);
+                        const allowed = hasViewPermission(perm) || hasViewPermission(aliasPerm);
+                        if (allowed) {
+                            dropdown.classList.add('menu-visible');
+                            console.log(`✅ Showing dropdown by permission: ${dropdownFeature}`);
+                        } else {
+                            dropdown.classList.remove('menu-visible');
+                            hiddenCount++;
+                            console.log(`❌ Hiding dropdown (no children and no permission): ${dropdownFeature}`);
+                        }
                     } else {
                         dropdown.classList.remove('menu-visible');
+                        console.log(`❌ Hiding dropdown (no visible children): ${dropdownFeature}`);
                     }
-                });
+                } else {
+                    console.log(`✅ Keeping dropdown visible (has ${submenuItems.length} visible children): ${dropdownFeature}`);
+                }
+            });
 
-                const visibleCount = document.querySelectorAll('#roleBasedMenu [data-feature].menu-visible').length;
-                console.log(`✅ Role-based menu filtering applied - ${visibleCount} items visible; changed ${changed} by permissions`);
-            } catch (err) {
-                console.error('❌ Error applying role-based permission filtering:', err);
+            console.log(`🎯 Role-based filtering completed - ${hiddenCount} items hidden; ${shownByPermission} items shown by permission`);
+            
+            // Ensure at least home is visible
+            ensureHomeIsVisible();
+            
+            // Show sidebar after all filtering is complete
+            showSidebarAfterAuth();
+        }
+
+        // Hide menu items that require permissions (for users without role permissions)
+        function hideItemsRequiringPermissions() {
+            console.log('🔒 Hiding all menu items that require permissions...');
+            
+            const itemsRequiringPermissions = document.querySelectorAll('#roleBasedMenu li.menu-visible[data-requires-permission]');
+            let hiddenCount = 0;
+            
+            itemsRequiringPermissions.forEach(item => {
+                const feature = item.getAttribute('data-feature');
+                const requiresPermission = item.getAttribute('data-requires-permission');
+                
+                item.classList.remove('menu-visible');
+                hiddenCount++;
+                console.log(`❌ Hiding menu item (requires permission): ${feature} (${requiresPermission})`);
+            });
+            
+            // Hide dropdowns that only contain permission-required items
+            const dropdownMenus = document.querySelectorAll('#roleBasedMenu li.menu-dropdown');
+            dropdownMenus.forEach(dropdown => {
+                const visibleSubmenuItems = dropdown.querySelectorAll('.submenu li.menu-visible');
+                if (visibleSubmenuItems.length === 0) {
+                    dropdown.classList.remove('menu-visible');
+                    const dropdownFeature = dropdown.getAttribute('data-feature');
+                    console.log(`❌ Hiding dropdown (no visible children): ${dropdownFeature}`);
+                }
+            });
+            
+            console.log(`🔒 Hidden ${hiddenCount} items requiring permissions`);
+            
+            // Ensure at least home is visible
+            ensureHomeIsVisible();
+        }
+
+        // Ensure home menu item is visible as fallback
+        function ensureHomeIsVisible() {
+            const homeItem = document.querySelector('#roleBasedMenu li[data-feature="home_view"]');
+            if (homeItem && !homeItem.classList.contains('menu-visible')) {
+                homeItem.classList.add('menu-visible');
+                console.log('✅ Ensured home menu item is visible as fallback');
+            }
+        }
+
+        // Show sidebar and remove loading state after authentication and filtering
+        function showSidebarAfterAuth() {
+            const sidebar = document.querySelector('.sidebar');
+            if (sidebar) {
+                sidebar.classList.remove('menu-loading');
+                console.log('✅ Sidebar loading state removed - menu authorization complete');
             }
         }
 
@@ -11539,14 +11710,17 @@
         document.addEventListener('DOMContentLoaded', () => {
             window.profileManager = new ProfileManager();
             
-            // Initialize feature authorization (exactly as in dashboard.html)
+            // Initialize feature authorization (exactly as in project-list.html)
             // Wait for auth manager to be ready
             setTimeout(async () => {
                 try {
                     const sidebar = document.querySelector('.sidebar');
                     if (sidebar) sidebar.classList.add('menu-loading');
                     await updateMenuWithFeatureAuthorization();
-                    if (sidebar) sidebar.classList.remove('menu-loading');
+                    // Note: showSidebarAfterAuth() is called internally but as fallback we ensure it's removed
+                    if (sidebar && sidebar.classList.contains('menu-loading')) {
+                        sidebar.classList.remove('menu-loading');
+                    }
                     // Header is hydrated by now (user + company branding);
                     // remove header-loading to reveal the right side without flicker
                     const topNav = document.querySelector('.top-nav');
