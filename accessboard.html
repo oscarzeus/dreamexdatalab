@@ -279,16 +279,19 @@
 			
 			#approvalFlowContent table {
 				font-size:0.5rem !important;
+				border-collapse:collapse !important;
 			}
 			
 			#approvalFlowContent th {
 				padding:3px 4px !important;
 				font-size:0.48rem !important;
+				border:1px solid var(--primary-color, #2c3e50) !important;
 			}
 			
 			#approvalFlowContent td {
 				padding:3px 4px !important;
 				font-size:0.5rem !important;
+				border:1px solid #e5e7eb !important;
 			}
 			
 			/* Compact signature */
@@ -1106,6 +1109,38 @@
 								</div>
 							</div>
 						</div>
+
+						<!-- Gate Pass Stamp Section -->
+						<div class="settings-section" style="margin-top:1.5rem;">
+							<h3 onclick="toggleSettingsSection(this)"><i class="fas fa-stamp"></i> Gate Pass Stamp <i class="fas fa-chevron-down toggle-icon"></i></h3>
+							<div class="settings-section-content">
+								<p style="font-size:.75rem;color:#6b7280;margin-bottom:.8rem">Upload a stamp image that will be displayed at the bottom of the gate pass details modal.</p>
+								<div style="display:flex;gap:1.5rem;align-items:flex-start;flex-wrap:wrap;">
+									<div style="flex:1;min-width:250px;">
+										<div style="margin-bottom:.8rem;">
+											<label style="display:block;font-size:.8rem;font-weight:600;color:#374151;margin-bottom:.5rem;">Stamp Image</label>
+											<div id="stampPreviewContainer" style="width:150px;height:150px;border:2px dashed #d1d5db;border-radius:8px;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#f9fafb;position:relative;">
+												<img id="stampPreview" src="" alt="Stamp Preview" style="max-width:100%;max-height:100%;object-fit:contain;display:none;">
+												<div id="stampPlaceholder" style="text-align:center;color:#9ca3af;">
+													<i class="fas fa-stamp" style="font-size:2rem;margin-bottom:.5rem;display:block;"></i>
+													<span style="font-size:.7rem;">No stamp uploaded</span>
+												</div>
+											</div>
+										</div>
+										<div style="display:flex;gap:.5rem;flex-wrap:wrap;">
+											<label class="ac-add-btn" style="cursor:pointer;margin:0;">
+												<i class="fas fa-upload"></i> Upload Stamp
+												<input type="file" id="stampFileInput" accept="image/*" style="display:none;" onchange="handleStampUpload(this)">
+											</label>
+											<button type="button" class="ac-add-btn" style="background:#ef4444;border-color:#ef4444;" onclick="removeStamp()" id="removeStampBtn" disabled>
+												<i class="fas fa-trash"></i> Remove
+											</button>
+										</div>
+										<p style="font-size:.7rem;color:#9ca3af;margin-top:.5rem;">Recommended: PNG with transparent background, max 500KB</p>
+									</div>
+								</div>
+							</div>
+						</div>
 					</div>
 				</div>
 		</main>
@@ -1237,6 +1272,145 @@
 		function toggleSettingsSection(header) {
 			const section = header.parentElement;
 			section.classList.toggle('collapsed');
+		}
+
+		// ===== GATE PASS STAMP FUNCTIONS =====
+		let currentStampUrl = null;
+
+		async function loadStampSettings() {
+			const user = window.authManager?.currentUser;
+			if (!user || !user.companyId) return;
+
+			try {
+				const stampSnap = await firebase.database().ref(`companies/${user.companyId}/accessSettings/gatePassStamp`).once('value');
+				const stampData = stampSnap.val();
+				
+				if (stampData && stampData.url) {
+					currentStampUrl = stampData.url;
+					displayStampPreview(stampData.url);
+				}
+			} catch (error) {
+				console.error('Error loading stamp settings:', error);
+			}
+		}
+
+		function displayStampPreview(url) {
+			const preview = document.getElementById('stampPreview');
+			const placeholder = document.getElementById('stampPlaceholder');
+			const removeBtn = document.getElementById('removeStampBtn');
+			
+			if (preview && placeholder) {
+				if (url) {
+					preview.src = url;
+					preview.style.display = 'block';
+					placeholder.style.display = 'none';
+					if (removeBtn) removeBtn.disabled = false;
+				} else {
+					preview.src = '';
+					preview.style.display = 'none';
+					placeholder.style.display = 'block';
+					if (removeBtn) removeBtn.disabled = true;
+				}
+			}
+		}
+
+		async function handleStampUpload(input) {
+			const file = input.files?.[0];
+			if (!file) return;
+
+			// Validate file type
+			if (!file.type.startsWith('image/')) {
+				alert('Please upload an image file.');
+				input.value = '';
+				return;
+			}
+
+			// Validate file size (500KB max)
+			if (file.size > 500 * 1024) {
+				alert('File size must be less than 500KB.');
+				input.value = '';
+				return;
+			}
+
+			const user = window.authManager?.currentUser;
+			if (!user || !user.companyId) {
+				alert('User not authenticated.');
+				return;
+			}
+
+			try {
+				// Show loading state
+				const placeholder = document.getElementById('stampPlaceholder');
+				if (placeholder) {
+					placeholder.innerHTML = '<i class="fas fa-spinner fa-spin" style="font-size:2rem;color:#6b7280;"></i>';
+				}
+
+				// Upload to Firebase Storage
+				const storageRef = firebase.storage().ref();
+				const stampRef = storageRef.child(`companies/${user.companyId}/settings/gate-pass-stamp.${file.name.split('.').pop()}`);
+				
+				const snapshot = await stampRef.put(file);
+				const downloadUrl = await snapshot.ref.getDownloadURL();
+
+				// Save URL to database
+				await firebase.database().ref(`companies/${user.companyId}/accessSettings/gatePassStamp`).set({
+					url: downloadUrl,
+					fileName: file.name,
+					uploadedAt: firebase.database.ServerValue.TIMESTAMP,
+					uploadedBy: user.uid
+				});
+
+				currentStampUrl = downloadUrl;
+				displayStampPreview(downloadUrl);
+
+				window.notificationManager?.addNotification({
+					type: 'Success',
+					message: 'Gate pass stamp uploaded successfully.'
+				});
+			} catch (error) {
+				console.error('Error uploading stamp:', error);
+				alert('Failed to upload stamp: ' + (error.message || error));
+				displayStampPreview(null);
+			}
+
+			input.value = '';
+		}
+
+		async function removeStamp() {
+			if (!confirm('Are you sure you want to remove the gate pass stamp?')) return;
+
+			const user = window.authManager?.currentUser;
+			if (!user || !user.companyId) return;
+
+			try {
+				// Remove from database
+				await firebase.database().ref(`companies/${user.companyId}/accessSettings/gatePassStamp`).remove();
+
+				// Try to delete from storage (may fail if file doesn't exist)
+				try {
+					const storageRef = firebase.storage().ref();
+					const stampRef = storageRef.child(`companies/${user.companyId}/settings/gate-pass-stamp.png`);
+					await stampRef.delete();
+				} catch (storageError) {
+					console.log('Could not delete stamp from storage (may already be deleted):', storageError);
+				}
+
+				currentStampUrl = null;
+				displayStampPreview(null);
+
+				window.notificationManager?.addNotification({
+					type: 'Success',
+					message: 'Gate pass stamp removed successfully.'
+				});
+			} catch (error) {
+				console.error('Error removing stamp:', error);
+				alert('Failed to remove stamp: ' + (error.message || error));
+			}
+		}
+
+		// Get current stamp URL (for use in modal)
+		function getGatePassStampUrl() {
+			return currentStampUrl;
 		}
 
 		// ===== ACCESS CONTROL FUNCTIONS =====
@@ -1977,6 +2151,48 @@
 		setRead(id,val){ if(!this.userId||!id) return; this.db.ref(`notifications/${this.userId}/${id}/read`).set(!!val).catch(()=>{}); }
 		deleteNotification(id){ if(!this.userId||!id) return; this.db.ref(`notifications/${this.userId}/${id}`).remove().catch(()=>{}); }
 		async createNotification(recipientUserId,data){ try{ const id=data?.id||Date.now().toString(); const payload={ id, title:data?.title||'Notification', message:data?.message||'', type:data?.type||'info', read:false, timestamp:Date.now(), createdAt:new Date().toISOString(), createdBy: window.authManager?.currentUser?.uid || firebase.auth().currentUser?.uid || 'system', createdByName: window.authManager?.getUserDisplayName?.() || 'System', companyId: window.authManager?.currentUser?.companyId || null, relatedData: data?.relatedData||null, link: data?.link||'' }; await this.db.ref(`notifications/${recipientUserId}/${id}`).set(payload); return true; }catch(e){ console.error('createNotification failed',e); return false; } }
+		
+		// Add toast notification (shows temporary message on screen)
+		addNotification(data) {
+			const { type = 'info', message = '' } = data || {};
+			
+			// Create toast container if it doesn't exist
+			let toastContainer = document.getElementById('toastContainer');
+			if (!toastContainer) {
+				toastContainer = document.createElement('div');
+				toastContainer.id = 'toastContainer';
+				toastContainer.style.cssText = 'position:fixed;top:20px;right:20px;z-index:10000;display:flex;flex-direction:column;gap:10px;';
+				document.body.appendChild(toastContainer);
+			}
+			
+			// Create toast element
+			const toast = document.createElement('div');
+			const bgColor = type === 'success' ? '#10b981' : type === 'error' ? '#ef4444' : type === 'warning' ? '#f59e0b' : '#3b82f6';
+			const icon = type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : type === 'warning' ? 'fa-exclamation-triangle' : 'fa-info-circle';
+			
+			toast.style.cssText = `
+				background:${bgColor};color:#fff;padding:12px 16px;border-radius:8px;
+				box-shadow:0 4px 12px rgba(0,0,0,0.15);display:flex;align-items:center;gap:10px;
+				font-size:.85rem;min-width:250px;max-width:400px;animation:slideIn .3s ease;
+			`;
+			toast.innerHTML = `<i class="fas ${icon}"></i><span>${this.escapeHtml(message)}</span>`;
+			
+			// Add animation style if not exists
+			if (!document.getElementById('toastStyles')) {
+				const style = document.createElement('style');
+				style.id = 'toastStyles';
+				style.textContent = '@keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}@keyframes slideOut{from{transform:translateX(0);opacity:1}to{transform:translateX(100%);opacity:0}}';
+				document.head.appendChild(style);
+			}
+			
+			toastContainer.appendChild(toast);
+			
+			// Auto remove after 4 seconds
+			setTimeout(() => {
+				toast.style.animation = 'slideOut .3s ease';
+				setTimeout(() => toast.remove(), 300);
+			}, 4000);
+		}
 	  }
 	  window.notificationManager=new NotificationManager();
 
@@ -2677,6 +2893,7 @@
 				if (companyId) {
 					clearInterval(int);
 					loadAccessControl();
+					loadStampSettings(); // Load stamp settings on init
 					applyAccessTabVisibility();
 				}
 			}, 400);
@@ -3815,8 +4032,10 @@
 				const vatts= Array.isArray(v.attachments)? v.attachments : (v.attachment? [v.attachment]: []); 
 				const s = this.fmtDate(v.startDateTime||v.startDate||v.start) || '-'; 
 				const e = this.fmtDate(v.endDateTime||v.endDate||v.end) || '-'; 
-				const rng = (s==='-'&&e==='-')? '-' : `${s} — ${e}`; 
-				return `<tr><td>${i+1}</td><td>${esc(v.name||'')}</td><td>${esc(v.identification||v.idNumber||v.visitorId||v.id||'')}</td><td>${esc(v.company||'')}</td><td>${esc(v.area||'')}</td><td>${esc(rng)}</td><td>${vatts.length? attList(vatts):'<span style="opacity:.5;">-</span>'}</td></tr>`; 
+				const rng = (s==='-'&&e==='-')? '-' : `${s} — ${e}`;
+				const vJobTitle = v.jobTitle||v.job_title||v.position||v.designation||'';
+				const nameDisplay = vJobTitle ? `<span class="visitor-name">${esc(v.name||'')}</span><br><span class="visitor-title" style="font-size:.65rem;color:#6b7280;">${esc(vJobTitle)}</span>` : esc(v.name||'');
+				return `<tr><td>${i+1}</td><td>${nameDisplay}</td><td>${esc(v.identification||v.idNumber||v.visitorId||v.id||'')}</td><td>${esc(v.company||'')}</td><td>${esc(v.area||'')}</td><td>${esc(rng)}</td><td>${vatts.length? attList(vatts):'<span style="opacity:.5;">-</span>'}</td></tr>`; 
 			}).join(''); 
 			
 			const equipRows= equipment.map((e,i)=>{ 
@@ -3827,10 +4046,16 @@
 			const statusClass = (rec.status||'').toLowerCase().replace(/[^a-z]/g,'');
 
 			// Resolve line manager name and job title for requester info
+			const formatJobTitle = (value) => {
+				if (!value || value === '-') return '';
+				return value.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ');
+			};
+			
 			const lineManagerName = this.getApproverDisplayName(rec) || '';
 			let lineManagerTitle = '';
 			if (rec.requesterLineManagerTitle) {
-				lineManagerTitle = esc(String(rec.requesterLineManagerTitle).trim());
+				const rawTitle = String(rec.requesterLineManagerTitle).trim();
+				lineManagerTitle = rawTitle ? esc(formatJobTitle(rawTitle)) : '';
 			} else {
 				try {
 					const companyUsers = this.companyUsersCache || {};
@@ -3838,12 +4063,31 @@
 					const submitter = submitterUid ? companyUsers[submitterUid] : null;
 					if (submitter && submitter.lineManagerId && companyUsers[submitter.lineManagerId]) {
 						const manager = companyUsers[submitter.lineManagerId];
-						const titleRaw = (manager?.jobTitle || manager?.title || manager?.jobTitleName || manager?.position || manager?.designation || manager?.role || '').trim();
-						lineManagerTitle = titleRaw ? esc(titleRaw) : '';
+						// Prioritize actual job title fields, exclude role as it may contain different data
+						const titleRaw = (manager?.jobTitle || manager?.jobTitleName || manager?.title || manager?.position || manager?.designation || '').trim();
+						lineManagerTitle = titleRaw ? esc(formatJobTitle(titleRaw)) : '';
 					}
 				} catch(_e) { /* ignore */ }
 			}
-			const lineManagerDisplay = lineManagerTitle ? `${lineManagerName} — ${lineManagerTitle}` : (lineManagerName || '-');
+			const lineManagerDisplay = lineManagerName 
+				? `<span class="approver-fullname">${lineManagerName}</span>${lineManagerTitle ? `<br><span class="approver-job">${lineManagerTitle}</span>` : ''}`
+				: '-';
+			
+			// Get employee job title
+			let employeeTitle = '';
+			try {
+				const companyUsers = this.companyUsersCache || {};
+				const submitterUid = rec.submittedBy || rec.createdBy || rec.userId;
+				const employee = submitterUid ? companyUsers[submitterUid] : null;
+				if (employee) {
+					// Prioritize actual job title fields, exclude role as it may contain different data
+					const titleRaw = (employee?.jobTitle || employee?.jobTitleName || employee?.title || employee?.position || employee?.designation || '').trim();
+					employeeTitle = titleRaw ? esc(formatJobTitle(titleRaw)) : '';
+				}
+			} catch(_e) { /* ignore */ }
+			const employeeNameDisplay = rec.requesterName 
+				? `<span class="approver-fullname">${esc(rec.requesterName)}</span>${employeeTitle ? `<br><span class="approver-job">${employeeTitle}</span>` : ''}`
+				: '-';
 			
 			// Get company info for header - use currentCompany for logo
 			const companyName = window.authManager?.currentCompany?.companyName || window.authManager?.currentUser?.companyName || 'Company';
@@ -3874,7 +4118,7 @@
 		<table class="a4-info-table" style="margin-top:8px;">
 			<tbody>
 				<tr>
-					<td style="width:50%;" colspan="2"><strong>Name:</strong> ${esc(rec.requesterName||'-')}</td>
+					<td style="width:50%;" colspan="2"><strong>Name:</strong> ${employeeNameDisplay}</td>
 					<td style="width:50%;" colspan="2"><strong>Employee ID:</strong> ${esc(rec._displayEmployeeId||'-')}</td>
 				</tr>
 				<tr>
@@ -3923,6 +4167,12 @@
 	</div>
 	
 	${this.buildApprovalFlowSection(rec)}
+	
+	<div id="gatePassStampSection" class="a4-section" style="margin-top:-20px;display:none;">
+		<div style="display:flex;justify-content:flex-start;">
+			<img id="gatePassStampImage" src="" alt="Gate Pass Stamp" style="max-width:150px;max-height:150px;object-fit:contain;">
+		</div>
+	</div>
 </div>
 `; }
 		buildApprovalFlowSection(rec){
@@ -3932,6 +4182,7 @@
 			// Use setTimeout to ensure DOM is ready
 			setTimeout(() => {
 				this.loadApprovalFlowAsync(rec);
+				this.loadGatePassStamp(); // Load stamp after modal content is ready
 			}, 100);
 			
 			return `
@@ -3941,6 +4192,29 @@
 		<i class="fas fa-spinner fa-spin"></i> Loading approval configuration...
 	</div>
 </div>`;
+		}
+		
+		// Load and display gate pass stamp in modal
+		async loadGatePassStamp() {
+			try {
+				const companyId = window.authManager?.currentUser?.companyId;
+				if (!companyId) return;
+				
+				const stampSnap = await firebase.database().ref(`companies/${companyId}/accessSettings/gatePassStamp`).once('value');
+				const stampData = stampSnap.val();
+				
+				if (stampData && stampData.url) {
+					const stampSection = document.getElementById('gatePassStampSection');
+					const stampImage = document.getElementById('gatePassStampImage');
+					
+					if (stampSection && stampImage) {
+						stampImage.src = stampData.url;
+						stampSection.style.display = 'block';
+					}
+				}
+			} catch (error) {
+				console.error('Error loading gate pass stamp:', error);
+			}
 		}
 		
 		async loadApprovalFlowAsync(rec) {
@@ -4097,7 +4371,7 @@
 					if (title && title.toLowerCase() === name.toLowerCase()) {
 						title = '';
 					}
-					return { user, name, title, display: title ? `${name} — ${title}` : name };
+					return { user, name, title, display: title ? `<span class="approver-fullname">${name}</span><br><span class="approver-job">${title}</span>` : name };
 				};
 				// Helper: Format job title - convert hyphenated values to title case (e.g., 'hse-manager' -> 'HSE Manager')
 				const formatJobTitle = (value) => {
@@ -4273,7 +4547,7 @@
 							<div class="approval-stage ${stageClass}">
 								<div class="stage-number ${numberClass}">${iconHTML}</div>
 								<div class="stage-info">
-									<div class="stage-title">Level ${levelNumber} - ${approverName}${approverTitle ? ` — ${this.escape(approverTitle)}` : ''}</div>
+									<div class="stage-title">Level ${levelNumber} - <span class="approver-fullname">${approverName}</span>${approverTitle ? `<br><span class="approver-job">${this.escape(approverTitle)}</span>` : ''}</div>
 									<div class="approver-info">
 										${(!options.hideActual && approverTitle) ? `<div class="approver-title">${this.escape(approverTitle)}</div>` : ''}
 										<div class="stage-status-text ${stageClass}">${statusText}</div>
