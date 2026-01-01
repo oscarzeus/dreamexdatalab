@@ -924,15 +924,6 @@ tbody tr:hover { background:#f8fafc; }
                         <div class="selected-chips" id="locationsSelectedChips"></div>
                         <small>Select the locations this user can see in Camp.</small>
                     </div>
-                    <div class="form-group" style="grid-column:1/-1;">
-                        <label>Camp Page Actions</label>
-                        <div style="display:flex;flex-wrap:wrap;gap:0.75rem;font-size:0.75rem;">
-                            <label style="display:flex;align-items:center;gap:0.35rem;"><input type="checkbox" id="modalPermAssign" /> Assign (+)</label>
-                            <label style="display:flex;align-items:center;gap:0.35rem;"><input type="checkbox" id="modalPermEdit" /> Edit</label>
-                            <label style="display:flex;align-items:center;gap:0.35rem;"><input type="checkbox" id="modalPermCheckIn" /> Check In</label>
-                            <label style="display:flex;align-items:center;gap:0.35rem;"><input type="checkbox" id="modalPermCheckOut" /> Check Out</label>
-                        </div>
-                    </div>
                 </div>
             </form>
         </div>
@@ -4179,10 +4170,7 @@ function openVisibilityModal(selectedUid = null) {
     renderSelectedLocationChips(selected);
     updateLocationsToggleText(selected);
     // Populate action permission checkboxes for initially selected user
-    const visObjInitial = uidForChips && __userLocationVisibility[uidForChips] ? __userLocationVisibility[uidForChips] : null;
-    const actsInitial = visObjInitial && visObjInitial.actions ? visObjInitial.actions : {};
-    [['modalPermAssign','assign'], ['modalPermEdit','edit'], ['modalPermCheckIn','checkin'], ['modalPermCheckOut','checkout']]
-        .forEach(([id,key]) => { const el = document.getElementById(id); if (el) el.checked = !!actsInitial[key]; });
+
     // Respond to user change inside modal
     userSel.onchange = () => {
         const uid = userSel.value;
@@ -4190,10 +4178,7 @@ function openVisibilityModal(selectedUid = null) {
         buildLocationsMenu(selected2);
         renderSelectedLocationChips(selected2);
         updateLocationsToggleText(selected2);
-        const visObj = uid && __userLocationVisibility[uid] ? __userLocationVisibility[uid] : null;
-        const acts = visObj && visObj.actions ? visObj.actions : {};
-        [['modalPermAssign','assign'], ['modalPermEdit','edit'], ['modalPermCheckIn','checkin'], ['modalPermCheckOut','checkout']]
-            .forEach(([id,key]) => { const el = document.getElementById(id); if (el) el.checked = !!acts[key]; });
+
     };
     document.getElementById('visibilityModal')?.classList.add('show');
 }
@@ -4306,11 +4291,10 @@ async function saveUserVisibilityMappingFromModal() {
     try {
         const companyId = CompanyStorage.getCompanyId();
         const ref = window.authManager.db.ref(`companies/${companyId}/campSettings/userLocationVisibility/${uid}`);
-        const assignAllowed = document.getElementById('modalPermAssign')?.checked || false;
-        const editAllowed = document.getElementById('modalPermEdit')?.checked || false;
-        const checkInAllowed = document.getElementById('modalPermCheckIn')?.checked || false;
-        const checkOutAllowed = document.getElementById('modalPermCheckOut')?.checked || false;
-        const payload = { locations: checked, actions: { assign: assignAllowed, edit: editAllowed, checkin: checkInAllowed, checkout: checkOutAllowed } };
+        // Get existing actions (preserved - managed in camp.html settings tab)
+        const existingData = __userLocationVisibility[uid] || {};
+        const existingActions = existingData.actions || {};
+        const payload = { locations: checked, actions: existingActions };
         await ref.set(payload);
         __userLocationVisibility[uid] = payload;
         renderVisibilityTable();

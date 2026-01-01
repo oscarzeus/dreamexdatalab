@@ -316,12 +316,36 @@
             display: none !important;
         }
 
-    /* Ensure dropdowns visible during loading like staff.html */
-    .menu-loading [data-feature] { display:block !important; }
-    .menu-loading .menu-dropdown { display:block !important; }
+        /* Hide ALL menu items by default during loading */
+        .sidebar.menu-loading .menu-item,
+        .sidebar.menu-loading .menu-dropdown,
+        .sidebar.menu-loading li[data-feature],
+        .sidebar.menu-loading [data-feature] {
+            display: none !important;
+        }
 
-        /* Show menu items by default until permissions are loaded */
+        /* Allow menu-visible items to show even during loading */
+        .sidebar.menu-loading .menu-visible,
+        .sidebar.menu-loading li.menu-visible,
+        .sidebar.menu-loading [data-feature].menu-visible {
+            display: block !important;
+        }
+
         .menu-loading [data-feature] {
+            display: none !important;
+        }
+
+        .menu-loading .menu-dropdown {
+            display: none !important;
+        }
+
+        /* Ensure menu-visible items are always shown */
+        .menu-visible {
+            display: block !important;
+        }
+
+        li.menu-visible,
+        [data-feature].menu-visible {
             display: block !important;
         }
 
@@ -5020,9 +5044,13 @@
             if (!roomSelect || !window.authManager) return;
             
             try {
-                // Show loading state
-                roomSelect.innerHTML = '<option value="">Loading rooms...</option>';
-                roomSelect.disabled = true;
+                // Show loading state on the search input
+                let roomSearchInput = document.getElementById('roomSearchInput');
+                if (roomSearchInput) {
+                    roomSearchInput.placeholder = 'Loading rooms...';
+                    roomSearchInput.disabled = true;
+                }
+                roomSelect.value = '';
 
                 const companyId = window.authManager.currentUser.companyId;
         // Determine currently selected desired period (for availability filtering)
@@ -5040,8 +5068,11 @@
                 if (!configured || (allowedLocations && allowedLocations.size === 0)) {
                     if (locationGroup) locationGroup.style.display = 'none';
                     // Block rooms entirely when not configured per requirements
-                    roomSelect.innerHTML = '<option value="">No rooms available</option>';
-                    roomSelect.disabled = true;
+                    if (roomSearchInput) {
+                        roomSearchInput.placeholder = 'No rooms available';
+                        roomSearchInput.disabled = true;
+                    }
+                    roomSelect.value = '';
                     window.__camp_availableRooms = [];
                     return;
                 } else if (locationGroup) {
@@ -5160,11 +5191,13 @@
                 const availableRooms = allRooms.filter(r => !unavailableRoomsSet.has(String(r.value)));
                 window.__camp_availableRooms = availableRooms;
                 
-                // Clear the room search input and hidden value
-                const roomSearchInput = document.getElementById('roomSearchInput');
+                // Clear the room search input and hidden value, and enable input
+                // Re-fetch element reference to ensure we have the current one
+                roomSearchInput = document.getElementById('roomSearchInput');
                 if (roomSearchInput) {
                     roomSearchInput.value = '';
                     roomSearchInput.placeholder = `Search room... (${availableRooms.length} available)`;
+                    roomSearchInput.disabled = false;
                 }
                 roomSelect.value = '';
                 
@@ -5495,7 +5528,14 @@
             const formData = new FormData(form);
             const assignmentData = Object.fromEntries(formData);
             
+            // Also directly get the room value from hidden input as fallback
+            const roomHiddenInput = document.getElementById('roomSelect');
+            if (roomHiddenInput && roomHiddenInput.value && !assignmentData.room) {
+                assignmentData.room = roomHiddenInput.value;
+            }
+            
             console.log('Saving assignment:', assignmentData);
+            console.log('Room hidden input value:', roomHiddenInput ? roomHiddenInput.value : 'not found');
             
             try {
                 if (!window.authManager || !window.authManager.currentUser) {
