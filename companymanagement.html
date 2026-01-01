@@ -1998,7 +1998,9 @@
 
                 // Add active class to selected tab
                 const selectedBtn = document.querySelector(`[data-tab="${tabId}"]`);
-                const selectedContent = document.getElementById(`${tabId}Tab`);
+                // Special handling for settings tab to avoid conflict with user modal settings tab
+                const contentId = tabId === 'settings' ? 'settingsCompanyTab' : `${tabId}Tab`;
+                const selectedContent = document.getElementById(contentId);
 
                 if (selectedBtn) {
                     selectedBtn.classList.add('active');
@@ -5827,6 +5829,7 @@
                             <td style="text-align:center;"><input type="checkbox" data-perm="profile" data-uid="${uid}" ${p.canSeeProfileTab !== false ? 'checked' : ''}></td>
                             <td style="text-align:center;"><input type="checkbox" data-perm="users" data-uid="${uid}" ${p.canSeeUsersTab ? 'checked' : ''}></td>
                             <td style="text-align:center;"><input type="checkbox" data-perm="subscription" data-uid="${uid}" ${p.canSeeSubscriptionTab ? 'checked' : ''}></td>
+                            <td style="text-align:center;"><input type="checkbox" data-perm="settings" data-uid="${uid}" ${p.canSeeSettingsTab ? 'checked' : ''}></td>
                             <td style="text-align:center;"><input type="checkbox" data-perm="seeAdd" data-uid="${uid}" ${p.canSeeAddButton ? 'checked' : ''}></td>
                             <td style="text-align:center;"><input type="checkbox" data-perm="createWith" data-uid="${uid}" ${p.canCreateWithAccount ? 'checked' : ''}></td>
                             <td style="text-align:center;"><input type="checkbox" data-perm="createWithout" data-uid="${uid}" ${p.canCreateWithoutAccount !== false ? 'checked' : ''}></td>
@@ -5847,6 +5850,7 @@
                     if (perm === 'profile') update.canSeeProfileTab = target.checked;
                     if (perm === 'users') update.canSeeUsersTab = target.checked;
                     if (perm === 'subscription') update.canSeeSubscriptionTab = target.checked;
+                    if (perm === 'settings') update.canSeeSettingsTab = target.checked;
                     if (perm === 'seeAdd') update.canSeeAddButton = target.checked;
                     if (perm === 'createWith') update.canCreateWithAccount = target.checked;
                     if (perm === 'createWithout') update.canCreateWithoutAccount = target.checked;
@@ -5889,21 +5893,27 @@
                     const allowSubs = p.canSeeSubscriptionTab === true;
                     // Company Profile tab is default ALLOW unless explicitly disabled
                     const allowProfile = p.canSeeProfileTab !== false;
+                    // Settings tab is default DENY unless explicitly granted
+                    const allowSettings = p.canSeeSettingsTab === true;
 
                     const usersBtn = document.querySelector('.tab-nav-btn[data-tab="users"]');
                     const subsBtn = document.querySelector('.tab-nav-btn[data-tab="subscription"]');
                     const profileBtn = document.querySelector('.tab-nav-btn[data-tab="profile"]');
+                    const settingsBtn = document.querySelector('.tab-nav-btn[data-tab="settings"]');
                     const usersTab = document.getElementById('usersTab');
                     const subsTab = document.getElementById('subscriptionTab');
                     const profileTab = document.getElementById('profileTab');
+                    const settingsTab = document.getElementById('settingsCompanyTab');
                     const addUserBtn = document.getElementById('addUserButton');
 
                     if (profileBtn) profileBtn.style.display = allowProfile ? '' : 'none';
                     if (usersBtn) usersBtn.style.display = allowUsers ? '' : 'none';
                     if (subsBtn) subsBtn.style.display = allowSubs ? '' : 'none';
+                    if (settingsBtn) settingsBtn.style.display = allowSettings ? '' : 'none';
                     if (profileTab) profileTab.style.display = allowProfile ? '' : 'none';
                     if (usersTab) usersTab.style.display = allowUsers ? '' : 'none';
                     if (subsTab) subsTab.style.display = allowSubs ? '' : 'none';
+                    if (settingsTab) settingsTab.style.display = allowSettings ? '' : 'none';
                     // Add button visibility (default deny unless explicitly granted)
                     const allowSeeAdd = p.canSeeAddButton === true;
                     if (addUserBtn) addUserBtn.style.display = allowSeeAdd ? '' : 'none';
@@ -5912,11 +5922,13 @@
                     const isUsersActive = usersTab?.classList.contains('active');
                     const isSubsActive = subsTab?.classList.contains('active');
                     const isProfileActive = profileTab?.classList.contains('active');
-                    if ((isProfileActive && !allowProfile) || (isUsersActive && !allowUsers) || (isSubsActive && !allowSubs)) {
-                        const fallback = allowProfile ? 'profile' : (allowUsers ? 'users' : (allowSubs ? 'subscription' : null));
+                    const isSettingsActive = settingsTab?.classList.contains('active');
+                    if ((isProfileActive && !allowProfile) || (isUsersActive && !allowUsers) || (isSubsActive && !allowSubs) || (isSettingsActive && !allowSettings)) {
+                        const fallback = allowProfile ? 'profile' : (allowUsers ? 'users' : (allowSubs ? 'subscription' : (allowSettings ? 'settings' : null)));
                         if (fallback) {
                             const fallbackBtn = document.querySelector(`.tab-nav-btn[data-tab="${fallback}"]`);
-                            const fallbackTab = document.getElementById(`${fallback}Tab`);
+                            const fallbackTabId = fallback === 'settings' ? 'settingsCompanyTab' : `${fallback}Tab`;
+                            const fallbackTab = document.getElementById(fallbackTabId);
                             document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
                             document.querySelectorAll('.tab-nav-btn').forEach(b => b.classList.remove('active'));
                             if (fallbackTab) fallbackTab.classList.add('active');
@@ -5933,7 +5945,7 @@
                 const btn = e.target.closest?.('.tab-nav-btn');
                 if (!btn) return;
                 const tab = btn.getAttribute('data-tab');
-                if (!tab || (tab !== 'users' && tab !== 'subscription' && tab !== 'profile')) return;
+                if (!tab || (tab !== 'users' && tab !== 'subscription' && tab !== 'profile' && tab !== 'settings')) return;
                 const companyId = window.companyManagement?.companyId || window.companyManagement?.getCurrentCompanyId?.();
                 const me = window.companyManagement?.currentUser?.uid || window.companyManagement?.currentUser?.id;
                 if (!companyId || !me) return; // nothing to enforce
@@ -5944,7 +5956,9 @@
                 // Default deny for subscription unless explicitly true
                 const allowSubs = p.canSeeSubscriptionTab === true;
                 const allowProfile = p.canSeeProfileTab !== false;
-                if ((tab === 'users' && !allowUsers) || (tab === 'subscription' && !allowSubs) || (tab === 'profile' && !allowProfile)) {
+                // Default deny for settings unless explicitly true
+                const allowSettings = p.canSeeSettingsTab === true;
+                if ((tab === 'users' && !allowUsers) || (tab === 'subscription' && !allowSubs) || (tab === 'profile' && !allowProfile) || (tab === 'settings' && !allowSettings)) {
                     e.preventDefault();
                     window.notificationManager?.addNotification({ type: 'warning', message: 'You do not have access to this tab.' });
                 }
@@ -5995,12 +6009,14 @@
                     const allowProfile = document.getElementById('acAllowProfileTab');
                     const allowUsers = document.getElementById('acAllowUsersTab');
                     const allowSubs = document.getElementById('acAllowSubsTab');
+                    const allowSettings = document.getElementById('acAllowSettingsTab');
                     const allowSeeAdd = document.getElementById('acAllowSeeAddBtn');
                     const allowCreateWith = document.getElementById('acAllowCreateWith');
                     const allowCreateWithout = document.getElementById('acAllowCreateWithout');
                     if (allowProfile) allowProfile.checked = true;
                     if (allowUsers) allowUsers.checked = true;
                     if (allowSubs) allowSubs.checked = true;
+                    if (allowSettings) allowSettings.checked = true;
                     if (allowSeeAdd) allowSeeAdd.checked = true;
                     if (allowCreateWith) allowCreateWith.checked = true;
                     if (allowCreateWithout) allowCreateWithout.checked = true;
@@ -6018,6 +6034,7 @@
                 const canProfile = !!document.getElementById('acAllowProfileTab')?.checked;
                 const canUsers = !!document.getElementById('acAllowUsersTab')?.checked;
                 const canSubs = !!document.getElementById('acAllowSubsTab')?.checked;
+                const canSettings = !!document.getElementById('acAllowSettingsTab')?.checked;
                 const canSeeAdd = !!document.getElementById('acAllowSeeAddBtn')?.checked;
                 const canCreateWith = !!document.getElementById('acAllowCreateWith')?.checked;
                 const canCreateWithout = !!document.getElementById('acAllowCreateWithout')?.checked;
@@ -6026,6 +6043,7 @@
                         canSeeProfileTab: canProfile,
                         canSeeUsersTab: canUsers,
                         canSeeSubscriptionTab: canSubs,
+                        canSeeSettingsTab: canSettings,
                         canSeeAddButton: canSeeAdd,
                         canCreateWithAccount: canCreateWith,
                         canCreateWithoutAccount: canCreateWithout
@@ -10681,6 +10699,10 @@
                         <i class="fas fa-credit-card"></i>
                         Subscription & Quota
                     </button>
+                    <button class="tab-nav-btn" data-tab="settings">
+                        <i class="fas fa-cog"></i>
+                        Settings
+                    </button>
                 </div>
 
                 <!-- Company Profile Tab -->
@@ -10977,6 +10999,7 @@
                                             <th style="white-space:nowrap;">Company Profile Tab</th>
                                             <th style="white-space:nowrap;">User Management Tab</th>
                                             <th style="white-space:nowrap;">Subscription & Quota Tab</th>
+                                            <th style="white-space:nowrap;">Settings Tab</th>
                                             <th style="white-space:nowrap;">See + Button</th>
                                             <th style="white-space:nowrap;">Create With Account</th>
                                             <th style="white-space:nowrap;">Create Without Account</th>
@@ -11201,7 +11224,8 @@
                     </div>
                 </div>
 
-            </div>
+                <!-- Settings Tab -->
+                <div class="tab-content" id="settingsCompanyTab">
             
             <!-- Settings — Stamp Designer (Premium Edition) -->
             <style>
@@ -11972,6 +11996,8 @@
                             </div>
                         </div>
                     </div>
+                </div>
+            </div>
                 </div>
             </div>
         </main>
@@ -19232,6 +19258,13 @@
                             <label class="form-label">Subscription & Quota Tab</label>
                             <label style="display:flex;align-items:center;gap:0.4rem;">
                                 <input type="checkbox" id="acAllowSubsTab" checked>
+                                Allow access
+                            </label>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Settings Tab</label>
+                            <label style="display:flex;align-items:center;gap:0.4rem;">
+                                <input type="checkbox" id="acAllowSettingsTab" checked>
                                 Allow access
                             </label>
                         </div>
