@@ -1184,6 +1184,9 @@ li.menu-visible,
                 <button class="main-tab-btn" data-tab="recordTab" onclick="switchMainTab('recordTab')">
                     <i class="fas fa-history"></i> Record
                 </button>
+                <button class="main-tab-btn" data-tab="settingsTab" onclick="switchMainTab('settingsTab')">
+                    <i class="fas fa-cog"></i> Settings
+                </button>
             </div>
 
             <!-- NFC Tab Content -->
@@ -1364,6 +1367,21 @@ li.menu-visible,
 
                             <!-- Write Status -->
                             <div class="write-status" id="writeStatus"></div>
+
+                            <!-- Read-Only Mode (Soft Lock) -->
+                            <div class="form-group" style="margin-top: 1rem; padding: 1rem; background: var(--bg-tertiary); border-radius: 8px; border: 1px solid var(--border-color);">
+                                <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem;">
+                                    <i class="fas fa-user-shield" style="color: var(--primary-color);"></i>
+                                    <strong>Read-Only Mode</strong>
+                                </div>
+                                <small style="display:block;color:var(--text-secondary);margin-bottom:.75rem;">
+                                    Soft lock prevents writing via this site. Hardware read-only (blocking all apps) is not available in browsers.
+                                </small>
+                                <div style="display:flex;gap:.5rem;">
+                                    <button class="btn btn-warning" type="button" onclick="softLockCurrentCard()"><i class="fas fa-lock"></i> Set Read-Only (Soft)</button>
+                                    <button class="btn btn-secondary" type="button" onclick="softUnlockCard()"><i class="fas fa-unlock"></i> Allow Writing</button>
+                                </div>
+                            </div>
                         </div>
 
                         <!-- Card Information Section -->
@@ -1455,6 +1473,69 @@ li.menu-visible,
             </div>
             <!-- End of Record Tab Content -->
 
+            <!-- Settings Tab Content -->
+            <div class="main-tab-content" id="settingsTab">
+                <div class="record-table-container">
+                    <h2 style="margin: 0 0 1rem 0; color: var(--primary-color);">
+                        <i class="fas fa-id-card"></i> Assign Card to Employee
+                    </h2>
+
+                    <div class="write-form" style="margin-bottom: 1.25rem;">
+                        <div class="form-group">
+                            <label for="assignOrg">Organization</label>
+                            <select id="assignOrg" onchange="onAssignOrganizationChange()">
+                                <option value="">-- Select Organization --</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="assignEmployee">Employee</label>
+                            <select id="assignEmployee">
+                                <option value="">-- Select Organization First --</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Card ID</label>
+                            <select id="assignCardId">
+                                <option value="">-- Select Card --</option>
+                            </select>
+                        </div>
+                        <div style="display:flex; gap:.5rem;">
+                            <button class="btn btn-primary" type="button" onclick="scanCardForAssignment()"><i class="fas fa-wifi"></i> Scan Card</button>
+                            <button class="btn btn-success" type="button" onclick="assignCardToEmployee()"><i class="fas fa-check"></i> Assign Card</button>
+                        </div>
+                        <div class="write-status" id="assignStatus"></div>
+                    </div>
+
+                    <h3 style="color: var(--primary-color); margin-bottom: .75rem;"><i class="fas fa-list"></i> Current Assignments</h3>
+                    <div id="assignmentsTableContent">
+                        <table class="record-table">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Assigned At</th>
+                                    <th>Card ID</th>
+                                    <th>Serial</th>
+                                    <th>Employee</th>
+                                    <th>Organization</th>
+                                    <th>Assigned By</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="assignmentsTableBody">
+                                <tr>
+                                    <td colspan="8" class="record-empty">
+                                        <i class="fas fa-inbox"></i>
+                                        <p>No assignments yet</p>
+                                        <p style="font-size: 0.85rem;">Scan and assign a card to an employee</p>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <!-- End of Settings Tab Content -->
+
         </main>
     </div>
 
@@ -1489,6 +1570,9 @@ li.menu-visible,
             // Load write history when switching to Record tab
             if (tabId === 'recordTab') {
                 loadWriteHistory();
+            }
+            if (tabId === 'settingsTab') {
+                loadAssignments();
             }
         }
 
@@ -1712,6 +1796,234 @@ li.menu-visible,
             }
         }
 
+        // --- Settings: Assign Card to Employee ---
+        let assignmentScanController = null;
+        let cardIdSerialMap = {};
+        function showAssignStatus(message, type) {
+            const status = document.getElementById('assignStatus');
+            if (!status) return;
+            status.textContent = message;
+            status.className = 'write-status ' + (type || 'writing');
+        }
+
+        async function populateCardIdDropdown() {
+            try {
+                const currentUser = window.authManager?.currentUser;
+                if (!currentUser?.companyId) return;
+                const select = document.getElementById('assignCardId');
+                if (!select) return;
+                select.innerHTML = '<option value="">-- Select Card --</option>';
+                cardIdSerialMap = {};
+                const snap = await db.ref(`companies/${currentUser.companyId}/nfcRecords`).orderByChild('timestamp').once('value');
+                const latestByCardId = {};
+                if (snap.exists()) {
+                    snap.forEach(child => {
+                        const val = child.val();
+                        const cid = val.cardId || null;
+                        if (!cid) return;
+                        const ts = new Date(val.timestamp || 0).getTime();
+                        if (!latestByCardId[cid] || ts > latestByCardId[cid].ts) {
+                            latestByCardId[cid] = { ts, serialNumber: val.serialNumber || '-' };
+                        }
+                    });
+                }
+                const options = Object.keys(latestByCardId).sort().map(cid => {
+                    const serial = latestByCardId[cid].serialNumber || '-';
+                    cardIdSerialMap[cid] = serial;
+                    const label = `${cid} ${serial !== '-' ? `(Serial: ${serial})` : ''}`;
+                    return `<option value="${cid}">${label}</option>`;
+                }).join('');
+                select.innerHTML += options || '';
+            } catch (e) {
+                console.error('populateCardIdDropdown error', e);
+            }
+        }
+
+        async function scanCardForAssignment() {
+            try {
+                const ndef = new NDEFReader();
+                assignmentScanController = new AbortController();
+                showAssignStatus('Scanning... hold a card near the device', 'writing');
+                
+                ndef.addEventListener('reading', async ({ serialNumber }) => {
+                    try {
+                        if (assignmentScanController) assignmentScanController.abort();
+                    } catch {}
+                    const serial = serialNumber || 'Unknown';
+                    document.getElementById('assignSerial').value = serial;
+                    const cardId = await generateCardId(serial);
+                    document.getElementById('assignCardId').value = cardId;
+                    if ('vibrate' in navigator) navigator.vibrate(200);
+                    showAssignStatus('Card scanned. Ready to assign.', 'success');
+                }, { once: true });
+                
+                await ndef.scan({ signal: assignmentScanController.signal });
+            } catch (err) {
+                console.error('scanCardForAssignment error', err);
+                showAssignStatus(err.message || 'Error scanning card', 'error');
+            }
+        }
+
+        async function assignCardToEmployee() {
+            try {
+                const currentUser = window.authManager?.currentUser;
+                if (!currentUser || !currentUser.companyId) {
+                    showAssignStatus('Not authenticated or no company context.', 'error');
+                    return;
+                }
+                const org = document.getElementById('assignOrg').value;
+                const empSelect = document.getElementById('assignEmployee');
+                const employeeId = empSelect.value;
+                const employeeName = empSelect.selectedOptions[0]?.text || '';
+                const cardId = document.getElementById('assignCardId').value;
+                
+                if (!org) { showAssignStatus('Select an organization.', 'error'); return; }
+                if (!employeeId) { showAssignStatus('Select an employee.', 'error'); return; }
+                if (!cardId) { showAssignStatus('Select a card ID.', 'error'); return; }
+                const serial = cardIdSerialMap[cardId] || '-';
+                
+                const assignment = {
+                    cardId,
+                    serialNumber: serial,
+                    organization: org,
+                    employeeId,
+                    employeeName,
+                    assignedAt: new Date().toISOString(),
+                    assignedBy: currentUser.uid,
+                    assignedByName: currentUser.displayName || currentUser.email || 'Unknown User'
+                };
+                
+                await db.ref(`companies/${currentUser.companyId}/cardAssignments/${cardId}`).set(assignment);
+                showAssignStatus('✅ Card assigned successfully.', 'success');
+                renderAssignmentsTableRowPrepend(assignment);
+            } catch (e) {
+                console.error('assignCardToEmployee error', e);
+                showAssignStatus('Error assigning card.', 'error');
+            }
+        }
+
+        function renderAssignmentsTableRowPrepend(a) {
+            const tbody = document.getElementById('assignmentsTableBody');
+            if (!tbody) return;
+            // remove empty state if any
+            if (tbody.querySelector('.record-empty')) tbody.innerHTML = '';
+            const date = new Date(a.assignedAt);
+            const formattedDate = date.toLocaleString('en-US', { year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>—</td>
+                <td>${formattedDate}</td>
+                <td>${a.cardId}</td>
+                <td>${a.serialNumber}</td>
+                <td>${escapeHtml(a.employeeName || '-')}</td>
+                <td>${escapeHtml(a.organization || '-')}</td>
+                <td>${escapeHtml(a.assignedByName || '-')}</td>
+                <td>
+                    <button class="btn btn-danger" style="padding:.25rem .5rem;font-size:.8rem" onclick="unassignCard('${a.cardId}')"><i class="fas fa-times"></i> Unassign</button>
+                </td>`;
+            tbody.prepend(row);
+        }
+
+        function renderAssignmentsTable(list) {
+            const tbody = document.getElementById('assignmentsTableBody');
+            if (!tbody) return;
+            if (!list || list.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="8" class="record-empty">
+                            <i class="fas fa-inbox"></i>
+                            <p>No assignments yet</p>
+                            <p style="font-size: 0.85rem;">Scan and assign a card to an employee</p>
+                        </td>
+                    </tr>`;
+                return;
+            }
+            tbody.innerHTML = list.map((a, idx) => {
+                const date = new Date(a.assignedAt || a.timestamp || Date.now());
+                const formattedDate = date.toLocaleString('en-US', { year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
+                return `
+                    <tr>
+                        <td>${list.length - idx}</td>
+                        <td>${formattedDate}</td>
+                        <td>${a.cardId || '-'}</td>
+                        <td>${a.serialNumber || '-'}</td>
+                        <td>${escapeHtml(a.employeeName || '-')}</td>
+                        <td>${escapeHtml(a.organization || '-')}</td>
+                        <td>${escapeHtml(a.assignedByName || '-')}</td>
+                        <td>
+                            <button class="btn btn-danger" style="padding:.25rem .5rem;font-size:.8rem" onclick="unassignCard('${a.cardId}')"><i class="fas fa-times"></i> Unassign</button>
+                        </td>
+                    </tr>`;
+            }).join('');
+        }
+
+        async function loadAssignments() {
+            try {
+                const currentUser = window.authManager?.currentUser;
+                if (!currentUser?.companyId) return;
+                // Populate organizations each time Settings tab opens
+                populateAssignOrganizations();
+                // Populate card ID dropdown from records
+                await populateCardIdDropdown();
+                const snap = await db.ref(`companies/${currentUser.companyId}/cardAssignments`).once('value');
+                const list = [];
+                if (snap.exists()) {
+                    snap.forEach(child => list.push({ cardId: child.key, ...child.val() }));
+                    list.sort((a,b) => new Date(b.assignedAt||b.timestamp) - new Date(a.assignedAt||a.timestamp));
+                }
+                renderAssignmentsTable(list);
+                // Ensure realtime listener is active
+                setupAssignmentsRealtimeListener();
+            } catch (e) {
+                console.error('loadAssignments error', e);
+                renderAssignmentsTable([]);
+            }
+        }
+
+        let assignmentsRef = null;
+        function setupAssignmentsRealtimeListener() {
+            try {
+                const currentUser = window.authManager?.currentUser;
+                if (!currentUser?.companyId) return;
+                if (assignmentsRef) assignmentsRef.off();
+                assignmentsRef = db.ref(`companies/${currentUser.companyId}/cardAssignments`);
+                assignmentsRef.on('value', snapshot => {
+                    const list = [];
+                    snapshot.forEach(child => list.push({ cardId: child.key, ...child.val() }));
+                    list.sort((a,b) => new Date(b.assignedAt||b.timestamp) - new Date(a.assignedAt||a.timestamp));
+                    renderAssignmentsTable(list);
+                });
+            } catch (e) {
+                console.error('setupAssignmentsRealtimeListener error', e);
+            }
+        }
+
+        async function unassignCard(cardId) {
+            try {
+                const currentUser = window.authManager?.currentUser;
+                if (!currentUser?.companyId) return;
+                await db.ref(`companies/${currentUser.companyId}/cardAssignments/${cardId}`).remove();
+            } catch (e) {
+                console.error('unassignCard error', e);
+                alert('Failed to unassign card');
+            }
+        }
+
+        function onAssignOrganizationChange() {
+            const org = document.getElementById('assignOrg').value;
+            const empSelect = document.getElementById('assignEmployee');
+            empSelect.innerHTML = '<option value="">-- Loading employees... --</option>';
+            // Build employees list from employeesMap by organization name
+            const list = (employeesMap[org] || []).map(u => ({ id: u.id || u.uid || u.userId || u.key || '', name: (u.fullName || u.name || u.displayName || u.email || '').trim() }));
+            empSelect.innerHTML = '<option value="">-- Select Employee --</option>' + list.map(e => `<option value="${e.id}">${escapeHtml(e.name)}</option>`).join('');
+        }
+
+        function populateAssignOrganizations() {
+            const select = document.getElementById('assignOrg');
+            if (!select) return;
+            select.innerHTML = '<option value="">-- Select Organization --</option>' + (companiesList||[]).map(c => `<option value="${escapeHtml(c.name)}">${escapeHtml(c.name)}</option>`).join('');
+        }
+
         // Save scan record to Firebase (permanent)
         async function addScanRecordFirebase(cardData) {
             try {
@@ -1745,6 +2057,63 @@ li.menu-visible,
                 renderWriteHistory();
             } catch (err) {
                 console.error('Failed to save scan record:', err);
+            }
+        }
+
+        // Soft lock helpers (server-side lock)
+        async function isCardLocked(cardId) {
+            try {
+                const currentUser = window.authManager?.currentUser;
+                if (!currentUser?.companyId || !cardId) return false;
+                const snap = await db.ref(`companies/${currentUser.companyId}/lockedCards/${cardId}/locked`).once('value');
+                return snap.exists() && !!snap.val();
+            } catch {
+                return false;
+            }
+        }
+
+        async function softLockCurrentCard() {
+            try {
+                const currentUser = window.authManager?.currentUser;
+                if (!currentUser?.companyId) { showWriteStatus('No company context.', 'error'); return; }
+                showWriteStatus('Scanning card to lock...', 'writing');
+                const ndef = new NDEFReader();
+                const controller = new AbortController();
+                ndef.addEventListener('reading', async ({ serialNumber }) => {
+                    try { controller.abort(); } catch {}
+                    const cardId = await generateCardId(serialNumber || 'Unknown');
+                    await db.ref(`companies/${currentUser.companyId}/lockedCards/${cardId}`).set({
+                        locked: true,
+                        lockedAt: new Date().toISOString(),
+                        lockedBy: currentUser.uid,
+                        lockedByName: currentUser.displayName || currentUser.email || 'Unknown User'
+                    });
+                    showWriteStatus(`Card ${cardId} is now read-only (soft lock).`, 'success');
+                }, { once: true });
+                await ndef.scan({ signal: controller.signal });
+            } catch (e) {
+                console.error('softLockCurrentCard error', e);
+                showWriteStatus('Failed to lock card.', 'error');
+            }
+        }
+
+        async function softUnlockCard() {
+            try {
+                const currentUser = window.authManager?.currentUser;
+                if (!currentUser?.companyId) { showWriteStatus('No company context.', 'error'); return; }
+                showWriteStatus('Scanning card to unlock...', 'writing');
+                const ndef = new NDEFReader();
+                const controller = new AbortController();
+                ndef.addEventListener('reading', async ({ serialNumber }) => {
+                    try { controller.abort(); } catch {}
+                    const cardId = await generateCardId(serialNumber || 'Unknown');
+                    await db.ref(`companies/${currentUser.companyId}/lockedCards/${cardId}`).remove();
+                    showWriteStatus(`Card ${cardId} is now writable on this site.`, 'success');
+                }, { once: true });
+                await ndef.scan({ signal: controller.signal });
+            } catch (e) {
+                console.error('softUnlockCard error', e);
+                showWriteStatus('Failed to unlock card.', 'error');
             }
         }
 
@@ -3173,10 +3542,10 @@ li.menu-visible,
                     // Set a timeout to stop scanning
                     const timeout = setTimeout(() => {
                         controller.abort();
-                        resolve({ protected: false, hash: null });
+                        resolve({ protected: false, hash: null, serialNumber: null });
                     }, 3000);
 
-                    ndef.addEventListener('reading', ({ message }) => {
+                    ndef.addEventListener('reading', ({ message, serialNumber }) => {
                         clearTimeout(timeout);
                         controller.abort();
                         
@@ -3186,7 +3555,7 @@ li.menu-visible,
                             if (record.recordType === 'mime' && record.mediaType === 'application/x-nfc-password') {
                                 const decoder = new TextDecoder();
                                 const hash = decoder.decode(record.data);
-                                resolve({ protected: true, hash: hash });
+                                resolve({ protected: true, hash: hash, serialNumber });
                                 return;
                             }
                             // Proprietary format (DXP: prefix)
@@ -3195,17 +3564,17 @@ li.menu-visible,
                                 const data = decoder.decode(record.data);
                                 if (data.startsWith('DXP:')) {
                                     const hash = data.substring(4);
-                                    resolve({ protected: true, hash: hash });
+                                    resolve({ protected: true, hash: hash, serialNumber });
                                     return;
                                 }
                             }
                         }
-                        resolve({ protected: false, hash: null });
+                        resolve({ protected: false, hash: null, serialNumber });
                     }, { once: true });
 
                     await ndef.scan({ signal: controller.signal });
                 } catch (error) {
-                    resolve({ protected: false, hash: null });
+                    resolve({ protected: false, hash: null, serialNumber: null });
                 }
             });
         }
@@ -3300,6 +3669,20 @@ li.menu-visible,
                 
                 // First, check if the card is password protected
                 const protection = await checkCardProtection();
+                // If we could read serial, check soft-lock before proceeding
+                if (protection.serialNumber) {
+                    const cardId = await generateCardId(protection.serialNumber);
+                    const locked = await isCardLocked(cardId);
+                    if (locked) {
+                        showWriteStatus('This card is set to read-only (soft lock). Writing is disabled.', 'error');
+                        isWriting = false;
+                        document.getElementById('writeNfcBtn').style.display = 'inline-flex';
+                        document.getElementById('cancelWriteBtn').style.display = 'none';
+                        document.getElementById('nfcIcon').classList.remove('writing');
+                        document.getElementById('nfcIconContainer').classList.remove('scanning');
+                        return;
+                    }
+                }
                 
                 if (protection.protected) {
                     // Card is protected - show password modal
