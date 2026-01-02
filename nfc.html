@@ -1206,6 +1206,20 @@ li.menu-visible,
                                 </div>
                             </div>
 
+                            <!-- Data Encryption -->
+                            <div class="form-group" style="padding: 1rem; background: linear-gradient(135deg, rgba(46, 204, 113, 0.1), rgba(39, 174, 96, 0.1)); border-radius: 8px; border: 1px solid var(--success-color);">
+                                <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                    <input type="checkbox" id="enableEncryption" checked style="width: 18px; height: 18px; cursor: pointer;">
+                                    <label for="enableEncryption" style="margin: 0; cursor: pointer; font-weight: 500;">
+                                        <i class="fas fa-shield-alt" style="margin-right: 0.5rem; color: var(--success-color);"></i>
+                                        Encrypt Card Data
+                                    </label>
+                                </div>
+                                <small style="color: var(--success-color); display: block; margin-top: 0.5rem; margin-left: 2rem;">
+                                    <i class="fas fa-info-circle"></i> Only your site can read encrypted data. Other apps see gibberish.
+                                </small>
+                            </div>
+
                             <!-- Write Button -->
                             <div style="margin-top: 1.5rem; text-align: center;">
                                 <button class="btn btn-success" id="writeNfcBtn" onclick="startNFCWrite()">
@@ -1911,7 +1925,7 @@ li.menu-visible,
         }
 
         // Handle NFC reading event
-        function handleNFCReading(event) {
+        async function handleNFCReading(event) {
             const { message, serialNumber } = event;
             
             console.log('NFC Tag Read:', { serialNumber, message });
@@ -1921,8 +1935,10 @@ li.menu-visible,
                 navigator.vibrate(200);
             }
 
-            // Parse and display the data
-            const cardData = parseNFCMessage(message, serialNumber);
+            updateStatus('Processing card data...', 'active');
+
+            // Parse and display the data (with decryption)
+            const cardData = await parseNFCMessage(message, serialNumber);
             displayCardData(cardData);
 
             // Add to history
@@ -1959,12 +1975,12 @@ li.menu-visible,
         }
 
         // Parse NFC message
-        function parseNFCMessage(message, serialNumber) {
+        async function parseNFCMessage(message, serialNumber) {
             const records = [];
             const rawRecords = [];
 
             for (const record of message.records) {
-                const parsedRecord = parseNDEFRecord(record);
+                const parsedRecord = await parseNDEFRecord(record);
                 records.push(parsedRecord);
                 rawRecords.push({
                     recordType: record.recordType,
@@ -1985,14 +2001,16 @@ li.menu-visible,
             };
         }
 
-        // Parse individual NDEF record
-        function parseNDEFRecord(record) {
+        // Parse individual NDEF record (with decryption support)
+        async function parseNDEFRecord(record) {
             const result = {
                 type: record.recordType,
                 mediaType: record.mediaType || null,
                 id: record.id || null,
                 data: null,
-                displayData: null
+                displayData: null,
+                encrypted: false,
+                decrypted: false
             };
 
             try {
@@ -2012,15 +2030,82 @@ li.menu-visible,
                         break;
 
                     case 'mime':
-                        if (record.mediaType === 'application/json') {
-                            const jsonDecoder = new TextDecoder();
-                            const jsonString = jsonDecoder.decode(record.data);
-                            result.data = JSON.parse(jsonString);
-                            result.displayData = JSON.stringify(result.data, null, 2);
+                        const mimeDecoder = new TextDecoder();
+                        const rawData = mimeDecoder.decode(record.data);
+                        
+                        // Handle encrypted data types
+                        if (record.mediaType && record.mediaType.startsWith('application/x-encrypted-')) {
+                            result.encrypted = true;
+                            const originalType = record.mediaType.replace('application/x-encrypted-', '');
+                            
+                            // Try to decrypt
+                            const decryptResult = await decryptData(rawData);
+                            if (decryptResult.decrypted) {
+                                result.decrypted = true;
+                                result.data = decryptResult.data;
+                                
+                                // Parse based on original type
+                                if (originalType === 'json') {
+                                    try {
+                                        const parsed = JSON.parse(decryptResult.data);
+                                        result.displayData = JSON.stringify(parsed, null, 2);
+                                    } catch {
+                                        result.displayData = decryptResult.data;
+                                    }
+                                } else if (originalType === 'vcard') {
+                                    result.displayData = decryptResult.data;
+                                    result.mediaType = 'text/vcard';
+                                } else {
+                                    result.displayData = decryptResult.data;
+                                }
+                                result.decryptionNote = '🔓 Decrypted successfully';
+                            } else {
+                                // Could not decrypt - show encrypted data
+                                result.data = rawData;
+                                result.displayData = '🔐 ENCRYPTED DATA\n\nThis card contains encrypted data from another company.\nYou cannot view this data without the correct encryption key.\n\nRaw data: ' + rawData.substring(0, 50) + '...';
+                                result.decryptionNote = decryptResult.error || 'Unable to decrypt';
+                            }
+                        } else if (record.mediaType === 'application/x-nfc-password') {
+                            // Password hash - don't display
+                            result.data = '(password protection hash)';
+                            result.displayData = '🔒 Password Protected Card';
+                            result.isPasswordRecord = true;
+                        } else if (record.mediaType === 'application/json') {
+                            const jsonString = rawData;
+                            
+                            // Check if JSON content is encrypted
+                            if (isEncryptedData(jsonString)) {
+                                result.encrypted = true;
+                                const decryptResult = await decryptData(jsonString);
+                                if (decryptResult.decrypted) {
+                                    result.decrypted = true;
+                                    result.data = JSON.parse(decryptResult.data);
+                                    result.displayData = JSON.stringify(result.data, null, 2);
+                                    result.decryptionNote = '🔓 Decrypted successfully';
+                                } else {
+                                    result.displayData = '🔐 ENCRYPTED JSON\n' + jsonString.substring(0, 100) + '...';
+                                }
+                            } else {
+                                result.data = JSON.parse(jsonString);
+                                result.displayData = JSON.stringify(result.data, null, 2);
+                            }
                         } else if (record.mediaType && record.mediaType.startsWith('text/')) {
-                            const mimeDecoder = new TextDecoder();
-                            result.data = mimeDecoder.decode(record.data);
-                            result.displayData = result.data;
+                            // Check if text content is encrypted
+                            if (isEncryptedData(rawData)) {
+                                result.encrypted = true;
+                                const decryptResult = await decryptData(rawData);
+                                if (decryptResult.decrypted) {
+                                    result.decrypted = true;
+                                    result.data = decryptResult.data;
+                                    result.displayData = decryptResult.data;
+                                    result.decryptionNote = '🔓 Decrypted successfully';
+                                } else {
+                                    result.displayData = '🔐 ENCRYPTED DATA\n' + rawData.substring(0, 100) + '...';
+                                }
+                            } else {
+                                result.data = rawData;
+                                result.displayData = rawData;
+                            }
                         } else {
                             result.data = arrayBufferToHex(record.data);
                             result.displayData = result.data;
@@ -2049,8 +2134,23 @@ li.menu-visible,
                         // Try to decode as text first
                         try {
                             const unknownDecoder = new TextDecoder();
-                            result.data = unknownDecoder.decode(record.data);
-                            result.displayData = result.data;
+                            const unknownData = unknownDecoder.decode(record.data);
+                            
+                            // Check if encrypted
+                            if (isEncryptedData(unknownData)) {
+                                result.encrypted = true;
+                                const decryptResult = await decryptData(unknownData);
+                                if (decryptResult.decrypted) {
+                                    result.decrypted = true;
+                                    result.data = decryptResult.data;
+                                    result.displayData = decryptResult.data;
+                                } else {
+                                    result.displayData = '🔐 ENCRYPTED\n' + unknownData.substring(0, 100) + '...';
+                                }
+                            } else {
+                                result.data = unknownData;
+                                result.displayData = unknownData;
+                            }
                         } catch {
                             result.data = arrayBufferToHex(record.data);
                             result.displayData = result.data;
@@ -2092,10 +2192,54 @@ li.menu-visible,
             const dataList = document.getElementById('nfcDataList');
             dataList.innerHTML = '';
 
-            if (cardData.records.length === 0) {
-                dataList.innerHTML = '<p style="color: var(--text-secondary); text-align: center;">No NDEF records found on this card</p>';
+            // Filter out password hash records (they're for verification, not display)
+            const displayRecords = cardData.records.filter(r => !r.isPasswordRecord);
+            
+            // Check for encryption status
+            const encryptedRecords = displayRecords.filter(r => r.encrypted);
+            const decryptedRecords = encryptedRecords.filter(r => r.decrypted);
+            const failedDecrypt = encryptedRecords.filter(r => !r.decrypted);
+            const hasPassword = cardData.records.some(r => r.isPasswordRecord);
+
+            // Show security summary if applicable
+            if (encryptedRecords.length > 0 || hasPassword) {
+                const summaryDiv = document.createElement('div');
+                summaryDiv.className = 'alert';
+                summaryDiv.style.cssText = 'margin-bottom: 1rem; padding: 0.75rem; border-radius: 8px; font-size: 0.9rem;';
+                
+                let summaryHtml = '<i class="fas fa-shield-alt"></i> <strong>Card Security:</strong><br>';
+                
+                if (hasPassword) {
+                    summaryHtml += '<span style="margin-left: 1rem;">🔒 Password Protected</span><br>';
+                }
+                
+                if (encryptedRecords.length > 0) {
+                    if (decryptedRecords.length === encryptedRecords.length) {
+                        summaryDiv.style.background = 'rgba(16, 185, 129, 0.1)';
+                        summaryDiv.style.border = '1px solid var(--success-color)';
+                        summaryHtml += `<span style="margin-left: 1rem;">🔓 ${decryptedRecords.length} encrypted record(s) successfully decrypted</span>`;
+                    } else if (decryptedRecords.length > 0) {
+                        summaryDiv.style.background = 'rgba(245, 158, 11, 0.1)';
+                        summaryDiv.style.border = '1px solid var(--warning-color)';
+                        summaryHtml += `<span style="margin-left: 1rem;">🔓 ${decryptedRecords.length} decrypted, 🔐 ${failedDecrypt.length} from other company</span>`;
+                    } else {
+                        summaryDiv.style.background = 'rgba(239, 68, 68, 0.1)';
+                        summaryDiv.style.border = '1px solid var(--danger-color)';
+                        summaryHtml += `<span style="margin-left: 1rem;">🔐 ${failedDecrypt.length} encrypted record(s) from another company</span>`;
+                    }
+                } else if (hasPassword) {
+                    summaryDiv.style.background = 'rgba(16, 185, 129, 0.1)';
+                    summaryDiv.style.border = '1px solid var(--success-color)';
+                }
+                
+                summaryDiv.innerHTML = summaryHtml;
+                dataList.appendChild(summaryDiv);
+            }
+
+            if (displayRecords.length === 0) {
+                dataList.innerHTML += '<p style="color: var(--text-secondary); text-align: center;">No NDEF records found on this card</p>';
             } else {
-                cardData.records.forEach((record, index) => {
+                displayRecords.forEach((record, index) => {
                     const recordElement = createRecordElement(record, index);
                     dataList.appendChild(recordElement);
                 });
@@ -2120,18 +2264,29 @@ li.menu-visible,
                 contentHtml = escapeHtml(record.displayData);
             }
 
+            // Build encryption/decryption badge
+            let encryptionBadge = '';
+            if (record.isPasswordRecord) {
+                encryptionBadge = '<span style="background: var(--warning-color); color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; margin-left: 0.5rem;">🔒 Protected</span>';
+            } else if (record.encrypted && record.decrypted) {
+                encryptionBadge = '<span style="background: var(--success-color); color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; margin-left: 0.5rem;">🔓 Decrypted</span>';
+            } else if (record.encrypted && !record.decrypted) {
+                encryptionBadge = '<span style="background: var(--danger-color); color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; margin-left: 0.5rem;">🔐 Encrypted (Other Company)</span>';
+            }
+
             div.innerHTML = `
                 <div class="data-item-header">
-                    <span class="data-item-label">Record ${index + 1}</span>
+                    <span class="data-item-label">Record ${index + 1}${encryptionBadge}</span>
                     <span class="data-item-type" style="background: ${typeColor}">${typeLabel}</span>
                 </div>
                 ${record.mediaType ? `<p style="font-size: 0.8rem; color: var(--text-secondary);">MIME: ${escapeHtml(record.mediaType)}</p>` : ''}
                 ${record.language ? `<p style="font-size: 0.8rem; color: var(--text-secondary);">Language: ${escapeHtml(record.language)}</p>` : ''}
+                ${record.decryptionNote ? `<p style="font-size: 0.8rem; color: var(--success-color);"><i class="fas fa-shield-alt"></i> ${escapeHtml(record.decryptionNote)}</p>` : ''}
                 <div class="data-item-content">
                     ${contentHtml}
-                    <button class="copy-btn" onclick="copyToClipboard('${escapeHtml(record.displayData).replace(/'/g, "\\'")}')">
+                    ${!record.isPasswordRecord ? `<button class="copy-btn" onclick="copyToClipboard('${escapeHtml(record.displayData).replace(/'/g, "\\'")}')">
                         <i class="fas fa-copy"></i>
-                    </button>
+                    </button>` : ''}
                 </div>
             `;
 
@@ -2311,6 +2466,108 @@ li.menu-visible,
         }
 
         // =============================================
+        // Data Encryption Functions (AES-256-GCM)
+        // =============================================
+        // Company-specific encryption key (derived from company ID)
+        const ENCRYPTION_PREFIX = 'DXENC:'; // Prefix to identify encrypted data
+        let companyEncryptionKey = null;
+
+        // Generate or retrieve company encryption key
+        async function getEncryptionKey() {
+            if (companyEncryptionKey) return companyEncryptionKey;
+            
+            try {
+                const companyId = window.authManager?.currentUser?.companyId || 'default';
+                // Create a deterministic key from company ID + secret salt
+                const keyMaterial = await crypto.subtle.importKey(
+                    'raw',
+                    new TextEncoder().encode(companyId + '_dreamex_nfc_secure_2024'),
+                    'PBKDF2',
+                    false,
+                    ['deriveBits', 'deriveKey']
+                );
+                
+                companyEncryptionKey = await crypto.subtle.deriveKey(
+                    {
+                        name: 'PBKDF2',
+                        salt: new TextEncoder().encode('dreamex_nfc_salt_v1'),
+                        iterations: 100000,
+                        hash: 'SHA-256'
+                    },
+                    keyMaterial,
+                    { name: 'AES-GCM', length: 256 },
+                    false,
+                    ['encrypt', 'decrypt']
+                );
+                
+                return companyEncryptionKey;
+            } catch (error) {
+                console.error('Error generating encryption key:', error);
+                throw error;
+            }
+        }
+
+        // Encrypt data using AES-256-GCM
+        async function encryptData(plainText) {
+            try {
+                const key = await getEncryptionKey();
+                const iv = crypto.getRandomValues(new Uint8Array(12)); // 96-bit IV for GCM
+                const encodedData = new TextEncoder().encode(plainText);
+                
+                const encryptedBuffer = await crypto.subtle.encrypt(
+                    { name: 'AES-GCM', iv: iv },
+                    key,
+                    encodedData
+                );
+                
+                // Combine IV + encrypted data and encode as base64
+                const combined = new Uint8Array(iv.length + encryptedBuffer.byteLength);
+                combined.set(iv);
+                combined.set(new Uint8Array(encryptedBuffer), iv.length);
+                
+                const base64 = btoa(String.fromCharCode(...combined));
+                return ENCRYPTION_PREFIX + base64;
+            } catch (error) {
+                console.error('Encryption error:', error);
+                throw error;
+            }
+        }
+
+        // Decrypt data using AES-256-GCM
+        async function decryptData(encryptedText) {
+            try {
+                if (!encryptedText.startsWith(ENCRYPTION_PREFIX)) {
+                    return { decrypted: false, data: encryptedText };
+                }
+                
+                const base64Data = encryptedText.substring(ENCRYPTION_PREFIX.length);
+                const combined = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
+                
+                const iv = combined.slice(0, 12);
+                const encryptedBuffer = combined.slice(12);
+                
+                const key = await getEncryptionKey();
+                
+                const decryptedBuffer = await crypto.subtle.decrypt(
+                    { name: 'AES-GCM', iv: iv },
+                    key,
+                    encryptedBuffer
+                );
+                
+                const decryptedText = new TextDecoder().decode(decryptedBuffer);
+                return { decrypted: true, data: decryptedText };
+            } catch (error) {
+                console.error('Decryption error:', error);
+                return { decrypted: false, data: encryptedText, error: 'Unable to decrypt - different company key or corrupted data' };
+            }
+        }
+
+        // Check if data is encrypted
+        function isEncryptedData(data) {
+            return typeof data === 'string' && data.startsWith(ENCRYPTION_PREFIX);
+        }
+
+        // =============================================
         // Password Protection Functions
         // =============================================
         let pendingWriteData = null;
@@ -2470,6 +2727,10 @@ li.menu-visible,
                 writeData.password = password;
             }
             
+            // Check if encryption is enabled
+            const enableEncryption = document.getElementById('enableEncryption').checked;
+            writeData.encrypt = enableEncryption;
+            
             try {
                 isWriting = true;
                 writeAbortController = new AbortController();
@@ -2524,8 +2785,11 @@ li.menu-visible,
                 }
                 
                 let successMsg = 'Successfully written to NFC card!';
-                if (writeData.password) {
-                    successMsg += ' (Password protected)';
+                const features = [];
+                if (writeData.encrypt) features.push('🔐 Encrypted');
+                if (writeData.password) features.push('🔒 Password protected');
+                if (features.length > 0) {
+                    successMsg += ' ' + features.join(' | ');
                 }
                 showWriteStatus(successMsg, 'success');
                 
@@ -2631,6 +2895,7 @@ li.menu-visible,
         // Build NDEF message for writing
         async function buildNDEFMessage(writeData) {
             const records = [];
+            const shouldEncrypt = writeData.encrypt;
             
             // Add password protection record if password is set
             if (writeData.password) {
@@ -2642,36 +2907,60 @@ li.menu-visible,
                 });
             }
             
+            // Prepare data (encrypt if enabled)
+            let dataToWrite = writeData.data;
+            if (shouldEncrypt) {
+                dataToWrite = await encryptData(writeData.data);
+                console.log('📦 Data encrypted for secure storage');
+            }
+            
             // Add the main data record
             switch (writeData.type) {
                 case 'text':
-                    records.push({
-                        recordType: 'text',
-                        data: writeData.data,
-                        lang: 'en'
-                    });
+                    if (shouldEncrypt) {
+                        // Store encrypted text as MIME type for proper handling
+                        records.push({
+                            recordType: 'mime',
+                            mediaType: 'application/x-encrypted-text',
+                            data: new TextEncoder().encode(dataToWrite)
+                        });
+                    } else {
+                        records.push({
+                            recordType: 'text',
+                            data: dataToWrite,
+                            lang: 'en'
+                        });
+                    }
                     break;
                     
                 case 'url':
-                    records.push({
-                        recordType: 'url',
-                        data: writeData.data
-                    });
+                    if (shouldEncrypt) {
+                        records.push({
+                            recordType: 'mime',
+                            mediaType: 'application/x-encrypted-url',
+                            data: new TextEncoder().encode(dataToWrite)
+                        });
+                    } else {
+                        records.push({
+                            recordType: 'url',
+                            data: dataToWrite
+                        });
+                    }
                     break;
                     
                 case 'json':
                     records.push({
                         recordType: 'mime',
-                        mediaType: 'application/json',
-                        data: new TextEncoder().encode(writeData.data)
+                        mediaType: shouldEncrypt ? 'application/x-encrypted-json' : 'application/json',
+                        data: new TextEncoder().encode(dataToWrite)
                     });
                     break;
                     
                 case 'vcard':
                     records.push({
                         recordType: 'mime',
-                        mediaType: 'text/vcard',
-                        data: new TextEncoder().encode(writeData.data)
+                        mediaType: shouldEncrypt ? 'application/x-encrypted-vcard' : 'text/vcard',
+                        data: new TextEncoder().encode(dataToWrite)
                     });
                     break;
             }
