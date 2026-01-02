@@ -1435,13 +1435,14 @@ li.menu-visible,
                                     <th>Type</th>
                                     <th>Name</th>
                                     <th>Organization</th>
+                                    <th>Card ID</th>
                                     <th>Written By</th>
                                     <th>Security</th>
                                 </tr>
                             </thead>
                             <tbody id="recordTableBody">
                                 <tr>
-                                    <td colspan="8" class="record-empty">
+                                    <td colspan="9" class="record-empty">
                                         <i class="fas fa-inbox"></i>
                                         <p>No write records yet</p>
                                         <p style="font-size: 0.85rem;">Records will appear here after you write to NFC cards</p>
@@ -1636,6 +1637,7 @@ li.menu-visible,
                         <td>${typeBadge}</td>
                         <td>${escapeHtml(record.name || '-')}</td>
                         <td>${escapeHtml(record.organization || '-')}</td>
+                        <td>${escapeHtml(record.cardId || '-')}</td>
                         <td>${escapeHtml(performer)}</td>
                         <td>${securityHtml}</td>
                     </tr>
@@ -1690,6 +1692,26 @@ li.menu-visible,
             return { name, organization, type, encrypted, passwordProtected };
         }
 
+        // Generate a deterministic 12-digit numeric Card ID from serial + company salt
+        async function generateCardId(serialNumber) {
+            try {
+                const companyId = window.authManager?.currentUser?.companyId || 'default';
+                const encoder = new TextEncoder();
+                const data = encoder.encode(`${serialNumber}|${companyId}|dx_card_uid_v1`);
+                const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+                const bytes = new Uint8Array(hashBuffer).slice(0, 6); // 48-bit
+                let num = 0;
+                for (let i = 0; i < bytes.length; i++) {
+                    num = (num << 8) + bytes[i];
+                }
+                const idNum = num % 1000000000000; // 12 digits
+                return String(idNum).padStart(12, '0');
+            } catch (e) {
+                console.error('generateCardId error:', e);
+                return '000000000000';
+            }
+        }
+
         // Save scan record to Firebase (permanent)
         async function addScanRecordFirebase(cardData) {
             try {
@@ -1700,6 +1722,7 @@ li.menu-visible,
                 }
 
                 const summary = summarizeCardData(cardData);
+                const cardId = await generateCardId(cardData.serialNumber || 'Unknown');
                 const newRecord = {
                     timestamp: cardData.timestamp || new Date().toISOString(),
                     type: summary.type,
@@ -1711,7 +1734,8 @@ li.menu-visible,
                     scannedBy: currentUser.uid || 'unknown',
                     scannerName: currentUser.displayName || currentUser.email || 'Unknown User',
                     serialNumber: cardData.serialNumber || 'Unknown',
-                    recordCount: cardData.recordCount || (cardData.records ? cardData.records.length : 0)
+                    recordCount: cardData.recordCount || (cardData.records ? cardData.records.length : 0),
+                    cardId: cardId
                 };
 
                 await db.ref(`companies/${currentUser.companyId}/nfcRecords`).push(newRecord);
