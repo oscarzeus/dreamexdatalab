@@ -1,132 +1,141 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NFC Card Reader - Dreamex Datalab</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>NFC Card Reader - Dreamex Datalab</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
+<!-- Firebase v8 Scripts for Centralized Authentication -->
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
     
-    <!-- Firebase v8 CDN for compatibility -->
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-    
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
-    <style>
-        /* CSS Variables */
-        :root {
-            --primary-color: #2c3e50;
-            --secondary-color: #3498db;
-            --accent-color: #e74c3c;
-            --text-color: #333;
-            --bg-color: #f5f6fa;
-            --sidebar-width: 250px;
-            --blue: #3498db;
-            --green: #2ecc71;
-            --purple: #9b59b6;
-            --orange: #e67e22;
-            --red: #e74c3c;
-            --font-family: 'Inter', system-ui, -apple-system, sans-serif;
-            --base-font-size: 0.9rem;
-            --bg-primary: #ffffff;
-            --bg-secondary: #f8f9fa;
-            --text-primary: #333333;
-            --text-secondary: #666666;
-            --border-color: #e0e0e0;
-            --transition-speed: 0.2s;
-        }
+<style>
+:root { --primary-color:#2c3e50; --secondary-color:#34495e; --accent-color:#e74c3c; --success-color:#27ae60; --warning-color:#f39c12; --info-color:#3498db; --light-color:#ecf0f1; --dark-color:#2c3e50; --sidebar-width:250px; --transition-speed:.25s; --blue: #3498db; --green: #2ecc71; --purple: #9b59b6; --orange: #e67e22; --red: #e74c3c; --text-secondary: #666666; --border-color: #e0e0e0; }
+* { box-sizing:border-box; margin:0; padding:0; }
+body { font-family: 'Segoe UI', Arial, sans-serif; background:#f5f7fa; color:#222; }
+.app-container { display:flex; min-height:100vh; }
+.sidebar { width:var(--sidebar-width); background:var(--primary-color); color:#fff; padding:1rem; position:fixed; top:0; left:0; bottom:0; overflow-y:auto; transition:transform .3s ease; z-index:1000; }
+.sidebar.collapsed { transform:translateX(-100%); }
+.main-content { flex:1; margin-left:var(--sidebar-width); padding:0.3rem; padding-top:3.2rem; transition:margin-left .3s ease; }
+.main-content.sidebar-collapsed { margin-left:0; }
+.main-content.sidebar-collapsed .top-nav { left:0.5rem; }
+.logo h2 { text-align:center; padding:1rem 0; border-bottom:1px solid rgba(255,255,255,0.1); font-size:1.05rem; letter-spacing:.5px; }
+.menu { list-style:none; margin-top:2rem; }
+.menu li { margin-bottom:0.45rem; }
+.menu a { display:flex; align-items:center; gap:10px; color:#fff; text-decoration:none; padding:0.6rem 0.75rem; border-radius:6px; font-size:0.82rem; font-weight:500; transition:background .25s; }
+.menu a:hover, .menu a.active { background:rgba(255,255,255,0.12); }
+.submenu { list-style:none; margin-left:0.75rem; display:none; margin-top:0.25rem; }
+.menu-dropdown:hover .submenu { display:block; }
+.submenu a { font-size:0.75rem; padding:0.45rem 0.65rem; }
+[data-feature]:not(.menu-visible) { display:none !important; }
+.menu-dropdown:not(.menu-visible) { display:none !important; }
 
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+/* Hide ALL menu items by default during loading */
+.sidebar.menu-loading .menu-item,
+.sidebar.menu-loading .menu-dropdown,
+.sidebar.menu-loading li[data-feature],
+.sidebar.menu-loading [data-feature] {
+    display: none !important;
+}
 
-        body {
-            font-family: var(--font-family);
-            font-size: var(--base-font-size);
-            line-height: 1.5;
-            color: var(--text-primary);
-            background-color: var(--bg-secondary);
-            min-height: 100vh;
-        }
+/* Allow menu-visible items to show even during loading */
+.sidebar.menu-loading .menu-visible,
+.sidebar.menu-loading li.menu-visible,
+.sidebar.menu-loading [data-feature].menu-visible {
+    display: block !important;
+}
 
-        .app-container {
-            display: flex;
-            min-height: 100vh;
-        }
+.menu-loading [data-feature] {
+    display: none !important;
+}
 
-        /* Sidebar Styles */
-        .sidebar {
-            width: var(--sidebar-width);
-            background-color: var(--primary-color);
-            color: white;
-            padding: 1rem;
-            position: fixed;
-            height: 100vh;
-            overflow-y: auto;
-            z-index: 1000;
-        }
+.menu-loading .menu-dropdown {
+    display: none !important;
+}
 
-        .logo h2 {
-            text-align: center;
-            padding: 1rem 0;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-        }
+/* Ensure menu-visible items are always shown */
+.menu-visible {
+    display: block !important;
+}
 
-        .menu {
-            list-style: none;
-            margin-top: 2rem;
-        }
+li.menu-visible,
+[data-feature].menu-visible {
+    display: block !important;
+}
+.top-nav { display:flex; justify-content:space-between; align-items:center; padding:0.5rem 0.75rem; background-color:#fff; box-shadow:0 2px 5px rgba(0,0,0,0.1); margin-bottom:0.3rem; position:fixed; top:0.25rem; right:0.5rem; left:calc(var(--sidebar-width) + 0.5rem); height:50px; min-height:50px; z-index:100; transition:left 0.3s ease; }
+.sidebar-toggle-btn { background:none; border:none; cursor:pointer; font-size:1.1rem; padding:0.4rem; color:#555; }
+.top-nav-left { display:flex; align-items:center; gap:0.75rem; }
+.company-branding { display:flex; align-items:center; gap:0.5rem; }
+#headerCompanyLogo { width:32px; height:32px; object-fit:contain; display:none; }
+#headerCompanyName { font-weight:600; font-size:0.85rem; }
+.header-company-logo { height:32px; width:auto; border-radius:6px; box-shadow:0 2px 4px rgba(0,0,0,0.1); }
+.company-name-header { font-weight:700; color:var(--dark-color); font-size:1rem; letter-spacing:0.5px; white-space:nowrap; }
+.top-nav-right { display:flex; align-items:center; gap:1rem; }
+.notifications { position:relative; display:flex; align-items:center; }
+.notification-btn { background:none; border:none; cursor:pointer; position:relative; font-size:1.2rem; padding:0.5rem; display:flex; align-items:center; justify-content:center; }
+.notification-badge { position:absolute; top:-5px; right:-5px; background-color:var(--accent-color); color:white; border-radius:50%; padding:0.2rem 0.5rem; font-size:0.7rem; display:none; }
+.notification-dropdown { display:none; position:absolute; right:0; top:100%; width:320px; background:#fff; border-radius:8px; box-shadow:0 4px 20px rgba(0,0,0,0.15); z-index:1000; border:1px solid #e9ecef; max-height:400px; overflow:hidden; }
+.notification-dropdown.show { display:block; animation: slideDown 0.2s ease-out; }
+@keyframes slideDown { from { opacity:0; transform:translateY(-10px);} to { opacity:1; transform:translateY(0);} }
+.notification-header { padding:12px 16px; border-bottom:1px solid #e9ecef; background:linear-gradient(135deg,#f8f9fa 0%, #e9ecef 100%); display:flex; justify-content:space-between; align-items:center; }
+.notification-header h3 { margin:0; color:#333; font-size:14px; font-weight:600; }
+.mark-all-read { background:none; border:none; color:#3498db; cursor:pointer; font-size:12px; padding:4px 8px; border-radius:4px; transition:all .2s ease; }
+.mark-all-read:hover { background:#e3f2fd; color:#1976d2; }
+.notification-list { max-height:320px; overflow-y:auto; padding:0; }
+.notification-item { padding:12px 16px; border-bottom:1px solid #f1f1f1; cursor:pointer; transition:background-color .2s ease; position:relative; }
+.notification-item:hover { background:#f8f9fa; }
+.notification-item.unread { background:#e8f4fd; border-left:3px solid #3498db; }
+.notification-empty { padding:40px 20px; text-align:center; color:#999; display:none; }
+.notification-empty i { font-size:32px; margin-bottom:12px; color:#ddd; }
+.user-profile { position:relative; }
+.profile-btn { background:none; border:none; border-radius:50%; overflow:hidden; width:38px; height:38px; cursor:pointer; }
+.profile-btn img { width:100%; height:100%; object-fit:cover; }
+.profile-dropdown { display:none; position:absolute; right:0; top:110%; background:#fff; border-radius:8px; min-width:200px; box-shadow:0 6px 18px rgba(0,0,0,0.12); overflow:hidden; }
+.profile-dropdown.show { display:block; }
+.profile-dropdown ul { list-style:none; }
+.profile-dropdown li a { display:block; padding:0.65rem 0.85rem; font-size:0.72rem; text-decoration:none; color:#1e293b; font-weight:500; }
+.profile-dropdown li a:hover { background:#f1f5f9; }
+.page-header { 
+    background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)); 
+    color: #fff; 
+    padding: 0.55rem 0.75rem; 
+    margin: 0.35rem 0 0.5rem 0; 
+    display: flex; 
+    align-items: center; 
+    justify-content: space-between; 
+    box-shadow: 0 10px 28px rgba(0,0,0,0.18), 0 6px 16px rgba(0,0,0,0.14); 
+    font-size: 0.9rem; 
+}
+.page-header h1 { 
+    color: #fff; 
+    font-size: 0.9rem; 
+    display: flex; 
+    align-items: center; 
+    gap: 0.5rem; 
+    letter-spacing: 0.5px; 
+    margin: 0; 
+    font-weight: 600; 
+}
+.page-header i { 
+    font-size: 1rem; 
+}
 
-        .menu li {
-            margin-bottom: 0.5rem;
-        }
-
-        .menu a {
-            color: white;
-            text-decoration: none;
-            display: flex;
-            align-items: center;
-            padding: 0.75rem 1rem;
-            border-radius: 5px;
-            transition: background-color 0.3s;
-        }
-
-        .menu a i {
-            margin-right: 10px;
-        }
-
-        .menu a:hover, .menu a.active {
-            background-color: var(--secondary-color);
-        }
-
-        /* Main Content */
-        .main-content {
-            flex: 1;
-            margin-left: var(--sidebar-width);
-            padding: 2rem;
-            width: calc(100% - var(--sidebar-width));
-        }
-
-        .page-header {
-            background: white;
-            padding: 1.5rem 2rem;
-            border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-            margin-bottom: 2rem;
-        }
-
-        .page-header h1 {
-            color: var(--primary-color);
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-        }
-
-        .page-header h1 i {
-            color: var(--secondary-color);
-        }
+@media (max-width: 900px) { 
+    .main-content { 
+        margin-left: 0; 
+    } 
+    .sidebar { 
+        transform: translateX(-100%); 
+    } 
+    .sidebar.open { 
+        transform: translateX(0); 
+    } 
+    .top-nav { 
+        left: 0.5rem; 
+    }
+}
 
         /* NFC Reader Section */
         .nfc-container {
@@ -773,38 +782,198 @@
     </style>
 </head>
 <body>
-    <div class="app-container">
-        <!-- Sidebar -->
-        <aside class="sidebar">
-            <div class="logo">
-                <h2><i class="fas fa-shield-alt"></i> Dreamex</h2>
-            </div>
-            <ul class="menu">
-                <li><a href="dashboard.html"><i class="fas fa-home"></i> Dashboard</a></li>
-                <li><a href="profile.html"><i class="fas fa-user"></i> Profile</a></li>
-                <li><a href="nfc.html" class="active"><i class="fas fa-wifi"></i> NFC Reader</a></li>
-                <li><a href="index.html"><i class="fas fa-arrow-left"></i> Back to Main</a></li>
+<div class="app-container">
+	<nav class="sidebar menu-loading" id="sidebar">
+		<div class="logo"><h2>Dreamex Datalab</h2></div>
+        <ul class="menu" id="roleBasedMenu">
+            <li class="menu-item" data-feature="home_view"><a href="index.html"><i class="fas fa-home"></i> Home</a></li>
+            <li class="menu-dropdown" data-feature="health_view">
+				<a href="#"><i class="fas fa-medkit"></i> Health</a>
+				<ul class="submenu">
+					<li data-feature="health_assessment_view" data-requires-permission="health_assessment_view"><a href="health-assessment.html">Assessment</a></li>
+					<li data-feature="health_consultation_view" data-requires-permission="health_consultation_view"><a href="health-consultation.html">Consultation</a></li>
+					<li data-feature="medical_folder_view" data-requires-permission="medical_folder_view"><a href="medical-folder.html">Medical Folder</a></li>
+				</ul>
+			</li>
+            <!-- Risk Management (separate section) -->
+            <li class="menu-dropdown" data-feature="risk_view" data-requires-permission="risk_view">
+                <a href="#"><i class="fas fa-exclamation-triangle"></i> Risk Management</a>
+            <ul class="submenu">
+                <li data-feature="risk_view" data-requires-permission="risk_view"><a href="riskboard.html">Risk Management</a></li>
+                <li data-feature="risk_view" data-requires-permission="risk_register_view"><a href="riskreg.html">Risk Register</a></li>
             </ul>
-        </aside>
-
-        <!-- Main Content -->
-        <main class="main-content">
-            <div class="page-header">
-                <h1><i class="fas fa-wifi"></i> NFC Card Reader & Writer</h1>
-                <p>Scan NFC cards to read their information or write new data to them</p>
-            </div>
-
-            <!-- Browser Support Check -->
-            <div class="browser-warning" id="browserWarning" style="display: none;">
-                <h3><i class="fas fa-exclamation-triangle"></i> Browser Compatibility Notice</h3>
-                <p>Web NFC is currently supported on:</p>
-                <ul>
-                    <li>Chrome for Android (version 89+)</li>
-                    <li>Samsung Internet (version 15+)</li>
-                    <li>Opera for Android</li>
+            </li>
+            <li class="menu-dropdown" data-feature="safety_view" data-requires-permission="safety_view">
+				<a href="#"><i class="fas fa-shield-alt"></i> Safety</a>
+				<ul class="submenu">
+					<li data-feature="training_view" data-requires-permission="training_view"><a href="trainingboard.html">Training</a></li>
+					<li data-feature="jsa_view" data-requires-permission="jsa_view"><a href="jsaboard.html">Job Safety Analysis</a></li>
+					<li data-feature="ptw_view" data-requires-permission="ptw_view"><a href="ptwboard.html">Permit to Work</a></li>
+					<li data-feature="incident_view" data-requires-permission="incident_view"><a href="incidentboard.html">Incident Reports</a></li>
+					<li data-feature="inspection_view" data-requires-permission="inspection_view"><a href="inspectionboard.html">Inspection</a></li>
+					<li data-feature="audit_view" data-requires-permission="audit_view"><a href="auditboard.html">Audit</a></li>
+				</ul>
+			</li>
+            <li class="menu-dropdown" data-feature="investigation_view" data-requires-permission="investigation_view">
+				<a href="#"><i class="fas fa-search-plus"></i> Investigation</a>
+				<ul class="submenu">
+					<li data-feature="investigation_dashboard_view" data-requires-permission="investigation_dashboard_view"><a href="investigation-dashboard.html">Investigation Dashboard</a></li>
+					<li data-feature="investigation_list_view" data-requires-permission="investigation_list_view"><a href="investigation-list.html">Investigation List</a></li>
+					<li data-feature="create_investigation_view" data-requires-permission="create_investigation_view"><a href="investigation-create.html">Create Investigation</a></li>
+				</ul>
+			</li>
+            <li class="menu-dropdown" data-feature="fuel_management" data-requires-permission="fuel_management">
+				<a href="#"><i class="fas fa-gas-pump"></i> Fuel Management</a>
+				<ul class="submenu">
+                    <li data-feature="vessel_offloading" data-requires-permission="vessel_offloading"><a href="vessel-offloading.html">Vessel Offloading</a></li>
+                    <li data-feature="fuel_storage" data-requires-permission="fuel_storage"><a href="fuelstor.html">Fuel Storage Status</a></li>
+                    <li data-feature="tank_transfer" data-requires-permission="tank_transfer"><a href="fueltrans.html">Tank-to-Tank Transfer</a></li>
+                    <li data-feature="truck_loading" data-requires-permission="truck_loading"><a href="fuel-truck-loading.html">Fuel Truck Loading</a></li>
+                    <li data-feature="quality_analysis" data-requires-permission="quality_analysis"><a href="fuel-quality-analysis.html">Fuel Quality Analysis</a></li>
+                    <li data-feature="fuel_distribution" data-requires-permission="fuel_distribution"><a href="fueldist.html">Fuel Distribution</a></li>
+                    <li data-feature="fuel_consumption_analysis" data-requires-permission="fuel_consumption_analysis"><a href="fuelanalys.html">Consumption Analysis</a></li>
+                    <li data-feature="fuel_daily_report" data-requires-permission="fuel_daily_report"><a href="fueldaily.html">Daily Fuel Report</a></li>
+				</ul>
+			</li>
+            <li class="menu-dropdown" data-feature="environment_view">
+				<a href="#"><i class="fas fa-leaf"></i> Environment</a>
+				<ul class="submenu">
+                    <li data-feature="water_view" data-requires-permission="water_view"><a href="waterboard.html">Water Quality</a></li>
+				</ul>
+			</li>
+            <li class="menu-dropdown" data-feature="security_view" data-requires-permission="security_view">
+				<a href="#"><i class="fas fa-lock"></i> Security</a>
+				<ul class="submenu">
+                    <li data-feature="access_view" data-requires-permission="access_view"><a href="accessboard.html">Access Request</a></li>
+                    <li data-feature="access_daily_view" data-requires-permission="access_daily_view"><a href="accessdaily.html">Daily Access Control</a></li>
+                    <li data-feature="removal_view" data-requires-permission="removal_view"><a href="removalboard.html">Property Removal</a></li>
+                <li data-feature="security_site_map_view" data-requires-permission="security_site_map_view"><a href="sitemap.html">Security Site Map</a></li>
+						<li data-feature="security_level_evaluation_view" data-requires-permission="security_level_evaluation_view"><a href="seclevel.html">Security Level Evaluation</a></li>
+				</ul>
+			</li>
+			<li class="menu-dropdown" data-feature="logistics_view" data-requires-permission="logistics_view">
+				<a href="#"><i class="fas fa-truck"></i> Logistics</a>
+				<ul class="submenu">
+                    <li data-feature="fleet_view" data-requires-permission="fleet_view"><a href="fleet.html">Fleet Management</a></li>
+                    <li data-feature="travel_view" data-requires-permission="travel_view"><a href="travel.html">Travel Requests</a></li>
+				</ul>
+			</li>
+			<li class="menu-dropdown" data-feature="accommodation_view" data-requires-permission="accommodation_view">
+				<a href="#"><i class="fas fa-bed"></i> Accommodation</a>
+				<ul class="submenu">
+					<li data-feature="camp_view" data-requires-permission="camp_view"><a href="camp.html">Camp Management</a></li>
+                    <li data-feature="camp_settings_view" data-requires-permission="camp_settings_view"><a href="campset.html">Camp Settings</a></li>
+				</ul>
+			</li>
+			<li class="menu-dropdown" data-feature="hr_view" data-requires-permission="hr_view">
+				<a href="#"><i class="fas fa-users"></i> HR</a>
+				<ul class="submenu">
+					<li data-feature="human_hr_view" data-requires-permission="human_hr_view"><a href="human-hr.html"><i class="fas fa-user-tie"></i> Human HR</a></li>
+					<li data-feature="staff_management_view" data-requires-permission="staff_management_view"><a href="staff.html">Staffing</a></li>
+					<li data-feature="authority_to_recruit_view" data-requires-permission="authority_to_recruit_view"><a href="recruit.html">Authority to Recruit</a></li>
+					<li data-feature="job_advertising_view" data-requires-permission="job_advertising_view"><a href="jobpost.html">Job Advertising</a></li>
+					<li data-feature="screening_view" data-requires-permission="screening_view"><a href="jobscreen.html">Screening</a></li>
+					<li data-feature="interview_view" data-requires-permission="interview_view"><a href="interview.html">Interview</a></li>
+					<li data-feature="offer_view" data-requires-permission="offer_view"><a href="offer.html">Offer Management</a></li>
+					<li data-feature="contract_view" data-requires-permission="contract_view"><a href="contract.html">Contract Management</a></li>
+                    <li data-feature="salary_management_view" data-requires-permission="salary_management_view"><a href="salary.html">Salary Management</a></li>
+					<li data-feature="onboarding_view" data-requires-permission="onboarding_view"><a href="onboard.html">Onboarding</a></li>
+					<li data-feature="chart_view" data-requires-permission="chart_view"><a href="chart.html">Chart Setup</a></li>
+					<li data-feature="chartboard_view" data-requires-permission="chartboard_view"><a href="chartboard.html">Org Chart</a></li>
+                    <li data-feature="kpi_dashboard_view" data-requires-permission="kpi_dashboard_view"><a href="kpi.html">KPI</a></li>
+                    <li data-feature="payroll_view" data-requires-permission="payroll_view"><a href="payroll.html">Payroll</a></li>
+				</ul>
+			</li>
+            <!-- Project Management as section button with submenu -->
+            <li class="menu-dropdown" data-feature="project_management_section">
+                <a href="#"><i class="fas fa-project-diagram"></i> Project Management</a>
+                <ul class="submenu">
+                    <li data-feature="project_dashboard_view" data-requires-permission="project_dashboard_view"><a href="project-dashboard.html"><i class="fas fa-tachometer-alt"></i> Project Dashboard</a></li>
+                    <li data-feature="project_create_view" data-requires-permission="project_create_view"><a href="project-create.html"><i class="fas fa-plus-circle"></i> Create Project</a></li>
+                    <li data-feature="project_list_view" data-requires-permission="project_list_view"><a href="project-list.html"><i class="fas fa-list"></i> Project List</a></li>
+                    <li data-feature="project_reports_view" data-requires-permission="project_reports_view"><a href="project-reports.html"><i class="fas fa-chart-bar"></i> Project Reports</a></li>
                 </ul>
-                <p><strong>Note:</strong> Web NFC requires HTTPS and is not available on iOS or desktop browsers.</p>
+            </li>
+            <!-- Inventory Management as section button with submenu -->
+            <li class="menu-dropdown" data-feature="inventory_view" data-requires-permission="inventory_view">
+                <a href="#"><i class="fas fa-boxes"></i> Inventory Management</a>
+                <ul class="submenu">
+                    <li data-feature="inventory_dashboard_view" data-requires-permission="inventory_dashboard_view"><a href="inventory-dashboard.html"><i class="fas fa-tachometer-alt"></i> Inventory Dashboard</a></li>
+                    <li data-feature="inventory_items_view" data-requires-permission="inventory_items_view"><a href="inventory-items.html"><i class="fas fa-cubes"></i> Items Management</a></li>
+                    <li data-feature="inventory_warehouses_view" data-requires-permission="inventory_warehouses_view"><a href="inventory-warehouses.html"><i class="fas fa-warehouse"></i> Warehouses</a></li>
+                    <li data-feature="inventory_reservations_view" data-requires-permission="inventory_reservations_view"><a href="inventory-reservations.html"><i class="fas fa-bookmark"></i> Material Reservations</a></li>
+                    <li data-feature="inventory_approvals_view" data-requires-permission="inventory_approvals_view"><a href="inventory-approvals.html"><i class="fas fa-check-circle"></i> Approvals</a></li>
+                    <li data-feature="inventory_issue_view" data-requires-permission="inventory_issue_view"><a href="inventory-issue.html"><i class="fas fa-shipping-fast"></i> Material Issue</a></li>
+                </ul>
+            </li>
+            <!-- Workspaces: Catering -->
+            <li class="menu-dropdown" data-feature="catering_view" data-requires-permission="catering_view">
+                <a href="#"><i class="fas fa-utensils"></i> Workspaces — Catering</a>
+                <ul class="submenu">
+                    <li data-feature="catering_manage_types" data-requires-permission="catering_manage_types"><a href="catering-meal-types.html"><i class="fas fa-list"></i> Meal Types</a></li>
+                    <li data-feature="catering_assign" data-requires-permission="catering_assign"><a href="catering-eligibility.html"><i class="fas fa-user-check"></i> Eligibility & Assign</a></li>
+                    <li data-feature="catering_consumption_manual" data-requires-permission="catering_consumption_manual"><a href="catering-consumption.html"><i class="fas fa-keyboard"></i> Consumption (Manual)</a></li>
+                    <li data-feature="catering_consumption_nfc" data-requires-permission="catering_consumption_nfc"><a href="catering-consumption.html#nfc"><i class="fas fa-id-card"></i> Consumption (NFC)</a></li>
+                    <li data-feature="catering_reports" data-requires-permission="catering_reports"><a href="catering-reports.html"><i class="fas fa-chart-line"></i> Reports</a></li>
+                </ul>
+            </li>
+            <li data-feature="requests_view" data-requires-permission="requests_view"><a href="tickboard.html"><i class="fas fa-ticket-alt"></i> Requests</a></li>
+            <li data-feature="communication_view"><a href="info.html"><i class="fas fa-comments"></i> Communication</a></li>
+            <li class="menu-dropdown" data-feature="settings_view">
+				<a href="#"><i class="fas fa-cog"></i> Settings</a>
+				<ul class="submenu">
+                    <li data-feature="account_settings_view" data-requires-permission="account_settings_view"><a href="account.html">Account Settings</a></li>
+                    <li data-feature="company_management_view" data-requires-permission="company_management_view"><a href="companymanagement.html">Company Management</a></li>
+                    <li data-feature="approval_settings_view" data-requires-permission="approval_settings_view"><a href="approval-settings.html">Approval Flow Settings</a></li>
+                    <li data-feature="field_setup_view" data-requires-permission="field_setup_view"><a href="fieldsetup.html">Field Setup</a></li>
+                    <li data-feature="preferences_view" data-requires-permission="preferences_view"><a href="preferences.html">Preferences</a></li>
+                    <li data-feature="notification_settings_view" data-requires-permission="notification_settings_view"><a href="notification-settings.html">Notification Settings</a></li>
+                    <li data-feature="audit_log_view" data-requires-permission="audit_log_view"><a href="auditlog.html"><i class="fas fa-history"></i> Audit Log</a></li>
+                    <li data-feature="user_management_view" data-requires-permission="user_management_view"><a href="users.html">User & Role Management</a></li>
+                    <li data-feature="role_permissions_view" data-requires-permission="role_permissions_view"><a href="roles.html">Role Permissions</a></li>
+				</ul>
+			</li>
+		</ul>
+	</nav>
+    <main class="main-content" id="mainContent">
+        <nav class="top-nav">
+            <div class="top-nav-left">
+                <button id="sidebarToggle" class="sidebar-toggle-btn" title="Toggle Menu"><i class="fas fa-bars"></i></button>
+                <div class="company-branding">
+                    <img id="headerCompanyLogo" alt="Company Logo" />
+                    <span id="headerCompanyName"></span>
+                </div>
             </div>
+            <div class="top-nav-right">
+                <div class="notifications">
+                    <button id="notificationBtn" class="notification-btn">
+                        <i class="fas fa-bell"></i>
+                        <span class="notification-badge">0</span>
+                    </button>
+                    <div class="notification-dropdown">
+                        <div class="notification-header">
+                            <h3>Notifications</h3>
+                            <button class="mark-all-read">Mark all as read</button>
+                        </div>
+                        <div class="notification-list">
+                            <!-- Notifications will be dynamically added here -->
+                        </div>
+                        <div class="notification-empty">
+                            <i class="fas fa-inbox"></i>
+                            <div class="notification-empty-title">No notifications</div>
+                            <div class="notification-empty-message">You're all caught up</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="user-profile" style="position:relative;">
+                    <button id="userProfileBtn" class="profile-btn"><img src="" alt="User Avatar" /></button>
+                    <div class="profile-dropdown"><ul></ul></div>
+                </div>
+            </div>
+        </nav>
+		<div class="page-header">
+			<h1><i class="fas fa-wifi"></i> NFC Card Reader & Writer</h1>
+		</div>
 
             <div class="nfc-container">
                 <!-- Scanner/Writer Section -->
@@ -904,8 +1073,19 @@
                             <!-- vCard Input -->
                             <div id="vcardInputGroup" style="display: none;">
                                 <div class="form-group">
+                                    <label for="vcardOrg">Organization</label>
+                                    <select id="vcardOrg" onchange="onOrganizationChange()">
+                                        <option value="">-- Select Organization --</option>
+                                        <option value="loading" disabled>Loading companies...</option>
+                                    </select>
+                                    <small>Select a company from the list</small>
+                                </div>
+                                <div class="form-group">
                                     <label for="vcardName">Full Name</label>
-                                    <input type="text" id="vcardName" placeholder="John Doe">
+                                    <select id="vcardName" onchange="onEmployeeChange()">
+                                        <option value="">-- Select Organization First --</option>
+                                    </select>
+                                    <small>Select an employee from the organization</small>
                                 </div>
                                 <div class="form-group">
                                     <label for="vcardPhone">Phone Number</label>
@@ -914,10 +1094,6 @@
                                 <div class="form-group">
                                     <label for="vcardEmail">Email</label>
                                     <input type="email" id="vcardEmail" placeholder="john@example.com">
-                                </div>
-                                <div class="form-group">
-                                    <label for="vcardOrg">Organization</label>
-                                    <input type="text" id="vcardOrg" placeholder="Company Name">
                                 </div>
                                 <div class="form-group">
                                     <label for="vcardTitle">Job Title</label>
@@ -1007,17 +1183,439 @@
         let selectedWriteType = 'text';
         let writeAbortController = null;
 
+        // Firebase Configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyCUTmTn0rRBb0M-UkQJxnUMrWqXYU_BgIc",
+            authDomain: "users-8be65.firebaseapp.com",
+            databaseURL: "https://users-8be65-default-rtdb.firebaseio.com",
+            projectId: "users-8be65",
+            storageBucket: "users-8be65.firebasestorage.app",
+            messagingSenderId: "829083030831",
+            appId: "1:829083030831:web:36a370e62691e560bc3dda"
+        };
+
+        // Initialize Firebase
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+        const db = firebase.database();
+
+        // Companies list
+        let companiesList = [];
+        // Employees map by organization
+        let employeesMap = {};
+        // Current selected employee data
+        let selectedEmployeeData = null;
+
         // Check for NFC support on page load
         document.addEventListener('DOMContentLoaded', () => {
             checkNFCSupport();
             loadScanHistory();
             setupWritePreview();
+            
+            // Show loading state immediately for organization dropdown
+            const vcardOrgSelect = document.getElementById('vcardOrg');
+            if (vcardOrgSelect) {
+                vcardOrgSelect.innerHTML = '<option value="">-- Loading organizations... --</option>';
+            }
+            const vcardNameSelect = document.getElementById('vcardName');
+            if (vcardNameSelect) {
+                vcardNameSelect.innerHTML = '<option value="">-- Select Organization First --</option>';
+            }
+            // loadCompanies will be called after AuthManager initializes
         });
+
+        // Load company from user's company scope
+        async function loadCompanies() {
+            try {
+                const vcardOrgSelect = document.getElementById('vcardOrg');
+                vcardOrgSelect.innerHTML = '<option value="">-- Select Organization --</option>';
+                
+                // Get current user's company from AuthManager
+                const currentUser = window.authManager ? window.authManager.currentUser : null;
+                const currentCompany = window.authManager ? window.authManager.currentCompany : null;
+                
+                if (!currentUser || !currentUser.companyId) {
+                    vcardOrgSelect.innerHTML = '<option value="">-- No company assigned --</option>';
+                    return;
+                }
+                
+                companiesList = [];
+                
+                // Add the user's main company first
+                let mainCompanyName = '';
+                if (currentCompany && currentCompany.companyName) {
+                    mainCompanyName = currentCompany.companyName;
+                    companiesList.push({
+                        id: currentUser.companyId,
+                        name: currentCompany.companyName,
+                        industry: currentCompany.industry || '',
+                        email: currentCompany.email || '',
+                        type: 'main'
+                    });
+                    
+                    const mainOption = document.createElement('option');
+                    mainOption.value = currentCompany.companyName;
+                    mainOption.textContent = currentCompany.companyName;
+                    if (currentCompany.industry) {
+                        mainOption.textContent += ` (${currentCompany.industry})`;
+                    }
+                    mainOption.selected = true; // Auto-select the user's company
+                    vcardOrgSelect.appendChild(mainOption);
+                    
+                    console.log(`Loaded main company: ${currentCompany.companyName}`);
+                } else {
+                    // Fallback: fetch company data from Firebase
+                    const companyRef = db.ref(`companies/${currentUser.companyId}`);
+                    const snapshot = await companyRef.once('value');
+                    
+                    if (snapshot.exists()) {
+                        const company = snapshot.val();
+                        if (company.companyName) {
+                            mainCompanyName = company.companyName;
+                            companiesList.push({
+                                id: currentUser.companyId,
+                                name: company.companyName,
+                                industry: company.industry || '',
+                                email: company.email || '',
+                                type: 'main'
+                            });
+                            
+                            const mainOption = document.createElement('option');
+                            mainOption.value = company.companyName;
+                            mainOption.textContent = company.companyName;
+                            if (company.industry) {
+                                mainOption.textContent += ` (${company.industry})`;
+                            }
+                            mainOption.selected = true;
+                            vcardOrgSelect.appendChild(mainOption);
+                            
+                            console.log(`Loaded main company: ${company.companyName}`);
+                        }
+                    }
+                }
+                
+                // Load subcontractors from company scope
+                try {
+                    const subsRef = db.ref(`companies/${currentUser.companyId}/subcontractors`);
+                    const subsSnapshot = await subsRef.once('value');
+                    
+                    if (subsSnapshot.exists()) {
+                        const subcontractors = subsSnapshot.val();
+                        const subsList = Object.entries(subcontractors);
+                        
+                        if (subsList.length > 0) {
+                            // Sort subcontractors alphabetically
+                            subsList.sort((a, b) => (a[1].name || '').localeCompare(b[1].name || ''));
+                            
+                            subsList.forEach(([subId, sub]) => {
+                                if (sub.name) {
+                                    companiesList.push({
+                                        id: subId,
+                                        name: sub.name,
+                                        registrationNumber: sub.registrationNumber || '',
+                                        contactName: sub.contactName || '',
+                                        contactEmail: sub.contactEmail || '',
+                                        type: 'subcontractor'
+                                    });
+                                    
+                                    const subOption = document.createElement('option');
+                                    subOption.value = sub.name;
+                                    subOption.textContent = sub.name;
+                                    if (sub.registrationNumber) {
+                                        subOption.textContent += ` (Reg: ${sub.registrationNumber})`;
+                                    }
+                                    vcardOrgSelect.appendChild(subOption);
+                                }
+                            });
+                            
+                            console.log(`Loaded ${subsList.length} subcontractors`);
+                        }
+                    }
+                } catch (subError) {
+                    console.warn('Error loading subcontractors:', subError);
+                }
+                
+                // If no companies were loaded at all
+                if (companiesList.length === 0) {
+                    vcardOrgSelect.innerHTML = '<option value="">-- No organizations found --</option>';
+                }
+                
+                // Pre-load employees for main company
+                await loadEmployeesForMainCompany();
+                
+                // If main company is auto-selected, trigger employee dropdown population
+                if (vcardOrgSelect.value && employeesMap[vcardOrgSelect.value]) {
+                    populateEmployeeDropdown(employeesMap[vcardOrgSelect.value]);
+                }
+                
+            } catch (error) {
+                console.error('Error loading company:', error);
+                const vcardOrgSelect = document.getElementById('vcardOrg');
+                vcardOrgSelect.innerHTML = '<option value="">-- Error loading company --</option>';
+            }
+        }
+
+        // Fetch employees for a specific company (filtered by employerCompanyId like camp.html)
+        async function fetchCompanyUsers(companyIdToLoad) {
+            try {
+                const ownerCompanyId = window.authManager.currentUser.companyId;
+                // Always load from the owner company's users list (companymanagement scope)
+                const usersRef = db.ref(`companies/${ownerCompanyId}/users`);
+                const usersSnap = await usersRef.once('value');
+                if (!usersSnap.exists()) return [];
+
+                const userIds = Object.keys(usersSnap.val() || {});
+                if (!userIds.length) return [];
+
+                const details = await Promise.all(userIds.map(async (uid) => {
+                    try {
+                        // Get global user details
+                        const uSnap = await db.ref(`users/${uid}`).once('value');
+                        // Also read scoped user (to access employerCompany fields - this is the source of truth from companymanagement)
+                        const scopedSnap = await db.ref(`companies/${ownerCompanyId}/users/${uid}`).once('value');
+                        if (!uSnap.exists() && !scopedSnap.exists()) return null;
+                        const u = uSnap.val() || {};
+                        const scoped = scopedSnap.val() || {};
+                        
+                        // Determine the user's employer company id (scoped source of truth)
+                        const employerCompanyId = scoped.employerCompanyId || u.employerCompanyId || ownerCompanyId;
+                        // Filter: only include users whose employer company matches the selected company
+                        if (employerCompanyId !== companyIdToLoad) return null;
+                        
+                        // Build display name - prefer scoped data (from companymanagement), then global
+                        const firstName = scoped.firstName || u.firstName || '';
+                        const lastName = scoped.lastName || u.lastName || '';
+                        const fullName = scoped.fullName || scoped.name || u.fullName || u.name || '';
+                        const displayName = u.displayName || fullName || (firstName ? `${firstName} ${lastName}`.trim() : '') || (u.email ? u.email.split('@')[0] : 'Unknown');
+                        
+                        // Get phone - prioritize scoped data (from companymanagement user management tab)
+                        const phone = scoped.phone || scoped.phoneNumber || scoped.mobileNumber || u.phone || u.phoneNumber || u.mobileNumber || '';
+                        
+                        // Get email - prioritize scoped data
+                        const email = scoped.email || u.email || '';
+                        
+                        // Get job title - prioritize scoped data (from companymanagement user management tab)
+                        const jobTitle = scoped.jobTitle || u.jobTitle || scoped.position || u.position || scoped.title || u.title || '';
+                        
+                        return {
+                            id: uid,
+                            name: displayName,
+                            email: email,
+                            phone: phone,
+                            jobTitle: jobTitle
+                        };
+                    } catch (e) {
+                        console.warn('Failed loading user details for', uid, e);
+                        return null;
+                    }
+                }));
+
+                let filtered = details.filter(Boolean).sort((a, b) => a.name.localeCompare(b.name));
+
+                // Fallback: if nothing matched via employerCompanyId, try selected company's own scope
+                if (!filtered.length && companyIdToLoad && companyIdToLoad !== ownerCompanyId) {
+                    try {
+                        const scopedUsersRef = db.ref(`companies/${companyIdToLoad}/users`);
+                        const scopedUsersSnap = await scopedUsersRef.once('value');
+                        const scopedIds = Object.keys(scopedUsersSnap.val() || {});
+                        if (scopedIds.length) {
+                            const scopedDetails = await Promise.all(scopedIds.map(async (uid) => {
+                                try {
+                                    const uSnap = await db.ref(`users/${uid}`).once('value');
+                                    const scopedSnap = await db.ref(`companies/${companyIdToLoad}/users/${uid}`).once('value');
+                                    if (!uSnap.exists() && !scopedSnap.exists()) return null;
+                                    const u = uSnap.val() || {};
+                                    const scoped = scopedSnap.val() || {};
+                                    
+                                    const firstName = scoped.firstName || u.firstName || '';
+                                    const lastName = scoped.lastName || u.lastName || '';
+                                    const fullName = scoped.fullName || scoped.name || u.fullName || u.name || '';
+                                    const displayName = u.displayName || fullName || (firstName ? `${firstName} ${lastName}`.trim() : '') || (u.email ? u.email.split('@')[0] : 'Unknown');
+                                    
+                                    return {
+                                        id: uid,
+                                        name: displayName,
+                                        email: scoped.email || u.email || '',
+                                        phone: scoped.phone || scoped.phoneNumber || u.phone || u.phoneNumber || '',
+                                        jobTitle: scoped.jobTitle || u.jobTitle || scoped.position || u.position || ''
+                                    };
+                                } catch (e2) { return null; }
+                            }));
+                            filtered = scopedDetails.filter(Boolean).sort((a, b) => a.name.localeCompare(b.name));
+                        }
+                    } catch (e2) {
+                        // ignore
+                    }
+                }
+
+                return filtered;
+            } catch (e) {
+                console.error('Error fetching company users:', e);
+                return [];
+            }
+        }
+
+        // Load employees for the main company (pre-load)
+        async function loadEmployeesForMainCompany() {
+            try {
+                const currentUser = window.authManager ? window.authManager.currentUser : null;
+                if (!currentUser || !currentUser.companyId) return;
+                
+                const currentCompany = window.authManager ? window.authManager.currentCompany : null;
+                const companyName = currentCompany ? currentCompany.companyName : '';
+                
+                if (!companyName) return;
+                
+                // Use fetchCompanyUsers to get employees filtered by employerCompanyId
+                const employeesList = await fetchCompanyUsers(currentUser.companyId);
+                employeesMap[companyName] = employeesList;
+                
+                console.log(`Loaded ${employeesList.length} employees for ${companyName}`);
+            } catch (error) {
+                console.error('Error loading employees for main company:', error);
+            }
+        }
+
+        // Handle organization change
+        async function onOrganizationChange() {
+            const vcardOrgSelect = document.getElementById('vcardOrg');
+            const vcardNameSelect = document.getElementById('vcardName');
+            const selectedOrg = vcardOrgSelect.value;
+            
+            // Reset name dropdown
+            vcardNameSelect.innerHTML = '<option value="">-- Loading employees... --</option>';
+            
+            // Reset other fields
+            document.getElementById('vcardPhone').value = '';
+            document.getElementById('vcardEmail').value = '';
+            document.getElementById('vcardTitle').value = '';
+            selectedEmployeeData = null;
+            
+            if (!selectedOrg) {
+                vcardNameSelect.innerHTML = '<option value="">-- Select Organization First --</option>';
+                updateWritePreview();
+                return;
+            }
+            
+            // Check if we already have employees for this organization
+            if (employeesMap[selectedOrg]) {
+                populateEmployeeDropdown(employeesMap[selectedOrg]);
+                updateWritePreview();
+                return;
+            }
+            
+            // Find the organization in our list
+            const org = companiesList.find(c => c.name === selectedOrg);
+            
+            if (!org) {
+                vcardNameSelect.innerHTML = '<option value="">-- No employees found --</option>';
+                updateWritePreview();
+                return;
+            }
+            
+            // Use fetchCompanyUsers to get employees filtered by employerCompanyId (like camp.html)
+            try {
+                const employees = await fetchCompanyUsers(org.id);
+                employeesMap[selectedOrg] = employees;
+                populateEmployeeDropdown(employees);
+            } catch (error) {
+                console.error('Error loading employees for organization:', error);
+                vcardNameSelect.innerHTML = '<option value="">-- Error loading employees --</option>';
+            }
+            
+            updateWritePreview();
+        }
+
+        // Helper function to format job title without hyphens and with title case
+        function formatJobTitle(title) {
+            if (!title) return '';
+            // Replace hyphens with spaces, trim, and capitalize first letter of each word
+            return title
+                .replace(/-/g, ' ')
+                .replace(/\s+/g, ' ')
+                .trim()
+                .split(' ')
+                .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+                .join(' ');
+        }
+
+        // Populate employee dropdown
+        function populateEmployeeDropdown(employees) {
+            const vcardNameSelect = document.getElementById('vcardName');
+            vcardNameSelect.innerHTML = '<option value="">-- Select Employee --</option>';
+            
+            if (!employees || employees.length === 0) {
+                vcardNameSelect.innerHTML = '<option value="">-- No employees found --</option>';
+                return;
+            }
+            
+            employees.forEach(emp => {
+                const option = document.createElement('option');
+                option.value = emp.name;
+                option.textContent = emp.name;
+                if (emp.jobTitle) {
+                    option.textContent += ` (${formatJobTitle(emp.jobTitle)})`;
+                }
+                option.dataset.employeeId = emp.id;
+                vcardNameSelect.appendChild(option);
+            });
+        }
+
+        // Handle employee selection
+        function onEmployeeChange() {
+            const vcardOrgSelect = document.getElementById('vcardOrg');
+            const vcardNameSelect = document.getElementById('vcardName');
+            const selectedOrg = vcardOrgSelect.value;
+            const selectedName = vcardNameSelect.value;
+            
+            // Get field elements
+            const phoneField = document.getElementById('vcardPhone');
+            const emailField = document.getElementById('vcardEmail');
+            const titleField = document.getElementById('vcardTitle');
+            
+            if (!selectedOrg || !selectedName) {
+                selectedEmployeeData = null;
+                // Clear fields when no selection
+                phoneField.value = '';
+                emailField.value = '';
+                titleField.value = '';
+                updateWritePreview();
+                return;
+            }
+            
+            // Find the employee in our map
+            const employees = employeesMap[selectedOrg] || [];
+            const employee = employees.find(emp => emp.name === selectedName);
+            
+            if (employee) {
+                selectedEmployeeData = employee;
+                
+                // Auto-fill phone, email, and job title from user management data
+                phoneField.value = employee.phone || '';
+                emailField.value = employee.email || '';
+                titleField.value = formatJobTitle(employee.jobTitle) || '';
+                
+                console.log('📋 Auto-filled employee data:', {
+                    name: employee.name,
+                    phone: employee.phone,
+                    email: employee.email,
+                    jobTitle: employee.jobTitle
+                });
+            } else {
+                selectedEmployeeData = null;
+                // Clear fields if employee not found
+                phoneField.value = '';
+                emailField.value = '';
+                titleField.value = '';
+            }
+            
+            updateWritePreview();
+        }
 
         // Check if Web NFC is supported
         function checkNFCSupport() {
             if (!('NDEFReader' in window)) {
-                document.getElementById('browserWarning').style.display = 'block';
                 document.getElementById('startScanBtn').disabled = true;
                 document.getElementById('writeNfcBtn').disabled = true;
                 document.getElementById('scanStatus').textContent = 'Web NFC not supported on this browser';
@@ -1074,10 +1672,13 @@
             document.getElementById('writeUrl').addEventListener('input', updateWritePreview);
             // JSON input
             document.getElementById('writeJson').addEventListener('input', updateWritePreview);
-            // vCard inputs
-            ['vcardName', 'vcardPhone', 'vcardEmail', 'vcardOrg', 'vcardTitle'].forEach(id => {
+            // vCard inputs - vcardName and vcardOrg are now dropdowns
+            ['vcardPhone', 'vcardEmail', 'vcardTitle'].forEach(id => {
                 document.getElementById(id).addEventListener('input', updateWritePreview);
             });
+            // Dropdown fields use change event
+            document.getElementById('vcardOrg').addEventListener('change', updateWritePreview);
+            document.getElementById('vcardName').addEventListener('change', updateWritePreview);
         }
 
         // Update write preview
@@ -1784,6 +2385,869 @@
             }
         `;
         document.head.appendChild(style);
+
+        // =============================================
+        // AuthManager class for centralized authentication
+        // =============================================
+        class AuthManager {
+            constructor() {
+                this.currentUser = this.getCurrentUser();
+                this.currentCompany = null;
+                this.init();
+            }
+            getCurrentUser() {
+                try { return JSON.parse(localStorage.getItem('currentUser') || 'null'); } catch { return null; }
+            }
+            setCurrentUser(u) {
+                localStorage.setItem('currentUser', JSON.stringify(u));
+                localStorage.setItem('user', JSON.stringify(u));
+                this.currentUser = u;
+            }
+            async init() {
+                if (!this.currentUser) {
+                    window.location.href = 'login.html';
+                    return;
+                }
+                await this.loadUserCompany();
+                this.updateCompanyBranding();
+                await this.updateUIForAuthenticatedUser();
+                this.bindProfileDropdown();
+                // Load company for vCard organization field after company data is ready
+                if (typeof loadCompanies === 'function') {
+                    loadCompanies();
+                }
+            }
+            async loadUserCompany() {
+                if (!this.currentUser) return;
+                try {
+                    // Fast path: if user already has companyId, load just that company
+                    if (this.currentUser.companyId) {
+                        const compSnap = await firebase.database().ref(`companies/${this.currentUser.companyId}`).once('value');
+                        if (compSnap.exists()) {
+                            const comp = compSnap.val();
+                            if (comp.status === 'active') {
+                                this.currentCompany = comp;
+                                this.currentUser.companyName = comp.companyName;
+                                // Get user's role from the company
+                                if (comp.users && comp.users[this.currentUser.uid]) {
+                                    const userData = comp.users[this.currentUser.uid];
+                                    this.currentUser.role = userData.role || userData.userRole || this.currentUser.role || 'user';
+                                }
+                                this.setCurrentUser(this.currentUser);
+                                return;
+                            }
+                        }
+                    }
+                    
+                    // Fallback: search all companies if no companyId or company not found
+                    const snap = await firebase.database().ref('companies').once('value');
+                    if (!snap.exists()) return;
+                    const companies = snap.val();
+                    for (const [cid, comp] of Object.entries(companies)) {
+                        if (comp.status !== 'active') continue;
+                        if (comp.users) {
+                            for (const [uid, u] of Object.entries(comp.users)) {
+                                if (u.authUid === this.currentUser.uid || uid === this.currentUser.uid) {
+                                    this.currentUser.companyId = cid;
+                                    this.currentUser.companyName = comp.companyName;
+                                    this.currentUser.role = u.role || u.userRole || 'user';
+                                    this.currentCompany = comp;
+                                    this.setCurrentUser(this.currentUser);
+                                    return;
+                                }
+                            }
+                        }
+                    }
+                } catch (e) { }
+            }
+            updateCompanyBranding() {
+                const logoEl = document.getElementById('headerCompanyLogo');
+                const nameEl = document.getElementById('headerCompanyName');
+                if (!this.currentCompany) { this.showFallbackBranding(); return; }
+                if (nameEl) nameEl.textContent = this.currentCompany.companyName || '';
+                const logoUrl = this.currentCompany.logo || this.currentCompany.logoUrl;
+                if (logoEl) {
+                    if (logoUrl) {
+                        logoEl.src = logoUrl;
+                        logoEl.style.display = 'block';
+                    } else {
+                        const svg = this.generateCompanyInitialsSVG(this.getCompanyInitials(this.currentCompany.companyName || ''));
+                        logoEl.src = svg;
+                        logoEl.style.display = 'block';
+                    }
+                }
+            }
+            showFallbackBranding() {
+                const logoEl = document.getElementById('headerCompanyLogo');
+                if (logoEl) {
+                    const svg = this.generateCompanyInitialsSVG('DX');
+                    logoEl.src = svg;
+                    logoEl.style.display = 'block';
+                }
+            }
+            getCompanyInitials(name) {
+                if (!name) return 'CO';
+                const parts = name.trim().split(/\s+/);
+                if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+                return (parts[0][0] + parts[1][0]).toUpperCase();
+            }
+            generateCompanyInitialsSVG(initials) {
+                const svg = `<svg width="44" height="44" viewBox="0 0 44 44" xmlns="http://www.w3.org/2000/svg"><rect width="44" height="44" rx="6" fill="#f0f3f6"/><text x="50%" y="52%" dominant-baseline="middle" text-anchor="middle" fill="#495057" font-family="Inter,Arial,sans-serif" font-weight="600" font-size="14">${initials}</text></svg>`;
+                return 'data:image/svg+xml;base64,' + btoa(svg);
+            }
+            getUserDisplayName() {
+                if (!this.currentUser) return 'User';
+                const n = v => typeof v === 'string' ? v.trim().replace(/\s+/g, ' ') : '';
+                const cand = [this.currentUser.displayName, this.currentUser.name, this.currentUser.username];
+                for (const c of cand) { const cleaned = n(c); if (cleaned) return cleaned; }
+                if (this.currentUser.email) return n(this.currentUser.email.split('@')[0]) || 'User';
+                return 'User';
+            }
+            getUserInitials() {
+                const dn = this.getUserDisplayName();
+                const parts = dn.split(' ').filter(Boolean);
+                if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+                return parts.slice(0, 2).map(p => p[0]).join('').toUpperCase();
+            }
+            async getUserAvatarUrl() {
+                if (!this.currentUser) return null;
+                const companyId = this.currentUser.companyId || 'default';
+                const possiblePaths = [
+                    `companies/${companyId}/avatars/${this.currentUser.uid}/profile.jpg`,
+                    `companies/${companyId}/avatars/${this.currentUser.uid}/profile.png`,
+                    `avatars/${this.currentUser.uid}/profile.jpg`,
+                    `avatars/${this.currentUser.uid}/profile.png`
+                ];
+                for (const path of possiblePaths) {
+                    try {
+                        const ref = firebase.storage().ref(path);
+                        const url = await ref.getDownloadURL();
+                        return url;
+                    } catch (err) { continue; }
+                }
+                return null;
+            }
+            async updateUIForAuthenticatedUser() {
+                const btn = document.getElementById('userProfileBtn');
+                const list = document.querySelector('.profile-dropdown ul');
+                if (!btn || !list || !this.currentUser) return;
+                const displayName = this.getUserDisplayName();
+                const email = this.currentUser.email || '';
+                
+                let avatarUrl = null;
+                try { avatarUrl = await this.getUserAvatarUrl(); } catch (error) { }
+                
+                const btnImg = btn.querySelector('img');
+                if (avatarUrl && btnImg) {
+                    btnImg.src = avatarUrl;
+                    btnImg.alt = displayName + ' Avatar';
+                    btnImg.style.display = 'block';
+                    btnImg.onerror = () => {
+                        btnImg.style.display = 'none';
+                        btn.innerHTML = `<div style="width:38px;height:38px;border-radius:50%;background:#3498db;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:0.8rem;">${this.getUserInitials()}</div>`;
+                    };
+                } else {
+                    btn.innerHTML = `<div style="width:38px;height:38px;border-radius:50%;background:#3498db;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:0.8rem;">${this.getUserInitials()}</div>`;
+                }
+                
+                const avatarHtml = avatarUrl ? `<img src="${avatarUrl}" alt="${displayName} Avatar" style="width:32px;height:32px;border-radius:50%;object-fit:cover;">` : `<div style="width:32px;height:32px;border-radius:50%;background:#3498db;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:12px;">${this.getUserInitials()}</div>`;
+                list.innerHTML = `<li style="border-bottom:1px solid #eee;padding:12px 16px;background:#f8f9fa;"><div style="display:flex;align-items:center;gap:12px;">${avatarHtml}<div><div style="font-weight:600;color:#333;font-size:14px;margin-bottom:2px;">${displayName}</div><div style="color:#666;font-size:12px;">${email}</div></div></div></li><li><a href="profile.html"><i class="fas fa-user"></i> Profile</a></li><li><a href="account.html"><i class="fas fa-cog"></i> Account Settings</a></li><li><a href="#" id="logoutLink"><i class="fas fa-sign-out-alt"></i> Sign out</a></li>`;
+                list.querySelector('#logoutLink')?.addEventListener('click', e => { e.preventDefault(); this.logout(); });
+            }
+            bindProfileDropdown() {
+                const btn = document.getElementById('userProfileBtn');
+                const dd = document.querySelector('.profile-dropdown');
+                if (btn && dd) {
+                    btn.addEventListener('click', e => { e.stopPropagation(); dd.classList.toggle('show'); });
+                    document.addEventListener('click', e => { if (!btn.contains(e.target)) dd.classList.remove('show'); });
+                }
+            }
+            async logout() {
+                try {
+                    await firebase.auth().signOut();
+                    localStorage.removeItem('currentUser');
+                    localStorage.removeItem('user');
+                    window.location.href = 'login.html';
+                } catch (error) {
+                    localStorage.removeItem('currentUser');
+                    localStorage.removeItem('user');
+                    window.location.href = 'login.html';
+                }
+            }
+        }
+
+        // =============================================
+        // Notification System
+        // =============================================
+        function getAuthUser() {
+            if (window.authManager && window.authManager.currentUser) return window.authManager.currentUser;
+            try { return JSON.parse(localStorage.getItem('currentUser') || 'null'); } catch { return null; }
+        }
+
+        async function loadNotificationsOnce() {
+            const user = getAuthUser();
+            if (!user) return [];
+            const snap = await firebase.database().ref(`notifications/${user.uid}`).once('value');
+            if (!snap.exists()) return [];
+            const list = Object.entries(snap.val()).map(([id, v]) => ({ id, ...v }));
+            list.sort((a,b)=> (b.timestamp||0) - (a.timestamp||0));
+            return list;
+        }
+
+        async function markAllNotificationsAsRead() {
+            const user = getAuthUser();
+            if (!user) return;
+            const ref = firebase.database().ref(`notifications/${user.uid}`);
+            const snap = await ref.once('value');
+            if (!snap.exists()) return;
+            const updates = {};
+            Object.keys(snap.val()).forEach(k => { updates[`${k}/read`] = true; });
+            await ref.update(updates);
+            updateNotificationBadgeCount([]);
+        }
+
+        async function markNotificationAsRead(notificationId) {
+            const user = getAuthUser();
+            if (!user || !notificationId) return;
+            await firebase.database().ref(`notifications/${user.uid}/${notificationId}/read`).set(true);
+        }
+
+        async function deleteNotificationWithConfirm(notificationId) {
+            if (!confirm('Delete this notification?')) return;
+            const user = getAuthUser();
+            if (!user || !notificationId) return;
+            await firebase.database().ref(`notifications/${user.uid}/${notificationId}`).remove();
+            const notifications = await loadNotificationsOnce();
+            populateNotificationDropdown(notifications);
+        }
+
+        async function clearAllNotifications() {
+            if (!confirm('Delete all notifications? This cannot be undone.')) return;
+            const user = getAuthUser();
+            if (!user) return;
+            await firebase.database().ref(`notifications/${user.uid}`).remove();
+        }
+
+        function formatTimeAgo(ts) {
+            if (!ts) return 'Just now';
+            const diff = Date.now() - ts;
+            const m = Math.floor(diff/60000); const h = Math.floor(diff/3600000); const d = Math.floor(diff/86400000);
+            if (m < 1) return 'Just now';
+            if (m < 60) return `${m}m ago`; if (h < 24) return `${h}h ago`; return `${d}d ago`;
+        }
+
+        function updateNotificationBadgeCount(notifications) {
+            const badge = document.querySelector('.notification-badge');
+            if (!badge) return;
+            const unread = notifications.filter(n => !n.read).length;
+            if (unread > 0) { badge.textContent = unread > 99 ? '99+' : String(unread); badge.style.display = 'block'; }
+            else { badge.style.display = 'none'; }
+        }
+
+        function populateNotificationDropdown(notifications) {
+            const listEl = document.querySelector('.notification-list');
+            const emptyEl = document.querySelector('.notification-empty');
+            if (!listEl) return;
+            listEl.innerHTML = '';
+            if (!notifications || notifications.length === 0) {
+                if (emptyEl) emptyEl.style.display = 'block';
+                updateNotificationBadgeCount([]);
+                return;
+            }
+            if (emptyEl) emptyEl.style.display = 'none';
+            notifications.slice(0,10).forEach(n => {
+                const div = document.createElement('div');
+                div.className = `notification-item ${n.read ? 'read' : 'unread'}`;
+                div.innerHTML = `
+                    <div class="notification-content">
+                        <div class="notification-title">${n.title || 'New Notification'}</div>
+                        <div class="notification-message">${n.message || ''}</div>
+                        <div class="notification-time">${formatTimeAgo(n.timestamp)}</div>
+                    </div>
+                    ${!n.read ? '<div class="notification-dot"></div>' : ''}
+                `;
+                listEl.appendChild(div);
+            });
+            updateNotificationBadgeCount(notifications);
+        }
+
+        function wireNotificationUI() {
+            const btn = document.getElementById('notificationBtn');
+            const dropdown = document.querySelector('.notification-dropdown');
+            const profileDropdown = document.querySelector('.profile-dropdown');
+            if (!btn || !dropdown) return;
+            const header = dropdown.querySelector('.notification-header');
+            if (header && !header.querySelector('.clear-all-notifications')) {
+                const clearBtn = document.createElement('button');
+                clearBtn.className = 'clear-all-notifications';
+                clearBtn.textContent = 'Clear all';
+                clearBtn.style.cssText = 'background:none;border:none;color:#e74c3c;cursor:pointer;font-size:12px;padding:4px 8px;border-radius:4px;margin-left:8px;';
+                clearBtn.addEventListener('click', async () => {
+                    await clearAllNotifications();
+                    const list = await loadNotificationsOnce();
+                    populateNotificationDropdown(list);
+                });
+                header.appendChild(clearBtn);
+                const markBtn = header.querySelector('.mark-all-read');
+                if (markBtn) markBtn.addEventListener('click', async () => {
+                    await markAllNotificationsAsRead();
+                    const list = await loadNotificationsOnce();
+                    populateNotificationDropdown(list);
+                });
+            }
+            btn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                dropdown.classList.toggle('show');
+                if (profileDropdown) profileDropdown.classList.remove('show');
+                if (dropdown.classList.contains('show')) {
+                    const list = await loadNotificationsOnce();
+                    populateNotificationDropdown(list);
+                }
+            });
+            document.addEventListener('click', (e) => {
+                if (!btn.contains(e.target) && !dropdown.contains(e.target)) dropdown.classList.remove('show');
+            });
+        }
+
+        function subscribeNotifications() {
+            try {
+                const user = getAuthUser();
+                if (!user) return;
+                const ref = firebase.database().ref(`notifications/${user.uid}`);
+                ref.on('value', (snap) => {
+                    if (!snap.exists()) { updateNotificationBadgeCount([]); return; }
+                    const list = Object.values(snap.val());
+                    updateNotificationBadgeCount(list);
+                });
+            } catch (e) { }
+        }
+
+        // =============================================
+        // Menu Authorization System (from project-list.html)
+        // =============================================
+        let isMenuUpdateInProgress = false;
+
+        // Reset all menu items to hidden (preserve core features only when authorized)
+        function resetMenuVisibility() {
+            document.querySelectorAll('[data-feature]').forEach(item => {
+                item.classList.remove('menu-visible');
+            });
+            document.querySelectorAll('.menu-dropdown').forEach(dropdown => {
+                dropdown.classList.remove('menu-visible');
+            });
+        }
+
+        // Emergency fallback - show basic menu items
+        function showBasicMenu() {
+            console.log('🔧 Emergency fallback: Showing basic menu items');
+            resetMenuVisibility();
+            
+            const sidebar = document.querySelector('.sidebar');
+            if (sidebar) {
+                sidebar.classList.remove('menu-loading');
+            }
+            
+            const homeItem = document.querySelector('[data-feature="home_view"]');
+            if (homeItem) {
+                homeItem.classList.add('menu-visible');
+            }
+        }
+
+        // Feature-based authorization system that takes priority over role permissions
+        async function updateMenuWithFeatureAuthorization() {
+            // Prevent multiple simultaneous executions
+            if (isMenuUpdateInProgress) {
+                console.log('🔄 Menu update already in progress, skipping...');
+                return;
+            }
+            
+            isMenuUpdateInProgress = true;
+            console.log('🎯 Starting feature-based menu authorization for nfc.html...');
+            
+            try {
+                let currentUser = null;
+                let companyId = null;
+                let userRole = null;
+                
+                // Get user and company info using authManager first
+                if (window.authManager && window.authManager.currentUser) {
+                    currentUser = window.authManager.currentUser;
+                    companyId = currentUser.companyId;
+                    userRole = currentUser.role;
+                    console.log('👤 Using AuthManager - User:', currentUser.email, 'Company ID:', companyId, 'Role:', userRole);
+                } else if (firebase.auth().currentUser) {
+                    currentUser = firebase.auth().currentUser;
+                    console.log('👤 Using Firebase auth - will search for company and role');
+                } else {
+                    console.log('❌ No authenticated user found');
+                    resetMenuVisibility();
+                    return;
+                }
+                
+                // If no company ID from authManager, search companies collection
+                if (!companyId && currentUser) {
+                    console.log('🔍 Searching for user company and role...');
+                    const database = firebase.database();
+                    const companiesRef = database.ref('companies');
+                    const companiesSnapshot = await companiesRef.once('value');
+                    
+                    if (companiesSnapshot.exists()) {
+                        const companies = companiesSnapshot.val();
+                        
+                        for (const [cId, company] of Object.entries(companies)) {
+                            if (company.status !== 'active') continue;
+                            
+                            if (company.users && company.users[currentUser.uid]) {
+                                companyId = cId;
+                                userRole = company.users[currentUser.uid].role || company.users[currentUser.uid].userRole;
+                                console.log(`✅ Found user in company: ${companyId} (${company.name}) with role: ${userRole}`);
+                                break;
+                            }
+                        }
+                    }
+                }
+                
+                if (!companyId) {
+                    console.error('❌ No company ID found, cannot determine authorized features');
+                    resetMenuVisibility();
+                    return;
+                }
+                
+                if (!userRole) {
+                    console.warn('⚠️ No user role found, proceeding with company features only');
+                }
+                
+                // STEP 1: Apply company feature-based authorization
+                console.log('🏢 STEP 1: Applying company feature authorization...');
+                const authorizedPages = await applyFeatureBasedMenuVisibility(companyId);
+                
+                // STEP 2: Filter by user role permissions within authorized features
+                if (userRole) {
+                    console.log('👤 STEP 2: Applying role-based filtering within authorized features...');
+                    await applyRoleBasedFiltering(companyId, userRole, authorizedPages);
+                } else {
+                    console.log('⚠️ STEP 2: Skipping role-based filtering (no role found)');
+                }
+                
+            } catch (error) {
+                console.error('❌ Error in feature-based menu authorization:', error);
+                resetMenuVisibility();
+            } finally {
+                // Reset the flag to allow future updates
+                isMenuUpdateInProgress = false;
+            }
+        }
+
+        // Apply feature-based menu visibility
+        async function applyFeatureBasedMenuVisibility(companyId) {
+            try {
+                console.log('🔧 Applying feature-based menu visibility for company:', companyId);
+                
+                // Get platform features
+                const database = firebase.database();
+                const featuresSnapshot = await database.ref('/platformFeatures').once('value');
+                
+                if (!featuresSnapshot.exists()) {
+                    console.log('⚠️ No platform features found');
+                    resetMenuVisibility();
+                    return;
+                }
+                
+                const featuresData = featuresSnapshot.val();
+                
+                // Get company's selected features
+                const companySnapshot = await database.ref(`/companies/${companyId}`).once('value');
+                const companyData = companySnapshot.val();
+                
+                if (!companyData) {
+                    console.error('❌ Company data not found');
+                    resetMenuVisibility();
+                    return;
+                }
+                
+                const subscribedFeatureIds = companyData.selectedFeatures || [];
+                console.log('🏢 Company subscribed features:', subscribedFeatureIds);
+                
+                if (subscribedFeatureIds.length === 0) {
+                    console.log('⚠️ Company has no subscribed features');
+                    resetMenuVisibility();
+                    return;
+                }
+                
+                // Collect authorized pages from subscribed features
+                const authorizedPages = [];
+                subscribedFeatureIds.forEach(featureId => {
+                    const feature = featuresData[featureId];
+                    if (feature && feature.status === 'active' && feature.authorizedPages) {
+                        console.log(`📦 Adding pages from feature "${feature.name}":`, feature.authorizedPages);
+                        authorizedPages.push(...feature.authorizedPages);
+                    } else {
+                        console.log(`⚠️ Feature ${featureId} not found or inactive`);
+                    }
+                });
+                
+                console.log('🔐 All authorized pages:', authorizedPages);
+                
+                // Reset all menu items first
+                resetMenuVisibility();
+                
+                // Create set of authorized features and hrefs (with alias mapping)
+                const authorizedFeatures = new Set();
+                const authorizedHrefs = new Set();
+
+                const featureAlias = (key) => {
+                    if (!key) return key;
+                    // Treat these as aliases of each other
+                    if (key === 'risk_view') return 'risk_management_section';
+                    if (key === 'risk_management_section') return 'risk_view';
+                    return null;
+                };
+                const normalizeHref = (href) => {
+                    if (!href) return '';
+                    // Keep relative path portion only
+                    try {
+                        // If absolute, take pathname; else, use as is
+                        const u = new URL(href, window.location.origin);
+                        return (u.pathname || '').replace(/^\//, '');
+                    } catch {
+                        return String(href).replace(/^\//, '');
+                    }
+                };
+
+                authorizedPages.forEach(pageInfo => {
+                    if (pageInfo.feature) {
+                        authorizedFeatures.add(pageInfo.feature);
+                        const alias = featureAlias(pageInfo.feature);
+                        if (alias) authorizedFeatures.add(alias);
+                    }
+                    if (pageInfo.href) authorizedHrefs.add(normalizeHref(pageInfo.href));
+                    if (pageInfo.page) authorizedHrefs.add(normalizeHref(pageInfo.page));
+                    if (pageInfo.url) authorizedHrefs.add(normalizeHref(pageInfo.url));
+                });
+
+                console.log('🎯 Authorized features for nfc.html:', Array.from(authorizedFeatures));
+                console.log('🔗 Authorized hrefs for nfc.html:', Array.from(authorizedHrefs));
+                
+                // Apply menu visibility
+                const allMenuItems = document.querySelectorAll('#roleBasedMenu li[data-feature]');
+                let visibleCount = 0;
+                
+                allMenuItems.forEach(menuItem => {
+                    const featureAttribute = menuItem.getAttribute('data-feature');
+                    const isDropdownContainer = menuItem.classList.contains('menu-dropdown');
+                    const anchor = menuItem.querySelector('a[href]');
+                    const href = anchor ? anchor.getAttribute('href') : '';
+                    const normalized = normalizeHref(href);
+                    const featureAuthorized = authorizedFeatures.has(featureAttribute);
+                    const hrefAuthorized = normalized && authorizedHrefs.has(normalized);
+                    const isAuthorized = featureAuthorized || hrefAuthorized;
+
+                    if (isDropdownContainer) {
+                        return; // Handle dropdowns separately after all items are processed
+                    }
+
+                    if (isAuthorized) {
+                        menuItem.classList.add('menu-visible');
+                        visibleCount++;
+                        console.log(`✅ Authorized - showing: feature=${featureAttribute} href=${normalized || '—'}`);
+                    } else {
+                        menuItem.classList.remove('menu-visible');
+                        console.log(`❌ Not authorized - hiding: feature=${featureAttribute} href=${normalized || '—'}`);
+                    }
+                });
+                
+                // Handle dropdown menus - show if they have visible children
+                const dropdownMenus = document.querySelectorAll('#roleBasedMenu li.menu-dropdown');
+                dropdownMenus.forEach(dropdown => {
+                    const dropdownFeature = dropdown.getAttribute('data-feature');
+                    const submenuItems = dropdown.querySelectorAll('.submenu li[data-feature]');
+                    let hasVisibleChildren = false;
+                    
+                    submenuItems.forEach(submenuItem => {
+                        if (submenuItem.classList.contains('menu-visible')) {
+                            hasVisibleChildren = true;
+                        }
+                    });
+                    
+                    if (hasVisibleChildren || authorizedFeatures.has(dropdownFeature)) {
+                        dropdown.classList.add('menu-visible');
+                        console.log(`✅ Showing dropdown menu: ${dropdownFeature} (has visible children or directly authorized)`);
+                    } else {
+                        dropdown.classList.remove('menu-visible');
+                        console.log(`❌ Hiding dropdown menu: ${dropdownFeature} (no visible children and not authorized)`);
+                    }
+                });
+                
+                console.log(`🎯 Company feature authorization completed - ${visibleCount} items initially visible`);
+                
+                // Return authorized pages for role-based filtering
+                return authorizedPages;
+                
+            } catch (error) {
+                console.error('❌ Error applying feature-based menu visibility:', error);
+                resetMenuVisibility();
+                return [];
+            }
+        }
+
+        // Apply role-based filtering within company authorized features
+        async function applyRoleBasedFiltering(companyId, userRole, authorizedPages) {
+            try {
+                console.log('👤 Applying role-based filtering for role:', userRole);
+                
+                // Get user role permissions from company
+                const database = firebase.database();
+                const permissionsRef = database.ref(`companies/${companyId}/roles/${userRole}/permissions`);
+                const permissionsSnapshot = await permissionsRef.once('value');
+                
+                if (!permissionsSnapshot.exists()) {
+                    console.log(`⚠️ No permissions found for role ${userRole} in company ${companyId}`);
+                    
+                    // Try to get all roles to see what's available
+                    const allRolesRef = database.ref(`companies/${companyId}/roles`);
+                    const allRolesSnapshot = await allRolesRef.once('value');
+                    
+                    if (allRolesSnapshot.exists()) {
+                        const allRoles = allRolesSnapshot.val();
+                        console.log('🔍 Available roles in company:', Object.keys(allRoles));
+                        
+                        // Enhanced debugging for administrator role
+                        if (userRole === 'administrator') {
+                            console.log('🔑 ADMINISTRATOR - Full roles data:', allRoles);
+                            if (allRoles.administrator) {
+                                console.log('🔑 ADMINISTRATOR role found in company:', allRoles.administrator);
+                                if (allRoles.administrator.permissions) {
+                                    console.log('🔑 ADMINISTRATOR permissions found:', allRoles.administrator.permissions);
+                                    filterMenuByPermissions(allRoles.administrator.permissions);
+                                    return;
+                                }
+                            }
+                        }
+                        
+                        // Check if the role exists with different casing or format
+                        const roleKeys = Object.keys(allRoles);
+                        const matchingRole = roleKeys.find(key => 
+                            key.toLowerCase() === userRole.toLowerCase() ||
+                            key.replace(/\s+/g, '').toLowerCase() === userRole.replace(/\s+/g, '').toLowerCase()
+                        );
+                        
+                        if (matchingRole && allRoles[matchingRole].permissions) {
+                            console.log(`✅ Found matching role: ${matchingRole}`);
+                            const permissions = allRoles[matchingRole].permissions;
+                            filterMenuByPermissions(permissions);
+                            return;
+                        }
+                    }
+                    
+                    // CRITICAL: If user is administrator but no permissions found, provide full access as fallback
+                    if (userRole === 'administrator') {
+                        console.log('🔑 ADMINISTRATOR FALLBACK - Skipping role filtering (keeping all company features visible)');
+                        showSidebarAfterAuth();
+                        return;
+                    }
+                    
+                    // For other roles without permissions, hide all items with permission requirements
+                    console.log('❌ No valid permissions found - filtering out items requiring permissions');
+                    hideItemsRequiringPermissions();
+                    showSidebarAfterAuth();
+                    return;
+                }
+                
+                const permissions = permissionsSnapshot.val();
+                console.log('✅ Loaded role permissions:', permissions);
+                
+                // Apply permission-based filtering
+                filterMenuByPermissions(permissions);
+                
+            } catch (error) {
+                console.error('❌ Error applying role-based filtering:', error);
+                // Don't hide everything on error - keep company features visible
+                showSidebarAfterAuth();
+            }
+        }
+
+        // Filter currently visible menu items by role permissions
+        function filterMenuByPermissions(permissions) {
+            console.log('🔍 Filtering visible menu items by role permissions...');
+            
+            if (!permissions) {
+                console.log('⚠️ No permissions object provided');
+                hideItemsRequiringPermissions();
+                showSidebarAfterAuth();
+                return;
+            }
+            const permissionAlias = (key) => {
+                if (!key) return key;
+                if (key === 'risk_view') return 'risk_management_section';
+                if (key === 'risk_management_section') return 'risk_view';
+                return null;
+            };
+
+            // Evaluate all permission-gated items (allow role permissions to add visibility too)
+            const itemsRequiringPermissions = document.querySelectorAll('#roleBasedMenu li[data-requires-permission]');
+            console.log(`🎯 Found ${itemsRequiringPermissions.length} items requiring permissions to check`);
+
+            let hiddenCount = 0;
+            let shownByPermission = 0;
+
+            itemsRequiringPermissions.forEach(item => {
+                const requiresPermission = item.getAttribute('data-requires-permission');
+                const feature = item.getAttribute('data-feature');
+
+                const perm = permissions[requiresPermission];
+                const aliasKey = permissionAlias(requiresPermission);
+                const aliasPerm = aliasKey ? permissions[aliasKey] : undefined;
+
+                const hasViewPermission = (p) => p === true || (p && p.view === true);
+                const allowed = hasViewPermission(perm) || hasViewPermission(aliasPerm);
+
+                if (allowed) {
+                    if (!item.classList.contains('menu-visible')) shownByPermission++;
+                    item.classList.add('menu-visible');
+                    console.log(`✅ Showing by permission: ${feature} (requires: ${requiresPermission}${aliasKey ? ` | alias: ${aliasKey}` : ''})`);
+                } else {
+                    if (item.classList.contains('menu-visible')) hiddenCount++;
+                    item.classList.remove('menu-visible');
+                    console.log(`❌ Hiding (no permission): ${feature} (requires: ${requiresPermission}${aliasKey ? ` | alias: ${aliasKey}` : ''})`);
+                }
+            });
+
+            // Re-check dropdown menus after permission filtering
+            const dropdownMenus = document.querySelectorAll('#roleBasedMenu li.menu-dropdown');
+            dropdownMenus.forEach(dropdown => {
+                const submenuItems = dropdown.querySelectorAll('.submenu li.menu-visible');
+                const dropdownFeature = dropdown.getAttribute('data-feature');
+                const dropdownRequires = dropdown.getAttribute('data-requires-permission');
+
+                if (submenuItems.length === 0) {
+                    if (dropdownRequires) {
+                        const perm = permissions[dropdownRequires];
+                        const aliasKey = permissionAlias(dropdownRequires);
+                        const aliasPerm = aliasKey ? permissions[aliasKey] : undefined;
+                        const hasViewPermission = (p) => p === true || (p && p.view === true);
+                        const allowed = hasViewPermission(perm) || hasViewPermission(aliasPerm);
+                        if (allowed) {
+                            dropdown.classList.add('menu-visible');
+                            console.log(`✅ Showing dropdown by permission: ${dropdownFeature}`);
+                        } else {
+                            dropdown.classList.remove('menu-visible');
+                            hiddenCount++;
+                            console.log(`❌ Hiding dropdown (no children and no permission): ${dropdownFeature}`);
+                        }
+                    } else {
+                        dropdown.classList.remove('menu-visible');
+                        console.log(`❌ Hiding dropdown (no visible children): ${dropdownFeature}`);
+                    }
+                } else {
+                    console.log(`✅ Keeping dropdown visible (has ${submenuItems.length} visible children): ${dropdownFeature}`);
+                }
+            });
+
+            console.log(`🎯 Role-based filtering completed - ${hiddenCount} items hidden; ${shownByPermission} items shown by permission`);
+            
+            // Ensure at least home is visible
+            ensureHomeIsVisible();
+            
+            // Show sidebar after all filtering is complete
+            showSidebarAfterAuth();
+        }
+
+        // Hide menu items that require permissions (for users without role permissions)
+        function hideItemsRequiringPermissions() {
+            console.log('🔒 Hiding all menu items that require permissions...');
+            
+            const itemsRequiringPermissions = document.querySelectorAll('#roleBasedMenu li.menu-visible[data-requires-permission]');
+            let hiddenCount = 0;
+            
+            itemsRequiringPermissions.forEach(item => {
+                const feature = item.getAttribute('data-feature');
+                const requiresPermission = item.getAttribute('data-requires-permission');
+                
+                item.classList.remove('menu-visible');
+                hiddenCount++;
+                console.log(`❌ Hiding menu item (requires permission): ${feature} (${requiresPermission})`);
+            });
+            
+            // Hide dropdowns that only contain permission-required items
+            const dropdownMenus = document.querySelectorAll('#roleBasedMenu li.menu-dropdown');
+            dropdownMenus.forEach(dropdown => {
+                const visibleSubmenuItems = dropdown.querySelectorAll('.submenu li.menu-visible');
+                if (visibleSubmenuItems.length === 0) {
+                    dropdown.classList.remove('menu-visible');
+                    const dropdownFeature = dropdown.getAttribute('data-feature');
+                    console.log(`❌ Hiding dropdown (no visible children): ${dropdownFeature}`);
+                }
+            });
+            
+            console.log(`🔒 Hidden ${hiddenCount} items requiring permissions`);
+            
+            // Ensure at least home is visible
+            ensureHomeIsVisible();
+        }
+
+        // Ensure home menu item is visible as fallback
+        function ensureHomeIsVisible() {
+            const homeItem = document.querySelector('#roleBasedMenu li[data-feature="home_view"]');
+            if (homeItem && !homeItem.classList.contains('menu-visible')) {
+                homeItem.classList.add('menu-visible');
+                console.log('✅ Ensured home menu item is visible as fallback');
+            }
+        }
+
+        // Show sidebar and remove loading state after authentication and filtering
+        function showSidebarAfterAuth() {
+            const sidebar = document.querySelector('.sidebar');
+            if (sidebar) {
+                sidebar.classList.remove('menu-loading');
+                console.log('✅ Sidebar loading state removed - menu authorization complete');
+            }
+        }
+
+        // Initialize menu authorization system
+        function initializeMenuAuthorization() {
+            console.log('🚀 Initializing menu authorization system...');
+            
+            // Set sidebar to loading state initially
+            const sidebar = document.querySelector('.sidebar');
+            if (sidebar) {
+                sidebar.classList.add('menu-loading');
+            }
+            
+            // Wait a moment for Firebase to initialize, then start authorization
+            setTimeout(() => {
+                updateMenuWithFeatureAuthorization();
+            }, 500);
+        }
+
+        // Make updateMenuWithFeatureAuthorization available globally
+        window.updateMenuWithFeatureAuthorization = updateMenuWithFeatureAuthorization;
+
+        // =============================================
+        // Page Initialization
+        // =============================================
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize AuthManager
+            window.authManager = new AuthManager();
+            
+            // Setup sidebar toggle
+            const sidebarToggle = document.getElementById('sidebarToggle');
+            const sidebar = document.getElementById('sidebar');
+            const mainContent = document.getElementById('mainContent');
+            
+            if (sidebarToggle) {
+                sidebarToggle.addEventListener('click', function() {
+                    sidebar.classList.toggle('collapsed');
+                    mainContent.classList.toggle('sidebar-collapsed');
+                });
+            }
+            
+            // Wire notification UI
+            wireNotificationUI();
+            subscribeNotifications();
+            
+            // Initialize menu authorization
+            initializeMenuAuthorization();
+        });
     </script>
 </body>
 </html>
