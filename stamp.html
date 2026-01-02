@@ -1,0 +1,3163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Stamp Designer - Dreamex Datalab</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
+
+<!-- Firebase v8 Scripts for Centralized Authentication -->
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
+
+<style>
+:root { --primary-color:#2c3e50; --secondary-color:#34495e; --accent-color:#e74c3c; --success-color:#27ae60; --warning-color:#f39c12; --info-color:#3498db; --light-color:#ecf0f1; --dark-color:#2c3e50; --sidebar-width:250px; --transition-speed:.25s; }
+* { box-sizing:border-box; margin:0; padding:0; }
+body { font-family: 'Segoe UI', Arial, sans-serif; background:#f5f7fa; color:#222; }
+.app-container { display:flex; min-height:100vh; }
+.sidebar { width:var(--sidebar-width); background:var(--primary-color); color:#fff; padding:1rem; position:fixed; top:0; left:0; bottom:0; overflow-y:auto; transition:transform .3s ease; z-index:1000; }
+.sidebar.collapsed { transform:translateX(-100%); }
+.main-content { flex:1; margin-left:var(--sidebar-width); padding:0.3rem; padding-top:3.2rem; transition:margin-left .3s ease; }
+.main-content.sidebar-collapsed { margin-left:0; }
+.main-content.sidebar-collapsed .top-nav { left:0.5rem; }
+.logo h2 { text-align:center; padding:1rem 0; border-bottom:1px solid rgba(255,255,255,0.1); font-size:1.05rem; letter-spacing:.5px; }
+.menu { list-style:none; margin-top:2rem; }
+.menu li { margin-bottom:0.45rem; }
+.menu a { display:flex; align-items:center; gap:10px; color:#fff; text-decoration:none; padding:0.6rem 0.75rem; border-radius:6px; font-size:0.82rem; font-weight:500; transition:background .25s; }
+.menu a:hover, .menu a.active { background:rgba(255,255,255,0.12); }
+.submenu { list-style:none; margin-left:0.75rem; display:none; margin-top:0.25rem; }
+.menu-dropdown:hover .submenu { display:block; }
+.submenu a { font-size:0.75rem; padding:0.45rem 0.65rem; }
+[data-feature]:not(.menu-visible) { display:none !important; }
+.menu-dropdown:not(.menu-visible) { display:none !important; }
+
+/* Hide ALL menu items by default during loading */
+.sidebar.menu-loading .menu-item,
+.sidebar.menu-loading .menu-dropdown,
+.sidebar.menu-loading li[data-feature],
+.sidebar.menu-loading [data-feature] {
+    display: none !important;
+}
+
+/* Allow menu-visible items to show even during loading */
+.sidebar.menu-loading .menu-visible,
+.sidebar.menu-loading li.menu-visible,
+.sidebar.menu-loading [data-feature].menu-visible {
+    display: block !important;
+}
+
+.menu-loading [data-feature] {
+    display: none !important;
+}
+
+.menu-loading .menu-dropdown {
+    display: none !important;
+}
+
+/* Ensure menu-visible items are always shown */
+.menu-visible {
+    display: block !important;
+}
+
+li.menu-visible,
+[data-feature].menu-visible {
+    display: block !important;
+}
+
+.top-nav { display:flex; justify-content:space-between; align-items:center; padding:0.5rem 0.75rem; background-color:#fff; box-shadow:0 2px 5px rgba(0,0,0,0.1); margin-bottom:0.3rem; position:fixed; top:0.25rem; right:0.5rem; left:calc(var(--sidebar-width) + 0.5rem); height:50px; min-height:50px; z-index:100; transition:left 0.3s ease; }
+.sidebar-toggle-btn { background:none; border:none; cursor:pointer; font-size:1.1rem; padding:0.4rem; color:#555; }
+.top-nav-left { display:flex; align-items:center; gap:0.75rem; }
+.company-branding { display:flex; align-items:center; gap:0.5rem; }
+#headerCompanyLogo { width:32px; height:32px; object-fit:contain; display:none; }
+#headerCompanyLogo.visible { display:block; }
+#headerCompanyName { font-weight:600; font-size:0.85rem; }
+.header-company-logo { height:32px; width:auto; border-radius:6px; box-shadow:0 2px 4px rgba(0,0,0,0.1); }
+.company-name-header { font-weight:700; color:var(--dark-color); font-size:1rem; letter-spacing:0.5px; white-space:nowrap; }
+.top-nav-right { display:flex; align-items:center; gap:1rem; }
+.notifications { position:relative; display:flex; align-items:center; }
+.notification-btn { background:none; border:none; cursor:pointer; position:relative; font-size:1.2rem; padding:0.5rem; display:flex; align-items:center; justify-content:center; }
+.notification-badge { position:absolute; top:-5px; right:-5px; background-color:var(--accent-color); color:white; border-radius:50%; padding:0.2rem 0.5rem; font-size:0.7rem; display:none; }
+.notification-dropdown { display:none; position:absolute; right:0; top:100%; width:320px; background:#fff; border-radius:8px; box-shadow:0 4px 20px rgba(0,0,0,0.15); z-index:1000; border:1px solid #e9ecef; max-height:400px; overflow:hidden; }
+.notification-dropdown.show { display:block; }
+.notification-header { padding:12px 16px; border-bottom:1px solid #e9ecef; background:#f8f9fa; display:flex; justify-content:space-between; align-items:center; }
+.notification-header h3 { margin:0; color:#333; font-size:14px; font-weight:600; }
+.mark-all-read { background:none; border:none; color:#3498db; cursor:pointer; font-size:12px; padding:4px 8px; border-radius:4px; transition:all .2s ease; }
+.mark-all-read:hover { background:#e3f2fd; color:#1976d2; }
+.notification-list { max-height:320px; overflow-y:auto; padding:0; }
+.notification-empty { padding:40px 20px; text-align:center; color:#999; display:none; }
+.user-profile { position:relative; }
+.profile-btn { background:none; border:none; border-radius:50%; overflow:hidden; width:38px; height:38px; cursor:pointer; }
+.profile-btn img { width:100%; height:100%; object-fit:cover; }
+.profile-dropdown { display:none; position:absolute; right:0; top:110%; background:#fff; border-radius:8px; min-width:200px; box-shadow:0 6px 18px rgba(0,0,0,0.12); overflow:hidden; }
+.profile-dropdown.show { display:block; }
+.profile-dropdown ul { list-style:none; }
+.profile-dropdown li a { display:block; padding:0.65rem 0.85rem; font-size:0.72rem; text-decoration:none; color:#1e293b; font-weight:500; }
+.profile-dropdown li a:hover { background:#f1f5f9; }
+
+.page-header { 
+    background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)); 
+    color: #fff; 
+    padding: 0.55rem 0.75rem; 
+    margin: 0.35rem 0 0.5rem 0; 
+    display: flex; 
+    align-items: center; 
+    justify-content: space-between; 
+    box-shadow: 0 10px 28px rgba(0,0,0,0.18), 0 6px 16px rgba(0,0,0,0.14); 
+    font-size: 0.9rem; 
+}
+.page-header h1 { 
+    color: #fff; 
+    font-size: 0.9rem; 
+    display: flex; 
+    align-items: center; 
+    gap: 0.5rem; 
+    letter-spacing: 0.5px; 
+    margin: 0; 
+    font-weight: 600; 
+}
+.page-actions { display:flex; gap:0.4rem; flex-wrap:wrap; align-items:center; }
+
+.btn { border:none; border-radius:6px; padding:0.45rem 0.75rem; font-size:0.68rem; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:0.4rem; letter-spacing:.5px; background:#eef2f6; color:#1e293b; transition:.2s; }
+.btn:hover { background:#e2e8f0; }
+.btn-primary { background:var(--primary-color); color:#fff; }
+.btn-primary:hover { background:#1f2f3d; }
+.btn-accent { background:var(--accent-color); color:#fff; }
+.btn-accent:hover { background:#c0392b; }
+.btn-outline { background:#fff; border:1px solid #cbd5e1; }
+.btn-outline:hover { background:#f1f5f9; }
+
+.section { background:#fff; padding:0.7rem; border-radius:10px; box-shadow:0 2px 5px rgba(0,0,0,0.06); margin-bottom:0.5rem; }
+.section-title { font-size:0.8rem; font-weight:700; text-transform:uppercase; letter-spacing:.5px; margin-bottom:0.65rem; color:#334155; display:flex; align-items:center; justify-content:space-between; gap:0.4rem; }
+
+/* Stamps Table */
+.stamps-table-container { background: #fff; border-radius: 10px; overflow: hidden; }
+.stamps-table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
+.stamps-table th { background: #f8fafc; padding: 0.75rem 0.65rem; text-align: left; font-weight: 600; color: #475569; text-transform: uppercase; font-size: 0.68rem; letter-spacing: 0.5px; border-bottom: 2px solid #e2e8f0; }
+.stamps-table td { padding: 0.65rem; border-bottom: 1px solid #e2e8f0; vertical-align: middle; }
+.stamps-table tr:hover { background: #f8fafc; }
+.stamps-table tr:last-child td { border-bottom: none; }
+.stamp-thumbnail { width: 50px; height: 50px; object-fit: contain; border-radius: 6px; background: #f1f5f9; border: 1px solid #e2e8f0; }
+.stamp-name-cell { font-weight: 600; color: #334155; }
+.stamp-desc-cell { color: #64748b; font-size: 0.72rem; max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stamp-date-cell { color: #94a3b8; font-size: 0.72rem; }
+.stamp-creator-cell { color: #64748b; font-size: 0.72rem; }
+.table-actions { display: flex; gap: 0.35rem; }
+.table-actions .btn { padding: 0.35rem 0.5rem; font-size: 0.65rem; }
+.empty-table-message { text-align: center; padding: 3rem 1rem; color: #94a3b8; }
+.empty-table-message i { font-size: 2.5rem; margin-bottom: 0.75rem; display: block; color: #cbd5e1; }
+
+.add-stamp-btn { background: var(--success-color); color: #fff; border: none; border-radius: 50%; width: 40px; height: 40px; font-size: 1.2rem; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 8px rgba(39, 174, 96, 0.3); transition: all 0.2s; }
+.add-stamp-btn:hover { background: #219a52; transform: scale(1.05); }
+
+/* Stamp Designer Modal */
+.stamp-modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 2000; opacity: 0; visibility: hidden; transition: all 0.2s; }
+.stamp-modal-overlay.show { opacity: 1; visibility: visible; }
+.stamp-modal-content { background: #fff; border-radius: 12px; width: 95%; max-width: 1100px; max-height: 92vh; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,0.3); transform: scale(0.9); transition: transform 0.2s; display: flex; flex-direction: column; }
+.stamp-modal-overlay.show .stamp-modal-content { transform: scale(1); }
+.stamp-modal-header { display: flex; justify-content: space-between; align-items: center; padding: 0.85rem 1rem; background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)); color: #fff; }
+.stamp-modal-header h3 { margin: 0; font-size: 0.95rem; display: flex; align-items: center; gap: 0.5rem; }
+.stamp-modal-close { background: rgba(255,255,255,0.2); border: none; font-size: 1.1rem; cursor: pointer; color: #fff; padding: 0.35rem 0.5rem; border-radius: 6px; transition: background 0.2s; }
+.stamp-modal-close:hover { background: rgba(255,255,255,0.3); }
+.stamp-modal-body { flex: 1; overflow-y: auto; padding: 0.75rem; }
+.stamp-modal-footer { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; padding: 0.75rem 1rem; background: #f8fafc; border-top: 1px solid #e2e8f0; }
+.stamp-modal-footer .left-actions { display: flex; gap: 0.5rem; }
+.stamp-modal-footer .right-actions { display: flex; gap: 0.5rem; align-items: center; }
+
+/* Stamp designer layout inside modal */
+.stamp-layout { display:grid; grid-template-columns: 340px 1fr; gap: 0.75rem; }
+@media (max-width: 900px) { .stamp-layout { grid-template-columns: 1fr; } }
+
+.panel { border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; }
+.panel-header { background:#f8fafc; padding: 0.55rem 0.65rem; border-bottom:1px solid #e2e8f0; display:flex; align-items:center; justify-content:space-between; }
+.panel-header h2 { font-size: 0.75rem; font-weight:700; letter-spacing:.5px; text-transform:uppercase; color:#334155; margin:0; display:flex; gap:0.5rem; align-items:center; }
+.panel-body { padding: 0.65rem; background:#fff; max-height: 55vh; overflow-y: auto; }
+
+.form-row { display:flex; gap: 0.5rem; flex-wrap: wrap; }
+.form-group { display:flex; flex-direction:column; gap:0.3rem; margin-bottom:0.55rem; }
+.form-group label { font-size:0.68rem; font-weight:600; color:#475569; }
+.form-group input[type="text"],
+.form-group input[type="number"],
+.form-group select { padding: 0.4rem 0.5rem; border:1px solid #cbd5e1; border-radius:6px; font-size:0.75rem; background:#fff; }
+.form-group input[type="text"]:focus,
+.form-group input[type="number"]:focus,
+.form-group select:focus { outline:none; border-color:#3b82f6; box-shadow:0 0 0 3px rgba(59,130,246,0.12); }
+.form-group input[type="range"] { width:100%; }
+
+.hint { font-size:0.68rem; color:#64748b; margin-top:0.2rem; }
+
+.canvas-wrap { display:flex; flex-direction:column; gap: 0.5rem; }
+.canvas-toolbar { display:flex; gap:0.5rem; flex-wrap:wrap; align-items:center; justify-content:space-between; }
+.canvas-stage { border:1px dashed #cbd5e1; border-radius:10px; background:#fff; padding: 0.5rem; display:flex; justify-content:center; align-items:center; overflow:auto; min-height: 300px; }
+canvas { max-width: 100%; height: auto; }
+
+.template-grid { display:grid; grid-template-columns: repeat(3, 1fr); gap: 0.35rem; }
+.template-btn { padding: 0.4rem; border: 1px solid #e2e8f0; border-radius: 6px; background:#fff; cursor:pointer; font-size:0.68rem; color:#334155; display:flex; flex-direction:column; align-items:center; gap:0.3rem; }
+.template-btn:hover { background:#f8fafc; }
+.template-btn.active { border-color: #cbd5e1; background:#f1f5f9; }
+.template-dot { width: 20px; height:20px; border-radius:50%; border: 2px solid var(--accent-color); }
+
+.small { font-size:0.7rem; }
+
+.text-panel { background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:0.55rem; margin-bottom:0.45rem; }
+.text-panel[style*="display:none"] { display:none !important; }
+
+.range-number { display:flex; align-items:center; gap:0.35rem; }
+.range-number input[type="range"] { flex:1; }
+.range-number input[type="number"] { width:50px; padding:0.25rem 0.35rem; border:1px solid #cbd5e1; border-radius:5px; font-size:0.72rem; text-align:center; }
+
+@media (max-width: 900px) {
+    .sidebar { transform: translateX(-100%); }
+    .sidebar.open { transform: translateX(0); }
+    .top-nav { left: 0.5rem; }
+    
+    /* Responsive table */
+    .stamps-table th:nth-child(3),
+    .stamps-table td:nth-child(3),
+    .stamps-table th:nth-child(4),
+    .stamps-table td:nth-child(4) { display: none; }
+    
+    /* Responsive modal */
+    .stamp-modal-content { width: 98%; max-height: 95vh; }
+    .stamp-layout { grid-template-columns: 1fr; }
+    .panel-body { max-height: 40vh; }
+}
+
+/* Saved stamps section - legacy */
+.saved-stamps-section { display: none; }
+.saved-stamps-grid { display: none; }
+
+/* Modal styles */
+.modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 2000; opacity: 0; visibility: hidden; transition: all 0.2s; }
+.modal-overlay.show { opacity: 1; visibility: visible; }
+.modal-content { background: #fff; border-radius: 12px; padding: 1.25rem; width: 90%; max-width: 400px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); transform: scale(0.9); transition: transform 0.2s; }
+.modal-overlay.show .modal-content { transform: scale(1); }
+.modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+.modal-header h3 { margin: 0; font-size: 0.9rem; color: #334155; }
+.modal-close { background: none; border: none; font-size: 1.2rem; cursor: pointer; color: #94a3b8; padding: 0.25rem; }
+.modal-close:hover { color: #334155; }
+.modal-body { margin-bottom: 1rem; }
+.modal-footer { display: flex; justify-content: flex-end; gap: 0.5rem; }
+</style>
+</head>
+<body>
+<div class="app-container">
+	<nav class="sidebar menu-loading" id="sidebar">
+		<div class="logo"><h2>Dreamex Datalab</h2></div>
+        <ul class="menu" id="roleBasedMenu">
+            <li class="menu-item" data-feature="home_view"><a href="index.html"><i class="fas fa-home"></i> Home</a></li>
+            <li class="menu-dropdown" data-feature="health_view">
+				<a href="#"><i class="fas fa-medkit"></i> Health</a>
+				<ul class="submenu">
+					<li data-feature="health_assessment_view" data-requires-permission="health_assessment_view"><a href="health-assessment.html">Assessment</a></li>
+					<li data-feature="health_consultation_view" data-requires-permission="health_consultation_view"><a href="health-consultation.html">Consultation</a></li>
+					<li data-feature="medical_folder_view" data-requires-permission="medical_folder_view"><a href="medical-folder.html">Medical Folder</a></li>
+				</ul>
+			</li>
+            <!-- Risk Management (separate section) -->
+            <li class="menu-dropdown" data-feature="risk_view" data-requires-permission="risk_view">
+                <a href="#"><i class="fas fa-exclamation-triangle"></i> Risk Management</a>
+            <ul class="submenu">
+                <li data-feature="risk_view" data-requires-permission="risk_view"><a href="riskboard.html">Risk Management</a></li>
+                <li data-feature="risk_view" data-requires-permission="risk_register_view"><a href="riskreg.html">Risk Register</a></li>
+            </ul>
+            </li>
+            <li class="menu-dropdown" data-feature="safety_view" data-requires-permission="safety_view">
+				<a href="#"><i class="fas fa-shield-alt"></i> Safety</a>
+				<ul class="submenu">
+					<li data-feature="training_view" data-requires-permission="training_view"><a href="trainingboard.html">Training</a></li>
+					<li data-feature="jsa_view" data-requires-permission="jsa_view"><a href="jsaboard.html">Job Safety Analysis</a></li>
+					<li data-feature="ptw_view" data-requires-permission="ptw_view"><a href="ptwboard.html">Permit to Work</a></li>
+					<li data-feature="incident_view" data-requires-permission="incident_view"><a href="incidentboard.html">Incident Reports</a></li>
+					<li data-feature="inspection_view" data-requires-permission="inspection_view"><a href="inspectionboard.html">Inspection</a></li>
+					<li data-feature="audit_view" data-requires-permission="audit_view"><a href="auditboard.html">Audit</a></li>
+				</ul>
+			</li>
+            <li class="menu-dropdown" data-feature="investigation_view" data-requires-permission="investigation_view">
+				<a href="#"><i class="fas fa-search-plus"></i> Investigation</a>
+				<ul class="submenu">
+					<li data-feature="investigation_dashboard_view" data-requires-permission="investigation_dashboard_view"><a href="investigation-dashboard.html">Investigation Dashboard</a></li>
+					<li data-feature="investigation_list_view" data-requires-permission="investigation_list_view"><a href="investigation-list.html">Investigation List</a></li>
+					<li data-feature="create_investigation_view" data-requires-permission="create_investigation_view"><a href="investigation-create.html">Create Investigation</a></li>
+				</ul>
+			</li>
+            <li class="menu-dropdown" data-feature="fuel_management" data-requires-permission="fuel_management">
+				<a href="#"><i class="fas fa-gas-pump"></i> Fuel Management</a>
+				<ul class="submenu">
+                    <li data-feature="vessel_offloading" data-requires-permission="vessel_offloading"><a href="vessel-offloading.html">Vessel Offloading</a></li>
+                    <li data-feature="fuel_storage" data-requires-permission="fuel_storage"><a href="fuelstor.html">Fuel Storage Status</a></li>
+                    <li data-feature="tank_transfer" data-requires-permission="tank_transfer"><a href="fueltrans.html">Tank-to-Tank Transfer</a></li>
+                    <li data-feature="truck_loading" data-requires-permission="truck_loading"><a href="fuel-truck-loading.html">Fuel Truck Loading</a></li>
+                    <li data-feature="quality_analysis" data-requires-permission="quality_analysis"><a href="fuel-quality-analysis.html">Fuel Quality Analysis</a></li>
+                    <li data-feature="fuel_distribution" data-requires-permission="fuel_distribution"><a href="fueldist.html">Fuel Distribution</a></li>
+                    <li data-feature="fuel_consumption_analysis" data-requires-permission="fuel_consumption_analysis"><a href="fuelanalys.html">Consumption Analysis</a></li>
+                    <li data-feature="fuel_daily_report" data-requires-permission="fuel_daily_report"><a href="fueldaily.html">Daily Fuel Report</a></li>
+				</ul>
+			</li>
+            <li class="menu-dropdown" data-feature="environment_view">
+				<a href="#"><i class="fas fa-leaf"></i> Environment</a>
+				<ul class="submenu">
+                    <li data-feature="water_view" data-requires-permission="water_view"><a href="waterboard.html">Water Quality</a></li>
+				</ul>
+			</li>
+            <li class="menu-dropdown" data-feature="security_view" data-requires-permission="security_view">
+				<a href="#"><i class="fas fa-lock"></i> Security</a>
+				<ul class="submenu">
+                    <li data-feature="access_view" data-requires-permission="access_view"><a href="accessboard.html">Access Request</a></li>
+                    <li data-feature="access_daily_view" data-requires-permission="access_daily_view"><a href="accessdaily.html">Daily Access Control</a></li>
+                    <li data-feature="removal_view" data-requires-permission="removal_view"><a href="removalboard.html">Property Removal</a></li>
+                <li data-feature="security_site_map_view" data-requires-permission="security_site_map_view"><a href="sitemap.html">Security Site Map</a></li>
+						<li data-feature="security_level_evaluation_view" data-requires-permission="security_level_evaluation_view"><a href="seclevel.html">Security Level Evaluation</a></li>
+				</ul>
+			</li>
+			<li class="menu-dropdown" data-feature="logistics_view" data-requires-permission="logistics_view">
+				<a href="#"><i class="fas fa-truck"></i> Logistics</a>
+				<ul class="submenu">
+                    <li data-feature="fleet_view" data-requires-permission="fleet_view"><a href="fleet.html">Fleet Management</a></li>
+                    <li data-feature="travel_view" data-requires-permission="travel_view"><a href="travel.html">Travel Requests</a></li>
+				</ul>
+			</li>
+			<li class="menu-dropdown" data-feature="accommodation_view" data-requires-permission="accommodation_view">
+				<a href="#"><i class="fas fa-bed"></i> Accommodation</a>
+				<ul class="submenu">
+					<li data-feature="camp_view" data-requires-permission="camp_view"><a href="camp.html">Camp Management</a></li>
+                    <li data-feature="camp_settings_view" data-requires-permission="camp_settings_view"><a href="campset.html">Camp Settings</a></li>
+				</ul>
+			</li>
+			<li class="menu-dropdown" data-feature="hr_view" data-requires-permission="hr_view">
+				<a href="#"><i class="fas fa-users"></i> HR</a>
+				<ul class="submenu">
+					<li data-feature="human_hr_view" data-requires-permission="human_hr_view"><a href="human-hr.html"><i class="fas fa-user-tie"></i> Human HR</a></li>
+					<li data-feature="staff_management_view" data-requires-permission="staff_management_view"><a href="staff.html">Staffing</a></li>
+					<li data-feature="authority_to_recruit_view" data-requires-permission="authority_to_recruit_view"><a href="recruit.html">Authority to Recruit</a></li>
+					<li data-feature="job_advertising_view" data-requires-permission="job_advertising_view"><a href="jobpost.html">Job Advertising</a></li>
+					<li data-feature="screening_view" data-requires-permission="screening_view"><a href="jobscreen.html">Screening</a></li>
+					<li data-feature="interview_view" data-requires-permission="interview_view"><a href="interview.html">Interview</a></li>
+					<li data-feature="offer_view" data-requires-permission="offer_view"><a href="offer.html">Offer Management</a></li>
+					<li data-feature="contract_view" data-requires-permission="contract_view"><a href="contract.html">Contract Management</a></li>
+                    <li data-feature="salary_management_view" data-requires-permission="salary_management_view"><a href="salary.html">Salary Management</a></li>
+					<li data-feature="onboarding_view" data-requires-permission="onboarding_view"><a href="onboard.html">Onboarding</a></li>
+					<li data-feature="chart_view" data-requires-permission="chart_view"><a href="chart.html">Chart Setup</a></li>
+					<li data-feature="chartboard_view" data-requires-permission="chartboard_view"><a href="chartboard.html">Org Chart</a></li>
+                    <li data-feature="kpi_dashboard_view" data-requires-permission="kpi_dashboard_view"><a href="kpi.html">KPI</a></li>
+                    <li data-feature="payroll_view" data-requires-permission="payroll_view"><a href="payroll.html">Payroll</a></li>
+				</ul>
+			</li>
+            <!-- Project Management as section button with submenu -->
+            <li class="menu-dropdown" data-feature="project_management_section">
+                <a href="#"><i class="fas fa-project-diagram"></i> Project Management</a>
+                <ul class="submenu">
+                    <li data-feature="project_dashboard_view" data-requires-permission="project_dashboard_view"><a href="project-dashboard.html"><i class="fas fa-tachometer-alt"></i> Project Dashboard</a></li>
+                    <li data-feature="project_create_view" data-requires-permission="project_create_view"><a href="project-create.html"><i class="fas fa-plus-circle"></i> Create Project</a></li>
+                    <li data-feature="project_list_view" data-requires-permission="project_list_view"><a href="project-list.html"><i class="fas fa-list"></i> Project List</a></li>
+                    <li data-feature="project_reports_view" data-requires-permission="project_reports_view"><a href="project-reports.html"><i class="fas fa-chart-bar"></i> Project Reports</a></li>
+                </ul>
+            </li>
+            <!-- Inventory Management as section button with submenu -->
+            <li class="menu-dropdown" data-feature="inventory_view" data-requires-permission="inventory_view">
+                <a href="#"><i class="fas fa-boxes"></i> Inventory Management</a>
+                <ul class="submenu">
+                    <li data-feature="inventory_dashboard_view" data-requires-permission="inventory_dashboard_view"><a href="inventory-dashboard.html"><i class="fas fa-tachometer-alt"></i> Inventory Dashboard</a></li>
+                    <li data-feature="inventory_items_view" data-requires-permission="inventory_items_view"><a href="inventory-items.html"><i class="fas fa-cubes"></i> Items Management</a></li>
+                    <li data-feature="inventory_warehouses_view" data-requires-permission="inventory_warehouses_view"><a href="inventory-warehouses.html"><i class="fas fa-warehouse"></i> Warehouses</a></li>
+                    <li data-feature="inventory_reservations_view" data-requires-permission="inventory_reservations_view"><a href="inventory-reservations.html"><i class="fas fa-bookmark"></i> Material Reservations</a></li>
+                    <li data-feature="inventory_approvals_view" data-requires-permission="inventory_approvals_view"><a href="inventory-approvals.html"><i class="fas fa-check-circle"></i> Approvals</a></li>
+                    <li data-feature="inventory_issue_view" data-requires-permission="inventory_issue_view"><a href="inventory-issue.html"><i class="fas fa-shipping-fast"></i> Material Issue</a></li>
+                </ul>
+            </li>
+            <!-- Workspaces: Catering -->
+            <li class="menu-dropdown" data-feature="catering_view" data-requires-permission="catering_view">
+                <a href="#"><i class="fas fa-utensils"></i> Workspaces — Catering</a>
+                <ul class="submenu">
+                    <li data-feature="catering_manage_types" data-requires-permission="catering_manage_types"><a href="catering-meal-types.html"><i class="fas fa-list"></i> Meal Types</a></li>
+                    <li data-feature="catering_assign" data-requires-permission="catering_assign"><a href="catering-eligibility.html"><i class="fas fa-user-check"></i> Eligibility & Assign</a></li>
+                    <li data-feature="catering_consumption_manual" data-requires-permission="catering_consumption_manual"><a href="catering-consumption.html"><i class="fas fa-keyboard"></i> Consumption (Manual)</a></li>
+                    <li data-feature="catering_consumption_nfc" data-requires-permission="catering_consumption_nfc"><a href="catering-consumption.html#nfc"><i class="fas fa-id-card"></i> Consumption (NFC)</a></li>
+                    <li data-feature="catering_reports" data-requires-permission="catering_reports"><a href="catering-reports.html"><i class="fas fa-chart-line"></i> Reports</a></li>
+                </ul>
+            </li>
+            <li data-feature="requests_view" data-requires-permission="requests_view"><a href="tickboard.html"><i class="fas fa-ticket-alt"></i> Requests</a></li>
+            <li data-feature="communication_view"><a href="info.html"><i class="fas fa-comments"></i> Communication</a></li>
+            <li class="menu-dropdown" data-feature="settings_view">
+				<a href="#"><i class="fas fa-cog"></i> Settings</a>
+				<ul class="submenu">
+                    <li data-feature="account_settings_view" data-requires-permission="account_settings_view"><a href="account.html">Account Settings</a></li>
+                    <li data-feature="company_management_view" data-requires-permission="company_management_view"><a href="companymanagement.html">Company Management</a></li>
+                    <li data-feature="approval_settings_view" data-requires-permission="approval_settings_view"><a href="approval-settings.html">Approval Flow Settings</a></li>
+                    <li data-feature="field_setup_view" data-requires-permission="field_setup_view"><a href="fieldsetup.html">Field Setup</a></li>
+                    <li data-feature="preferences_view" data-requires-permission="preferences_view"><a href="preferences.html">Preferences</a></li>
+                    <li data-feature="notification_settings_view" data-requires-permission="notification_settings_view"><a href="notification-settings.html">Notification Settings</a></li>
+                    <li data-feature="audit_log_view" data-requires-permission="audit_log_view"><a href="auditlog.html"><i class="fas fa-history"></i> Audit Log</a></li>
+                    <li data-feature="user_management_view" data-requires-permission="user_management_view"><a href="users.html">User & Role Management</a></li>
+                    <li data-feature="role_permissions_view" data-requires-permission="role_permissions_view"><a href="roles.html">Role Permissions</a></li>
+				</ul>
+			</li>
+		</ul>
+	</nav>
+    <main class="main-content" id="mainContent">
+        <nav class="top-nav">
+            <div class="top-nav-left">
+                <button id="sidebarToggle" class="sidebar-toggle-btn" title="Toggle Menu"><i class="fas fa-bars"></i></button>
+                <div class="company-branding">
+                    <img id="headerCompanyLogo" alt="Company Logo" />
+                    <span id="headerCompanyName"></span>
+                </div>
+            </div>
+            <div class="top-nav-right">
+                <div class="notifications">
+                    <button id="notificationBtn" class="notification-btn">
+                        <i class="fas fa-bell"></i>
+                        <span class="notification-badge">0</span>
+                    </button>
+                    <div class="notification-dropdown">
+                        <div class="notification-header">
+                            <h3>Notifications</h3>
+                            <button class="mark-all-read">Mark all as read</button>
+                        </div>
+                        <div class="notification-list">
+                            <!-- Notifications will be dynamically added here -->
+                        </div>
+                        <div class="notification-empty">
+                            <i class="fas fa-inbox"></i>
+                            <div class="notification-empty-title">No notifications</div>
+                            <div class="notification-empty-message">You're all caught up</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="user-profile" style="position:relative;">
+                    <button id="userProfileBtn" class="profile-btn"><img src="" alt="User Avatar" /></button>
+                    <div class="profile-dropdown"><ul></ul></div>
+                </div>
+            </div>
+        </nav>
+		<div class="page-header">
+			<h1><i class="fas fa-stamp"></i> Stamp Designer</h1>
+            <div class="page-actions">
+                <button type="button" class="add-stamp-btn" id="addStampBtn" title="Create New Stamp"><i class="fas fa-plus"></i></button>
+            </div>
+		</div>
+
+        <section class="section">
+            <div class="section-title">
+                <span><i class="fas fa-list"></i> Company Stamps</span>
+                <button type="button" class="btn btn-outline" id="refreshStampsBtn" style="padding:0.3rem 0.5rem; font-size:0.65rem;"><i class="fas fa-sync-alt"></i> Refresh</button>
+            </div>
+            <div class="stamps-table-container">
+                <table class="stamps-table" id="stampsTable">
+                    <thead>
+                        <tr>
+                            <th style="width:70px;">Preview</th>
+                            <th>Name</th>
+                            <th>Description</th>
+                            <th style="width:120px;">Created By</th>
+                            <th style="width:100px;">Date</th>
+                            <th style="width:140px;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="stampsTableBody">
+                        <tr id="emptyTableRow">
+                            <td colspan="6">
+                                <div class="empty-table-message">
+                                    <i class="fas fa-stamp"></i>
+                                    <div style="font-weight:600; margin-bottom:0.25rem;">No stamps yet</div>
+                                    <div>Click the <strong>+</strong> button to create your first stamp</div>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+    </main>
+</div>
+
+<!-- Stamp Designer Modal -->
+<div class="stamp-modal-overlay" id="stampDesignerModal">
+    <div class="stamp-modal-content">
+        <div class="stamp-modal-header">
+            <h3><i class="fas fa-stamp"></i> <span id="modalTitle">Create New Stamp</span></h3>
+            <button type="button" class="stamp-modal-close" id="closeDesignerModal">&times;</button>
+        </div>
+        <div class="stamp-modal-body">
+            <div class="stamp-layout">
+                <div class="panel">
+                    <div class="panel-header">
+                        <h2><i class="fas fa-sliders-h"></i> Controls</h2>
+                    </div>
+                    <div class="panel-body">
+                        <div class="form-row" style="margin-bottom: 0.6rem;">
+                            <div class="form-group" style="flex:1; min-width:120px;">
+                                <label>Stamp Name *</label>
+                                <input type="text" id="stampNameInput" placeholder="Enter stamp name..." maxlength="50" />
+                            </div>
+                            <div class="form-group" style="flex:1.5; min-width:150px;">
+                                <label>Description</label>
+                                <input type="text" id="stampDescInput" placeholder="Brief description..." maxlength="100" />
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Template</label>
+                            <div class="template-grid" id="templateGrid">
+                                <button type="button" class="template-btn active" data-template="classic"><div class="template-dot"></div><span>Classic</span></button>
+                                <button type="button" class="template-btn" data-template="corporate"><div class="template-dot" style="border-color:var(--primary-color);"></div><span>Corporate</span></button>
+                                <button type="button" class="template-btn" data-template="minimal"><div class="template-dot" style="border-color:#64748b;"></div><span>Minimal</span></button>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Shape</label>
+                            <select id="shape">
+                                <option value="round" selected>Round</option>
+                                <option value="oval">Oval</option>
+                                <option value="rect">Rectangle</option>
+                            </select>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group" style="flex:1; min-width: 120px;">
+                                <label>Outer Border (px)</label>
+                                <input type="range" id="outerBorder" min="0" max="20" value="6" />
+                            </div>
+                            <div class="form-group" style="flex:1; min-width: 120px;">
+                                <label>Inner Border (px)</label>
+                                <input type="range" id="innerBorder" min="0" max="16" value="3" />
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group" style="flex:1; min-width: 150px;">
+                                <label>Outer Border Type</label>
+                                <select id="outerBorderType">
+                                    <option value="simple">Simple Line</option>
+                                    <option value="double">Double Line</option>
+                                    <option value="triple">Triple Line</option>
+                                    <option value="dotted">Dotted</option>
+                                    <option value="dashed">Dashed</option>
+                                    <option value="scalloped">Scalloped</option>
+                                    <option value="wavy">Wavy</option>
+                                    <option value="zigzag">Zigzag</option>
+                                    <option value="gear">Gear/Cog</option>
+                                    <option value="star-burst">Star Burst</option>
+                                    <option value="floral">Floral</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group" style="flex:1; min-width: 120px;">
+                                <label>Border Design</label>
+                                <select id="borderDesign">
+                                    <option value="none">None</option>
+                                    <option value="dots">● Dots</option>
+                                    <option value="dashes">— Dashes</option>
+                                    <option value="stars">★ Stars</option>
+                                    <option value="diamonds">◆ Diamonds</option>
+                                    <option value="circles">○ Circles</option>
+                                    <option value="squares">■ Squares</option>
+                                    <option value="triangles">▲ Triangles</option>
+                                    <option value="crosses">✚ Crosses</option>
+                                    <option value="rope">⌇ Rope</option>
+                                </select>
+                            </div>
+                            <div class="form-group" style="flex:1; min-width: 120px;">
+                                <label>Design Font</label>
+                                <select id="borderDesignFont">
+                                    <option value="Arial" selected>Arial</option>
+                                    <option value="Segoe UI">Segoe UI</option>
+                                    <option value="Segoe UI Symbol">Segoe UI Symbol</option>
+                                    <option value="Times New Roman">Times New Roman</option>
+                                    <option value="Georgia">Georgia</option>
+                                    <option value="Verdana">Verdana</option>
+                                    <option value="Tahoma">Tahoma</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group" style="flex:1; min-width: 120px;">
+                                <label>Design Count</label>
+                                <div class="range-number">
+                                    <input type="range" id="borderDesignCount" min="8" max="60" value="24" />
+                                    <input type="number" id="borderDesignCountNum" min="8" max="60" value="24" />
+                                </div>
+                            </div>
+                            <div class="form-group" style="flex:1; min-width: 120px;">
+                                <label>Design Size</label>
+                                <div class="range-number">
+                                    <input type="range" id="borderDesignSize" min="4" max="20" value="8" />
+                                    <input type="number" id="borderDesignSizeNum" min="4" max="20" value="8" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group" style="flex:1; min-width: 120px;">
+                                <label>Stamp Size</label>
+                                <input type="range" id="stampSize" min="300" max="800" value="540" />
+                            </div>
+                            <div class="form-group" style="flex:1; min-width: 120px;">
+                                <label>Ink Color</label>
+                                <input type="color" id="inkColor" value="#c0392b" />
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group" style="flex:1; min-width: 120px;">
+                                <label>Separator</label>
+                                <select id="separatorType">
+                                    <option value="none">None</option>
+                                    <option value="star" selected>★ Star</option>
+                                    <option value="star-outline">☆ Star Outline</option>
+                                    <option value="dot">● Dot</option>
+                                    <option value="circle">○ Circle</option>
+                                    <option value="diamond">◆ Diamond</option>
+                                    <option value="diamond-outline">◇ Diamond Outline</option>
+                                    <option value="square">■ Square</option>
+                                    <option value="dash">— Dash</option>
+                                    <option value="bullet">• Bullet</option>
+                                    <option value="cross">✚ Cross</option>
+                                    <option value="flower">✿ Flower</option>
+                                </select>
+                            </div>
+                            <div class="form-group" style="flex:1; min-width: 120px;">
+                                <label>Separator Size</label>
+                                <div class="range-number">
+                                    <input type="range" id="separatorSize" min="8" max="40" value="16" />
+                                    <input type="number" id="separatorSizeNum" min="8" max="40" value="16" />
+                                </div>
+                            </div>
+                            <div class="form-group" style="flex:0 0 auto; min-width: 50px;">
+                                <label>Bold</label>
+                                <input type="checkbox" id="separatorBold" checked style="width:18px;height:18px;" />
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Edit Text</label>
+                            <select id="textSelector">
+                                <option value="top">Top Text</option>
+                                <option value="bottom">Bottom Text</option>
+                                <option value="center">Center Text</option>
+                            </select>
+                        </div>
+
+                        <!-- Top Text Panel -->
+                        <div class="text-panel" id="topTextPanel">
+                            <div class="form-group">
+                                <label>Top Text</label>
+                                <input type="text" id="topText" value="COMPANY NAME" />
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group" style="flex:1; min-width: 100px;">
+                                    <label>Font</label>
+                                    <select id="topFontFamily">
+                                        <option value="Segoe UI" selected>Segoe UI</option>
+                                        <option value="Arial">Arial</option>
+                                        <option value="Georgia">Georgia</option>
+                                        <option value="Times New Roman">Times New Roman</option>
+                                    </select>
+                                </div>
+                                <div class="form-group" style="flex:1; min-width: 100px;">
+                                    <label>Font Size</label>
+                                    <div class="range-number">
+                                        <input type="range" id="topFontSize" min="10" max="40" value="18" />
+                                        <input type="number" id="topFontSizeNum" min="10" max="40" value="18" />
+                                    </div>
+                                </div>
+                                <div class="form-group" style="flex:0 0 auto; min-width: 50px;">
+                                    <label>Bold</label>
+                                    <input type="checkbox" id="topFontBold" checked style="width:18px;height:18px;" />
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group" style="flex:1; min-width: 100px;">
+                                    <label>Letter Spacing</label>
+                                    <div class="range-number">
+                                        <input type="range" id="topLetterSpacing" min="-50" max="50" value="3" />
+                                        <input type="number" id="topLetterSpacingNum" min="-50" max="50" value="3" />
+                                    </div>
+                                </div>
+                                <div class="form-group" style="flex:1; min-width: 100px;">
+                                    <label>Arc Offset</label>
+                                    <div class="range-number">
+                                        <input type="range" id="topArcOffset" min="-18" max="18" value="0" />
+                                        <input type="number" id="topArcOffsetNum" min="-18" max="18" value="0" />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Bottom Text Panel -->
+                        <div class="text-panel" id="bottomTextPanel" style="display:none;">
+                            <div class="form-group">
+                                <label>Bottom Text</label>
+                                <input type="text" id="bottomText" value="OFFICIAL STAMP" />
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group" style="flex:1; min-width: 100px;">
+                                    <label>Font</label>
+                                    <select id="bottomFontFamily">
+                                        <option value="Segoe UI" selected>Segoe UI</option>
+                                        <option value="Arial">Arial</option>
+                                        <option value="Georgia">Georgia</option>
+                                        <option value="Times New Roman">Times New Roman</option>
+                                    </select>
+                                </div>
+                                <div class="form-group" style="flex:1; min-width: 100px;">
+                                    <label>Font Size</label>
+                                    <div class="range-number">
+                                        <input type="range" id="bottomFontSize" min="10" max="40" value="18" />
+                                        <input type="number" id="bottomFontSizeNum" min="10" max="40" value="18" />
+                                    </div>
+                                </div>
+                                <div class="form-group" style="flex:0 0 auto; min-width: 50px;">
+                                    <label>Bold</label>
+                                    <input type="checkbox" id="bottomFontBold" checked style="width:18px;height:18px;" />
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group" style="flex:1; min-width: 100px;">
+                                    <label>Letter Spacing</label>
+                                    <div class="range-number">
+                                        <input type="range" id="bottomLetterSpacing" min="-50" max="50" value="3" />
+                                        <input type="number" id="bottomLetterSpacingNum" min="-50" max="50" value="3" />
+                                    </div>
+                                </div>
+                                <div class="form-group" style="flex:1; min-width: 100px;">
+                                    <label>Arc Offset</label>
+                                    <div class="range-number">
+                                        <input type="range" id="bottomArcOffset" min="-18" max="18" value="0" />
+                                        <input type="number" id="bottomArcOffsetNum" min="-18" max="18" value="0" />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Center Text Panel -->
+                        <div class="text-panel" id="centerTextPanel" style="display:none;">
+                            <div class="form-group">
+                                <label>Center Text</label>
+                                <input type="text" id="centerText" value="LTD" />
+                                <div class="hint">Use short center text (e.g., LTD, LLC, APPROVED).</div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group" style="flex:1; min-width: 100px;">
+                                    <label>Font</label>
+                                    <select id="centerFontFamily">
+                                        <option value="Segoe UI" selected>Segoe UI</option>
+                                        <option value="Arial">Arial</option>
+                                        <option value="Georgia">Georgia</option>
+                                        <option value="Times New Roman">Times New Roman</option>
+                                    </select>
+                                </div>
+                                <div class="form-group" style="flex:1; min-width: 100px;">
+                                    <label>Font Size</label>
+                                    <div class="range-number">
+                                        <input type="range" id="centerFontSize" min="14" max="70" value="32" />
+                                        <input type="number" id="centerFontSizeNum" min="14" max="70" value="32" />
+                                    </div>
+                                </div>
+                                <div class="form-group" style="flex:0 0 auto; min-width: 50px;">
+                                    <label>Bold</label>
+                                    <input type="checkbox" id="centerFontBold" checked style="width:18px;height:18px;" />
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group" style="flex:1; min-width: 100px;">
+                                    <label>Letter Spacing</label>
+                                    <div class="range-number">
+                                        <input type="range" id="centerLetterSpacing" min="-50" max="50" value="0" />
+                                        <input type="number" id="centerLetterSpacingNum" min="-50" max="50" value="0" />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Logo (optional)</label>
+                            <input type="file" id="logoUpload" accept="image/*" />
+                            <div class="hint">Best results: transparent PNG, square aspect.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <div class="panel-header">
+                        <h2><i class="fas fa-eye"></i> Preview</h2>
+                        <div class="small" id="statusText">Ready</div>
+                    </div>
+                    <div class="panel-body" style="max-height: none;">
+                        <div class="canvas-wrap">
+                            <div class="canvas-stage">
+                                <canvas id="stampCanvas" width="1000" height="1000"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="stamp-modal-footer">
+            <div class="left-actions">
+                <button type="button" class="btn btn-outline" id="resetBtn"><i class="fas fa-undo"></i> Reset</button>
+                <button type="button" class="btn btn-outline" id="copyBtn"><i class="fas fa-copy"></i> Copy</button>
+            </div>
+            <div class="right-actions">
+                <select id="exportFormat" class="btn btn-outline" style="padding:0.4rem 0.5rem;">
+                    <option value="png">PNG</option>
+                    <option value="jpeg">JPEG</option>
+                    <option value="webp">WebP</option>
+                    <option value="svg">SVG</option>
+                </select>
+                <button type="button" class="btn btn-outline" id="exportBtn"><i class="fas fa-download"></i> Download</button>
+                <button type="button" class="btn btn-outline" id="cancelStampBtn">Cancel</button>
+                <button type="button" class="btn btn-primary" id="saveStampBtn"><i class="fas fa-save"></i> Save Stamp</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal-overlay" id="deleteStampModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3><i class="fas fa-trash-alt"></i> Delete Stamp</h3>
+            <button type="button" class="modal-close" id="closeDeleteModal">&times;</button>
+        </div>
+        <div class="modal-body">
+            <p style="font-size:0.8rem; color:#475569;">Are you sure you want to delete "<strong id="deleteStampName"></strong>"? This action cannot be undone.</p>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-outline" id="cancelDeleteBtn">Cancel</button>
+            <button type="button" class="btn btn-accent" id="confirmDeleteBtn"><i class="fas fa-trash-alt"></i> Delete</button>
+        </div>
+    </div>
+</div>
+
+<script>
+// Firebase configuration
+const firebaseConfig = {
+    apiKey: "AIzaSyCUTmTn0rRBb0M-UkQJxnUMrWqXYU_BgIc",
+    authDomain: "users-8be65.firebaseapp.com",
+    databaseURL: "https://users-8be65-default-rtdb.firebaseio.com",
+    projectId: "users-8be65",
+    storageBucket: "users-8be65.firebasestorage.app",
+    messagingSenderId: "909025468149",
+    appId: "1:909025468149:web:fb4e7c4a8b4bd6d1076e4d",
+    measurementId: "G-XHFMRCJQEZ"
+};
+
+// Initialize Firebase
+function initializeFirebase() {
+    if (!window.firebase || !window.firebase.apps || window.firebase.apps.length === 0) {
+        window.firebase.initializeApp(firebaseConfig);
+        console.log('✅ Firebase v8 initialized successfully for centralized auth');
+    }
+    return window.firebase;
+}
+
+const firebase = initializeFirebase();
+
+// AuthManager class for centralized authentication and profile management
+class AuthManager {
+    constructor() {
+        this.currentUser = this.getCurrentUser();
+        this.currentCompany = null;
+        this.init();
+    }
+    getCurrentUser() {
+        try { return JSON.parse(localStorage.getItem('currentUser') || 'null'); } catch { return null; }
+    }
+    setCurrentUser(u) {
+        localStorage.setItem('currentUser', JSON.stringify(u));
+        localStorage.setItem('user', JSON.stringify(u));
+        this.currentUser = u;
+    }
+    async init() {
+        if (!this.currentUser) {
+            window.location.href = 'login.html';
+            return;
+        }
+        await this.loadUserCompany();
+        this.updateCompanyBranding();
+        await this.updateUIForAuthenticatedUser();
+        this.bindProfileDropdown();
+    }
+    async loadUserCompany() {
+        if (!this.currentUser) return;
+        try {
+            const snap = await firebase.database().ref('companies').once('value');
+            if (!snap.exists()) return;
+            const companies = snap.val();
+            for (const [cid, comp] of Object.entries(companies)) {
+                if (comp.status !== 'active') continue;
+                if (comp.users) {
+                    for (const [uid, u] of Object.entries(comp.users)) {
+                        if (u.authUid === this.currentUser.uid || uid === this.currentUser.uid) {
+                            this.currentUser.companyId = cid;
+                            this.currentUser.companyName = comp.companyName;
+                            this.currentUser.role = u.role || u.userRole || 'user';
+                            this.currentCompany = comp;
+                            this.setCurrentUser(this.currentUser);
+                            return;
+                        }
+                    }
+                }
+            }
+        } catch (e) { /* ignore */ }
+    }
+    updateCompanyBranding() {
+        const logoEl = document.getElementById('headerCompanyLogo');
+        const nameEl = document.getElementById('headerCompanyName');
+        if (!this.currentCompany) { this.showFallbackBranding(); return; }
+        if (nameEl) nameEl.textContent = this.currentCompany.companyName || '';
+        const logoUrl = this.currentCompany.logo || this.currentCompany.logoUrl;
+        if (logoEl) {
+            if (logoUrl) {
+                logoEl.src = logoUrl;
+                logoEl.classList.add('visible');
+            } else {
+                const svg = this.generateCompanyInitialsSVG(this.getCompanyInitials(this.currentCompany.companyName || ''));
+                logoEl.src = svg;
+                logoEl.classList.add('visible');
+            }
+        }
+        if (this.currentCompany.branding) {
+            const root = document.documentElement;
+            if (this.currentCompany.branding.primaryColor) root.style.setProperty('--primary-color', this.currentCompany.branding.primaryColor);
+            if (this.currentCompany.branding.secondaryColor) root.style.setProperty('--secondary-color', this.currentCompany.branding.secondaryColor);
+        }
+    }
+    showFallbackBranding() {
+        const logoEl = document.getElementById('headerCompanyLogo');
+        if (logoEl) {
+            const svg = this.generateCompanyInitialsSVG('DX');
+            logoEl.src = svg;
+            logoEl.classList.add('visible');
+        }
+    }
+    getCompanyInitials(name) {
+        if (!name) return 'CO';
+        const parts = name.trim().split(/\s+/);
+        if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+        return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+    generateCompanyInitialsSVG(initials) {
+        const svg = `<svg width="44" height="44" viewBox="0 0 44 44" xmlns="http://www.w3.org/2000/svg"><rect width="44" height="44" rx="6" fill="#f0f3f6"/><text x="50%" y="52%" dominant-baseline="middle" text-anchor="middle" fill="#495057" font-family="Inter,Arial,sans-serif" font-weight="600" font-size="14">${initials}</text></svg>`;
+        return 'data:image/svg+xml;base64,' + btoa(svg);
+    }
+    getUserDisplayName() {
+        if (!this.currentUser) return 'User';
+        const n = v => typeof v === 'string' ? v.trim().replace(/\s+/g, ' ') : '';
+        const cand = [this.currentUser.displayName, this.currentUser.name, this.currentUser.username];
+        for (const c of cand) { const cleaned = n(c); if (cleaned) return cleaned; }
+        if (this.currentUser.email) return n(this.currentUser.email.split('@')[0]) || 'User';
+        return 'User';
+    }
+    getUserInitials() {
+        const dn = this.getUserDisplayName();
+        const parts = dn.split(' ').filter(Boolean);
+        if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+        return parts.slice(0, 2).map(p => p[0]).join('').toUpperCase();
+    }
+    async getUserAvatarUrl() {
+        if (!this.currentUser) return null;
+        const companyId = this.currentUser.companyId || 'default';
+        const possiblePaths = [
+            `companies/${companyId}/avatars/${this.currentUser.uid}/profile.jpg`,
+            `companies/${companyId}/avatars/${this.currentUser.uid}/profile.png`,
+            `companies/${companyId}/avatars/${this.currentUser.uid}/profile.jpeg`,
+            `companies/${companyId}/avatars/${this.currentUser.uid}/avatar.jpg`,
+            `companies/${companyId}/avatars/${this.currentUser.uid}/avatar.png`,
+            `avatars/${this.currentUser.uid}/profile.jpg`,
+            `avatars/${this.currentUser.uid}/profile.png`,
+            `avatars/${this.currentUser.uid}/avatar.jpg`,
+            `avatars/${this.currentUser.uid}/avatar.png`,
+            `profiles/${this.currentUser.uid}/profile.jpg`,
+            `profiles/${this.currentUser.uid}/profile.png`
+        ];
+        for (const path of possiblePaths) {
+            try {
+                const ref = firebase.storage().ref(path);
+                const url = await ref.getDownloadURL();
+                return url;
+            } catch (err) { continue; }
+        }
+        return null;
+    }
+    async updateUIForAuthenticatedUser() {
+        const btn = document.getElementById('userProfileBtn');
+        const list = document.querySelector('.profile-dropdown ul');
+        if (!btn || !list || !this.currentUser) return;
+        const displayName = this.getUserDisplayName();
+        const email = this.currentUser.email || '';
+
+        let avatarUrl = null;
+        try { avatarUrl = await this.getUserAvatarUrl(); } catch (error) { /* ignore */ }
+
+        const btnImg = btn.querySelector('img');
+        if (avatarUrl && btnImg) {
+            btnImg.src = avatarUrl;
+            btnImg.alt = displayName + ' Avatar';
+            btnImg.style.display = 'block';
+            btnImg.onerror = () => {
+                btnImg.style.display = 'none';
+                btn.innerHTML = `<div style="width:38px;height:38px;border-radius:50%;background:#3498db;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:0.8rem;">${this.getUserInitials()}</div>`;
+            };
+        } else {
+            btn.innerHTML = `<div style="width:38px;height:38px;border-radius:50%;background:#3498db;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:0.8rem;">${this.getUserInitials()}</div>`;
+        }
+
+        const avatarHtml = avatarUrl ? `<img src="${avatarUrl}" alt="${displayName} Avatar" style="width:32px;height:32px;border-radius:50%;object-fit:cover;">` : `<div style="width:32px;height:32px;border-radius:50%;background:#3498db;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:12px;">${this.getUserInitials()}</div>`;
+        list.innerHTML = `<li style="border-bottom:1px solid #eee;padding:12px 16px;background:#f8f9fa;"><div style="display:flex;align-items:center;gap:12px;">${avatarHtml}<div><div style="font-weight:600;color:#333;font-size:14px;margin-bottom:2px;">${displayName}</div><div style="color:#666;font-size:12px;">${email}</div></div></div></li><li><a href="profile.html"><i class="fas fa-user"></i> Profile</a></li><li><a href="account.html"><i class="fas fa-cog"></i> Account Settings</a></li><li><a href="#" id="logoutLink"><i class="fas fa-sign-out-alt"></i> Sign out</a></li>`;
+        list.querySelector('#logoutLink')?.addEventListener('click', e => { e.preventDefault(); this.logout(); });
+    }
+    bindProfileDropdown() {
+        const btn = document.getElementById('userProfileBtn');
+        const dd = document.querySelector('.profile-dropdown');
+        if (btn && dd) {
+            btn.addEventListener('click', e => { e.stopPropagation(); dd.classList.toggle('show'); });
+            document.addEventListener('click', e => { if (!btn.contains(e.target)) dd.classList.remove('show'); });
+        }
+    }
+    async logout() {
+        try {
+            await firebase.auth().signOut();
+            localStorage.removeItem('currentUser');
+            localStorage.removeItem('user');
+            window.location.href = 'login.html';
+        } catch (error) {
+            console.error('Logout error:', error);
+            localStorage.removeItem('currentUser');
+            localStorage.removeItem('user');
+            window.location.href = 'login.html';
+        }
+    }
+}
+
+// Responsive handling
+function handleResize() {
+    const sidebar = document.getElementById('sidebar');
+    const mainContent = document.getElementById('mainContent');
+
+    if (window.innerWidth <= 900) {
+        sidebar.classList.add('collapsed');
+        mainContent.classList.add('sidebar-collapsed');
+    } else {
+        sidebar.classList.remove('collapsed');
+        mainContent.classList.remove('sidebar-collapsed');
+    }
+}
+
+window.addEventListener('resize', handleResize);
+window.addEventListener('load', handleResize);
+
+// ===== ROLE-BASED MENU AUTHORIZATION SYSTEM =====
+// Adapted from roles.html to ensure feature filtering by user role
+
+// Flag to prevent multiple simultaneous executions
+let isMenuUpdateInProgress = false;
+
+// Reset all menu items to hidden (preserve core features only when authorized)
+function resetMenuVisibility() {
+    document.querySelectorAll('[data-feature]').forEach(item => {
+        item.classList.remove('menu-visible');
+    });
+    document.querySelectorAll('.menu-dropdown').forEach(dropdown => {
+        dropdown.classList.remove('menu-visible');
+    });
+}
+
+// Emergency fallback - show basic menu items
+function showBasicMenu() {
+    console.log('🔧 Emergency fallback: Showing basic menu items');
+    resetMenuVisibility();
+
+    // Remove loading class
+
+    const sidebar = document.querySelector('.sidebar');
+    if (sidebar) {
+        sidebar.classList.remove('menu-loading');
+    }
+
+    const homeItem = document.querySelector('[data-feature="home_view"]');
+    if (homeItem) {
+        homeItem.classList.add('menu-visible');
+    }
+}
+
+// Feature-based authorization system that takes priority over role permissions
+async function updateMenuWithFeatureAuthorization() {
+    // Prevent multiple simultaneous executions
+    if (isMenuUpdateInProgress) {
+        console.log('🔄 Menu update already in progress, skipping...');
+        return;
+    }
+
+    isMenuUpdateInProgress = true;
+    console.log('🎯 Starting feature-based menu authorization for stamp.html...');
+
+    try {
+        let currentUser = null;
+        let companyId = null;
+        let userRole = null;
+
+        // Get user and company info using authManager first
+        if (window.authManager && window.authManager.currentUser) {
+            currentUser = window.authManager.currentUser;
+            companyId = currentUser.companyId;
+            userRole = currentUser.role;
+            console.log('👤 Using AuthManager - User:', currentUser.email, 'Company ID:', companyId, 'Role:', userRole);
+        } else if (firebase.auth().currentUser) {
+            currentUser = firebase.auth().currentUser;
+            console.log('👤 Using Firebase auth - will search for company and role');
+        } else {
+            console.log('❌ No authenticated user found');
+            resetMenuVisibility();
+            return;
+        }
+
+        // If no company ID from authManager, search companies collection
+        if (!companyId && currentUser) {
+            console.log('🔍 Searching for user company and role...');
+            const database = firebase.database();
+            const companiesRef = database.ref('companies');
+            const companiesSnapshot = await companiesRef.once('value');
+
+            if (companiesSnapshot.exists()) {
+                const companies = companiesSnapshot.val();
+
+                for (const [cId, company] of Object.entries(companies)) {
+                    if (company.status !== 'active') continue;
+
+                    if (company.users && company.users[currentUser.uid]) {
+                        companyId = cId;
+                        userRole = company.users[currentUser.uid].role || company.users[currentUser.uid].userRole;
+                        console.log(`✅ Found user in company: ${companyId} (${company.name}) with role: ${userRole}`);
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (!companyId) {
+            console.error('❌ No company ID found, cannot determine authorized features');
+            resetMenuVisibility();
+            return;
+        }
+
+        if (!userRole) {
+            console.warn('⚠️ No user role found, proceeding with company features only');
+        }
+
+        // STEP 1: Apply company feature-based authorization
+        console.log('🏢 STEP 1: Applying company feature authorization...');
+        const authorizedPages = await applyFeatureBasedMenuVisibility(companyId);
+
+        // STEP 2: Filter by user role permissions within authorized features
+        if (userRole) {
+            console.log('👤 STEP 2: Applying role-based filtering within authorized features...');
+            await applyRoleBasedFiltering(companyId, userRole, authorizedPages);
+        } else {
+            console.log('⚠️ STEP 2: Skipping role-based filtering (no role found)');
+        }
+
+    } catch (error) {
+        console.error('❌ Error in feature-based menu authorization:', error);
+        resetMenuVisibility();
+    } finally {
+        // Reset the flag to allow future updates
+        isMenuUpdateInProgress = false;
+    }
+}
+
+// Apply feature-based menu visibility
+async function applyFeatureBasedMenuVisibility(companyId) {
+    try {
+        console.log('🔧 Applying feature-based menu visibility for company:', companyId);
+
+        // Get platform features
+        const database = firebase.database();
+        const featuresSnapshot = await database.ref('/platformFeatures').once('value');
+
+        if (!featuresSnapshot.exists()) {
+            console.log('⚠️ No platform features found');
+            resetMenuVisibility();
+            return;
+        }
+
+        const featuresData = featuresSnapshot.val();
+
+        // Get company's selected features
+        const companySnapshot = await database.ref(`/companies/${companyId}`).once('value');
+        const companyData = companySnapshot.val();
+
+        if (!companyData) {
+            console.error('❌ Company data not found');
+            resetMenuVisibility();
+            return;
+        }
+
+        const subscribedFeatureIds = companyData.selectedFeatures || [];
+        console.log('🏢 Company subscribed features:', subscribedFeatureIds);
+
+        if (subscribedFeatureIds.length === 0) {
+            console.log('⚠️ Company has no subscribed features');
+            resetMenuVisibility();
+            return;
+        }
+
+        // Collect authorized pages from subscribed features
+        const authorizedPages = [];
+        subscribedFeatureIds.forEach(featureId => {
+            const feature = featuresData[featureId];
+            if (feature && feature.status === 'active' && feature.authorizedPages) {
+                console.log(`📦 Adding pages from feature "${feature.name}":`, feature.authorizedPages);
+                authorizedPages.push(...feature.authorizedPages);
+            } else {
+                console.log(`⚠️ Feature ${featureId} not found or inactive`);
+            }
+        });
+
+        console.log('🔐 All authorized pages:', authorizedPages);
+
+        // Reset all menu items first
+        resetMenuVisibility();
+
+        // Create set of authorized features and hrefs (with alias mapping)
+        const authorizedFeatures = new Set();
+        const authorizedHrefs = new Set();
+
+        const featureAlias = (key) => {
+            if (!key) return key;
+            // Treat these as aliases of each other
+            if (key === 'risk_view') return 'risk_management_section';
+            if (key === 'risk_management_section') return 'risk_view';
+            return null;
+        };
+        const normalizeHref = (href) => {
+            if (!href) return '';
+            // Keep relative path portion only
+            try {
+                // If absolute, take pathname; else, use as is
+                const u = new URL(href, window.location.origin);
+                return (u.pathname || '').replace(/^\//, '');
+            } catch {
+                return String(href).replace(/^\//, '');
+            }
+        };
+
+        authorizedPages.forEach(pageInfo => {
+            if (pageInfo.feature) {
+                authorizedFeatures.add(pageInfo.feature);
+                const alias = featureAlias(pageInfo.feature);
+                if (alias) authorizedFeatures.add(alias);
+            }
+            if (pageInfo.href) authorizedHrefs.add(normalizeHref(pageInfo.href));
+            if (pageInfo.page) authorizedHrefs.add(normalizeHref(pageInfo.page));
+            if (pageInfo.url) authorizedHrefs.add(normalizeHref(pageInfo.url));
+        });
+
+        console.log('🎯 Authorized features for stamp.html:', Array.from(authorizedFeatures));
+        console.log('🔗 Authorized hrefs for stamp.html:', Array.from(authorizedHrefs));
+
+        // Apply menu visibility
+        const allMenuItems = document.querySelectorAll('#roleBasedMenu li[data-feature]');
+        let visibleCount = 0;
+
+        allMenuItems.forEach(menuItem => {
+            const featureAttribute = menuItem.getAttribute('data-feature');
+            const isDropdownContainer = menuItem.classList.contains('menu-dropdown');
+            const anchor = menuItem.querySelector('a[href]');
+            const href = anchor ? anchor.getAttribute('href') : '';
+            const normalized = normalizeHref(href);
+            const featureAuthorized = authorizedFeatures.has(featureAttribute);
+            const hrefAuthorized = normalized && authorizedHrefs.has(normalized);
+            const isAuthorized = featureAuthorized || hrefAuthorized;
+
+            if (isDropdownContainer) {
+                return; // Handle dropdowns separately after all items are processed
+            }
+
+            if (isAuthorized) {
+                menuItem.classList.add('menu-visible');
+                visibleCount++;
+                console.log(`✅ Authorized - showing: feature=${featureAttribute} href=${normalized || '—'}`);
+            } else {
+                menuItem.classList.remove('menu-visible');
+                console.log(`❌ Not authorized - hiding: feature=${featureAttribute} href=${normalized || '—'}`);
+            }
+        });
+
+        // Handle dropdown menus - show if they have visible children
+        const dropdownMenus = document.querySelectorAll('#roleBasedMenu li.menu-dropdown');
+        dropdownMenus.forEach(dropdown => {
+            const dropdownFeature = dropdown.getAttribute('data-feature');
+            const submenuItems = dropdown.querySelectorAll('.submenu li[data-feature]');
+            let hasVisibleChildren = false;
+
+            submenuItems.forEach(submenuItem => {
+                if (submenuItem.classList.contains('menu-visible')) {
+                    hasVisibleChildren = true;
+                }
+            });
+
+            if (hasVisibleChildren || authorizedFeatures.has(dropdownFeature)) {
+                dropdown.classList.add('menu-visible');
+                console.log(`✅ Showing dropdown menu: ${dropdownFeature} (has visible children or directly authorized)`);
+            } else {
+                dropdown.classList.remove('menu-visible');
+                console.log(`❌ Hiding dropdown menu: ${dropdownFeature} (no visible children and not authorized)`);
+            }
+        });
+
+        console.log(`🎯 Company feature authorization completed - ${visibleCount} items initially visible`);
+
+        // Return authorized pages for role-based filtering
+        return authorizedPages;
+
+    } catch (error) {
+        console.error('❌ Error applying feature-based menu visibility:', error);
+        resetMenuVisibility();
+        return [];
+    }
+}
+
+// Apply role-based filtering within company authorized features
+async function applyRoleBasedFiltering(companyId, userRole, authorizedPages) {
+    try {
+        console.log('👤 Applying role-based filtering for role:', userRole);
+
+        // Get user role permissions from company
+        const database = firebase.database();
+        const permissionsRef = database.ref(`companies/${companyId}/roles/${userRole}/permissions`);
+        const permissionsSnapshot = await permissionsRef.once('value');
+
+        if (!permissionsSnapshot.exists()) {
+            console.log(`⚠️ No permissions found for role ${userRole} in company ${companyId}`);
+
+            // Try to get all roles to see what's available
+            const allRolesRef = database.ref(`companies/${companyId}/roles`);
+            const allRolesSnapshot = await allRolesRef.once('value');
+
+            if (allRolesSnapshot.exists()) {
+                const allRoles = allRolesSnapshot.val();
+                console.log('🔍 Available roles in company:', Object.keys(allRoles));
+
+                // Enhanced debugging for administrator role
+                if (userRole === 'administrator') {
+                    console.log('🔑 ADMINISTRATOR - Full roles data:', allRoles);
+                    if (allRoles.administrator) {
+                        console.log('🔑 ADMINISTRATOR role found in company:', allRoles.administrator);
+                        if (allRoles.administrator.permissions) {
+                            console.log('🔑 ADMINISTRATOR permissions found:', allRoles.administrator.permissions);
+                            filterMenuByPermissions(allRoles.administrator.permissions);
+                            return;
+                        }
+                    }
+                }
+
+                // Check if the role exists with different casing or format
+                const roleKeys = Object.keys(allRoles);
+                const matchingRole = roleKeys.find(key =>
+                    key.toLowerCase() === userRole.toLowerCase() ||
+                    key.replace(/\s+/g, '').toLowerCase() === userRole.replace(/\s+/g, '').toLowerCase()
+                );
+
+                if (matchingRole && allRoles[matchingRole].permissions) {
+                    console.log(`✅ Found matching role: ${matchingRole}`);
+                    const permissions = allRoles[matchingRole].permissions;
+                    filterMenuByPermissions(permissions);
+                    return;
+                }
+            }
+
+            // CRITICAL: If user is administrator but no permissions found, provide full access as fallback
+            if (userRole === 'administrator') {
+                console.log('🔑 ADMINISTRATOR FALLBACK - Skipping role filtering (keeping all company features visible)');
+                showSidebarAfterAuth();
+                return;
+            }
+
+            // For other roles without permissions, hide all items with permission requirements
+            console.log('❌ No valid permissions found - filtering out items requiring permissions');
+            hideItemsRequiringPermissions();
+            showSidebarAfterAuth();
+            return;
+        }
+
+        const permissions = permissionsSnapshot.val();
+        console.log('✅ Loaded role permissions:', permissions);
+
+        // Apply permission-based filtering
+        filterMenuByPermissions(permissions);
+
+    } catch (error) {
+        console.error('❌ Error applying role-based filtering:', error);
+        // Don't hide everything on error - keep company features visible
+        showSidebarAfterAuth();
+    }
+}
+
+// Filter currently visible menu items by role permissions
+function filterMenuByPermissions(permissions) {
+    console.log('🔍 Filtering visible menu items by role permissions...');
+
+    if (!permissions) {
+        console.log('⚠️ No permissions object provided');
+        hideItemsRequiringPermissions();
+        showSidebarAfterAuth();
+        return;
+    }
+    const permissionAlias = (key) => {
+        if (!key) return key;
+        if (key === 'risk_view') return 'risk_management_section';
+        if (key === 'risk_management_section') return 'risk_view';
+        return null;
+    };
+
+    // Evaluate all permission-gated items (allow role permissions to add visibility too)
+    const itemsRequiringPermissions = document.querySelectorAll('#roleBasedMenu li[data-requires-permission]');
+    console.log(`🎯 Found ${itemsRequiringPermissions.length} items requiring permissions to check`);
+
+    let hiddenCount = 0;
+    let shownByPermission = 0;
+
+    itemsRequiringPermissions.forEach(item => {
+        const requiresPermission = item.getAttribute('data-requires-permission');
+        const feature = item.getAttribute('data-feature');
+
+        const perm = permissions[requiresPermission];
+        const aliasKey = permissionAlias(requiresPermission);
+        const aliasPerm = aliasKey ? permissions[aliasKey] : undefined;
+
+        const hasViewPermission = (p) => p === true || (p && p.view === true);
+        const allowed = hasViewPermission(perm) || hasViewPermission(aliasPerm);
+
+        if (allowed) {
+            if (!item.classList.contains('menu-visible')) shownByPermission++;
+            item.classList.add('menu-visible');
+            console.log(`✅ Showing by permission: ${feature} (requires: ${requiresPermission}${aliasKey ? ` | alias: ${aliasKey}` : ''})`);
+        } else {
+            if (item.classList.contains('menu-visible')) hiddenCount++;
+            item.classList.remove('menu-visible');
+            console.log(`❌ Hiding (no permission): ${feature} (requires: ${requiresPermission}${aliasKey ? ` | alias: ${aliasKey}` : ''})`);
+        }
+    });
+
+    // Re-check dropdown menus after permission filtering
+    const dropdownMenus = document.querySelectorAll('#roleBasedMenu li.menu-dropdown');
+    dropdownMenus.forEach(dropdown => {
+        const submenuItems = dropdown.querySelectorAll('.submenu li.menu-visible');
+        const dropdownFeature = dropdown.getAttribute('data-feature');
+        const dropdownRequires = dropdown.getAttribute('data-requires-permission');
+
+        if (submenuItems.length === 0) {
+            if (dropdownRequires) {
+                const perm = permissions[dropdownRequires];
+                const aliasKey = permissionAlias(dropdownRequires);
+                const aliasPerm = aliasKey ? permissions[aliasKey] : undefined;
+                const hasViewPermission = (p) => p === true || (p && p.view === true);
+                const allowed = hasViewPermission(perm) || hasViewPermission(aliasPerm);
+                if (allowed) {
+                    dropdown.classList.add('menu-visible');
+                    console.log(`✅ Showing dropdown by permission: ${dropdownFeature}`);
+                } else {
+                    dropdown.classList.remove('menu-visible');
+                    hiddenCount++;
+                    console.log(`❌ Hiding dropdown (no children and no permission): ${dropdownFeature}`);
+                }
+            } else {
+                dropdown.classList.remove('menu-visible');
+                console.log(`❌ Hiding dropdown (no visible children): ${dropdownFeature}`);
+            }
+        } else {
+            console.log(`✅ Keeping dropdown visible (has ${submenuItems.length} visible children): ${dropdownFeature}`);
+        }
+    });
+
+    console.log(`🎯 Role-based filtering completed - ${hiddenCount} items hidden; ${shownByPermission} items shown by permission`);
+
+    // Ensure at least home is visible
+    ensureHomeIsVisible();
+
+    // Show sidebar after all filtering is complete
+    showSidebarAfterAuth();
+}
+
+// Hide menu items that require permissions (for users without role permissions)
+function hideItemsRequiringPermissions() {
+    console.log('🔒 Hiding all menu items that require permissions...');
+
+    const itemsRequiringPermissions = document.querySelectorAll('#roleBasedMenu li.menu-visible[data-requires-permission]');
+    let hiddenCount = 0;
+
+    itemsRequiringPermissions.forEach(item => {
+        const feature = item.getAttribute('data-feature');
+        const requiresPermission = item.getAttribute('data-requires-permission');
+
+        item.classList.remove('menu-visible');
+        hiddenCount++;
+        console.log(`❌ Hiding menu item (requires permission): ${feature} (${requiresPermission})`);
+    });
+
+    // Hide dropdowns that only contain permission-required items
+    const dropdownMenus = document.querySelectorAll('#roleBasedMenu li.menu-dropdown');
+    dropdownMenus.forEach(dropdown => {
+        const visibleSubmenuItems = dropdown.querySelectorAll('.submenu li.menu-visible');
+        if (visibleSubmenuItems.length === 0) {
+            dropdown.classList.remove('menu-visible');
+            const dropdownFeature = dropdown.getAttribute('data-feature');
+            console.log(`❌ Hiding dropdown (no visible children): ${dropdownFeature}`);
+        }
+    });
+
+    console.log(`🔒 Hidden ${hiddenCount} items requiring permissions`);
+
+    // Ensure at least home is visible
+    ensureHomeIsVisible();
+}
+
+// Ensure home menu item is visible as fallback
+function ensureHomeIsVisible() {
+    const homeItem = document.querySelector('#roleBasedMenu li[data-feature="home_view"]');
+    if (homeItem && !homeItem.classList.contains('menu-visible')) {
+        homeItem.classList.add('menu-visible');
+        console.log('✅ Ensured home menu item is visible as fallback');
+    }
+}
+
+// Show sidebar and remove loading state after authentication and filtering
+function showSidebarAfterAuth() {
+    const sidebar = document.querySelector('.sidebar');
+    if (sidebar) {
+        sidebar.classList.remove('menu-loading');
+        console.log('✅ Sidebar loading state removed - menu authorization complete');
+    }
+}
+
+// Initialize menu authorization system
+function initializeMenuAuthorization() {
+    console.log('🚀 Initializing menu authorization system...');
+
+    // Set sidebar to loading state initially
+    const sidebar = document.querySelector('.sidebar');
+    if (sidebar) {
+        sidebar.classList.add('menu-loading');
+    }
+
+    // Wait a moment for Firebase to initialize, then start authorization
+    setTimeout(() => {
+        updateMenuWithFeatureAuthorization();
+    }, 500);
+}
+
+// Make updateMenuWithFeatureAuthorization available globally
+window.updateMenuWithFeatureAuthorization = updateMenuWithFeatureAuthorization;
+
+// Debug functions for menu visibility
+window.debugMenuState = function() {
+    console.log('🔧 Debug Menu State:');
+    const menuItems = document.querySelectorAll('[data-feature]');
+    console.log(`Total menu items: ${menuItems.length}`);
+
+    menuItems.forEach(item => {
+        const feature = item.getAttribute('data-feature');
+        const requiresPermission = item.getAttribute('data-requires-permission');
+        const isVisible = item.classList.contains('menu-visible');
+        console.log(`- ${feature}: requires=${requiresPermission}, visible=${isVisible}`);
+    });
+};
+
+// ===== END ROLE-BASED MENU AUTHORIZATION SYSTEM =====
+
+function wireHeaderBasics() {
+    const notificationBtn = document.getElementById('notificationBtn');
+    const dropdown = document.querySelector('.notification-dropdown');
+    if (notificationBtn && dropdown) {
+        notificationBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            dropdown.classList.toggle('show');
+        });
+        document.addEventListener('click', (e) => {
+            if (!dropdown.contains(e.target) && !notificationBtn.contains(e.target)) {
+                dropdown.classList.remove('show');
+            }
+        });
+    }
+}
+
+// Stamp designer
+const DEFAULTS = {
+    template: 'classic',
+    shape: 'round',
+    stampSize: 540,
+    outerBorder: 6,
+    outerBorderType: 'simple',
+    innerBorder: 3,
+    inkColor: '#c0392b',
+    topText: 'COMPANY NAME',
+    bottomText: 'OFFICIAL STAMP',
+    centerText: 'LTD',
+    topFontFamily: 'Segoe UI',
+    bottomFontFamily: 'Segoe UI',
+    centerFontFamily: 'Segoe UI',
+    topFontBold: true,
+    bottomFontBold: true,
+    centerFontBold: true,
+    topFontSize: 18,
+    bottomFontSize: 18,
+    centerFontSize: 32,
+    topLetterSpacing: 3,
+    bottomLetterSpacing: 3,
+    centerLetterSpacing: 0,
+    topArcOffset: 0,
+    bottomArcOffset: 0,
+    separatorType: 'star',
+    separatorSize: 16,
+    separatorBold: true,
+    borderDesign: 'none',
+    borderDesignFont: 'Arial',
+    borderDesignCount: 24,
+    borderDesignSize: 8,
+    logoDataUrl: null
+};
+
+const STORAGE_KEY = 'stampDesignerConfig.v1';
+
+function loadConfig() {
+    try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return { ...DEFAULTS };
+        const parsed = JSON.parse(raw);
+        return { ...DEFAULTS, ...parsed };
+    } catch {
+        return { ...DEFAULTS };
+    }
+}
+
+function saveConfig(cfg) {
+    try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(cfg));
+    } catch { /* ignore */ }
+}
+
+function $(id) { return document.getElementById(id); }
+
+function setStatus(msg) {
+    const el = $('statusText');
+    if (el) el.textContent = msg;
+}
+
+function applyConfigToControls(cfg) {
+    $('shape').value = cfg.shape;
+    $('outerBorder').value = String(cfg.outerBorder);
+    $('outerBorderType').value = cfg.outerBorderType || 'simple';
+    $('innerBorder').value = String(cfg.innerBorder);
+    $('stampSize').value = String(cfg.stampSize);
+    $('inkColor').value = cfg.inkColor;
+    $('topText').value = cfg.topText;
+    $('bottomText').value = cfg.bottomText;
+    $('centerText').value = cfg.centerText;
+    $('topFontFamily').value = cfg.topFontFamily;
+    $('bottomFontFamily').value = cfg.bottomFontFamily;
+    $('centerFontFamily').value = cfg.centerFontFamily;
+    $('topFontBold').checked = cfg.topFontBold !== false;
+    $('bottomFontBold').checked = cfg.bottomFontBold !== false;
+    $('centerFontBold').checked = cfg.centerFontBold !== false;
+    $('topFontSize').value = String(cfg.topFontSize);
+    $('bottomFontSize').value = String(cfg.bottomFontSize);
+    $('centerFontSize').value = String(cfg.centerFontSize);
+    $('topLetterSpacing').value = String(cfg.topLetterSpacing);
+    $('bottomLetterSpacing').value = String(cfg.bottomLetterSpacing);
+    $('centerLetterSpacing').value = String(cfg.centerLetterSpacing);
+    $('topArcOffset').value = String(cfg.topArcOffset);
+    $('bottomArcOffset').value = String(cfg.bottomArcOffset);
+    $('separatorType').value = cfg.separatorType || 'star';
+    $('separatorSize').value = String(cfg.separatorSize || 16);
+    $('separatorBold').checked = cfg.separatorBold !== false;
+    $('borderDesign').value = cfg.borderDesign || 'none';
+    $('borderDesignFont').value = cfg.borderDesignFont || 'Arial';
+    $('borderDesignCount').value = String(cfg.borderDesignCount || 24);
+
+    // Sync number inputs
+    $('topFontSizeNum').value = String(cfg.topFontSize);
+    $('bottomFontSizeNum').value = String(cfg.bottomFontSize);
+    $('centerFontSizeNum').value = String(cfg.centerFontSize);
+    $('topLetterSpacingNum').value = String(cfg.topLetterSpacing);
+    $('bottomLetterSpacingNum').value = String(cfg.bottomLetterSpacing);
+    $('centerLetterSpacingNum').value = String(cfg.centerLetterSpacing);
+    $('topArcOffsetNum').value = String(cfg.topArcOffset);
+    $('bottomArcOffsetNum').value = String(cfg.bottomArcOffset);
+    $('separatorSizeNum').value = String(cfg.separatorSize || 16);
+    $('borderDesignCountNum').value = String(cfg.borderDesignCount || 24);
+    $('borderDesignSize').value = String(cfg.borderDesignSize || 8);
+    $('borderDesignSizeNum').value = String(cfg.borderDesignSize || 8);
+
+    document.querySelectorAll('#templateGrid .template-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.getAttribute('data-template') === cfg.template);
+    });
+}
+
+function getConfigFromControls(prev) {
+    return {
+        ...prev,
+        shape: $('shape').value,
+        outerBorder: parseInt($('outerBorder').value, 10) || 0,
+        outerBorderType: $('outerBorderType').value || 'simple',
+        innerBorder: parseInt($('innerBorder').value, 10) || 0,
+        stampSize: parseInt($('stampSize').value, 10) || 540,
+        inkColor: $('inkColor').value || '#c0392b',
+        topText: ($('topText').value || '').toString(),
+        bottomText: ($('bottomText').value || '').toString(),
+        centerText: ($('centerText').value || '').toString(),
+        topFontFamily: $('topFontFamily').value || 'Segoe UI',
+        bottomFontFamily: $('bottomFontFamily').value || 'Segoe UI',
+        centerFontFamily: $('centerFontFamily').value || 'Segoe UI',
+        topFontBold: $('topFontBold').checked,
+        bottomFontBold: $('bottomFontBold').checked,
+        centerFontBold: $('centerFontBold').checked,
+        topFontSize: parseInt($('topFontSize').value, 10) || 18,
+        bottomFontSize: parseInt($('bottomFontSize').value, 10) || 18,
+        centerFontSize: parseInt($('centerFontSize').value, 10) || 32,
+        topLetterSpacing: parseInt($('topLetterSpacing').value, 10) || 0,
+        bottomLetterSpacing: parseInt($('bottomLetterSpacing').value, 10) || 0,
+        centerLetterSpacing: parseInt($('centerLetterSpacing').value, 10) || 0,
+        topArcOffset: parseInt($('topArcOffset').value, 10) || 0,
+        bottomArcOffset: parseInt($('bottomArcOffset').value, 10) || 0,
+        separatorType: $('separatorType').value || 'star',
+        separatorSize: parseInt($('separatorSize').value, 10) || 16,
+        separatorBold: $('separatorBold').checked,
+        borderDesign: $('borderDesign').value || 'none',
+        borderDesignFont: $('borderDesignFont').value || 'Arial',
+        borderDesignCount: parseInt($('borderDesignCount').value, 10) || 24,
+        borderDesignSize: parseInt($('borderDesignSize').value, 10) || 8
+    };
+}
+
+function degToRad(d) { return (d * Math.PI) / 180; }
+
+function drawCircularText(ctx, text, cx, cy, radius, startDeg, endDeg, outward, opts) {
+    if (!text) return;
+    const { fontFamily, fontSize, inkColor, letterSpacing, fontBold } = opts;
+    ctx.save();
+    ctx.fillStyle = inkColor;
+    const weight = fontBold !== false ? '700' : '400';
+    ctx.font = `${weight} ${fontSize}px ${fontFamily}`;
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'center';
+
+    const chars = String(text).split('');
+    if (chars.length === 0) { ctx.restore(); return; }
+
+    const direction = endDeg >= startDeg ? 1 : -1;
+    const spacingPx = Number(letterSpacing) || 0;
+
+    // Measure each character width
+    const charWidths = chars.map(ch => ctx.measureText(ch).width);
+    
+    // Calculate total arc length needed:
+    // Sum of all character widths + (n-1) gaps of spacingPx
+    const totalCharWidth = charWidths.reduce((sum, w) => sum + w, 0);
+    const totalGapWidth = Math.max(0, chars.length - 1) * spacingPx;
+    const totalArcLength = totalCharWidth + totalGapWidth;
+
+    // Convert total arc length to degrees
+    const totalArcDeg = radius > 0 ? (totalArcLength / radius) * (180 / Math.PI) : 0;
+
+    // Center the text within the arc range
+    const mid = (startDeg + endDeg) / 2;
+    const startAngleDeg = mid - (totalArcDeg / 2) * direction;
+
+    // Draw each character at its position
+    let currentArcLength = 0;
+    for (let i = 0; i < chars.length; i++) {
+        // Position at center of current character
+        const charCenterArc = currentArcLength + charWidths[i] / 2;
+        const charAngleDeg = radius > 0 ? (charCenterArc / radius) * (180 / Math.PI) : 0;
+        const angleDeg = startAngleDeg + charAngleDeg * direction;
+        const angle = degToRad(angleDeg);
+
+        const x = cx + Math.cos(angle) * radius;
+        const y = cy + Math.sin(angle) * radius;
+
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(angle + (outward ? Math.PI / 2 : -Math.PI / 2));
+        ctx.fillText(chars[i], 0, 0);
+        ctx.restore();
+
+        // Move to next character position (current char width + gap)
+        currentArcLength += charWidths[i] + spacingPx;
+    }
+
+    ctx.restore();
+}
+
+function drawCenteredTrackingText(ctx, text, cx, cy, font, color, trackingPx) {
+    const t = String(text || '');
+    if (!t) return;
+
+    const spacing = Number(trackingPx) || 0;
+    ctx.save();
+    ctx.font = font;
+    ctx.fillStyle = color;
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'left';
+
+    // Measure total width with tracking
+    let totalWidth = 0;
+    const widths = [];
+    for (const ch of t) {
+        const w = ctx.measureText(ch).width;
+        widths.push(w);
+        totalWidth += w;
+    }
+    totalWidth += Math.max(0, t.length - 1) * spacing;
+
+    let x = cx - totalWidth / 2;
+    for (let i = 0; i < t.length; i++) {
+        ctx.fillText(t[i], x, cy);
+        x += widths[i] + spacing;
+    }
+
+    ctx.restore();
+}
+
+function drawSeparator(ctx, x, y, type, size, color, bold) {
+    ctx.save();
+    ctx.fillStyle = color;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    const weight = bold !== false ? '700' : '400';
+    ctx.font = `${weight} ${size}px Arial`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    const symbols = {
+        'star': '\u2605',
+        'star-outline': '\u2606',
+        'dot': '\u25cf',
+        'circle': '\u25cb',
+        'diamond': '\u25c6',
+        'diamond-outline': '\u25c7',
+        'square': '\u25a0',
+        'dash': '\u2014',
+        'bullet': '\u2022',
+        'cross': '\u271a',
+        'flower': '\u273f'
+    };
+
+    const symbol = symbols[type];
+    if (symbol) {
+        ctx.fillText(symbol, x, y);
+    }
+
+    ctx.restore();
+}
+
+function drawBorderDesign(ctx, cx, cy, radius, count, design, color, shape, outerR, designSize, designFont) {
+    ctx.save();
+    ctx.fillStyle = color;
+    ctx.strokeStyle = color;
+
+    const symbols = {
+        'dots': '\u25cf',
+        'stars': '\u2605',
+        'diamonds': '\u25c6',
+        'circles': '\u25cb',
+        'squares': '\u25a0',
+        'triangles': '\u25b2',
+        'crosses': '\u271a'
+    };
+
+    const symbolSize = designSize || 8;
+    const fontFamily = designFont || 'Arial';
+    ctx.font = `${symbolSize}px ${fontFamily}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    const dashHalf = symbolSize / 2;
+    const ropeRadius = symbolSize / 4;
+
+    if (shape === 'round') {
+        for (let i = 0; i < count; i++) {
+            const angle = (i / count) * Math.PI * 2;
+            const x = cx + Math.cos(angle) * radius;
+            const y = cy + Math.sin(angle) * radius;
+
+            if (design === 'dashes') {
+                ctx.save();
+                ctx.translate(x, y);
+                ctx.rotate(angle + Math.PI / 2);
+                ctx.lineWidth = Math.max(1, symbolSize / 4);
+                ctx.beginPath();
+                ctx.moveTo(-dashHalf, 0);
+                ctx.lineTo(dashHalf, 0);
+                ctx.stroke();
+                ctx.restore();
+            } else if (design === 'rope') {
+                ctx.save();
+                ctx.translate(x, y);
+                ctx.rotate(angle);
+                ctx.lineWidth = Math.max(1, symbolSize / 5);
+                ctx.beginPath();
+                const wave = Math.sin(i * 0.8) * (symbolSize / 4);
+                ctx.arc(wave, 0, ropeRadius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            } else if (symbols[design]) {
+                ctx.save();
+                ctx.translate(x, y);
+                ctx.rotate(angle + Math.PI / 2);
+                ctx.fillText(symbols[design], 0, 0);
+                ctx.restore();
+            }
+        }
+    } else if (shape === 'oval') {
+        const rx = outerR * 1.05 - 9;
+        const ry = outerR * 0.78 - 9;
+        for (let i = 0; i < count; i++) {
+            const angle = (i / count) * Math.PI * 2;
+            const x = cx + Math.cos(angle) * rx;
+            const y = cy + Math.sin(angle) * ry;
+            const tangentAngle = Math.atan2(ry * Math.cos(angle), -rx * Math.sin(angle));
+
+            if (design === 'dashes') {
+                ctx.save();
+                ctx.translate(x, y);
+                ctx.rotate(tangentAngle);
+                ctx.lineWidth = Math.max(1, symbolSize / 4);
+                ctx.beginPath();
+                ctx.moveTo(-dashHalf, 0);
+                ctx.lineTo(dashHalf, 0);
+                ctx.stroke();
+                ctx.restore();
+            } else if (design === 'rope') {
+                ctx.save();
+                ctx.translate(x, y);
+                const wave = Math.sin(i * 0.8) * (symbolSize / 4);
+                ctx.beginPath();
+                ctx.arc(wave, 0, ropeRadius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            } else if (symbols[design]) {
+                ctx.save();
+                ctx.translate(x, y);
+                ctx.rotate(tangentAngle);
+                ctx.fillText(symbols[design], 0, 0);
+                ctx.restore();
+            }
+        }
+    } else {
+        // Rectangle - draw along the perimeter
+        const w = outerR * 2 - 18;
+        const h = outerR * 1.6 - 18;
+        const perimeter = 2 * (w + h);
+        const step = perimeter / count;
+
+        for (let i = 0; i < count; i++) {
+            let dist = i * step;
+            let x, y, angle;
+
+            if (dist < w) {
+                x = cx - w / 2 + dist;
+                y = cy - h / 2;
+                angle = 0;
+            } else if (dist < w + h) {
+                x = cx + w / 2;
+                y = cy - h / 2 + (dist - w);
+                angle = Math.PI / 2;
+            } else if (dist < 2 * w + h) {
+                x = cx + w / 2 - (dist - w - h);
+                y = cy + h / 2;
+                angle = Math.PI;
+            } else {
+                x = cx - w / 2;
+                y = cy + h / 2 - (dist - 2 * w - h);
+                angle = -Math.PI / 2;
+            }
+
+            if (design === 'dashes') {
+                ctx.save();
+                ctx.translate(x, y);
+                ctx.rotate(angle);
+                ctx.lineWidth = Math.max(1, symbolSize / 4);
+                ctx.beginPath();
+                ctx.moveTo(-dashHalf, 0);
+                ctx.lineTo(dashHalf, 0);
+                ctx.stroke();
+                ctx.restore();
+            } else if (design === 'rope') {
+                ctx.save();
+                ctx.translate(x, y);
+                const wave = Math.sin(i * 0.8) * (symbolSize / 4);
+                ctx.beginPath();
+                ctx.arc(wave, 0, ropeRadius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            } else if (symbols[design]) {
+                ctx.save();
+                ctx.translate(x, y);
+                ctx.rotate(angle);
+                ctx.fillText(symbols[design], 0, 0);
+                ctx.restore();
+            }
+        }
+    }
+
+    ctx.restore();
+}
+
+function drawOuterBorder(ctx, cx, cy, outerR, borderWidth, borderType, inkColor, shape) {
+    ctx.save();
+    ctx.strokeStyle = inkColor;
+    ctx.fillStyle = inkColor;
+    ctx.lineWidth = borderWidth;
+
+    const drawBasicShape = (radius, lineW) => {
+        ctx.lineWidth = lineW || borderWidth;
+        if (shape === 'round') {
+            ctx.beginPath();
+            ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+            ctx.stroke();
+        } else if (shape === 'oval') {
+            ctx.beginPath();
+            ctx.ellipse(cx, cy, radius * 1.05, radius * 0.78, 0, 0, Math.PI * 2);
+            ctx.stroke();
+        } else {
+            const w = radius * 2;
+            const h = radius * 1.6;
+            const x = cx - w / 2;
+            const y = cy - h / 2;
+            const r = 18;
+            ctx.beginPath();
+            ctx.moveTo(x + r, y);
+            ctx.lineTo(x + w - r, y);
+            ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+            ctx.lineTo(x + w, y + h - r);
+            ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+            ctx.lineTo(x + r, y + h);
+            ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+            ctx.lineTo(x, y + r);
+            ctx.quadraticCurveTo(x, y, x + r, y);
+            ctx.closePath();
+            ctx.stroke();
+        }
+    };
+
+    switch (borderType) {
+        case 'double':
+            drawBasicShape(outerR, borderWidth * 0.4);
+            drawBasicShape(outerR - borderWidth * 0.8, borderWidth * 0.4);
+            break;
+
+        case 'triple':
+            drawBasicShape(outerR, borderWidth * 0.3);
+            drawBasicShape(outerR - borderWidth * 0.5, borderWidth * 0.25);
+            drawBasicShape(outerR - borderWidth, borderWidth * 0.3);
+            break;
+
+        case 'dotted':
+            ctx.setLineDash([borderWidth, borderWidth * 1.5]);
+            drawBasicShape(outerR);
+            ctx.setLineDash([]);
+            break;
+
+        case 'dashed':
+            ctx.setLineDash([borderWidth * 3, borderWidth * 2]);
+            drawBasicShape(outerR);
+            ctx.setLineDash([]);
+            break;
+
+        case 'scalloped':
+            if (shape === 'round') {
+                const scallops = Math.floor((2 * Math.PI * outerR) / (borderWidth * 3));
+                ctx.beginPath();
+                for (let i = 0; i < scallops; i++) {
+                    const angle = (i / scallops) * Math.PI * 2;
+                    const nextAngle = ((i + 1) / scallops) * Math.PI * 2;
+                    const midAngle = (angle + nextAngle) / 2;
+                    const x1 = cx + Math.cos(angle) * outerR;
+                    const y1 = cy + Math.sin(angle) * outerR;
+                    const x2 = cx + Math.cos(nextAngle) * outerR;
+                    const y2 = cy + Math.sin(nextAngle) * outerR;
+                    const cpX = cx + Math.cos(midAngle) * (outerR + borderWidth * 1.5);
+                    const cpY = cy + Math.sin(midAngle) * (outerR + borderWidth * 1.5);
+                    if (i === 0) ctx.moveTo(x1, y1);
+                    ctx.quadraticCurveTo(cpX, cpY, x2, y2);
+                }
+                ctx.closePath();
+                ctx.stroke();
+            } else {
+                drawBasicShape(outerR);
+            }
+            break;
+
+        case 'wavy':
+            if (shape === 'round') {
+                const waves = Math.floor((2 * Math.PI * outerR) / (borderWidth * 4));
+                ctx.beginPath();
+                for (let i = 0; i <= waves * 2; i++) {
+                    const angle = (i / (waves * 2)) * Math.PI * 2;
+                    const waveOffset = Math.sin(i * Math.PI) * (borderWidth * 0.8);
+                    const r = outerR + waveOffset;
+                    const x = cx + Math.cos(angle) * r;
+                    const y = cy + Math.sin(angle) * r;
+                    if (i === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                }
+                ctx.closePath();
+                ctx.stroke();
+            } else {
+                drawBasicShape(outerR);
+            }
+            break;
+
+        case 'zigzag':
+            if (shape === 'round') {
+                const zigs = Math.floor((2 * Math.PI * outerR) / (borderWidth * 2.5));
+                ctx.beginPath();
+                for (let i = 0; i <= zigs; i++) {
+                    const angle = (i / zigs) * Math.PI * 2;
+                    const offset = (i % 2 === 0) ? borderWidth : -borderWidth * 0.5;
+                    const r = outerR + offset;
+                    const x = cx + Math.cos(angle) * r;
+                    const y = cy + Math.sin(angle) * r;
+                    if (i === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                }
+                ctx.closePath();
+                ctx.stroke();
+            } else {
+                drawBasicShape(outerR);
+            }
+            break;
+
+        case 'gear':
+            if (shape === 'round') {
+                const teeth = Math.floor((2 * Math.PI * outerR) / (borderWidth * 4)) || 24;
+                ctx.beginPath();
+                for (let i = 0; i < teeth; i++) {
+                    const a1 = (i / teeth) * Math.PI * 2;
+                    const a2 = ((i + 0.3) / teeth) * Math.PI * 2;
+                    const a3 = ((i + 0.5) / teeth) * Math.PI * 2;
+                    const a4 = ((i + 0.8) / teeth) * Math.PI * 2;
+                    const rOuter = outerR + borderWidth;
+                    const rInner = outerR - borderWidth * 0.3;
+                    ctx.lineTo(cx + Math.cos(a1) * rInner, cy + Math.sin(a1) * rInner);
+                    ctx.lineTo(cx + Math.cos(a2) * rOuter, cy + Math.sin(a2) * rOuter);
+                    ctx.lineTo(cx + Math.cos(a3) * rOuter, cy + Math.sin(a3) * rOuter);
+                    ctx.lineTo(cx + Math.cos(a4) * rInner, cy + Math.sin(a4) * rInner);
+                }
+                ctx.closePath();
+                ctx.stroke();
+            } else {
+                drawBasicShape(outerR);
+            }
+            break;
+
+        case 'star-burst':
+            if (shape === 'round') {
+                const points = Math.floor((2 * Math.PI * outerR) / (borderWidth * 3)) || 32;
+                ctx.beginPath();
+                for (let i = 0; i <= points; i++) {
+                    const angle = (i / points) * Math.PI * 2;
+                    const r = (i % 2 === 0) ? outerR + borderWidth * 1.2 : outerR - borderWidth * 0.5;
+                    const x = cx + Math.cos(angle) * r;
+                    const y = cy + Math.sin(angle) * r;
+                    if (i === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                }
+                ctx.closePath();
+                ctx.stroke();
+            } else {
+                drawBasicShape(outerR);
+            }
+            break;
+
+        case 'floral':
+            if (shape === 'round') {
+                const petals = Math.floor((2 * Math.PI * outerR) / (borderWidth * 5)) || 16;
+                ctx.beginPath();
+                for (let i = 0; i < petals; i++) {
+                    const angle = (i / petals) * Math.PI * 2;
+                    const nextAngle = ((i + 1) / petals) * Math.PI * 2;
+                    const midAngle = (angle + nextAngle) / 2;
+                    const x1 = cx + Math.cos(angle) * outerR;
+                    const y1 = cy + Math.sin(angle) * outerR;
+                    const x2 = cx + Math.cos(nextAngle) * outerR;
+                    const y2 = cy + Math.sin(nextAngle) * outerR;
+                    const cpX = cx + Math.cos(midAngle) * (outerR + borderWidth * 2.5);
+                    const cpY = cy + Math.sin(midAngle) * (outerR + borderWidth * 2.5);
+                    if (i === 0) ctx.moveTo(x1, y1);
+                    ctx.quadraticCurveTo(cpX, cpY, x2, y2);
+                }
+                ctx.closePath();
+                ctx.stroke();
+                // Add small circles at petal tips
+                for (let i = 0; i < petals; i++) {
+                    const angle = ((i + 0.5) / petals) * Math.PI * 2;
+                    const tipX = cx + Math.cos(angle) * (outerR + borderWidth * 2);
+                    const tipY = cy + Math.sin(angle) * (outerR + borderWidth * 2);
+                    ctx.beginPath();
+                    ctx.arc(tipX, tipY, borderWidth * 0.4, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            } else {
+                drawBasicShape(outerR);
+            }
+            break;
+
+        case 'simple':
+        default:
+            drawBasicShape(outerR);
+            break;
+    }
+
+    ctx.restore();
+}
+
+async function loadLogoImage(dataUrl) {
+    if (!dataUrl) return null;
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => resolve(null);
+        img.src = dataUrl;
+    });
+}
+
+async function drawStamp(cfg) {
+    const canvas = $('stampCanvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // Clear
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const cx = canvas.width / 2;
+    const cy = canvas.height / 2;
+
+    const size = Math.max(300, Math.min(800, cfg.stampSize));
+    const outerR = size / 2;
+
+    ctx.save();
+
+    // Draw outer border with selected style
+    if (cfg.outerBorder > 0) {
+        const borderType = cfg.outerBorderType || 'simple';
+        drawOuterBorder(ctx, cx, cy, outerR, cfg.outerBorder, borderType, cfg.inkColor, cfg.shape);
+    }
+
+    // Inner border
+    if (cfg.innerBorder > 0) {
+        ctx.strokeStyle = cfg.inkColor; // Use same color as stamp
+        ctx.lineWidth = cfg.innerBorder;
+        const inset = 18;
+        if (cfg.shape === 'round') {
+            ctx.beginPath();
+            ctx.arc(cx, cy, Math.max(0, outerR - inset), 0, Math.PI * 2);
+            ctx.stroke();
+        } else if (cfg.shape === 'oval') {
+            ctx.beginPath();
+            ctx.ellipse(cx, cy, Math.max(0, outerR * 1.05 - inset), Math.max(0, outerR * 0.78 - inset), 0, 0, Math.PI * 2);
+            ctx.stroke();
+        } else {
+            const w = outerR * 2 - inset * 2;
+            const h = outerR * 1.6 - inset * 2;
+            const x = cx - w / 2;
+            const y = cy - h / 2;
+            const r = 16;
+            ctx.beginPath();
+            ctx.moveTo(x + r, y);
+            ctx.lineTo(x + w - r, y);
+            ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+            ctx.lineTo(x + w, y + h - r);
+            ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+            ctx.lineTo(x + r, y + h);
+            ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+            ctx.lineTo(x, y + r);
+            ctx.quadraticCurveTo(x, y, x + r, y);
+            ctx.closePath();
+            ctx.stroke();
+        }
+    }
+
+    // Border design between outer and inner borders
+    if (cfg.borderDesign && cfg.borderDesign !== 'none' && cfg.innerBorder > 0) {
+        const designRadius = outerR - 9; // Middle between outer and inner border
+        const count = cfg.borderDesignCount || 24;
+        const designSize = cfg.borderDesignSize || 8;
+        const designFont = cfg.borderDesignFont || 'Arial';
+        drawBorderDesign(ctx, cx, cy, designRadius, count, cfg.borderDesign, cfg.inkColor, cfg.shape, outerR, designSize, designFont);
+    }
+
+    // Text
+    const topOpts = {
+        fontFamily: cfg.topFontFamily,
+        fontSize: cfg.topFontSize,
+        inkColor: cfg.inkColor,
+        letterSpacing: cfg.topLetterSpacing,
+        fontBold: cfg.topFontBold
+    };
+    const bottomOpts = {
+        fontFamily: cfg.bottomFontFamily,
+        fontSize: cfg.bottomFontSize,
+        inkColor: cfg.inkColor,
+        letterSpacing: cfg.bottomLetterSpacing,
+        fontBold: cfg.bottomFontBold
+    };
+
+    const topArcOffset = cfg.topArcOffset || 0;
+    const bottomArcOffset = cfg.bottomArcOffset || 0;
+    const textRadius = cfg.shape === 'round' ? (outerR - 34) : (outerR - 30);
+    drawCircularText(ctx, cfg.topText, cx, cy, textRadius, -150 + topArcOffset, -30 - topArcOffset, true, topOpts);
+    drawCircularText(ctx, cfg.bottomText, cx, cy, textRadius, 30 + bottomArcOffset, 150 - bottomArcOffset, true, bottomOpts);
+
+    // Draw separators (left and right sides, between top and bottom text)
+    if (cfg.separatorType && cfg.separatorType !== 'none') {
+        const sepSize = cfg.separatorSize || 16;
+        const sepRadius = textRadius;
+        // Left separator at 180 degrees (9 o'clock - between text ends)
+        const leftAngle = Math.PI;
+        const leftX = cx + Math.cos(leftAngle) * sepRadius;
+        const leftY = cy + Math.sin(leftAngle) * sepRadius;
+        // Right separator at 0 degrees (3 o'clock - between text ends)
+        const rightAngle = 0;
+        const rightX = cx + Math.cos(rightAngle) * sepRadius;
+        const rightY = cy + Math.sin(rightAngle) * sepRadius;
+        
+        const sepBold = cfg.separatorBold;
+        drawSeparator(ctx, leftX, leftY, cfg.separatorType, sepSize, cfg.inkColor, sepBold);
+        drawSeparator(ctx, rightX, rightY, cfg.separatorType, sepSize, cfg.inkColor, sepBold);
+    }
+
+    // Center text
+    ctx.fillStyle = cfg.inkColor;
+    const centerWeight = cfg.centerFontBold !== false ? '800' : '400';
+    const centerFont = `${centerWeight} ${Math.max(14, Math.min(90, cfg.centerFontSize))}px ${cfg.centerFontFamily}`;
+    drawCenteredTrackingText(ctx, cfg.centerText || '', cx, cy, centerFont, cfg.inkColor, cfg.centerLetterSpacing);
+
+    // Logo
+    if (cfg.logoDataUrl) {
+        const img = await loadLogoImage(cfg.logoDataUrl);
+        if (img) {
+            const maxDim = Math.max(40, Math.min(140, outerR * 0.6));
+            const ratio = img.width / img.height;
+            let w = maxDim;
+            let h = maxDim;
+            if (ratio >= 1) {
+                h = w / ratio;
+            } else {
+                w = h * ratio;
+            }
+            const x = cx - w / 2;
+            const y = cy + (cfg.centerText ? 46 : 0) - h / 2;
+            ctx.drawImage(img, x, y, w, h);
+        }
+    }
+
+    ctx.restore();
+}
+
+function applyTemplate(cfg, name) {
+    const next = { ...cfg, template: name };
+    if (name === 'classic') {
+        next.shape = 'round';
+        next.inkColor = '#c0392b';
+        next.outerBorder = 6;
+        next.innerBorder = 3;
+        next.topFontFamily = 'Segoe UI';
+        next.bottomFontFamily = 'Segoe UI';
+        next.centerFontFamily = 'Segoe UI';
+        next.topFontSize = 18;
+        next.bottomFontSize = 18;
+        next.centerFontSize = 32;
+        next.topLetterSpacing = 3;
+        next.bottomLetterSpacing = 3;
+        next.centerLetterSpacing = 0;
+        next.topArcOffset = 0;
+        next.bottomArcOffset = 0;
+    } else if (name === 'corporate') {
+        next.shape = 'round';
+        next.inkColor = '#2c3e50';
+        next.outerBorder = 7;
+        next.innerBorder = 2;
+        next.topFontFamily = 'Segoe UI';
+        next.bottomFontFamily = 'Segoe UI';
+        next.centerFontFamily = 'Segoe UI';
+        next.topFontSize = 16;
+        next.bottomFontSize = 16;
+        next.centerFontSize = 28;
+        next.topLetterSpacing = 2;
+        next.bottomLetterSpacing = 2;
+        next.centerLetterSpacing = 0;
+        next.topArcOffset = 0;
+        next.bottomArcOffset = 0;
+    } else if (name === 'minimal') {
+        next.shape = 'oval';
+        next.inkColor = '#475569';
+        next.outerBorder = 3;
+        next.innerBorder = 0;
+        next.topFontFamily = 'Segoe UI';
+        next.bottomFontFamily = 'Segoe UI';
+        next.centerFontFamily = 'Segoe UI';
+        next.topFontSize = 15;
+        next.bottomFontSize = 15;
+        next.centerFontSize = 26;
+        next.topLetterSpacing = 1;
+        next.bottomLetterSpacing = 1;
+        next.centerLetterSpacing = 0;
+        next.topArcOffset = 0;
+        next.bottomArcOffset = 0;
+    }
+    return next;
+}
+
+async function exportStamp() {
+    const canvas = $('stampCanvas');
+    if (!canvas) return;
+    
+    const format = $('exportFormat').value;
+    const a = document.createElement('a');
+    
+    if (format === 'svg') {
+        // For SVG, we create a basic SVG with embedded image
+        const dataUrl = canvas.toDataURL('image/png');
+        const svgContent = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${canvas.width}" height="${canvas.height}">
+  <image xlink:href="${dataUrl}" width="${canvas.width}" height="${canvas.height}"/>
+</svg>`;
+        const blob = new Blob([svgContent], { type: 'image/svg+xml' });
+        a.href = URL.createObjectURL(blob);
+        a.download = 'stamp.svg';
+    } else if (format === 'jpeg') {
+        // JPEG needs white background (no transparency)
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = canvas.width;
+        tempCanvas.height = canvas.height;
+        const tempCtx = tempCanvas.getContext('2d');
+        tempCtx.fillStyle = '#ffffff';
+        tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+        tempCtx.drawImage(canvas, 0, 0);
+        a.href = tempCanvas.toDataURL('image/jpeg', 0.95);
+        a.download = 'stamp.jpg';
+    } else if (format === 'webp') {
+        a.href = canvas.toDataURL('image/webp', 0.95);
+        a.download = 'stamp.webp';
+    } else {
+        // PNG (default)
+        a.href = canvas.toDataURL('image/png');
+        a.download = 'stamp.png';
+    }
+    
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setStatus(`Downloaded as ${format.toUpperCase()}`);
+}
+
+async function copyToClipboard() {
+    const canvas = $('stampCanvas');
+    if (!canvas) return;
+
+    if (!navigator.clipboard || !window.ClipboardItem) {
+        setStatus('Copy not supported in this browser');
+        return;
+    }
+
+    return new Promise((resolve) => {
+        canvas.toBlob(async (blob) => {
+            if (!blob) {
+                setStatus('Copy failed');
+                resolve();
+                return;
+            }
+            try {
+                await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+                setStatus('Copied');
+            } catch (e) {
+                setStatus('Copy blocked');
+            }
+            resolve();
+        }, 'image/png');
+    });
+}
+
+// ===== STAMP MANAGEMENT (Firebase) =====
+let currentEditingStampId = null;
+let stampToDelete = null;
+
+function getCompanyId() {
+    // Try authManager currentUser first (most reliable after loadUserCompany)
+    if (window.authManager && window.authManager.currentUser && window.authManager.currentUser.companyId) {
+        return window.authManager.currentUser.companyId;
+    }
+    
+    // Try localStorage currentUser
+    try {
+        const user = JSON.parse(localStorage.getItem('currentUser') || '{}');
+        if (user.companyId) {
+            return user.companyId;
+        }
+    } catch (e) { /* ignore */ }
+    
+    // Try localStorage user (alternate storage key)
+    try {
+        const user = JSON.parse(localStorage.getItem('user') || '{}');
+        if (user.companyId) {
+            return user.companyId;
+        }
+    } catch (e) { /* ignore */ }
+    
+    return null;
+}
+
+async function ensureCompanyId() {
+    let companyId = getCompanyId();
+    
+    if (companyId) return companyId;
+    
+    // If not found, try to load it from Firebase
+    console.log('Company ID not in cache, searching in Firebase...');
+    
+    const currentUser = window.authManager?.currentUser || JSON.parse(localStorage.getItem('currentUser') || '{}');
+    if (!currentUser || !currentUser.uid) {
+        return null;
+    }
+    
+    try {
+        const snap = await firebase.database().ref('companies').once('value');
+        if (!snap.exists()) return null;
+        
+        const companies = snap.val();
+        for (const [cid, comp] of Object.entries(companies)) {
+            if (comp.status !== 'active') continue;
+            if (comp.users) {
+                for (const [uid, u] of Object.entries(comp.users)) {
+                    if (u.authUid === currentUser.uid || uid === currentUser.uid) {
+                        // Found the company - update localStorage
+                        currentUser.companyId = cid;
+                        localStorage.setItem('currentUser', JSON.stringify(currentUser));
+                        localStorage.setItem('user', JSON.stringify(currentUser));
+                        
+                        if (window.authManager) {
+                            window.authManager.currentUser = currentUser;
+                        }
+                        
+                        console.log('Found company ID:', cid);
+                        return cid;
+                    }
+                }
+            }
+        }
+    } catch (e) {
+        console.error('Error searching for company:', e);
+    }
+    
+    return null;
+}
+
+function getUserId() {
+    if (window.authManager && window.authManager.currentUser) {
+        return window.authManager.currentUser.uid;
+    }
+    const user = JSON.parse(localStorage.getItem('currentUser') || '{}');
+    return user.uid || null;
+}
+
+function getUserDisplayName() {
+    if (window.authManager) {
+        return window.authManager.getUserDisplayName();
+    }
+    const user = JSON.parse(localStorage.getItem('currentUser') || '{}');
+    return user.displayName || user.name || user.email || 'Unknown';
+}
+
+async function getStampThumbnail() {
+    const canvas = $('stampCanvas');
+    if (!canvas) return null;
+    
+    // Create smaller thumbnail for lists/previews
+    const thumbCanvas = document.createElement('canvas');
+    thumbCanvas.width = 200;
+    thumbCanvas.height = 200;
+    const ctx = thumbCanvas.getContext('2d');
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(canvas, 0, 0, 200, 200);
+    return thumbCanvas.toDataURL('image/png', 0.9);
+}
+
+// Get high-resolution stamp image for document signing
+async function getStampHighRes() {
+    const canvas = $('stampCanvas');
+    if (!canvas) return null;
+    
+    // Use full resolution from original canvas (1000x1000)
+    // This preserves maximum quality for document embedding
+    // PNG format with maximum quality (1.0) for lossless compression
+    return canvas.toDataURL('image/png', 1.0);
+}
+
+async function saveStampToFirebase(name, description) {
+    const companyId = await ensureCompanyId();
+    const userId = getUserId();
+    
+    if (!companyId) {
+        throw new Error('Company ID not found. Please log in again.');
+    }
+    
+    const cfg = getConfigFromControls(loadConfig());
+    const thumbnail = await getStampThumbnail();
+    const imageData = await getStampHighRes(); // High-resolution image for documents
+    
+    const stampsRef = firebase.database().ref(`companies/${companyId}/stamps`);
+    
+    if (currentEditingStampId) {
+        // Update existing stamp - don't include createdAt
+        const updateData = {
+            name: name.trim(),
+            description: description.trim() || '',
+            config: cfg,
+            thumbnail: thumbnail,
+            imageData: imageData, // High-res image
+            updatedAt: firebase.database.ServerValue.TIMESTAMP
+        };
+        await stampsRef.child(currentEditingStampId).update(updateData);
+        return currentEditingStampId;
+    } else {
+        // Create new stamp - include all fields
+        const stampData = {
+            name: name.trim(),
+            description: description.trim() || '',
+            config: cfg,
+            thumbnail: thumbnail,
+            imageData: imageData, // High-res image
+            createdBy: userId,
+            createdByName: getUserDisplayName(),
+            createdAt: firebase.database.ServerValue.TIMESTAMP,
+            updatedAt: firebase.database.ServerValue.TIMESTAMP
+        };
+        const newRef = await stampsRef.push(stampData);
+        return newRef.key;
+    }
+}
+
+async function loadSavedStamps() {
+    const companyId = await ensureCompanyId();
+    if (!companyId) {
+        console.log('No company ID - cannot load stamps');
+        return [];
+    }
+    
+    try {
+        const snapshot = await firebase.database()
+            .ref(`companies/${companyId}/stamps`)
+            .orderByChild('createdAt')
+            .once('value');
+        
+        if (!snapshot.exists()) {
+            return [];
+        }
+        
+        const stamps = [];
+        snapshot.forEach(child => {
+            stamps.push({
+                id: child.key,
+                ...child.val()
+            });
+        });
+        
+        // Sort by newest first
+        stamps.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+        return stamps;
+    } catch (error) {
+        console.error('Error loading stamps:', error);
+        return [];
+    }
+}
+
+async function deleteStampFromFirebase(stampId) {
+    const companyId = await ensureCompanyId();
+    if (!companyId || !stampId) {
+        throw new Error('Invalid company or stamp ID');
+    }
+    
+    await firebase.database()
+        .ref(`companies/${companyId}/stamps/${stampId}`)
+        .remove();
+}
+
+// Duplicate an existing stamp
+async function duplicateStamp(stamp) {
+    try {
+        setStatus('Duplicating stamp...');
+        
+        const companyId = await ensureCompanyId();
+        const userId = getUserId();
+        
+        if (!companyId) {
+            throw new Error('Company ID not found. Please log in again.');
+        }
+        
+        // Create a new stamp with copied data
+        const newStampData = {
+            name: `${stamp.name} (Copy)`,
+            description: stamp.description || '',
+            config: stamp.config || {},
+            thumbnail: stamp.thumbnail || null,
+            imageData: stamp.imageData || null,
+            createdBy: userId,
+            createdByName: getUserDisplayName(),
+            createdAt: firebase.database.ServerValue.TIMESTAMP,
+            updatedAt: firebase.database.ServerValue.TIMESTAMP
+        };
+        
+        const stampsRef = firebase.database().ref(`companies/${companyId}/stamps`);
+        await stampsRef.push(newStampData);
+        
+        setStatus('Stamp duplicated successfully!');
+        showNotification('Stamp duplicated successfully!', 'success');
+        
+        // Refresh the table
+        await refreshSavedStamps();
+        
+    } catch (error) {
+        console.error('Error duplicating stamp:', error);
+        setStatus('Error duplicating stamp');
+        showNotification('Error duplicating stamp: ' + error.message, 'error');
+    }
+}
+
+async function loadStampConfig(stampId) {
+    const companyId = await ensureCompanyId();
+    if (!companyId || !stampId) return null;
+    
+    try {
+        const snapshot = await firebase.database()
+            .ref(`companies/${companyId}/stamps/${stampId}`)
+            .once('value');
+        
+        if (!snapshot.exists()) return null;
+        return snapshot.val();
+    } catch (error) {
+        console.error('Error loading stamp:', error);
+        return null;
+    }
+}
+
+function formatDate(timestamp) {
+    if (!timestamp) return '';
+    const date = new Date(timestamp);
+    return date.toLocaleDateString('en-US', { 
+        month: 'short', 
+        day: 'numeric',
+        year: 'numeric'
+    });
+}
+
+function renderSavedStamps(stamps) {
+    const tbody = $('stampsTableBody');
+    const emptyRow = $('emptyTableRow');
+    
+    if (!tbody) return;
+    
+    // Clear existing rows (keep empty row)
+    tbody.querySelectorAll('tr:not(#emptyTableRow)').forEach(row => row.remove());
+    
+    if (!stamps || stamps.length === 0) {
+        if (emptyRow) emptyRow.style.display = '';
+        return;
+    }
+    
+    if (emptyRow) emptyRow.style.display = 'none';
+    
+    stamps.forEach(stamp => {
+        const row = document.createElement('tr');
+        row.dataset.stampId = stamp.id;
+        
+        row.innerHTML = `
+            <td>
+                <img class="stamp-thumbnail" src="${stamp.thumbnail || ''}" alt="${stamp.name}" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22><rect fill=%22%23f1f5f9%22 width=%22100%22 height=%22100%22/><text x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%2394a3b8%22 font-size=%2210%22>No Preview</text></svg>'">
+            </td>
+            <td class="stamp-name-cell">${stamp.name}</td>
+            <td class="stamp-desc-cell" title="${stamp.description || ''}">${stamp.description || '—'}</td>
+            <td class="stamp-creator-cell">${stamp.createdByName || 'Unknown'}</td>
+            <td class="stamp-date-cell">${formatDate(stamp.createdAt)}</td>
+            <td>
+                <div class="table-actions">
+                    <button type="button" class="btn btn-outline edit-btn" title="Edit"><i class="fas fa-edit"></i></button>
+                    <button type="button" class="btn btn-outline duplicate-btn" title="Duplicate"><i class="fas fa-copy"></i></button>
+                    <button type="button" class="btn btn-outline view-btn" title="View/Download"><i class="fas fa-eye"></i></button>
+                    <button type="button" class="btn btn-outline delete-btn" title="Delete" style="color:#dc2626;"><i class="fas fa-trash-alt"></i></button>
+                </div>
+            </td>
+        `;
+        
+        // Edit button - open modal with stamp loaded
+        row.querySelector('.edit-btn').addEventListener('click', async () => {
+            await openStampModal(stamp.id, stamp.name);
+        });
+        
+        // Duplicate button - create a copy of this stamp
+        row.querySelector('.duplicate-btn').addEventListener('click', async () => {
+            await duplicateStamp(stamp);
+        });
+        
+        // View/Download button - open modal in view mode
+        row.querySelector('.view-btn').addEventListener('click', async () => {
+            await openStampModal(stamp.id, stamp.name, true);
+        });
+        
+        // Delete button
+        row.querySelector('.delete-btn').addEventListener('click', () => {
+            stampToDelete = { id: stamp.id, name: stamp.name };
+            $('deleteStampName').textContent = stamp.name;
+            showModal('deleteStampModal');
+        });
+        
+        tbody.appendChild(row);
+    });
+}
+
+async function openStampModal(stampId = null, stampName = '', viewOnly = false) {
+    const modal = $('stampDesignerModal');
+    const title = $('modalTitle');
+    
+    if (stampId) {
+        // Edit or view existing stamp
+        currentEditingStampId = stampId;
+        title.textContent = viewOnly ? `View: ${stampName}` : `Edit: ${stampName}`;
+        
+        try {
+            setStatus('Loading stamp...');
+            const stampData = await loadStampConfig(stampId);
+            
+            if (stampData && stampData.config) {
+                const cfg = { ...DEFAULTS, ...stampData.config };
+                saveConfig(cfg);
+                applyConfigToControls(cfg);
+                $('stampNameInput').value = stampData.name || '';
+                $('stampDescInput').value = stampData.description || '';
+                await drawStamp(cfg);
+            }
+            setStatus('Ready');
+        } catch (error) {
+            console.error('Error loading stamp:', error);
+            setStatus('Error loading stamp');
+        }
+    } else {
+        // New stamp
+        currentEditingStampId = null;
+        title.textContent = 'Create New Stamp';
+        
+        // Reset to defaults
+        const cfg = { ...DEFAULTS };
+        saveConfig(cfg);
+        applyConfigToControls(cfg);
+        $('stampNameInput').value = '';
+        $('stampDescInput').value = '';
+        $('logoUpload').value = '';
+        await drawStamp(cfg);
+        setStatus('Ready');
+    }
+    
+    // Show modal
+    if (modal) modal.classList.add('show');
+    
+    // Focus name input for new stamps
+    if (!stampId) {
+        setTimeout(() => $('stampNameInput')?.focus(), 100);
+    }
+}
+
+function closeStampModal() {
+    const modal = $('stampDesignerModal');
+    if (modal) modal.classList.remove('show');
+    currentEditingStampId = null;
+}
+
+async function handleLoadStamp(stampId) {
+    await openStampModal(stampId, '');
+}
+
+async function refreshSavedStamps() {
+    try {
+        const stamps = await loadSavedStamps();
+        renderSavedStamps(stamps);
+    } catch (error) {
+        console.error('Error refreshing stamps:', error);
+    }
+}
+
+function showModal(modalId) {
+    const modal = $(modalId);
+    if (modal) modal.classList.add('show');
+}
+
+function hideModal(modalId) {
+    const modal = $(modalId);
+    if (modal) modal.classList.remove('show');
+}
+
+function bindStampManagementUI() {
+    // Add stamp button (+ button in header)
+    $('addStampBtn')?.addEventListener('click', () => {
+        openStampModal();
+    });
+    
+    // Close designer modal
+    $('closeDesignerModal')?.addEventListener('click', () => closeStampModal());
+    $('cancelStampBtn')?.addEventListener('click', () => closeStampModal());
+    
+    // Save stamp from modal
+    $('saveStampBtn')?.addEventListener('click', async () => {
+        const name = $('stampNameInput').value.trim();
+        const desc = $('stampDescInput').value.trim();
+        
+        if (!name) {
+            alert('Please enter a stamp name');
+            $('stampNameInput')?.focus();
+            return;
+        }
+        
+        try {
+            $('saveStampBtn').disabled = true;
+            $('saveStampBtn').innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+            
+            await saveStampToFirebase(name, desc);
+            closeStampModal();
+            
+            setStatus(currentEditingStampId ? 'Stamp updated!' : 'Stamp saved!');
+            currentEditingStampId = null;
+            
+            // Refresh the table
+            await refreshSavedStamps();
+        } catch (error) {
+            console.error('Error saving stamp:', error);
+            alert('Error saving stamp: ' + error.message);
+        } finally {
+            $('saveStampBtn').disabled = false;
+            $('saveStampBtn').innerHTML = '<i class="fas fa-save"></i> Save Stamp';
+        }
+    });
+    
+    // Close delete modal
+    $('closeDeleteModal')?.addEventListener('click', () => {
+        hideModal('deleteStampModal');
+        stampToDelete = null;
+    });
+    $('cancelDeleteBtn')?.addEventListener('click', () => {
+        hideModal('deleteStampModal');
+        stampToDelete = null;
+    });
+    
+    // Confirm delete
+    $('confirmDeleteBtn')?.addEventListener('click', async () => {
+        if (!stampToDelete) return;
+        
+        try {
+            $('confirmDeleteBtn').disabled = true;
+            $('confirmDeleteBtn').innerHTML = '<i class="fas fa-spinner fa-spin"></i> Deleting...';
+            
+            await deleteStampFromFirebase(stampToDelete.id);
+            hideModal('deleteStampModal');
+            
+            setStatus('Stamp deleted');
+            
+            // Clear editing state if deleted stamp was being edited
+            if (currentEditingStampId === stampToDelete.id) {
+                currentEditingStampId = null;
+            }
+            
+            stampToDelete = null;
+            
+            // Refresh the table
+            await refreshSavedStamps();
+        } catch (error) {
+            console.error('Error deleting stamp:', error);
+            alert('Error deleting stamp: ' + error.message);
+        } finally {
+            $('confirmDeleteBtn').disabled = false;
+            $('confirmDeleteBtn').innerHTML = '<i class="fas fa-trash-alt"></i> Delete';
+        }
+    });
+    
+    // Refresh button
+    $('refreshStampsBtn')?.addEventListener('click', async () => {
+        $('refreshStampsBtn').disabled = true;
+        $('refreshStampsBtn').innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        await refreshSavedStamps();
+        $('refreshStampsBtn').disabled = false;
+        $('refreshStampsBtn').innerHTML = '<i class="fas fa-sync-alt"></i> Refresh';
+    });
+    
+    // Close modals on overlay click
+    ['stampDesignerModal', 'deleteStampModal'].forEach(modalId => {
+        $(modalId)?.addEventListener('click', (e) => {
+            if (e.target.classList.contains('stamp-modal-overlay') || e.target.classList.contains('modal-overlay')) {
+                if (modalId === 'stampDesignerModal') {
+                    closeStampModal();
+                } else {
+                    hideModal(modalId);
+                }
+            }
+        });
+    });
+    
+    // Close modals on Escape key
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            closeStampModal();
+            hideModal('deleteStampModal');
+        }
+    });
+    
+    // Enter key to save in modal
+    $('stampNameInput')?.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            $('saveStampBtn')?.click();
+        }
+    });
+    
+    // Initial load of saved stamps
+    setTimeout(() => refreshSavedStamps(), 1000);
+}
+
+// ===== END STAMP MANAGEMENT =====
+
+function bindStampUI() {
+    let cfg = loadConfig();
+    applyConfigToControls(cfg);
+
+    const rerender = async () => {
+        cfg = getConfigFromControls(cfg);
+        saveConfig(cfg);
+        setStatus('Rendering…');
+        await drawStamp(cfg);
+        setStatus('Ready');
+    };
+
+    // Controls
+    ['shape','outerBorder','outerBorderType','innerBorder','stampSize','inkColor','topText','bottomText','centerText','topFontFamily','bottomFontFamily','centerFontFamily','topFontBold','bottomFontBold','centerFontBold','topFontSize','bottomFontSize','centerFontSize','topLetterSpacing','bottomLetterSpacing','centerLetterSpacing','topArcOffset','bottomArcOffset','separatorType','separatorSize','separatorBold','borderDesign','borderDesignFont','borderDesignCount','borderDesignSize'].forEach(id => {
+        const el = $(id);
+        if (el) {
+            el.addEventListener('input', () => { rerender(); });
+            el.addEventListener('change', () => { rerender(); });
+        }
+    });
+
+    // Sync range sliders with number inputs
+    const rangeNumPairs = [
+        ['topFontSize', 'topFontSizeNum'],
+        ['bottomFontSize', 'bottomFontSizeNum'],
+        ['centerFontSize', 'centerFontSizeNum'],
+        ['topLetterSpacing', 'topLetterSpacingNum'],
+        ['bottomLetterSpacing', 'bottomLetterSpacingNum'],
+        ['centerLetterSpacing', 'centerLetterSpacingNum'],
+        ['topArcOffset', 'topArcOffsetNum'],
+        ['bottomArcOffset', 'bottomArcOffsetNum'],
+        ['separatorSize', 'separatorSizeNum'],
+        ['borderDesignCount', 'borderDesignCountNum'],
+        ['borderDesignSize', 'borderDesignSizeNum']
+    ];
+    rangeNumPairs.forEach(([rangeId, numId]) => {
+        const rangeEl = $(rangeId);
+        const numEl = $(numId);
+        if (rangeEl && numEl) {
+            rangeEl.addEventListener('input', () => { numEl.value = rangeEl.value; });
+            numEl.addEventListener('input', () => { rangeEl.value = numEl.value; rerender(); });
+            numEl.addEventListener('change', () => { rangeEl.value = numEl.value; rerender(); });
+        }
+    });
+
+    // Text selector panel switching
+    const textSelector = $('textSelector');
+    const panels = {
+        top: $('topTextPanel'),
+        bottom: $('bottomTextPanel'),
+        center: $('centerTextPanel')
+    };
+    function showTextPanel(val) {
+        Object.entries(panels).forEach(([key, panel]) => {
+            if (panel) panel.style.display = (key === val) ? 'block' : 'none';
+        });
+    }
+    if (textSelector) {
+        textSelector.addEventListener('change', () => showTextPanel(textSelector.value));
+        showTextPanel(textSelector.value);
+    }
+
+    // Templates
+    const templateGrid = document.getElementById('templateGrid');
+    if (templateGrid) {
+        templateGrid.addEventListener('click', (e) => {
+            const btn = e.target.closest('.template-btn');
+            if (!btn) return;
+            const t = btn.getAttribute('data-template');
+            cfg = applyTemplate(cfg, t);
+            applyConfigToControls(cfg);
+            saveConfig(cfg);
+            rerender();
+        });
+    }
+
+    // Logo upload
+    const logoUpload = $('logoUpload');
+    if (logoUpload) {
+        logoUpload.addEventListener('change', () => {
+            const file = logoUpload.files?.[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = async () => {
+                cfg.logoDataUrl = String(reader.result || '');
+                saveConfig(cfg);
+                await rerender();
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+
+    // Actions
+    $('exportBtn')?.addEventListener('click', exportStamp);
+    $('resetBtn')?.addEventListener('click', async () => {
+        cfg = { ...DEFAULTS };
+        saveConfig(cfg);
+        applyConfigToControls(cfg);
+        if ($('logoUpload')) $('logoUpload').value = '';
+        await drawStamp(cfg);
+        setStatus('Reset');
+    });
+    $('copyBtn')?.addEventListener('click', copyToClipboard);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    window.authManager = new AuthManager();
+    wireHeaderBasics();
+
+    const sidebarToggle = document.getElementById('sidebarToggle');
+    const sidebar = document.getElementById('sidebar');
+    const mainContent = document.getElementById('mainContent');
+    if (sidebarToggle) {
+        sidebarToggle.addEventListener('click', () => {
+            if (window.innerWidth <= 900) {
+                sidebar.classList.toggle('open');
+            } else {
+                sidebar.classList.toggle('collapsed');
+                mainContent.classList.toggle('sidebar-collapsed');
+            }
+        });
+    }
+
+    initializeMenuAuthorization();
+    bindStampUI();
+    bindStampManagementUI();
+});
+</script>
+</body>
+</html>

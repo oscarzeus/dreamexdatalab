@@ -1,0 +1,1117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NFC Card Reader - Dreamex Datalab</title>
+    
+    <!-- Firebase v8 CDN for compatibility -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        /* CSS Variables */
+        :root {
+            --primary-color: #2c3e50;
+            --secondary-color: #3498db;
+            --accent-color: #e74c3c;
+            --text-color: #333;
+            --bg-color: #f5f6fa;
+            --sidebar-width: 250px;
+            --blue: #3498db;
+            --green: #2ecc71;
+            --purple: #9b59b6;
+            --orange: #e67e22;
+            --red: #e74c3c;
+            --font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            --base-font-size: 0.9rem;
+            --bg-primary: #ffffff;
+            --bg-secondary: #f8f9fa;
+            --text-primary: #333333;
+            --text-secondary: #666666;
+            --border-color: #e0e0e0;
+            --transition-speed: 0.2s;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: var(--font-family);
+            font-size: var(--base-font-size);
+            line-height: 1.5;
+            color: var(--text-primary);
+            background-color: var(--bg-secondary);
+            min-height: 100vh;
+        }
+
+        .app-container {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        /* Sidebar Styles */
+        .sidebar {
+            width: var(--sidebar-width);
+            background-color: var(--primary-color);
+            color: white;
+            padding: 1rem;
+            position: fixed;
+            height: 100vh;
+            overflow-y: auto;
+            z-index: 1000;
+        }
+
+        .logo h2 {
+            text-align: center;
+            padding: 1rem 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .menu {
+            list-style: none;
+            margin-top: 2rem;
+        }
+
+        .menu li {
+            margin-bottom: 0.5rem;
+        }
+
+        .menu a {
+            color: white;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            padding: 0.75rem 1rem;
+            border-radius: 5px;
+            transition: background-color 0.3s;
+        }
+
+        .menu a i {
+            margin-right: 10px;
+        }
+
+        .menu a:hover, .menu a.active {
+            background-color: var(--secondary-color);
+        }
+
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            margin-left: var(--sidebar-width);
+            padding: 2rem;
+            width: calc(100% - var(--sidebar-width));
+        }
+
+        .page-header {
+            background: white;
+            padding: 1.5rem 2rem;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            margin-bottom: 2rem;
+        }
+
+        .page-header h1 {
+            color: var(--primary-color);
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .page-header h1 i {
+            color: var(--secondary-color);
+        }
+
+        /* NFC Reader Section */
+        .nfc-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+        }
+
+        @media (max-width: 1024px) {
+            .nfc-container {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .nfc-card {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            padding: 2rem;
+        }
+
+        .nfc-card h2 {
+            color: var(--primary-color);
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        /* Scanner Section */
+        .scanner-section {
+            text-align: center;
+        }
+
+        .nfc-icon-container {
+            position: relative;
+            width: 200px;
+            height: 200px;
+            margin: 2rem auto;
+        }
+
+        .nfc-icon {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, var(--secondary-color), var(--primary-color));
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 5rem;
+            color: white;
+            position: relative;
+            z-index: 2;
+        }
+
+        .nfc-icon.scanning {
+            animation: pulse 1.5s infinite;
+        }
+
+        .pulse-ring {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            border: 3px solid var(--secondary-color);
+            opacity: 0;
+        }
+
+        .scanning .pulse-ring {
+            animation: pulse-ring 1.5s infinite;
+        }
+
+        .pulse-ring:nth-child(2) {
+            animation-delay: 0.5s;
+        }
+
+        .pulse-ring:nth-child(3) {
+            animation-delay: 1s;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        @keyframes pulse-ring {
+            0% {
+                width: 100%;
+                height: 100%;
+                opacity: 1;
+            }
+            100% {
+                width: 200%;
+                height: 200%;
+                opacity: 0;
+            }
+        }
+
+        .scan-status {
+            font-size: 1.2rem;
+            color: var(--text-secondary);
+            margin: 1.5rem 0;
+        }
+
+        .scan-status.active {
+            color: var(--green);
+            font-weight: 600;
+        }
+
+        .scan-status.error {
+            color: var(--red);
+        }
+
+        .btn {
+            padding: 1rem 2rem;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--secondary-color), var(--primary-color));
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(52, 152, 219, 0.4);
+        }
+
+        .btn-primary:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .btn-danger {
+            background: var(--red);
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #c0392b;
+        }
+
+        /* Data Display Section */
+        .data-section h2 {
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 0.75rem;
+        }
+
+        .no-data {
+            text-align: center;
+            padding: 3rem;
+            color: var(--text-secondary);
+        }
+
+        .no-data i {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            opacity: 0.5;
+        }
+
+        .nfc-data-list {
+            margin-top: 1rem;
+        }
+
+        .data-item {
+            background: var(--bg-secondary);
+            border-radius: 10px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border-left: 4px solid var(--secondary-color);
+        }
+
+        .data-item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .data-item-type {
+            background: var(--secondary-color);
+            color: white;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .data-item-label {
+            font-weight: 600;
+            color: var(--primary-color);
+        }
+
+        .data-item-content {
+            background: white;
+            padding: 0.75rem;
+            border-radius: 6px;
+            font-family: monospace;
+            word-break: break-all;
+            margin-top: 0.5rem;
+        }
+
+        .data-item-content a {
+            color: var(--secondary-color);
+            text-decoration: none;
+        }
+
+        .data-item-content a:hover {
+            text-decoration: underline;
+        }
+
+        /* Raw Data Section */
+        .raw-data {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 1rem;
+            border-radius: 8px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 0.85rem;
+            overflow-x: auto;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .raw-data pre {
+            margin: 0;
+            white-space: pre-wrap;
+        }
+
+        /* Serial Number Display */
+        .serial-number {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 1.5rem;
+            border-radius: 10px;
+            text-align: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .serial-number h3 {
+            font-size: 0.9rem;
+            opacity: 0.9;
+            margin-bottom: 0.5rem;
+        }
+
+        .serial-number .serial-value {
+            font-size: 1.5rem;
+            font-family: monospace;
+            letter-spacing: 2px;
+            font-weight: bold;
+        }
+
+        /* Browser Support Warning */
+        .browser-warning {
+            background: linear-gradient(135deg, #f6d365 0%, #fda085 100%);
+            color: #333;
+            padding: 1.5rem;
+            border-radius: 10px;
+            margin-bottom: 1.5rem;
+        }
+
+        .browser-warning h3 {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .browser-warning ul {
+            margin-left: 1.5rem;
+            margin-top: 0.5rem;
+        }
+
+        .browser-warning li {
+            margin-bottom: 0.25rem;
+        }
+
+        /* History Section */
+        .history-section {
+            margin-top: 2rem;
+        }
+
+        .history-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem;
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            margin-bottom: 0.5rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .history-item:hover {
+            background: #e8f4fc;
+            transform: translateX(5px);
+        }
+
+        .history-time {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .sidebar {
+                display: none;
+            }
+
+            .main-content {
+                margin-left: 0;
+                width: 100%;
+                padding: 1rem;
+            }
+
+            .nfc-icon-container {
+                width: 150px;
+                height: 150px;
+            }
+
+            .nfc-icon {
+                font-size: 3.5rem;
+            }
+        }
+
+        /* Copy Button */
+        .copy-btn {
+            background: none;
+            border: none;
+            color: var(--secondary-color);
+            cursor: pointer;
+            padding: 0.25rem;
+            font-size: 0.9rem;
+        }
+
+        .copy-btn:hover {
+            color: var(--primary-color);
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 0.5rem;
+        }
+
+        .tab-btn {
+            padding: 0.5rem 1rem;
+            border: none;
+            background: none;
+            cursor: pointer;
+            font-weight: 500;
+            color: var(--text-secondary);
+            border-radius: 5px 5px 0 0;
+            transition: all 0.2s ease;
+        }
+
+        .tab-btn.active {
+            color: var(--secondary-color);
+            background: rgba(52, 152, 219, 0.1);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Loading Spinner */
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="logo">
+                <h2><i class="fas fa-shield-alt"></i> Dreamex</h2>
+            </div>
+            <ul class="menu">
+                <li><a href="dashboard.html"><i class="fas fa-home"></i> Dashboard</a></li>
+                <li><a href="profile.html"><i class="fas fa-user"></i> Profile</a></li>
+                <li><a href="nfc.html" class="active"><i class="fas fa-wifi"></i> NFC Reader</a></li>
+                <li><a href="index.html"><i class="fas fa-arrow-left"></i> Back to Main</a></li>
+            </ul>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <div class="page-header">
+                <h1><i class="fas fa-wifi"></i> NFC Card Reader</h1>
+                <p>Scan NFC cards to read and display their information</p>
+            </div>
+
+            <!-- Browser Support Check -->
+            <div class="browser-warning" id="browserWarning" style="display: none;">
+                <h3><i class="fas fa-exclamation-triangle"></i> Browser Compatibility Notice</h3>
+                <p>Web NFC is currently supported on:</p>
+                <ul>
+                    <li>Chrome for Android (version 89+)</li>
+                    <li>Samsung Internet (version 15+)</li>
+                    <li>Opera for Android</li>
+                </ul>
+                <p><strong>Note:</strong> Web NFC requires HTTPS and is not available on iOS or desktop browsers.</p>
+            </div>
+
+            <div class="nfc-container">
+                <!-- Scanner Section -->
+                <div class="nfc-card scanner-section">
+                    <h2><i class="fas fa-broadcast-tower"></i> Scanner</h2>
+                    
+                    <div class="nfc-icon-container" id="nfcIconContainer">
+                        <div class="pulse-ring"></div>
+                        <div class="pulse-ring"></div>
+                        <div class="pulse-ring"></div>
+                        <div class="nfc-icon" id="nfcIcon">
+                            <i class="fas fa-wifi"></i>
+                        </div>
+                    </div>
+
+                    <p class="scan-status" id="scanStatus">Ready to scan</p>
+
+                    <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
+                        <button class="btn btn-primary" id="startScanBtn" onclick="startNFCScan()">
+                            <i class="fas fa-play"></i> Start Scanning
+                        </button>
+                        <button class="btn btn-danger" id="stopScanBtn" onclick="stopNFCScan()" style="display: none;">
+                            <i class="fas fa-stop"></i> Stop Scanning
+                        </button>
+                    </div>
+
+                    <!-- Scan History -->
+                    <div class="history-section" id="historySection" style="display: none;">
+                        <h3 style="margin-bottom: 1rem; color: var(--primary-color);">
+                            <i class="fas fa-history"></i> Scan History
+                        </h3>
+                        <div id="historyList"></div>
+                    </div>
+                </div>
+
+                <!-- Data Display Section -->
+                <div class="nfc-card data-section">
+                    <h2><i class="fas fa-database"></i> Card Information</h2>
+
+                    <div class="no-data" id="noDataMessage">
+                        <i class="fas fa-credit-card"></i>
+                        <p>No card scanned yet</p>
+                        <p style="font-size: 0.9rem;">Tap an NFC card to your device to read its data</p>
+                    </div>
+
+                    <div id="cardDataContainer" style="display: none;">
+                        <!-- Serial Number -->
+                        <div class="serial-number" id="serialNumberSection" style="display: none;">
+                            <h3><i class="fas fa-fingerprint"></i> Card Serial Number</h3>
+                            <div class="serial-value" id="serialNumber"></div>
+                        </div>
+
+                        <!-- Tabs for different data views -->
+                        <div class="tabs">
+                            <button class="tab-btn active" onclick="switchTab('parsed')">
+                                <i class="fas fa-list"></i> Parsed Data
+                            </button>
+                            <button class="tab-btn" onclick="switchTab('raw')">
+                                <i class="fas fa-code"></i> Raw Data
+                            </button>
+                        </div>
+
+                        <!-- Parsed Data Tab -->
+                        <div class="tab-content active" id="parsedTab">
+                            <div class="nfc-data-list" id="nfcDataList"></div>
+                        </div>
+
+                        <!-- Raw Data Tab -->
+                        <div class="tab-content" id="rawTab">
+                            <div class="raw-data">
+                                <pre id="rawDataContent"></pre>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // Global variables
+        let nfcReader = null;
+        let abortController = null;
+        let scanHistory = [];
+        let isScanning = false;
+
+        // Check for NFC support on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            checkNFCSupport();
+            loadScanHistory();
+        });
+
+        // Check if Web NFC is supported
+        function checkNFCSupport() {
+            if (!('NDEFReader' in window)) {
+                document.getElementById('browserWarning').style.display = 'block';
+                document.getElementById('startScanBtn').disabled = true;
+                document.getElementById('scanStatus').textContent = 'Web NFC not supported on this browser';
+                document.getElementById('scanStatus').classList.add('error');
+                return false;
+            }
+            return true;
+        }
+
+        // Start NFC scanning
+        async function startNFCScan() {
+            if (!checkNFCSupport()) return;
+
+            try {
+                // Request permission and start reading
+                nfcReader = new NDEFReader();
+                abortController = new AbortController();
+
+                await nfcReader.scan({ signal: abortController.signal });
+
+                isScanning = true;
+                updateScanUI(true);
+                updateStatus('Scanning... Hold your NFC card near the device', 'active');
+
+                // Handle reading events
+                nfcReader.addEventListener('reading', handleNFCReading);
+                nfcReader.addEventListener('readingerror', handleNFCError);
+
+            } catch (error) {
+                console.error('Error starting NFC scan:', error);
+                handleNFCError(error);
+            }
+        }
+
+        // Stop NFC scanning
+        function stopNFCScan() {
+            if (abortController) {
+                abortController.abort();
+                abortController = null;
+            }
+            isScanning = false;
+            updateScanUI(false);
+            updateStatus('Scanning stopped', '');
+        }
+
+        // Handle NFC reading event
+        function handleNFCReading(event) {
+            const { message, serialNumber } = event;
+            
+            console.log('NFC Tag Read:', { serialNumber, message });
+
+            // Vibrate device for feedback (if supported)
+            if ('vibrate' in navigator) {
+                navigator.vibrate(200);
+            }
+
+            // Parse and display the data
+            const cardData = parseNFCMessage(message, serialNumber);
+            displayCardData(cardData);
+
+            // Add to history
+            addToHistory(cardData);
+
+            updateStatus('Card read successfully!', 'active');
+
+            // Reset status after 3 seconds
+            setTimeout(() => {
+                if (isScanning) {
+                    updateStatus('Scanning... Hold another card to read', 'active');
+                }
+            }, 3000);
+        }
+
+        // Handle NFC reading error
+        function handleNFCError(error) {
+            console.error('NFC Error:', error);
+            
+            let errorMessage = 'Error reading NFC card';
+            
+            if (error.name === 'NotAllowedError') {
+                errorMessage = 'NFC permission denied. Please allow NFC access.';
+            } else if (error.name === 'NotSupportedError') {
+                errorMessage = 'NFC is not supported on this device.';
+            } else if (error.name === 'AbortError') {
+                errorMessage = 'Scanning cancelled.';
+            } else if (error.message) {
+                errorMessage = error.message;
+            }
+
+            updateStatus(errorMessage, 'error');
+            updateScanUI(false);
+        }
+
+        // Parse NFC message
+        function parseNFCMessage(message, serialNumber) {
+            const records = [];
+            const rawRecords = [];
+
+            for (const record of message.records) {
+                const parsedRecord = parseNDEFRecord(record);
+                records.push(parsedRecord);
+                rawRecords.push({
+                    recordType: record.recordType,
+                    mediaType: record.mediaType,
+                    id: record.id,
+                    encoding: record.encoding,
+                    lang: record.lang,
+                    dataLength: record.data ? record.data.byteLength : 0
+                });
+            }
+
+            return {
+                serialNumber: serialNumber || 'Unknown',
+                timestamp: new Date().toISOString(),
+                records: records,
+                rawRecords: rawRecords,
+                recordCount: message.records.length
+            };
+        }
+
+        // Parse individual NDEF record
+        function parseNDEFRecord(record) {
+            const result = {
+                type: record.recordType,
+                mediaType: record.mediaType || null,
+                id: record.id || null,
+                data: null,
+                displayData: null
+            };
+
+            try {
+                switch (record.recordType) {
+                    case 'text':
+                        const textDecoder = new TextDecoder(record.encoding || 'utf-8');
+                        result.data = textDecoder.decode(record.data);
+                        result.displayData = result.data;
+                        result.language = record.lang;
+                        break;
+
+                    case 'url':
+                        const urlDecoder = new TextDecoder();
+                        result.data = urlDecoder.decode(record.data);
+                        result.displayData = result.data;
+                        result.isUrl = true;
+                        break;
+
+                    case 'mime':
+                        if (record.mediaType === 'application/json') {
+                            const jsonDecoder = new TextDecoder();
+                            const jsonString = jsonDecoder.decode(record.data);
+                            result.data = JSON.parse(jsonString);
+                            result.displayData = JSON.stringify(result.data, null, 2);
+                        } else if (record.mediaType && record.mediaType.startsWith('text/')) {
+                            const mimeDecoder = new TextDecoder();
+                            result.data = mimeDecoder.decode(record.data);
+                            result.displayData = result.data;
+                        } else {
+                            result.data = arrayBufferToHex(record.data);
+                            result.displayData = result.data;
+                        }
+                        break;
+
+                    case 'smart-poster':
+                        result.displayData = 'Smart Poster Record';
+                        result.data = 'Smart Poster (contains nested records)';
+                        break;
+
+                    case 'absolute-url':
+                        const absUrlDecoder = new TextDecoder();
+                        result.data = absUrlDecoder.decode(record.data);
+                        result.displayData = result.data;
+                        result.isUrl = true;
+                        break;
+
+                    case 'empty':
+                        result.data = '(empty record)';
+                        result.displayData = '(empty record)';
+                        break;
+
+                    case 'unknown':
+                    default:
+                        // Try to decode as text first
+                        try {
+                            const unknownDecoder = new TextDecoder();
+                            result.data = unknownDecoder.decode(record.data);
+                            result.displayData = result.data;
+                        } catch {
+                            result.data = arrayBufferToHex(record.data);
+                            result.displayData = result.data;
+                        }
+                        break;
+                }
+            } catch (error) {
+                console.error('Error parsing record:', error);
+                result.data = record.data ? arrayBufferToHex(record.data) : '(error parsing)';
+                result.displayData = result.data;
+            }
+
+            return result;
+        }
+
+        // Convert ArrayBuffer to hex string
+        function arrayBufferToHex(buffer) {
+            if (!buffer) return '';
+            const bytes = new Uint8Array(buffer);
+            return Array.from(bytes)
+                .map(b => b.toString(16).padStart(2, '0'))
+                .join(' ');
+        }
+
+        // Display card data in UI
+        function displayCardData(cardData) {
+            document.getElementById('noDataMessage').style.display = 'none';
+            document.getElementById('cardDataContainer').style.display = 'block';
+
+            // Display serial number
+            if (cardData.serialNumber && cardData.serialNumber !== 'Unknown') {
+                document.getElementById('serialNumberSection').style.display = 'block';
+                document.getElementById('serialNumber').textContent = formatSerialNumber(cardData.serialNumber);
+            } else {
+                document.getElementById('serialNumberSection').style.display = 'none';
+            }
+
+            // Display parsed records
+            const dataList = document.getElementById('nfcDataList');
+            dataList.innerHTML = '';
+
+            if (cardData.records.length === 0) {
+                dataList.innerHTML = '<p style="color: var(--text-secondary); text-align: center;">No NDEF records found on this card</p>';
+            } else {
+                cardData.records.forEach((record, index) => {
+                    const recordElement = createRecordElement(record, index);
+                    dataList.appendChild(recordElement);
+                });
+            }
+
+            // Display raw data
+            document.getElementById('rawDataContent').textContent = JSON.stringify(cardData, null, 2);
+        }
+
+        // Create HTML element for a record
+        function createRecordElement(record, index) {
+            const div = document.createElement('div');
+            div.className = 'data-item';
+
+            const typeLabel = getRecordTypeLabel(record.type);
+            const typeColor = getRecordTypeColor(record.type);
+
+            let contentHtml = '';
+            if (record.isUrl) {
+                contentHtml = `<a href="${escapeHtml(record.displayData)}" target="_blank" rel="noopener noreferrer">${escapeHtml(record.displayData)}</a>`;
+            } else {
+                contentHtml = escapeHtml(record.displayData);
+            }
+
+            div.innerHTML = `
+                <div class="data-item-header">
+                    <span class="data-item-label">Record ${index + 1}</span>
+                    <span class="data-item-type" style="background: ${typeColor}">${typeLabel}</span>
+                </div>
+                ${record.mediaType ? `<p style="font-size: 0.8rem; color: var(--text-secondary);">MIME: ${escapeHtml(record.mediaType)}</p>` : ''}
+                ${record.language ? `<p style="font-size: 0.8rem; color: var(--text-secondary);">Language: ${escapeHtml(record.language)}</p>` : ''}
+                <div class="data-item-content">
+                    ${contentHtml}
+                    <button class="copy-btn" onclick="copyToClipboard('${escapeHtml(record.displayData).replace(/'/g, "\\'")}')">
+                        <i class="fas fa-copy"></i>
+                    </button>
+                </div>
+            `;
+
+            return div;
+        }
+
+        // Get human-readable record type label
+        function getRecordTypeLabel(type) {
+            const labels = {
+                'text': 'Text',
+                'url': 'URL',
+                'mime': 'MIME Data',
+                'smart-poster': 'Smart Poster',
+                'absolute-url': 'Absolute URL',
+                'empty': 'Empty',
+                'unknown': 'Unknown'
+            };
+            return labels[type] || type.toUpperCase();
+        }
+
+        // Get color for record type
+        function getRecordTypeColor(type) {
+            const colors = {
+                'text': '#3498db',
+                'url': '#2ecc71',
+                'mime': '#9b59b6',
+                'smart-poster': '#e67e22',
+                'absolute-url': '#2ecc71',
+                'empty': '#95a5a6',
+                'unknown': '#7f8c8d'
+            };
+            return colors[type] || '#7f8c8d';
+        }
+
+        // Format serial number for display
+        function formatSerialNumber(serial) {
+            // Format as groups of 2 characters separated by colons
+            return serial.replace(/(.{2})(?=.)/g, '$1:').toUpperCase();
+        }
+
+        // Update scanning UI
+        function updateScanUI(scanning) {
+            const nfcIcon = document.getElementById('nfcIcon');
+            const nfcContainer = document.getElementById('nfcIconContainer');
+            const startBtn = document.getElementById('startScanBtn');
+            const stopBtn = document.getElementById('stopScanBtn');
+
+            if (scanning) {
+                nfcIcon.classList.add('scanning');
+                nfcContainer.classList.add('scanning');
+                startBtn.style.display = 'none';
+                stopBtn.style.display = 'inline-flex';
+            } else {
+                nfcIcon.classList.remove('scanning');
+                nfcContainer.classList.remove('scanning');
+                startBtn.style.display = 'inline-flex';
+                stopBtn.style.display = 'none';
+            }
+        }
+
+        // Update status message
+        function updateStatus(message, className) {
+            const status = document.getElementById('scanStatus');
+            status.textContent = message;
+            status.className = 'scan-status';
+            if (className) {
+                status.classList.add(className);
+            }
+        }
+
+        // Switch between tabs
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+
+            document.querySelector(`[onclick="switchTab('${tabName}')"]`).classList.add('active');
+            document.getElementById(tabName + 'Tab').classList.add('active');
+        }
+
+        // Copy to clipboard
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                // Show feedback
+                const feedback = document.createElement('div');
+                feedback.textContent = 'Copied!';
+                feedback.style.cssText = 'position: fixed; top: 20px; right: 20px; background: var(--green); color: white; padding: 0.75rem 1.5rem; border-radius: 5px; z-index: 9999; animation: fadeOut 2s forwards;';
+                document.body.appendChild(feedback);
+                setTimeout(() => feedback.remove(), 2000);
+            }).catch(err => {
+                console.error('Failed to copy:', err);
+            });
+        }
+
+        // Escape HTML to prevent XSS
+        function escapeHtml(text) {
+            if (typeof text !== 'string') return text;
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Add scan to history
+        function addToHistory(cardData) {
+            const historyItem = {
+                serialNumber: cardData.serialNumber,
+                timestamp: cardData.timestamp,
+                recordCount: cardData.recordCount,
+                data: cardData
+            };
+
+            scanHistory.unshift(historyItem);
+            
+            // Keep only last 10 scans
+            if (scanHistory.length > 10) {
+                scanHistory.pop();
+            }
+
+            // Save to localStorage
+            localStorage.setItem('nfcScanHistory', JSON.stringify(scanHistory));
+
+            // Update UI
+            updateHistoryUI();
+        }
+
+        // Load scan history from localStorage
+        function loadScanHistory() {
+            const saved = localStorage.getItem('nfcScanHistory');
+            if (saved) {
+                try {
+                    scanHistory = JSON.parse(saved);
+                    updateHistoryUI();
+                } catch (e) {
+                    console.error('Error loading history:', e);
+                }
+            }
+        }
+
+        // Update history UI
+        function updateHistoryUI() {
+            const historySection = document.getElementById('historySection');
+            const historyList = document.getElementById('historyList');
+
+            if (scanHistory.length === 0) {
+                historySection.style.display = 'none';
+                return;
+            }
+
+            historySection.style.display = 'block';
+            historyList.innerHTML = '';
+
+            scanHistory.forEach((item, index) => {
+                const div = document.createElement('div');
+                div.className = 'history-item';
+                div.onclick = () => displayCardData(item.data);
+
+                const date = new Date(item.timestamp);
+                const timeStr = date.toLocaleString();
+
+                div.innerHTML = `
+                    <div>
+                        <strong>${formatSerialNumber(item.serialNumber)}</strong>
+                        <br>
+                        <small>${item.recordCount} record(s)</small>
+                    </div>
+                    <span class="history-time">${timeStr}</span>
+                `;
+
+                historyList.appendChild(div);
+            });
+        }
+
+        // Clear history
+        function clearHistory() {
+            scanHistory = [];
+            localStorage.removeItem('nfcScanHistory');
+            updateHistoryUI();
+        }
+
+        // Add CSS for fadeOut animation
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes fadeOut {
+                0%, 70% { opacity: 1; }
+                100% { opacity: 0; }
+            }
+        `;
+        document.head.appendChild(style);
+    </script>
+</body>
+</html>
