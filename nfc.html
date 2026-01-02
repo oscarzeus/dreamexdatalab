@@ -1226,17 +1226,17 @@ li.menu-visible,
                                     <input type="checkbox" id="enableLock" style="width: 18px; height: 18px; cursor: pointer;">
                                     <label for="enableLock" style="margin: 0; cursor: pointer; font-weight: 500;">
                                         <i class="fas fa-lock" style="margin-right: 0.5rem; color: var(--danger-color);"></i>
-                                        Lock Card Permanently
+                                        Lock Card Permanently (Hardware Lock)
                                     </label>
                                 </div>
                                 <small style="color: var(--danger-color); display: block; margin-top: 0.5rem; margin-left: 2rem;">
-                                    <i class="fas fa-exclamation-triangle"></i> <strong>WARNING:</strong> This permanently locks the card. No app (including this one) can ever write to it again!
+                                    <i class="fas fa-exclamation-triangle"></i> <strong>WARNING:</strong> This sets a HARDWARE read-only lock. The card becomes permanently unwritable by ANY app or device forever!
                                 </small>
                                 <div id="lockConfirmation" style="display: none; margin-top: 0.75rem; margin-left: 2rem; padding: 0.75rem; background: rgba(239, 68, 68, 0.2); border-radius: 6px;">
                                     <div style="display: flex; align-items: center; gap: 0.5rem;">
                                         <input type="checkbox" id="confirmLock" style="width: 16px; height: 16px; cursor: pointer;">
                                         <label for="confirmLock" style="margin: 0; cursor: pointer; font-size: 0.85rem; color: var(--danger-color);">
-                                            I understand this action is <strong>IRREVERSIBLE</strong>
+                                            I understand this is <strong>IRREVERSIBLE</strong> - the card can NEVER be written to again
                                         </label>
                                     </div>
                                 </div>
@@ -2890,24 +2890,61 @@ li.menu-visible,
                 // Build NDEF message based on type (with password if enabled)
                 const message = await buildNDEFMessage(writeData);
                 
-                await ndef.write(message, { signal: writeAbortController.signal });
-                
-                // Success
-                if ('vibrate' in navigator) {
-                    navigator.vibrate([100, 50, 100]);
-                }
-                
-                // Check if we should lock the card
+                // Check if we should lock the card after writing
                 if (writeData.lockCard) {
-                    showWriteStatus('Locking card permanently...', 'writing');
+                    // For locking, we need to write and then immediately make read-only
+                    // Use overwrite: true to ensure we can write even if tag has data
+                    await ndef.write(message, { 
+                        signal: writeAbortController.signal,
+                        overwrite: true
+                    });
+                    
+                    showWriteStatus('Data written! Now locking card permanently...', 'writing');
+                    
+                    // Small delay to ensure write is complete
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    
                     try {
-                        await ndef.makeReadOnly();
-                        showWriteStatus('✅ Card written and PERMANENTLY LOCKED! No app can ever rewrite this card.', 'success');
+                        // makeReadOnly() locks the tag at hardware level
+                        await ndef.makeReadOnly({ signal: writeAbortController.signal });
+                        
+                        if ('vibrate' in navigator) {
+                            navigator.vibrate([100, 50, 100, 50, 200]);
+                        }
+                        
+                        showWriteStatus('✅ SUCCESS! Card written and PERMANENTLY LOCKED!\n\n🔒 This card is now READ-ONLY forever.\n❌ No app (including this one) can ever modify it.', 'success');
+                        
+                        // Reset the lock checkboxes
+                        document.getElementById('enableLock').checked = false;
+                        document.getElementById('confirmLock').checked = false;
+                        document.getElementById('lockConfirmation').style.display = 'none';
+                        
                     } catch (lockError) {
                         console.error('Lock error:', lockError);
-                        showWriteStatus('⚠️ Card written but lock failed: ' + lockError.message + '. Card may still be writable.', 'warning');
+                        
+                        // Provide more specific error messages
+                        let lockErrorMsg = 'Card written but lock failed: ';
+                        if (lockError.name === 'NotSupportedError') {
+                            lockErrorMsg += 'This tag type does not support permanent locking.';
+                        } else if (lockError.name === 'NotAllowedError') {
+                            lockErrorMsg += 'Permission denied. Try holding the card steady.';
+                        } else if (lockError.name === 'InvalidStateError') {
+                            lockErrorMsg += 'Card already locked or in invalid state.';
+                        } else {
+                            lockErrorMsg += lockError.message || 'Unknown error';
+                        }
+                        
+                        showWriteStatus('⚠️ ' + lockErrorMsg + '\n\nThe data was written successfully, but the card may still be writable by other apps.', 'warning');
                     }
                 } else {
+                    // Normal write without locking
+                    await ndef.write(message, { signal: writeAbortController.signal });
+                    
+                    // Success
+                    if ('vibrate' in navigator) {
+                        navigator.vibrate([100, 50, 100]);
+                    }
+                    
                     let successMsg = 'Successfully written to NFC card!';
                     const features = [];
                     if (writeData.encrypt) features.push('🔐 Encrypted');
