@@ -709,6 +709,87 @@ li.menu-visible,
             color: var(--secondary-color);
         }
 
+        /* Modal Styles */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.6);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            backdrop-filter: blur(4px);
+        }
+
+        .modal-content {
+            background: var(--bg-primary);
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            width: 90%;
+            max-height: 90vh;
+            overflow: hidden;
+            animation: modalSlideIn 0.3s ease-out;
+        }
+
+        @keyframes modalSlideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-20px) scale(0.95);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+
+        .modal-header {
+            padding: 1.25rem 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--bg-secondary);
+        }
+
+        .modal-header h3 {
+            margin: 0;
+            font-size: 1.1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .modal-body {
+            padding: 1.5rem;
+        }
+
+        .modal-footer {
+            padding: 1rem 1.5rem;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.75rem;
+            background: var(--bg-secondary);
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: var(--text-secondary);
+            padding: 0;
+            line-height: 1;
+            transition: color 0.2s;
+        }
+
+        .close-btn:hover {
+            color: var(--danger-color);
+        }
+
         /* Multiple Records */
         .records-container {
             margin-top: 1rem;
@@ -1100,6 +1181,29 @@ li.menu-visible,
                                     <input type="text" id="vcardTitle" placeholder="Software Engineer">
                                 </div>
                                 <small style="color: var(--text-secondary);">Contact card that can be saved to phone contacts</small>
+                            </div>
+
+                            <!-- Password Protection -->
+                            <div class="form-group" style="margin-top: 1.5rem; padding: 1rem; background: var(--bg-tertiary); border-radius: 8px; border: 1px solid var(--border-color);">
+                                <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem;">
+                                    <input type="checkbox" id="enablePassword" onchange="togglePasswordField()" style="width: 18px; height: 18px; cursor: pointer;">
+                                    <label for="enablePassword" style="margin: 0; cursor: pointer; font-weight: 500;">
+                                        <i class="fas fa-lock" style="margin-right: 0.5rem; color: var(--warning-color);"></i>
+                                        Password Protect This Card
+                                    </label>
+                                </div>
+                                <div id="passwordInputGroup" style="display: none;">
+                                    <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                        <input type="password" id="cardPassword" placeholder="Enter password (min 4 characters)" 
+                                               style="flex: 1;" minlength="4" maxlength="32">
+                                        <button type="button" class="btn btn-secondary" onclick="togglePasswordVisibility()" style="padding: 0.5rem 0.75rem;">
+                                            <i class="fas fa-eye" id="passwordToggleIcon"></i>
+                                        </button>
+                                    </div>
+                                    <small style="color: var(--warning-color); display: block; margin-top: 0.5rem;">
+                                        <i class="fas fa-info-circle"></i> Protected cards require this password to be overwritten
+                                    </small>
+                                </div>
                             </div>
 
                             <!-- Write Button -->
@@ -2206,6 +2310,144 @@ li.menu-visible,
             updateHistoryUI();
         }
 
+        // =============================================
+        // Password Protection Functions
+        // =============================================
+        let pendingWriteData = null;
+        let detectedPasswordHash = null;
+
+        // Toggle password input field visibility
+        function togglePasswordField() {
+            const checkbox = document.getElementById('enablePassword');
+            const passwordGroup = document.getElementById('passwordInputGroup');
+            passwordGroup.style.display = checkbox.checked ? 'block' : 'none';
+            if (!checkbox.checked) {
+                document.getElementById('cardPassword').value = '';
+            }
+        }
+
+        // Toggle password visibility in write form
+        function togglePasswordVisibility() {
+            const input = document.getElementById('cardPassword');
+            const icon = document.getElementById('passwordToggleIcon');
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.className = 'fas fa-eye-slash';
+            } else {
+                input.type = 'password';
+                icon.className = 'fas fa-eye';
+            }
+        }
+
+        // Toggle password visibility in verification modal
+        function toggleVerifyPasswordVisibility() {
+            const input = document.getElementById('verifyPassword');
+            const icon = document.getElementById('verifyPasswordToggleIcon');
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.className = 'fas fa-eye-slash';
+            } else {
+                input.type = 'password';
+                icon.className = 'fas fa-eye';
+            }
+        }
+
+        // Simple hash function for password (SHA-256 style)
+        async function hashPassword(password) {
+            const encoder = new TextEncoder();
+            const data = encoder.encode(password + '_nfc_card_protection');
+            const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        }
+
+        // Check if card has password protection by reading it first
+        async function checkCardProtection() {
+            return new Promise(async (resolve) => {
+                try {
+                    const ndef = new NDEFReader();
+                    const controller = new AbortController();
+                    
+                    // Set a timeout to stop scanning
+                    const timeout = setTimeout(() => {
+                        controller.abort();
+                        resolve({ protected: false, hash: null });
+                    }, 3000);
+
+                    ndef.addEventListener('reading', ({ message }) => {
+                        clearTimeout(timeout);
+                        controller.abort();
+                        
+                        // Look for password protection record
+                        for (const record of message.records) {
+                            if (record.recordType === 'mime' && record.mediaType === 'application/x-nfc-password') {
+                                const decoder = new TextDecoder();
+                                const hash = decoder.decode(record.data);
+                                resolve({ protected: true, hash: hash });
+                                return;
+                            }
+                        }
+                        resolve({ protected: false, hash: null });
+                    }, { once: true });
+
+                    await ndef.scan({ signal: controller.signal });
+                } catch (error) {
+                    resolve({ protected: false, hash: null });
+                }
+            });
+        }
+
+        // Open password verification modal
+        function openPasswordModal(hash) {
+            detectedPasswordHash = hash;
+            document.getElementById('passwordModal').style.display = 'flex';
+            document.getElementById('verifyPassword').value = '';
+            document.getElementById('passwordError').style.display = 'none';
+            document.getElementById('verifyPassword').focus();
+        }
+
+        // Close password verification modal
+        function closePasswordModal() {
+            document.getElementById('passwordModal').style.display = 'none';
+            pendingWriteData = null;
+            detectedPasswordHash = null;
+            
+            // Reset write UI
+            document.getElementById('writeNfcBtn').style.display = 'inline-flex';
+            document.getElementById('cancelWriteBtn').style.display = 'none';
+            document.getElementById('nfcIcon').classList.remove('writing');
+            document.getElementById('nfcIconContainer').classList.remove('scanning');
+            showWriteStatus('Write cancelled - password verification required.', 'error');
+        }
+
+        // Verify password and proceed with write
+        async function verifyAndWrite() {
+            const enteredPassword = document.getElementById('verifyPassword').value;
+            
+            if (!enteredPassword) {
+                document.getElementById('passwordError').textContent = 'Please enter the password.';
+                document.getElementById('passwordError').style.display = 'block';
+                return;
+            }
+
+            const enteredHash = await hashPassword(enteredPassword);
+            
+            if (enteredHash !== detectedPasswordHash) {
+                document.getElementById('passwordError').textContent = 'Incorrect password. Please try again.';
+                document.getElementById('passwordError').style.display = 'block';
+                document.getElementById('verifyPassword').value = '';
+                document.getElementById('verifyPassword').focus();
+                return;
+            }
+
+            // Password correct - close modal and proceed with write
+            document.getElementById('passwordModal').style.display = 'none';
+            
+            if (pendingWriteData) {
+                await executeNFCWrite(pendingWriteData);
+            }
+        }
+
         // Start NFC Write
         async function startNFCWrite() {
             if (!checkNFCSupport()) return;
@@ -2215,6 +2457,17 @@ li.menu-visible,
             if (!writeData.valid) {
                 showWriteStatus(writeData.error, 'error');
                 return;
+            }
+
+            // Check if password protection is enabled and validate password
+            const enablePassword = document.getElementById('enablePassword').checked;
+            if (enablePassword) {
+                const password = document.getElementById('cardPassword').value;
+                if (!password || password.length < 4) {
+                    showWriteStatus('Password must be at least 4 characters.', 'error');
+                    return;
+                }
+                writeData.password = password;
             }
             
             try {
@@ -2226,12 +2479,42 @@ li.menu-visible,
                 document.getElementById('cancelWriteBtn').style.display = 'inline-flex';
                 document.getElementById('nfcIcon').classList.add('writing');
                 document.getElementById('nfcIconContainer').classList.add('scanning');
-                showWriteStatus('Hold your NFC card near the device to write...', 'writing');
+                showWriteStatus('Checking card... Hold your NFC card near the device.', 'writing');
+                
+                // First, check if the card is password protected
+                const protection = await checkCardProtection();
+                
+                if (protection.protected) {
+                    // Card is protected - show password modal
+                    pendingWriteData = writeData;
+                    openPasswordModal(protection.hash);
+                    return;
+                }
+                
+                // Card is not protected - proceed with write
+                await executeNFCWrite(writeData);
+                
+            } catch (error) {
+                console.error('NFC Write Error:', error);
+                handleWriteError(error);
+            }
+        }
+
+        // Execute the actual NFC write operation
+        async function executeNFCWrite(writeData) {
+            try {
+                // Update UI for writing
+                document.getElementById('writeNfcBtn').style.display = 'none';
+                document.getElementById('cancelWriteBtn').style.display = 'inline-flex';
+                document.getElementById('nfcIcon').classList.add('writing');
+                document.getElementById('nfcIconContainer').classList.add('scanning');
+                showWriteStatus('Writing to NFC card...', 'writing');
                 
                 const ndef = new NDEFReader();
+                writeAbortController = new AbortController();
                 
-                // Build NDEF message based on type
-                const message = buildNDEFMessage(writeData);
+                // Build NDEF message based on type (with password if enabled)
+                const message = await buildNDEFMessage(writeData);
                 
                 await ndef.write(message, { signal: writeAbortController.signal });
                 
@@ -2240,32 +2523,50 @@ li.menu-visible,
                     navigator.vibrate([100, 50, 100]);
                 }
                 
-                showWriteStatus('Successfully written to NFC card!', 'success');
+                let successMsg = 'Successfully written to NFC card!';
+                if (writeData.password) {
+                    successMsg += ' (Password protected)';
+                }
+                showWriteStatus(successMsg, 'success');
+                
+                // Clear password field after successful write
+                document.getElementById('cardPassword').value = '';
                 
             } catch (error) {
                 console.error('NFC Write Error:', error);
-                
-                let errorMessage = 'Error writing to NFC card';
-                if (error.name === 'NotAllowedError') {
-                    errorMessage = 'NFC permission denied. Please allow NFC access.';
-                } else if (error.name === 'NotSupportedError') {
-                    errorMessage = 'NFC writing is not supported on this device.';
-                } else if (error.name === 'AbortError') {
-                    errorMessage = 'Write operation cancelled.';
-                } else if (error.name === 'NotReadableError') {
-                    errorMessage = 'Could not read from NFC card. Try again.';
-                } else if (error.message) {
-                    errorMessage = error.message;
-                }
-                
-                showWriteStatus(errorMessage, 'error');
+                handleWriteError(error);
             } finally {
                 isWriting = false;
+                pendingWriteData = null;
                 document.getElementById('writeNfcBtn').style.display = 'inline-flex';
                 document.getElementById('cancelWriteBtn').style.display = 'none';
                 document.getElementById('nfcIcon').classList.remove('writing');
                 document.getElementById('nfcIconContainer').classList.remove('scanning');
             }
+        }
+
+        // Handle write errors
+        function handleWriteError(error) {
+            let errorMessage = 'Error writing to NFC card';
+            if (error.name === 'NotAllowedError') {
+                errorMessage = 'NFC permission denied. Please allow NFC access.';
+            } else if (error.name === 'NotSupportedError') {
+                errorMessage = 'NFC writing is not supported on this device.';
+            } else if (error.name === 'AbortError') {
+                errorMessage = 'Write operation cancelled.';
+            } else if (error.name === 'NotReadableError') {
+                errorMessage = 'Could not read from NFC card. Try again.';
+            } else if (error.message) {
+                errorMessage = error.message;
+            }
+            
+            showWriteStatus(errorMessage, 'error');
+            
+            isWriting = false;
+            document.getElementById('writeNfcBtn').style.display = 'inline-flex';
+            document.getElementById('cancelWriteBtn').style.display = 'none';
+            document.getElementById('nfcIcon').classList.remove('writing');
+            document.getElementById('nfcIconContainer').classList.remove('scanning');
         }
 
         // Cancel NFC Write
@@ -2275,6 +2576,7 @@ li.menu-visible,
                 writeAbortController = null;
             }
             isWriting = false;
+            pendingWriteData = null;
             document.getElementById('writeNfcBtn').style.display = 'inline-flex';
             document.getElementById('cancelWriteBtn').style.display = 'none';
             document.getElementById('nfcIcon').classList.remove('writing');
@@ -2327,46 +2629,54 @@ li.menu-visible,
         }
 
         // Build NDEF message for writing
-        function buildNDEFMessage(writeData) {
+        async function buildNDEFMessage(writeData) {
+            const records = [];
+            
+            // Add password protection record if password is set
+            if (writeData.password) {
+                const passwordHash = await hashPassword(writeData.password);
+                records.push({
+                    recordType: 'mime',
+                    mediaType: 'application/x-nfc-password',
+                    data: new TextEncoder().encode(passwordHash)
+                });
+            }
+            
+            // Add the main data record
             switch (writeData.type) {
                 case 'text':
-                    return {
-                        records: [{
-                            recordType: 'text',
-                            data: writeData.data,
-                            lang: 'en'
-                        }]
-                    };
+                    records.push({
+                        recordType: 'text',
+                        data: writeData.data,
+                        lang: 'en'
+                    });
+                    break;
                     
                 case 'url':
-                    return {
-                        records: [{
-                            recordType: 'url',
-                            data: writeData.data
-                        }]
-                    };
+                    records.push({
+                        recordType: 'url',
+                        data: writeData.data
+                    });
+                    break;
                     
                 case 'json':
-                    return {
-                        records: [{
-                            recordType: 'mime',
-                            mediaType: 'application/json',
-                            data: new TextEncoder().encode(writeData.data)
-                        }]
-                    };
+                    records.push({
+                        recordType: 'mime',
+                        mediaType: 'application/json',
+                        data: new TextEncoder().encode(writeData.data)
+                    });
+                    break;
                     
                 case 'vcard':
-                    return {
-                        records: [{
-                            recordType: 'mime',
-                            mediaType: 'text/vcard',
-                            data: new TextEncoder().encode(writeData.data)
-                        }]
-                    };
-                    
-                default:
-                    return { records: [] };
+                    records.push({
+                        recordType: 'mime',
+                        mediaType: 'text/vcard',
+                        data: new TextEncoder().encode(writeData.data)
+                    });
+                    break;
             }
+            
+            return { records };
         }
 
         // Show write status message
@@ -3249,5 +3559,34 @@ li.menu-visible,
             initializeMenuAuthorization();
         });
     </script>
+
+    <!-- Password Verification Modal -->
+    <div id="passwordModal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 400px;">
+            <div class="modal-header">
+                <h3><i class="fas fa-lock" style="color: var(--warning-color);"></i> Password Protected Card</h3>
+                <button class="close-btn" onclick="closePasswordModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p style="margin-bottom: 1rem; color: var(--text-secondary);">
+                    This NFC card is password protected. Enter the password to overwrite it.
+                </p>
+                <div class="form-group">
+                    <label for="verifyPassword">Password</label>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <input type="password" id="verifyPassword" placeholder="Enter card password" style="flex: 1;">
+                        <button type="button" class="btn btn-secondary" onclick="toggleVerifyPasswordVisibility()" style="padding: 0.5rem 0.75rem;">
+                            <i class="fas fa-eye" id="verifyPasswordToggleIcon"></i>
+                        </button>
+                    </div>
+                </div>
+                <div id="passwordError" style="color: var(--danger-color); font-size: 0.875rem; margin-top: 0.5rem; display: none;"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closePasswordModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="verifyAndWrite()"><i class="fas fa-unlock"></i> Verify & Write</button>
+            </div>
+        </div>
+    </div>
 </body>
 </html>
