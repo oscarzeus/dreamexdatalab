@@ -1,0 +1,1345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8"/>
+	<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+	<title>Support - Ticket Board</title>
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"/>
+	<style>
+		:root{ --primary-color:#2c3e50; --secondary-color:#34495e; --sidebar-width:250px; --border-color:#e0e0e0; --bg:#f8f9fa }
+		*{box-sizing:border-box;margin:0;padding:0}
+		body{font-family:Inter,system-ui,Arial,sans-serif;font-size:14px;background:var(--bg);color:#333}
+		.app-container{display:flex;min-height:100vh}
+		.sidebar{width:var(--sidebar-width);background:var(--primary-color);color:#fff;padding:1rem;position:fixed;top:0;left:0;bottom:0;overflow-y:auto;transition:transform .3s ease;z-index:1000}
+		.sidebar.collapsed{transform:translateX(-100%)}
+		.logo h2{font-size:1.05rem;text-align:center;padding:1rem 0;border-bottom:1px solid rgba(255,255,255,.1)}
+		.menu{list-style:none;margin-top:1rem}
+		.menu a{color:#fff;display:flex;align-items:center;gap:.5rem;text-decoration:none;font-size:.8rem;border-radius:6px;padding:.5rem .6rem}
+		.menu a:hover,.menu a.active{background:rgba(255,255,255,0.12)}
+		/* Submenu behavior */
+		.submenu{list-style:none;margin-left:.75rem;display:none;margin-top:.25rem}
+		.menu-dropdown:hover .submenu{display:block}
+		.submenu a{font-size:.75rem;padding:.45rem .65rem}
+		/* Feature/role visibility */
+		[data-feature]:not(.menu-visible){display:none!important}
+		.menu-dropdown:not(.menu-visible){display:none!important}
+		.sidebar.menu-loading .menu-item,
+		.sidebar.menu-loading .menu-dropdown,
+		.sidebar.menu-loading li[data-feature],
+		.sidebar.menu-loading [data-feature]{display:none!important}
+		.sidebar.menu-loading .menu-visible,
+		.sidebar.menu-loading li.menu-visible,
+		.sidebar.menu-loading [data-feature].menu-visible{display:block!important}
+		.menu-visible{display:block!important}
+		li.menu-visible,[data-feature].menu-visible{display:block!important}
+		/* Layout */
+		.main-content{flex:1;margin-left:var(--sidebar-width);padding:.3rem; padding-top:3.2rem; transition:margin-left .3s ease}
+		.main-content.sidebar-collapsed{margin-left:0}
+		.top-nav{display:flex;justify-content:space-between;align-items:center;padding:.5rem .75rem;background:#fff;box-shadow:0 2px 5px rgba(0,0,0,.1);position:fixed;top:.25rem;right:.5rem;left:calc(var(--sidebar-width) + .5rem);height:50px;min-height:50px;z-index:100;transition:left .3s ease}
+		.main-content.sidebar-collapsed .top-nav{left:.5rem}
+		.sidebar-toggle-btn{background:none;border:none;cursor:pointer;font-size:1.15rem;color:#666;padding:.45rem;border-radius:6px}
+		#headerCompanyLogo{width:40px;height:40px;border-radius:6px;object-fit:contain;display:none}
+		#headerCompanyLogo.visible{display:block}
+		#headerCompanyName{font-weight:600;color:var(--primary-color);font-size:.85rem}
+		/* Avatar/Profile */
+		.profile-btn{background:none;border:none;border-radius:50%;overflow:hidden;width:38px;height:38px;cursor:pointer}
+		.profile-btn img{width:100%;height:100%;object-fit:cover}
+		.user-profile{position:relative}
+		.profile-dropdown{display:none;position:absolute;right:0;top:110%;background:#fff;border-radius:8px;min-width:200px;box-shadow:0 6px 18px rgba(0,0,0,0.12);overflow:hidden;border:1px solid #e9ecef;z-index:1000}
+		.profile-dropdown.show{display:block}
+		.profile-dropdown ul{list-style:none;margin:0;padding:0}
+		.profile-dropdown li a{display:block;padding:.65rem .85rem;font-size:.72rem;text-decoration:none;color:#1e293b;font-weight:500}
+		.profile-dropdown li a:hover{background:#f1f5f9}
+		/* Notifications */
+		.notifications{position:relative;display:flex;align-items:center}
+		.notification-btn{background:none;border:none;cursor:pointer;position:relative;font-size:1.2rem;padding:.5rem;display:flex;align-items:center;justify-content:center}
+		.notification-badge{position:absolute;top:-5px;right:-5px;background:#e74c3c;color:#fff;border-radius:50%;padding:.15rem .45rem;font-size:.7rem;display:none}
+		.notification-dropdown{display:none;position:absolute;right:0;top:100%;width:320px;background:#fff;border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,.15);z-index:1000;border:1px solid #e9ecef;max-height:400px;overflow:hidden}
+		.notification-dropdown.show{display:block;animation:slideDown .2s ease-out}
+		@keyframes slideDown{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
+		.notification-header{padding:12px 16px;border-bottom:1px solid #e9ecef;background:linear-gradient(135deg,#f8f9fa 0%, #e9ecef 100%);display:flex;justify-content:space-between;align-items:center}
+		.notification-header h3{margin:0;color:#333;font-size:14px;font-weight:600}
+		.mark-all-read{background:none;border:none;color:#3498db;cursor:pointer;font-size:12px;padding:4px 8px;border-radius:4px}
+		.mark-all-read:hover{background:#e3f2fd;color:#1976d2}
+		.notification-list{max-height:320px;overflow-y:auto;padding:0}
+		.notification-item{padding:12px 16px;border-bottom:1px solid #f1f1f1;cursor:pointer;transition:background-color .2s ease;position:relative}
+		.notification-item:hover{background:#f8f9fa}
+		.notification-item.unread{background:#e8f4fd;border-left:3px solid #3498db}
+		.notification-empty{padding:40px 20px;text-align:center;color:#999;display:none}
+		.notification-empty i{font-size:32px;margin-bottom:12px;color:#ddd}
+		.notification-empty-title{font-size:14px;font-weight:500;margin-bottom:4px;color:#666}
+		.notification-empty-message{font-size:12px;color:#999}
+		/* Content */
+		.page-header{background:linear-gradient(135deg,var(--primary-color),var(--secondary-color));color:#fff;padding:.6rem .75rem;margin:.5rem 0;display:flex;justify-content:space-between;align-items:center;box-shadow:0 10px 28px rgba(0,0,0,.18),0 6px 16px rgba(0,0,0,.14)}
+		.btn{display:inline-block;padding:.4rem .8rem;border-radius:6px;border:1px solid transparent;font-size:.8rem;cursor:pointer;text-decoration:none}
+		.btn-primary{background:var(--primary-color);color:#fff;border-color:var(--primary-color)}
+		.btn-outline{background:transparent;color:#fff;border-color:rgba(255,255,255,.6)}
+		.card{background:#fff;border:1px solid var(--border-color);border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,.05);padding:12px;margin:.5rem 0}
+		.filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+		.filters .form-control{padding:8px 10px;border:1px solid #ced4da;border-radius:6px}
+		table{width:100%;border-collapse:collapse}
+		th,td{padding:10px;border-bottom:1px solid #eee;text-align:left}
+		th{font-weight:700;color:#444;background:#fafafa}
+		tr:hover{background:#f9fbff}
+		.badge{display:inline-block;padding:.12rem .5rem;border-radius:999px;font-size:.75rem;color:#fff}
+		.badge.low{background:#2ecc71}.badge.medium{background:#f39c12}.badge.high{background:#e74c3c}
+		.status{padding:.12rem .5rem;border-radius:999px;font-size:.75rem;border:1px solid #ccc;background:#fff;color:#555}
+		.status.open{border-color:#0d6efd;color:#0d6efd}
+		.status[aria-label="in-progress"], .status.in-progress{border-color:#fd7e14;color:#fd7e14}
+		.status.pending{border-color:#6c757d;color:#6c757d}
+		.status.resolved{border-color:#20c997;color:#20c997}
+		.status.closed{border-color:#198754;color:#198754}
+		.toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px;flex-wrap:wrap}
+		.pagination{display:flex;gap:6px;align-items:center;justify-content:flex-end;margin-top:8px}
+		.pagination button{padding:.3rem .6rem;border:1px solid #ddd;background:#fff;border-radius:6px;cursor:pointer}
+		.pagination button:disabled{opacity:.5;cursor:not-allowed}
+		/* Tab Navigation */
+		.tab-nav{display:flex;gap:0;border-bottom:2px solid #e5e7eb;margin-bottom:1rem}
+		.tab-btn{padding:.6rem 1.2rem;font-size:.85rem;font-weight:500;color:#6b7280;background:transparent;border:none;cursor:pointer;position:relative;transition:color .2s;display:none}
+		.tab-btn.tab-authorized{display:inline-flex;align-items:center;gap:6px}
+		.tab-btn:hover{color:#111827}
+		.tab-btn.active{color:var(--primary-color);font-weight:600}
+		.tab-btn.active::after{content:'';position:absolute;bottom:-2px;left:0;right:0;height:2px;background:var(--primary-color)}
+		.tab-content{display:none}
+		.tab-content.active{display:block}
+	</style>
+</head>
+<body>
+<div class="app-container">
+	<nav class="sidebar menu-loading" id="sidebar">
+		<div class="logo"><h2>Dreamex Datalab</h2></div>
+		<ul class="menu" id="roleBasedMenu">
+			<li class="menu-item" data-feature="home_view"><a href="index.html"><i class="fas fa-home"></i> Home</a></li>
+			<li class="menu-dropdown" data-feature="health_view">
+				<a href="#"><i class="fas fa-medkit"></i> Health</a>
+				<ul class="submenu">
+					<li data-feature="health_assessment_view" data-requires-permission="health_assessment_view"><a href="health-assessment.html">Assessment</a></li>
+					<li data-feature="health_consultation_view" data-requires-permission="health_consultation_view"><a href="health-consultation.html">Consultation</a></li>
+					<li data-feature="medical_folder_view" data-requires-permission="medical_folder_view"><a href="medical-folder.html">Medical Folder</a></li>
+				</ul>
+			</li>
+			<!-- Risk Management (separate section) -->
+			<li class="menu-dropdown" data-feature="risk_view" data-requires-permission="risk_view">
+				<a href="#"><i class="fas fa-exclamation-triangle"></i> Risk Management</a>
+				<ul class="submenu">
+					<li data-feature="risk_view" data-requires-permission="risk_view"><a href="riskboard.html">Risk Management</a></li>
+					<li data-feature="risk_view" data-requires-permission="risk_register_view"><a href="riskreg.html">Risk Register</a></li>
+				</ul>
+			</li>
+			<li class="menu-dropdown" data-feature="safety_view" data-requires-permission="safety_view">
+				<a href="#"><i class="fas fa-shield-alt"></i> Safety</a>
+				<ul class="submenu">
+					<li data-feature="training_view" data-requires-permission="training_view"><a href="trainingboard.html">Training</a></li>
+					<li data-feature="jsa_view" data-requires-permission="jsa_view"><a href="jsaboard.html">Job Safety Analysis</a></li>
+					<li data-feature="ptw_view" data-requires-permission="ptw_view"><a href="ptwboard.html">Permit to Work</a></li>
+					<li data-feature="incident_view" data-requires-permission="incident_view"><a href="incidentboard.html">Incident Reports</a></li>
+					<li data-feature="inspection_view" data-requires-permission="inspection_view"><a href="inspectionboard.html">Inspection</a></li>
+					<li data-feature="audit_view" data-requires-permission="audit_view"><a href="auditboard.html">Audit</a></li>
+				</ul>
+			</li>
+			<li class="menu-dropdown" data-feature="investigation_view" data-requires-permission="investigation_view">
+				<a href="#"><i class="fas fa-search-plus"></i> Investigation</a>
+				<ul class="submenu">
+					<li data-feature="investigation_dashboard_view" data-requires-permission="investigation_dashboard_view"><a href="investigation-dashboard.html">Investigation Dashboard</a></li>
+					<li data-feature="investigation_list_view" data-requires-permission="investigation_list_view"><a href="investigation-list.html">Investigation List</a></li>
+					<li data-feature="create_investigation_view" data-requires-permission="create_investigation_view"><a href="investigation-create.html">Create Investigation</a></li>
+				</ul>
+			</li>
+			<li class="menu-dropdown" data-feature="fuel_management" data-requires-permission="fuel_management">
+				<a href="#"><i class="fas fa-gas-pump"></i> Fuel Management</a>
+				<ul class="submenu">
+					<li data-feature="vessel_offloading" data-requires-permission="vessel_offloading"><a href="vessel-offloading.html">Vessel Offloading</a></li>
+					<li data-feature="fuel_storage" data-requires-permission="fuel_storage"><a href="fuelstor.html">Fuel Storage Status</a></li>
+					<li data-feature="tank_transfer" data-requires-permission="tank_transfer"><a href="fueltrans.html">Tank-to-Tank Transfer</a></li>
+					<li data-feature="truck_loading" data-requires-permission="truck_loading"><a href="fuel-truck-loading.html">Fuel Truck Loading</a></li>
+					<li data-feature="quality_analysis" data-requires-permission="quality_analysis"><a href="fuel-quality-analysis.html">Fuel Quality Analysis</a></li>
+					<li data-feature="fuel_distribution" data-requires-permission="fuel_distribution"><a href="fueldist.html">Fuel Distribution</a></li>
+					<li data-feature="fuel_consumption_analysis" data-requires-permission="fuel_consumption_analysis"><a href="fuelanalys.html">Consumption Analysis</a></li>
+					<li data-feature="fuel_daily_report" data-requires-permission="fuel_daily_report"><a href="fueldaily.html">Daily Fuel Report</a></li>
+				</ul>
+			</li>
+			<li class="menu-dropdown" data-feature="environment_view">
+				<a href="#"><i class="fas fa-leaf"></i> Environment</a>
+				<ul class="submenu">
+					<li data-feature="water_view" data-requires-permission="water_view"><a href="waterboard.html">Water Quality</a></li>
+				</ul>
+			</li>
+			<li class="menu-dropdown" data-feature="security_view" data-requires-permission="security_view">
+				<a href="#"><i class="fas fa-lock"></i> Security</a>
+				<ul class="submenu">
+					<li data-feature="access_view" data-requires-permission="access_view"><a href="accessboard.html">Access Request</a></li>
+					<li data-feature="access_daily_view" data-requires-permission="access_daily_view"><a href="accessdaily.html">Daily Access Control</a></li>
+					<li data-feature="removal_view" data-requires-permission="removal_view"><a href="removalboard.html">Property Removal</a></li>
+					<li data-feature="security_site_map_view" data-requires-permission="security_site_map_view"><a href="sitemap.html">Security Site Map</a></li>
+					<li data-feature="security_level_evaluation_view" data-requires-permission="security_level_evaluation_view"><a href="seclevel.html">Security Level Evaluation</a></li>
+					<li data-feature="nfc_view" data-requires-permission="nfc_view"><a href="nfc.html">NFC Card Management</a></li>
+				</ul>
+			</li>
+			<li class="menu-dropdown" data-feature="logistics_view" data-requires-permission="logistics_view">
+				<a href="#"><i class="fas fa-truck"></i> Logistics</a>
+				<ul class="submenu">
+					<li data-feature="fleet_view" data-requires-permission="fleet_view"><a href="fleet.html">Fleet Management</a></li>
+					<li data-feature="travel_view" data-requires-permission="travel_view"><a href="travel.html">Travel Requests</a></li>
+				</ul>
+			</li>
+			<li class="menu-dropdown" data-feature="accommodation_view" data-requires-permission="accommodation_view">
+				<a href="#"><i class="fas fa-bed"></i> Accommodation</a>
+				<ul class="submenu">
+					<li data-feature="camp_view" data-requires-permission="camp_view"><a href="camp.html">Camp Management</a></li>
+					<li data-feature="camp_settings_view" data-requires-permission="camp_settings_view"><a href="campset.html">Camp Settings</a></li>
+				</ul>
+			</li>
+			<li class="menu-dropdown" data-feature="hr_view" data-requires-permission="hr_view">
+				<a href="#"><i class="fas fa-users"></i> HR</a>
+				<ul class="submenu">
+					<li data-feature="human_hr_view" data-requires-permission="human_hr_view"><a href="human-hr.html"><i class="fas fa-user-tie"></i> Human HR</a></li>
+					<li data-feature="staff_management_view" data-requires-permission="staff_management_view"><a href="staff.html">Staffing</a></li>
+					<li data-feature="authority_to_recruit_view" data-requires-permission="authority_to_recruit_view"><a href="recruit.html">Authority to Recruit</a></li>
+					<li data-feature="job_advertising_view" data-requires-permission="job_advertising_view"><a href="jobpost.html">Job Advertising</a></li>
+					<li data-feature="screening_view" data-requires-permission="screening_view"><a href="jobscreen.html">Screening</a></li>
+					<li data-feature="interview_view" data-requires-permission="interview_view"><a href="interview.html">Interview</a></li>
+					<li data-feature="offer_view" data-requires-permission="offer_view"><a href="offer.html">Offer Management</a></li>
+					<li data-feature="contract_view" data-requires-permission="contract_view"><a href="contract.html">Contract Management</a></li>
+					<li data-feature="salary_management_view" data-requires-permission="salary_management_view"><a href="salary.html">Salary Management</a></li>
+					<li data-feature="onboarding_view" data-requires-permission="onboarding_view"><a href="onboard.html">Onboarding</a></li>
+					<li data-feature="chart_view" data-requires-permission="chart_view"><a href="chart.html">Chart Setup</a></li>
+					<li data-feature="chartboard_view" data-requires-permission="chartboard_view"><a href="chartboard.html">Org Chart</a></li>
+					<li data-feature="kpi_dashboard_view" data-requires-permission="kpi_dashboard_view"><a href="kpi.html">KPI</a></li>
+					<li data-feature="payroll_view" data-requires-permission="payroll_view"><a href="payroll.html">Payroll</a></li>
+				</ul>
+			</li>
+			<!-- Project Management as section button with submenu -->
+			<li class="menu-dropdown" data-feature="project_management_section">
+				<a href="#"><i class="fas fa-project-diagram"></i> Project Management</a>
+				<ul class="submenu">
+					<li data-feature="project_dashboard_view" data-requires-permission="project_dashboard_view"><a href="project-dashboard.html"><i class="fas fa-tachometer-alt"></i> Project Dashboard</a></li>
+					<li data-feature="project_create_view" data-requires-permission="project_create_view"><a href="project-create.html"><i class="fas fa-plus-circle"></i> Create Project</a></li>
+					<li data-feature="project_list_view" data-requires-permission="project_list_view"><a href="project-list.html"><i class="fas fa-list"></i> Project List</a></li>
+					<li data-feature="project_reports_view" data-requires-permission="project_reports_view"><a href="project-reports.html"><i class="fas fa-chart-bar"></i> Project Reports</a></li>
+				</ul>
+			</li>
+			<!-- Inventory Management as section button with submenu -->
+			<li class="menu-dropdown" data-feature="inventory_view" data-requires-permission="inventory_view">
+				<a href="#"><i class="fas fa-boxes"></i> Inventory Management</a>
+				<ul class="submenu">
+					<li data-feature="inventory_dashboard_view" data-requires-permission="inventory_dashboard_view"><a href="inventory-dashboard.html"><i class="fas fa-tachometer-alt"></i> Inventory Dashboard</a></li>
+					<li data-feature="inventory_items_view" data-requires-permission="inventory_items_view"><a href="inventory-items.html"><i class="fas fa-cubes"></i> Items Management</a></li>
+					<li data-feature="inventory_warehouses_view" data-requires-permission="inventory_warehouses_view"><a href="inventory-warehouses.html"><i class="fas fa-warehouse"></i> Warehouses</a></li>
+					<li data-feature="inventory_reservations_view" data-requires-permission="inventory_reservations_view"><a href="inventory-reservations.html"><i class="fas fa-bookmark"></i> Material Reservations</a></li>
+					<li data-feature="inventory_approvals_view" data-requires-permission="inventory_approvals_view"><a href="inventory-approvals.html"><i class="fas fa-check-circle"></i> Approvals</a></li>
+					<li data-feature="inventory_issue_view" data-requires-permission="inventory_issue_view"><a href="inventory-issue.html"><i class="fas fa-shipping-fast"></i> Material Issue</a></li>
+				</ul>
+			</li>
+			<!-- Workspaces: Catering -->
+			<li class="menu-dropdown" data-feature="catering_view" data-requires-permission="catering_view">
+				<a href="#"><i class="fas fa-utensils"></i> Workspaces — Catering</a>
+				<ul class="submenu">
+					<li data-feature="catering_manage_types" data-requires-permission="catering_manage_types"><a href="catering-meal-types.html"><i class="fas fa-list"></i> Meal Types</a></li>
+					<li data-feature="catering_assign" data-requires-permission="catering_assign"><a href="catering-eligibility.html"><i class="fas fa-user-check"></i> Eligibility & Assign</a></li>
+					<li data-feature="catering_consumption_manual" data-requires-permission="catering_consumption_manual"><a href="catering-consumption.html"><i class="fas fa-keyboard"></i> Consumption (Manual)</a></li>
+					<li data-feature="catering_consumption_nfc" data-requires-permission="catering_consumption_nfc"><a href="catering-consumption.html#nfc"><i class="fas fa-id-card"></i> Consumption (NFC)</a></li>
+					<li data-feature="catering_reports" data-requires-permission="catering_reports"><a href="catering-reports.html"><i class="fas fa-chart-line"></i> Reports</a></li>
+				</ul>
+			</li>
+			<li data-feature="requests_view" data-requires-permission="requests_view"><a href="tickboard.html"><i class="fas fa-ticket-alt"></i> Requests</a></li>
+			<li data-feature="communication_view"><a href="info.html"><i class="fas fa-comments"></i> Communication</a></li>
+			<li class="menu-dropdown" data-feature="settings_view">
+				<a href="#"><i class="fas fa-cog"></i> Settings</a>
+				<ul class="submenu">
+					<li data-feature="account_settings_view" data-requires-permission="account_settings_view"><a href="account.html">Account Settings</a></li>
+					<li data-feature="company_management_view" data-requires-permission="company_management_view"><a href="companymanagement.html">Company Management</a></li>
+					<li data-feature="approval_settings_view" data-requires-permission="approval_settings_view"><a href="approval-settings.html">Approval Flow Settings</a></li>
+					<li data-feature="field_setup_view" data-requires-permission="field_setup_view"><a href="fieldsetup.html">Field Setup</a></li>
+					<li data-feature="preferences_view" data-requires-permission="preferences_view"><a href="preferences.html">Preferences</a></li>
+					<li data-feature="notification_settings_view" data-requires-permission="notification_settings_view"><a href="notification-settings.html">Notification Settings</a></li>
+					<li data-feature="audit_log_view" data-requires-permission="audit_log_view"><a href="auditlog.html"><i class="fas fa-history"></i> Audit Log</a></li>
+					<li data-feature="user_management_view" data-requires-permission="user_management_view"><a href="users.html">User & Role Management</a></li>
+					<li data-feature="role_permissions_view" data-requires-permission="role_permissions_view"><a href="roles.html">Role Permissions</a></li>
+				</ul>
+			</li>
+		</ul>
+	</nav>
+
+	<main class="main-content" id="mainContent">
+		<header class="top-nav">
+			<div style="display:flex;align-items:center;gap:.7rem">
+				<button id="sidebarToggle" class="sidebar-toggle-btn" title="Toggle menu"><i class="fas fa-bars"></i></button>
+				<img id="headerCompanyLogo" alt="Company Logo"/>
+				<span id="headerCompanyName"></span>
+			</div>
+			<div style="display:flex;align-items:center;gap:1rem;position:relative">
+				<div class="notifications">
+					<button id="notificationBtn" class="notification-btn">
+						<i class="fas fa-bell"></i>
+						<span class="notification-badge">0</span>
+					</button>
+					<div class="notification-dropdown">
+						<div class="notification-header">
+							<h3>Notifications</h3>
+							<button class="mark-all-read" type="button">Mark all as read</button>
+						</div>
+						<div class="notification-list">
+							<div class="notification-empty">
+								<i class="fas fa-inbox"></i>
+								<div class="notification-empty-title">No notifications</div>
+								<div class="notification-empty-message">You're all caught up</div>
+							</div>
+						</div>
+					</div>
+				</div>
+				<div class="user-profile"><button id="userProfileBtn" class="profile-btn"><img src="" alt="User Avatar"/></button><div class="profile-dropdown"><ul></ul></div></div>
+			</div>
+		</header>
+
+		<div class="page-header">
+			<div style="display:flex;align-items:center;gap:.6rem">
+				<i class="fas fa-table-list"></i>
+				<span>Ticket Board</span>
+			</div>
+			<div>
+				<a href="tick.html" class="btn btn-outline"><i class="fas fa-plus"></i> New Ticket</a>
+			</div>
+		</div>
+
+		<!-- Tabs -->
+		<div class="tab-nav">
+			<button id="tabBoardBtn" class="tab-btn active"><i class="fas fa-list"></i> Board</button>
+			<button id="tabSettingsBtn" class="tab-btn"><i class="fas fa-sliders-h"></i> Settings</button>
+			<button id="tabStaffBtn" class="tab-btn"><i class="fas fa-users"></i> Staff</button>
+		</div>
+
+		<!-- Board Tab -->
+		<div id="boardTab" class="tab-content card active">
+			<div class="toolbar">
+				<div class="filters">
+					<input id="searchInput" class="form-control" placeholder="Search subject, ref, department"/>
+					<select id="priorityFilter" class="form-control">
+						<option value="">All Priorities</option>
+						<option value="low">Low</option>
+						<option value="medium">Medium</option>
+						<option value="high">High</option>
+					</select>
+					<select id="statusFilter" class="form-control">
+						<option value="">All Status</option>
+						<option value="open">Open</option>
+						<option value="in-progress">In Progress</option>
+						<option value="pending">Pending</option>
+						<option value="resolved">Resolved</option>
+						<option value="closed">Closed</option>
+					</select>
+					<!-- Category filter removed -->
+					<input type="date" id="fromDate" class="form-control"/>
+					<input type="date" id="toDate" class="form-control"/>
+					<button id="clearFilters" class="btn" style="border:1px solid #ddd;background:#fff">Clear</button>
+				</div>
+				<div>
+					<button id="refreshBtn" class="btn btn-primary"><i class="fas fa-rotate"></i> Refresh</button>
+				</div>
+			</div>
+
+			<div style="overflow:auto">
+				<table id="ticketsTable">
+					<thead>
+					<tr>
+						<th style="min-width:110px">Reference</th>
+						<th style="min-width:220px">Subject</th>
+						<th>Priority</th>
+						<th>Status</th>
+						<th style="min-width:110px">Date</th>
+						<!-- Category column removed -->
+						<th>Department</th>
+						<th>Assigned</th>
+					</tr>
+					</thead>
+					<tbody></tbody>
+				</table>
+			</div>
+
+			<div class="pagination">
+				<button id="prevPage">&laquo;</button>
+				<span id="pageInfo" style="min-width:120px;text-align:center"></span>
+				<button id="nextPage">&raquo;</button>
+			</div>
+		</div>
+
+		<!-- Settings Tab -->
+		<div id="settingsTab" class="tab-content card">
+			<h3 style="margin:.2rem 0 .6rem 0; font-size:1rem; color:#2c3e50; display:flex; align-items:center; gap:.4rem"><i class="fas fa-sliders-h"></i> Ticket Form Settings</h3>
+			<p style="color:#6b7280; font-size:.85rem; margin-bottom:.75rem">Manage dropdown options for the ticket form. These settings apply to your company only.</p>
+			<div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:12px">
+				<!-- Subjects Manager -->
+				<div class="card" style="margin:0">
+					<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem">
+						<div style="display:flex;align-items:center;gap:8px">
+							<h4 style="margin:0;font-size:.95rem;color:#34495e"><i class="fas fa-heading"></i> Subjects</h4>
+							<button id="subjectsToggleBtn" class="btn" aria-expanded="true" title="Collapse/Expand"
+								style="border:1px solid #ddd; background:#fff; padding:.2rem .5rem; line-height:1">
+								<i class="fas fa-chevron-up"></i>
+							</button>
+						</div>
+						<button id="addSubjectBtn" class="btn btn-primary" style="padding:.3rem .6rem" title="Add Subject"><i class="fas fa-plus"></i></button>
+					</div>
+					<div id="subjectsBody">
+						<div style="overflow:auto">
+							<table id="subjectsTable" style="width:100%; border-collapse:collapse">
+							<thead>
+								<tr>
+									<th style="text-align:left; padding:6px; border-bottom:1px solid #e5e7eb; min-width:200px">Subject</th>
+									<th style="text-align:left; padding:6px; border-bottom:1px solid #e5e7eb">Recipients</th>
+									<th style="text-align:left; padding:6px; border-bottom:1px solid #e5e7eb; min-width:90px">Enabled</th>
+									<th style="text-align:left; padding:6px; border-bottom:1px solid #e5e7eb; min-width:110px">Actions</th>
+								</tr>
+							</thead>
+							<tbody></tbody>
+						</table>
+						</div>
+					</div>
+				</div>
+
+
+			</div>
+			<!-- User Permissions Manager -->
+			<div class="card" style="margin-top:12px">
+				<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem">
+					<div style="display:flex;align-items:center;gap:8px">
+						<h4 style="margin:0;font-size:.95rem;color:#34495e"><i class="fas fa-user-shield"></i> User Permissions</h4>
+						<button id="tabVisToggleBtn" class="btn" aria-expanded="true" title="Collapse/Expand"
+							style="border:1px solid #ddd; background:#fff; padding:.2rem .5rem; line-height:1">
+							<i class="fas fa-chevron-up"></i>
+						</button>
+					</div>
+					<div style="display:flex;gap:8px;align-items:center; flex-wrap:wrap">
+						<select id="tabVisUserSelect" class="form-control" style="min-width:240px">
+							<option value="">Add user…</option>
+						</select>
+						<button id="tabVisAddBtn" class="btn" style="border:1px solid #ddd; background:#fff; padding:.25rem .5rem"><i class="fas fa-user-plus"></i> Add</button>
+						<input id="tabVisSearch" class="form-control" placeholder="Search selected users" style="min-width:240px"/>
+					</div>
+				</div>
+				<div id="tabVisBody">
+					<p style="color:#6b7280; font-size:.85rem; margin:.25rem 0 .5rem">Control tab access and assign button visibility per user. Changes save instantly.</p>
+					<div style="overflow:auto">
+						<table id="tabVisibilityTable" style="width:100%; border-collapse:collapse">
+							<thead>
+								<tr>
+									<th style="text-align:left; padding:6px; border-bottom:1px solid #e5e7eb; min-width:200px">User</th>
+									<th style="text-align:center; padding:6px; border-bottom:1px solid #e5e7eb; min-width:70px">Board</th>
+									<th style="text-align:center; padding:6px; border-bottom:1px solid #e5e7eb; min-width:70px">Settings</th>
+									<th style="text-align:center; padding:6px; border-bottom:1px solid #e5e7eb; min-width:70px">Staff</th>
+									<th style="text-align:center; padding:6px; border-bottom:1px solid #e5e7eb; min-width:90px">Can Assign</th>
+									<th style="text-align:center; padding:6px; border-bottom:1px solid #e5e7eb; min-width:80px">View All</th>
+									<th style="text-align:center; padding:6px; border-bottom:1px solid #e5e7eb; min-width:70px">Remove</th>
+								</tr>
+							</thead>
+							<tbody></tbody>
+						</table>
+					</div>
+				</div>
+			</div>
+			<div style="margin-top:.75rem; color:#6b7280; font-size:.8rem"><i class="fas fa-info-circle"></i> Changes are saved instantly.</div>
+		</div>
+
+		<!-- Subject Modal -->
+		<div id="subjectModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:2000; align-items:center; justify-content:center">
+			<div style="background:#fff; width:min(560px, 92vw); border-radius:10px; box-shadow:0 12px 28px rgba(0,0,0,.22); overflow:hidden">
+				<div style="padding:12px 16px; border-bottom:1px solid #e9ecef; display:flex; align-items:center; justify-content:space-between">
+					<h3 id="subjectModalTitle" style="margin:0; font-size:1rem; color:#2c3e50"><i class="fas fa-plus-circle"></i> New Subject</h3>
+					<button type="button" id="closeSubjectModalBtn" class="btn" style="border:1px solid #ddd; background:#fff; padding:.25rem .5rem" title="Close"><i class="fas fa-times"></i></button>
+				</div>
+				<div style="padding:14px 16px">
+					<div class="form-group" style="margin-bottom:10px">
+						<label for="modalSubjectLabel" style="display:block; font-weight:600; margin-bottom:4px">Subject Label *</label>
+						<input id="modalSubjectLabel" class="form-control" placeholder="e.g. System Issue" required/>
+					</div>
+					<div class="form-group" style="margin-bottom:10px">
+						<label style="display:block; font-weight:600; margin-bottom:4px">Recipients</label>
+						<div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:8px">
+							<select id="subjectRecipientSelect" class="form-control" style="min-width:260px">
+								<option value="">Select a company user</option>
+							</select>
+							<button type="button" id="addSubjectRecipientBtn" class="btn" style="border:1px solid #ddd; background:#fff"><i class="fas fa-user-plus"></i> Add</button>
+						</div>
+						<ul id="subjectRecipientsList" style="list-style:none; padding:0; margin:0 0 8px 0"></ul>
+						<label for="modalSubjectRecipients" style="display:block; font-weight:600; margin-top:6px">Add other emails (optional)</label>
+						<textarea id="modalSubjectRecipients" class="form-control" placeholder="email1@example.com, email2@example.com" style="min-height:60px"></textarea>
+						<small style="color:#6b7280">Use the dropdown above to add company users. You can also paste emails here; separate with commas, semicolons, or new lines.</small>
+					</div>
+					<div class="form-group" style="margin-bottom:10px">
+						<label style="display:block; font-weight:600; margin-bottom:4px">Notify Teams</label>
+						<div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:8px">
+							<select id="subjectTeamSelect" class="form-control" style="min-width:260px">
+								<option value="">Select a team</option>
+							</select>
+							<button type="button" id="addSubjectTeamBtn" class="btn" style="border:1px solid #ddd; background:#fff"><i class="fas fa-users"></i> Add Team</button>
+						</div>
+						<ul id="subjectTeamsList" style="list-style:none; padding:0; margin:0 0 8px 0"></ul>
+						<small style="color:#6b7280">Selected teams' members will also receive notifications for this subject.</small>
+					</div>
+				</div>
+				<div style="padding:12px 16px; border-top:1px solid #e9ecef; display:flex; gap:8px; justify-content:flex-end">
+					<button type="button" id="cancelSubjectBtn" class="btn" style="border:1px solid #ddd; background:#fff">Cancel</button>
+					<button type="button" id="saveSubjectBtn" class="btn btn-primary">Save Subject</button>
+				</div>
+			</div>
+		</div>
+
+		<!-- Ticket Details Modal -->
+		<div id="ticketDetailsModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:2100; align-items:center; justify-content:center">
+			<div role="dialog" aria-modal="true" aria-labelledby="ticketDetailsTitle" style="background:#fff; width:min(780px, 95vw); border-radius:10px; box-shadow:0 12px 28px rgba(0,0,0,.22); overflow:hidden">
+				<div style="padding:12px 16px; border-bottom:1px solid #e9ecef; display:flex; align-items:center; justify-content:space-between; gap:8px">
+					<h3 id="ticketDetailsTitle" style="margin:0; font-size:1rem; color:#2c3e50"><i class="fas fa-ticket-alt"></i> Ticket Details</h3>
+					<div style="display:flex; gap:6px">
+						<button type="button" id="editTicketBtn" class="btn" title="Edit ticket"
+							style="border:1px solid #ddd; background:#fff; padding:.25rem .5rem">
+							<i class="fas fa-pen"></i> Edit
+						</button>
+						<button type="button" id="resolveTicketBtn" class="btn" title="Resolve ticket"
+							style="border:1px solid #27ae60; color:#27ae60; background:#fff; padding:.25rem .5rem">
+							<i class="fas fa-check-circle"></i> Resolve
+						</button>
+						<button type="button" id="completeTicketBtn" class="btn" title="Mark as completed"
+							style="border:1px solid #3498db; color:#3498db; background:#fff; padding:.25rem .5rem">
+							<i class="fas fa-flag-checkered"></i> Complete
+						</button>
+						<button type="button" id="deleteTicketBtn" class="btn" title="Delete ticket"
+							style="border:1px solid #e74c3c; color:#e74c3c; background:#fff; padding:.25rem .5rem">
+							<i class="fas fa-trash"></i> Delete
+						</button>
+						<button type="button" id="assignTicketBtn" class="btn btn-primary" title="Assign to staff"><i class="fas fa-user-plus"></i> Assign</button>
+						<button type="button" id="closeTicketDetailsBtn" class="btn" style="border:1px solid #ddd; background:#fff; padding:.25rem .5rem" title="Close"><i class="fas fa-times"></i></button>
+					</div>
+				</div>
+				<div style="padding:14px 16px">
+					<div id="ticketDetailsBody">
+						<div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:10px; margin-bottom:10px">
+							<div><div style="color:#6b7280;font-size:.8rem">Reference</div><div id="tdRef" style="font-weight:600"></div></div>
+							<div><div style="color:#6b7280;font-size:.8rem">Subject</div><div id="tdSubject" style="font-weight:600"></div></div>
+							<div><div style="color:#6b7280;font-size:.8rem">Priority</div><div id="tdPriority"></div></div>
+							<div><div style="color:#6b7280;font-size:.8rem">Status</div><div id="tdStatus"></div></div>
+							<div><div style="color:#6b7280;font-size:.8rem">Department</div><div id="tdDepartment"></div></div>
+							<div><div style="color:#6b7280;font-size:.8rem">Requested By</div><div id="tdRequestedBy"></div></div>
+							<div><div style="color:#6b7280;font-size:.8rem">Date & Time</div><div id="tdDateTime"></div></div>
+							<div><div style="color:#6b7280;font-size:.8rem">Assigned To</div><div id="tdAssignedTo"></div></div>
+						</div>
+						<div>
+							<div style="color:#6b7280;font-size:.8rem;margin-bottom:4px">Description</div>
+							<div id="tdDescription" style="white-space:pre-wrap; background:#f9fafb; border:1px solid #eef2f7; border-radius:6px; padding:10px"></div>
+						</div>
+						<div style="margin-top:10px">
+							<div style="color:#6b7280;font-size:.8rem;margin-bottom:4px">Attachments</div>
+							<ul id="tdAttachments" style="list-style:none; margin:0; padding:0"></ul>
+						</div>
+						<!-- Inline assign panel -->
+						<div id="assignPanel" style="display:none; margin-top:12px; border-top:1px solid #e9ecef; padding-top:10px">
+							<div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap">
+								<label for="assignSelect" style="font-weight:600">Assign to</label>
+								<select id="assignSelect" class="form-control" style="min-width:260px">
+									<option value="">Select staff member</option>
+								</select>
+								<button type="button" id="assignSaveBtn" class="btn btn-primary"><i class="fas fa-check"></i> Save</button>
+								<button type="button" id="assignCancelBtn" class="btn" style="border:1px solid #ddd; background:#fff">Cancel</button>
+							</div>
+							<small style="color:#6b7280">Includes members from Staff teams; also lists matched users when available.</small>
+						</div>
+					</div>
+				</div>
+			</div>
+				</div>
+			</div>
+		</div>
+
+		<!-- Resolve Ticket Modal -->
+		<div id="resolveTicketModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:2200; align-items:center; justify-content:center">
+			<div role="dialog" aria-modal="true" aria-labelledby="resolveModalTitle" style="background:#fff; width:min(500px, 92vw); border-radius:10px; box-shadow:0 12px 28px rgba(0,0,0,.22); overflow:hidden">
+				<div style="padding:12px 16px; border-bottom:1px solid #e9ecef; display:flex; align-items:center; justify-content:space-between">
+					<h3 id="resolveModalTitle" style="margin:0; font-size:1rem; color:#2c3e50"><i class="fas fa-check-circle" style="color:#27ae60"></i> Resolve Ticket</h3>
+					<button type="button" id="closeResolveModalBtn" class="btn" style="border:1px solid #ddd; background:#fff; padding:.25rem .5rem" title="Close"><i class="fas fa-times"></i></button>
+				</div>
+				<div style="padding:14px 16px">
+					<p style="color:#6b7280; font-size:.9rem; margin:0 0 12px">You are about to mark this ticket as resolved. Please add any resolution notes below.</p>
+					<div class="form-group" style="margin-bottom:12px">
+						<label for="resolveNotes" style="display:block; font-weight:600; margin-bottom:4px">Resolution Notes</label>
+						<textarea id="resolveNotes" class="form-control" rows="4" placeholder="Describe how the issue was resolved..."></textarea>
+					</div>
+					<div style="display:flex; gap:8px; justify-content:flex-end">
+						<button type="button" id="cancelResolveBtn" class="btn" style="border:1px solid #ddd; background:#fff">Cancel</button>
+						<button type="button" id="confirmResolveBtn" class="btn" style="background:#27ae60; color:#fff; border:1px solid #27ae60"><i class="fas fa-check"></i> Confirm Resolution</button>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<!-- Complete Ticket Modal -->
+		<div id="completeTicketModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:2200; align-items:center; justify-content:center">
+			<div role="dialog" aria-modal="true" aria-labelledby="completeModalTitle" style="background:#fff; width:min(500px, 92vw); border-radius:10px; box-shadow:0 12px 28px rgba(0,0,0,.22); overflow:hidden">
+				<div style="padding:12px 16px; border-bottom:1px solid #e9ecef; display:flex; align-items:center; justify-content:space-between">
+					<h3 id="completeModalTitle" style="margin:0; font-size:1rem; color:#2c3e50"><i class="fas fa-flag-checkered" style="color:#3498db"></i> Complete Ticket</h3>
+					<button type="button" id="closeCompleteModalBtn" class="btn" style="border:1px solid #ddd; background:#fff; padding:.25rem .5rem" title="Close"><i class="fas fa-times"></i></button>
+				</div>
+				<div style="padding:14px 16px">
+					<p style="color:#6b7280; font-size:.9rem; margin:0 0 12px">You are confirming that this ticket has been completed to your satisfaction. Add any final notes below.</p>
+					<div class="form-group" style="margin-bottom:12px">
+						<label for="completeNotes" style="display:block; font-weight:600; margin-bottom:4px">Completion Notes (optional)</label>
+						<textarea id="completeNotes" class="form-control" rows="3" placeholder="Any additional comments..."></textarea>
+					</div>
+					<div style="display:flex; gap:8px; justify-content:flex-end">
+						<button type="button" id="cancelCompleteBtn" class="btn" style="border:1px solid #ddd; background:#fff">Cancel</button>
+						<button type="button" id="confirmCompleteBtn" class="btn" style="background:#3498db; color:#fff; border:1px solid #3498db"><i class="fas fa-check"></i> Confirm Completion</button>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<!-- Staff Tab -->
+		<div id="staffTab" class="tab-content card">
+			<h3 style="margin:.2rem 0 .6rem 0; font-size:1rem; color:#2c3e50; display:flex; align-items:center; gap:.4rem"><i class="fas fa-users"></i> Staff Teams</h3>
+			<p style="color:#6b7280; font-size:.85rem; margin-bottom:.75rem">Create teams of staff members to receive notifications and handle assignments.</p>
+			<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem">
+				<h4 style="margin:0;font-size:.95rem;color:#34495e">Teams</h4>
+				<button id="addTeamBtn" class="btn btn-primary" style="padding:.3rem .6rem" title="Add Team"><i class="fas fa-plus"></i></button>
+			</div>
+			<div style="overflow:auto">
+				<table id="teamsTable" style="width:100%; border-collapse:collapse">
+					<thead>
+						<tr>
+							<th style="text-align:left; padding:6px; border-bottom:1px solid #e5e7eb; min-width:200px">Team</th>
+							<th style="text-align:left; padding:6px; border-bottom:1px solid #e5e7eb">Members</th>
+							<th style="text-align:left; padding:6px; border-bottom:1px solid #e5e7eb; min-width:90px">Enabled</th>
+							<th style="text-align:left; padding:6px; border-bottom:1px solid #e5e7eb; min-width:110px">Actions</th>
+						</tr>
+					</thead>
+					<tbody></tbody>
+				</table>
+			</div>
+			<div style="margin-top:.75rem; color:#6b7280; font-size:.8rem"><i class="fas fa-info-circle"></i> Teams are company-scoped.</div>
+		</div>
+
+		<!-- Team Modal -->
+		<div id="teamModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:2050; align-items:center; justify-content:center">
+			<div style="background:#fff; width:min(680px, 92vw); border-radius:10px; box-shadow:0 12px 28px rgba(0,0,0,.22); overflow:hidden">
+				<div style="padding:12px 16px; border-bottom:1px solid #e9ecef; display:flex; align-items:center; justify-content:space-between">
+					<h3 style="margin:0; font-size:1rem; color:#2c3e50"><i class="fas fa-users-cog"></i> Team</h3>
+					<button type="button" id="closeTeamModalBtn" class="btn" style="border:1px solid #ddd; background:#fff; padding:.25rem .5rem" title="Close"><i class="fas fa-times"></i></button>
+				</div>
+				<div style="padding:14px 16px">
+					<div class="form-group" style="margin-bottom:10px">
+						<label for="teamNameInput" style="display:block; font-weight:600; margin-bottom:4px">Team Name *</label>
+						<input id="teamNameInput" class="form-control" placeholder="e.g. IT Support" required/>
+					</div>
+					<div class="form-group" style="margin-bottom:10px">
+						<label style="display:block; font-weight:600; margin-bottom:4px">Members</label>
+						<div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:8px">
+							<select id="teamMemberSelect" class="form-control" style="min-width:280px">
+								<option value="">Select a company user</option>
+							</select>
+							<button type="button" id="addMemberBtn" class="btn" style="border:1px solid #ddd; background:#fff"><i class="fas fa-user-plus"></i> Add</button>
+						</div>
+						<ul id="teamMembersList" style="list-style:none; padding:0; margin:0"></ul>
+					</div>
+				</div>
+				<div style="padding:12px 16px; border-top:1px solid #e9ecef; display:flex; gap:8px; justify-content:flex-end">
+					<button type="button" id="cancelTeamBtn" class="btn" style="border:1px solid #ddd; background:#fff">Cancel</button>
+					<button type="button" id="saveTeamBtn" class="btn btn-primary">Save Team</button>
+				</div>
+			</div>
+		</div>
+	</main>
+</div>
+
+<!-- Firebase v8 scripts -->
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
+<!-- EmailJS v4 for notifications -->
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+<script>
+const firebaseConfig={
+	apiKey:"AIzaSyCUTmTn0rRBb0M-UkQJxnUMrWqXYU_BgIc",
+	authDomain:"users-8be65.firebaseapp.com",
+	databaseURL:"https://users-8be65-default-rtdb.firebaseio.com",
+	projectId:"users-8be65",
+	storageBucket:"users-8be65.firebasestorage.app",
+	messagingSenderId:"909025468149",
+	appId:"1:909025468149:web:fb4e7c4a8b4bd6d1076e4d",
+	measurementId:"G-XHFMRCJQEZ"
+};
+function initializeFirebase(){ if(!window.firebase || !window.firebase.apps || window.firebase.apps.length===0){ window.firebase.initializeApp(firebaseConfig); } return window.firebase; }
+const firebase=initializeFirebase(); const db=firebase.database(), auth=firebase.auth(), storage=firebase.storage();
+
+// EmailJS configuration (reuse credentials)
+const EMAILJS_CONFIG = {
+	publicKey: 'fHs6oaqQgkcPoUwpv',
+	serviceId: 'service_p2e9swy',
+	templateId: 'template_dh0qouc'
+};
+(function initEmailJS(){
+	if (typeof emailjs !== 'undefined') {
+		try { emailjs.init(EMAILJS_CONFIG.publicKey); console.log('EmailJS initialized on ticket board'); }
+		catch(e){ console.error('EmailJS init failed on ticket board', e); }
+	} else {
+		console.warn('EmailJS library not loaded on ticket board');
+	}
+})();
+
+class AuthManager{ constructor(){ this.currentUser=this.getCurrentUser(); this.currentCompany=null; this.init(); } getCurrentUser(){ try{ return JSON.parse(localStorage.getItem('currentUser')||'null'); }catch{ return null; } } setCurrentUser(u){ localStorage.setItem('currentUser', JSON.stringify(u)); localStorage.setItem('user', JSON.stringify(u)); this.currentUser=u; } async init(){ if(!this.currentUser){ window.location.href='login.html'; return; } await this.loadUserCompany(); this.updateCompanyBranding(); await this.updateUIForAuthenticatedUser(); this.bindProfileDropdown(); } async loadUserCompany(){ if(!this.currentUser) return; try{ const snap=await firebase.database().ref('companies').once('value'); if(!snap.exists()) return; const companies=snap.val(); for(const [cid,comp] of Object.entries(companies)){ if(comp.status!=='active') continue; if(comp.users){ for(const [uid,u] of Object.entries(comp.users)){ if(u.authUid===this.currentUser.uid || uid===this.currentUser.uid){ this.currentUser.companyId=cid; this.currentUser.companyName=comp.companyName; this.currentUser.role=u.role||u.userRole||'user'; this.currentCompany=comp; this.setCurrentUser(this.currentUser); return; } } } } }catch(e){} } updateCompanyBranding(){ const logoEl=document.getElementById('headerCompanyLogo'); const nameEl=document.getElementById('headerCompanyName'); if(!this.currentCompany){ this.showFallbackBranding(); return; } if(nameEl) nameEl.textContent=this.currentCompany.companyName||''; const logoUrl=this.currentCompany.logo||this.currentCompany.logoUrl; if(logoEl){ if(logoUrl){ logoEl.src=logoUrl; logoEl.classList.add('visible'); } else { const svg=this.generateCompanyInitialsSVG(this.getCompanyInitials(this.currentCompany.companyName||'')); logoEl.src=svg; logoEl.classList.add('visible'); } } if(this.currentCompany.branding){ const root=document.documentElement; if(this.currentCompany.branding.primaryColor) root.style.setProperty('--primary-color', this.currentCompany.branding.primaryColor); if(this.currentCompany.branding.secondaryColor) root.style.setProperty('--secondary-color', this.currentCompany.branding.secondaryColor); } } showFallbackBranding(){ const logoEl=document.getElementById('headerCompanyLogo'); if(logoEl){ const svg=this.generateCompanyInitialsSVG('DX'); logoEl.src=svg; logoEl.classList.add('visible'); } } getCompanyInitials(name){ if(!name) return 'CO'; const parts=name.trim().split(/\s+/); if(parts.length===1) return parts[0].substring(0,2).toUpperCase(); return (parts[0][0]+parts[1][0]).toUpperCase(); } generateCompanyInitialsSVG(initials){ const svg=`<svg width="44" height="44" viewBox="0 0 44 44" xmlns="http://www.w3.org/2000/svg"><rect width="44" height="44" rx="6" fill="#f0f3f6"/><text x="50%" y="52%" dominant-baseline="middle" text-anchor="middle" fill="#495057" font-family="Inter,Arial,sans-serif" font-weight="600" font-size="14">${initials}</text></svg>`; return 'data:image/svg+xml;base64,'+btoa(svg); } getUserDisplayName(){ if(!this.currentUser) return 'User'; const n=v=>typeof v==='string'?v.trim().replace(/\s+/g,' '):''; const cand=[this.currentUser.displayName,this.currentUser.name,this.currentUser.username]; for(const c of cand){ const cleaned=n(c); if(cleaned) return cleaned; } if(this.currentUser.email) return n(this.currentUser.email.split('@')[0])||'User'; return 'User'; } getUserInitials(){ const dn=this.getUserDisplayName(); const parts=dn.split(' ').filter(Boolean); if(parts.length===1) return parts[0].substring(0,2).toUpperCase(); return parts.slice(0,2).map(p=>p[0]).join('').toUpperCase(); } async getUserAvatarUrl(){ if(!this.currentUser) return null; const companyId=this.currentUser.companyId||'default'; const paths=[`companies/${companyId}/avatars/${this.currentUser.uid}/profile.jpg`,`companies/${companyId}/avatars/${this.currentUser.uid}/profile.png`,`companies/${companyId}/avatars/${this.currentUser.uid}/profile.jpeg`,`companies/${companyId}/avatars/${this.currentUser.uid}/avatar.jpg`,`companies/${companyId}/avatars/${this.currentUser.uid}/avatar.png`,`avatars/${this.currentUser.uid}/profile.jpg`,`avatars/${this.currentUser.uid}/profile.png`,`avatars/${this.currentUser.uid}/avatar.jpg`,`avatars/${this.currentUser.uid}/avatar.png`,`profiles/${this.currentUser.uid}/profile.jpg`,`profiles/${this.currentUser.uid}/profile.png`]; for(const p of paths){ try{ const ref=firebase.storage().ref(p); const url=await ref.getDownloadURL(); return url; }catch(err){ continue; } } return null; } async updateUIForAuthenticatedUser(){ const btn=document.getElementById('userProfileBtn'); const list=document.querySelector('.profile-dropdown ul'); if(!btn||!list||!this.currentUser) return; const displayName=this.getUserDisplayName(); const email=this.currentUser.email||''; let avatarUrl=null; try{ avatarUrl=await this.getUserAvatarUrl(); }catch(e){} const btnImg=btn.querySelector('img'); if(avatarUrl&&btnImg){ btnImg.src=avatarUrl; btnImg.alt=displayName+' Avatar'; btnImg.style.display='block'; btnImg.onerror=()=>{ btnImg.style.display='none'; btn.innerHTML=`<div style=\"width:38px;height:38px;border-radius:50%;background:#3498db;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:.8rem;\">${this.getUserInitials()}</div>`; }; } else { btn.innerHTML=`<div style=\"width:38px;height:38px;border-radius:50%;background:#3498db;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:.8rem;\">${this.getUserInitials()}</div>`; } const avatarHtml= avatarUrl? `<img src=\"${avatarUrl}\" alt=\"${displayName} Avatar\" style=\"width:32px;height:32px;border-radius:50%;object-fit:cover;\">` : `<div style=\"width:32px;height:32px;border-radius:50%;background:#3498db;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:12px;\">${this.getUserInitials()}</div>`; list.innerHTML=`<li style=\"border-bottom:1px solid #eee;padding:12px 16px;background:#f8f9fa;\"><div style=\"display:flex;align-items:center;gap:12px;\">${avatarHtml}<div><div style=\"font-weight:600;color:#333;font-size:14px;margin-bottom:2px;\">${displayName}</div><div style=\"color:#666;font-size:12px;\">${email}</div></div></div></li><li><a href=\"profile.html\"><i class=\"fas fa-user\"></i> Profile</a></li><li><a href=\"account.html\"><i class=\"fas fa-cog\"></i> Account Settings</a></li><li><a href=\"#\" id=\"logoutLink\"><i class=\"fas fa-sign-out-alt\"></i> Sign out</a></li>`; list.querySelector('#logoutLink')?.addEventListener('click', e=>{ e.preventDefault(); this.logout(); }); } bindProfileDropdown(){ const btn=document.getElementById('userProfileBtn'); const dd=document.querySelector('.profile-dropdown'); if(btn&&dd){ btn.addEventListener('click', e=>{ e.stopPropagation(); dd.classList.toggle('show'); }); document.addEventListener('click', e=>{ if(!btn.contains(e.target)) dd.classList.remove('show'); }); } } async logout(){ try{ await firebase.auth().signOut(); localStorage.removeItem('currentUser'); localStorage.removeItem('user'); window.location.href='login.html'; }catch(error){ console.error('Logout error:',error); localStorage.removeItem('currentUser'); localStorage.removeItem('user'); window.location.href='login.html'; } }
+}
+
+// ===== MENU AUTH (from project-list pattern) =====
+let isMenuUpdateInProgress=false; function resetMenuVisibility(){ document.querySelectorAll('[data-feature]').forEach(i=>i.classList.remove('menu-visible')); document.querySelectorAll('.menu-dropdown').forEach(d=>d.classList.remove('menu-visible')); } function showSidebarAfterAuth(){ const sidebar=document.querySelector('.sidebar'); if(sidebar){ sidebar.classList.remove('menu-loading'); } } function ensureHomeIsVisible(){ const homeItem=document.querySelector('#roleBasedMenu li[data-feature="home_view"]'); if(homeItem && !homeItem.classList.contains('menu-visible')) homeItem.classList.add('menu-visible'); } function hideItemsRequiringPermissions(){ const items=document.querySelectorAll('#roleBasedMenu li.menu-visible[data-requires-permission]'); items.forEach(i=>i.classList.remove('menu-visible')); document.querySelectorAll('#roleBasedMenu li.menu-dropdown').forEach(d=>{ const vis=d.querySelectorAll('.submenu li.menu-visible'); if(vis.length===0) d.classList.remove('menu-visible'); }); ensureHomeIsVisible(); } async function applyFeatureBasedMenuVisibility(companyId){ try{ const database=firebase.database(); const featuresSnapshot=await database.ref('/platformFeatures').once('value'); if(!featuresSnapshot.exists()){ resetMenuVisibility(); return []; } const featuresData=featuresSnapshot.val(); const companySnapshot=await database.ref(`/companies/${companyId}`).once('value'); const companyData=companySnapshot.val(); if(!companyData){ resetMenuVisibility(); return []; } const subscribedFeatureIds=companyData.selectedFeatures||[]; if(subscribedFeatureIds.length===0){ resetMenuVisibility(); return []; } const authorizedPages=[]; subscribedFeatureIds.forEach(fid=>{ const feature=featuresData[fid]; if(feature && feature.status==='active' && feature.authorizedPages){ authorizedPages.push(...feature.authorizedPages); } }); resetMenuVisibility(); const authorizedFeatures=new Set(); const authorizedHrefs=new Set(); const featureAlias=(key)=>{ if(!key) return key; if(key==='risk_view') return 'risk_management_section'; if(key==='risk_management_section') return 'risk_view'; return null; }; const normalizeHref=(href)=>{ if(!href) return ''; try{ const u=new URL(href, window.location.origin); return (u.pathname||'').replace(/^\//,''); }catch{ return String(href).replace(/^\//,''); } }; authorizedPages.forEach(p=>{ if(p.feature){ authorizedFeatures.add(p.feature); const alias=featureAlias(p.feature); if(alias) authorizedFeatures.add(alias); } if(p.href) authorizedHrefs.add(normalizeHref(p.href)); if(p.page) authorizedHrefs.add(normalizeHref(p.page)); if(p.url) authorizedHrefs.add(normalizeHref(p.url)); }); const allMenuItems=document.querySelectorAll('#roleBasedMenu li[data-feature]'); allMenuItems.forEach(mi=>{ const feat=mi.getAttribute('data-feature'); const isDropdown=mi.classList.contains('menu-dropdown'); const a=mi.querySelector('a[href]'); const href=a?a.getAttribute('href'):''; const normalized=href?href.replace(/^\//,''):''; const isAuthorized=authorizedFeatures.has(feat) || (normalized && authorizedHrefs.has(normalized)); if(!isDropdown){ if(isAuthorized) mi.classList.add('menu-visible'); else mi.classList.remove('menu-visible'); } }); document.querySelectorAll('#roleBasedMenu li.menu-dropdown').forEach(drop=>{ const df=drop.getAttribute('data-feature'); const hasVisible=[...drop.querySelectorAll('.submenu li[data-feature]')].some(li=>li.classList.contains('menu-visible')); if(hasVisible || authorizedFeatures.has(df)) drop.classList.add('menu-visible'); else drop.classList.remove('menu-visible'); }); return authorizedPages; }catch(e){ resetMenuVisibility(); return []; } } async function applyRoleBasedFiltering(companyId, userRole){ try{ const database=firebase.database(); const permissionsRef=database.ref(`companies/${companyId}/roles/${userRole}/permissions`); const snap=await permissionsRef.once('value'); if(!snap.exists()){ if(userRole==='administrator'){ showSidebarAfterAuth(); return; } hideItemsRequiringPermissions(); showSidebarAfterAuth(); return; } const permissions=snap.val(); filterMenuByPermissions(permissions); }catch(e){ showSidebarAfterAuth(); } } function filterMenuByPermissions(permissions){ const permissionAlias=(key)=>{ if(!key) return key; if(key==='risk_view') return 'risk_management_section'; if(key==='risk_management_section') return 'risk_view'; return null; }; const items=document.querySelectorAll('#roleBasedMenu li[data-requires-permission]'); items.forEach(item=>{ const req=item.getAttribute('data-requires-permission'); const perm=permissions[req]; const aliasKey=permissionAlias(req); const aliasPerm=aliasKey?permissions[aliasKey]:undefined; const hasView=(p)=> p===true || (p && p.view===true); const allowed=hasView(perm) || hasView(aliasPerm); if(allowed) item.classList.add('menu-visible'); else item.classList.remove('menu-visible'); }); document.querySelectorAll('#roleBasedMenu li.menu-dropdown').forEach(drop=>{ const submenuVisible=drop.querySelectorAll('.submenu li.menu-visible').length>0; const req=drop.getAttribute('data-requires-permission'); if(submenuVisible) { drop.classList.add('menu-visible'); } else if(req){ const perm=permissions[req]; const aliasKey=permissionAlias(req); const aliasPerm=aliasKey?permissions[aliasKey]:undefined; const hasView=(p)=> p===true || (p && p.view===true); if(hasView(perm)||hasView(aliasPerm)) drop.classList.add('menu-visible'); else drop.classList.remove('menu-visible'); } else { drop.classList.remove('menu-visible'); } }); ensureHomeIsVisible(); showSidebarAfterAuth(); }
+async function updateMenuWithFeatureAuthorization(){ if(isMenuUpdateInProgress) return; isMenuUpdateInProgress=true; try{ let cu=null, companyId=null, userRole=null; if(window.authManager && window.authManager.currentUser){ cu=window.authManager.currentUser; companyId=cu.companyId; userRole=cu.role; } else if(firebase.auth().currentUser){ cu=firebase.auth().currentUser; } if(!companyId && cu){ const companies=(await firebase.database().ref('companies').once('value')).val()||{}; for(const [cid,comp] of Object.entries(companies)){ if(comp.status!=='active') continue; if(comp.users && comp.users[cu.uid]){ companyId=cid; userRole=comp.users[cu.uid].role||comp.users[cu.uid].userRole; break; } } } if(!companyId){ resetMenuVisibility(); return; } const pages=await applyFeatureBasedMenuVisibility(companyId); if(userRole){ await applyRoleBasedFiltering(companyId, userRole, pages); } } finally { isMenuUpdateInProgress=false; } } function initializeMenuAuthorization(){ const sidebar=document.querySelector('.sidebar'); if(sidebar) sidebar.classList.add('menu-loading'); setTimeout(()=>{ updateMenuWithFeatureAuthorization(); }, 300); }
+// ===== END MENU AUTH =====
+
+function bindSidebarToggle(){ const btn=document.getElementById('sidebarToggle'), sidebar=document.querySelector('.sidebar'), main=document.getElementById('mainContent'); if(!btn||!sidebar||!main) return; btn.addEventListener('click',()=>{ const collapsed=sidebar.classList.toggle('collapsed'); if(collapsed){ main.classList.add('sidebar-collapsed'); } else { main.classList.remove('sidebar-collapsed'); } }); }
+function svgInitials(name='U'){ const initials=(name.trim().split(/\s+/).slice(0,2).map(p=>p[0]).join('')||'U').toUpperCase(); const svg=`<svg width=\"38\" height=\"38\" viewBox=\"0 0 40 40\" xmlns=\"http://www.w3.org/2000/svg\"><circle cx=\"20\" cy=\"20\" r=\"20\" fill=\"#3498db\"/><text x=\"20\" y=\"25\" text-anchor=\"middle\" fill=\"#fff\" font-size=\"14\" font-weight=\"600\" font-family=\"Inter, Arial, sans-serif\">${initials}</text></svg>`; return 'data:image/svg+xml;base64,'+btoa(svg); }
+function setBranding(company){ const logo=document.getElementById('headerCompanyLogo'); const nameEl=document.getElementById('headerCompanyName'); if(nameEl) nameEl.textContent=company?.companyName||''; if(logo){ if(company?.logo||company?.logoUrl){ logo.src=company.logo||company.logoUrl; logo.classList.add('visible'); } else { logo.src=svgInitials(company?.companyName||'DX'); logo.classList.add('visible'); } } if(company?.branding){ const root=document.documentElement; if(company.branding.primaryColor) root.style.setProperty('--primary-color',company.branding.primaryColor); if(company.branding.secondaryColor) root.style.setProperty('--secondary-color',company.branding.secondaryColor); } }
+
+const state={ items:[], filtered:[], page:1, pageSize:20, users:{}, usersByEmail:{}, teams:{}, staffMembers:[], companyUsers:[], tabVisibility:{}, assignVisibility:{} };
+function badgePriority(p){ return `<span class="badge ${p||'low'}">${(p||'low').replace(/\b\w/g,m=>m.toUpperCase())}</span>`; }
+function statusChip(s){ const v=(s||'open'); return `<span class="status ${v}" aria-label="${v}">${v.replace(/-/g,' ').replace(/\b\w/g,m=>m.toUpperCase())}</span>`; }
+
+function applyFilters(){ const q=document.getElementById('searchInput').value.trim().toLowerCase(); const pri=document.getElementById('priorityFilter').value; const st=document.getElementById('statusFilter').value; const from=document.getElementById('fromDate').value; const to=document.getElementById('toDate').value; state.filtered=state.items.filter(x=>{ if(pri && x.priority!==pri) return false; if(st && x.status!==st) return false; if(from && (x.date||'')<from) return false; if(to && (x.date||'')>to) return false; if(q){ const hay=[x.referenceNumber,x.subject,x.department].filter(Boolean).join(' ').toLowerCase(); if(!hay.includes(q)) return false; } return true; }); state.page=1; renderTable(); }
+
+function renderTable(){ const tbody=document.querySelector('#ticketsTable tbody'); tbody.innerHTML=''; const start=(state.page-1)*state.pageSize; const end=start+state.pageSize; const pageItems=state.filtered.slice(start,end); const currentUid = authManager?.currentUser?.uid || ''; pageItems.forEach(x=>{ const tr=document.createElement('tr'); tr.setAttribute('data-id', x.id||''); tr.className='ticket-row'; tr.style.cursor='pointer'; tr.title='Click to view details';
+	// Slight highlight for tickets created by the logged-in user
+	if(currentUid && x.requestedBy === currentUid){ tr.style.background='#f9fafb'; tr.style.boxShadow='inset 3px 0 0 0 var(--primary-color)'; }
+	const assignedLabel = x.assignedToName || (x.assignedTo? (state.users[x.assignedTo]?.name||'') : '') || (x.assignedToEmail||'') || '-'; tr.innerHTML=`<td>${x.referenceNumber||'-'}</td><td>${x.subject||'-'}</td><td>${badgePriority(x.priority)}</td><td>${statusChip(x.status||'open')}</td><td>${x.date||'-'}</td><td>${x.department||'-'}</td><td>${assignedLabel}</td>`; tbody.appendChild(tr); }); const pageInfo=document.getElementById('pageInfo'); const total=state.filtered.length; const pages=Math.max(1, Math.ceil(total/state.pageSize)); pageInfo.textContent=`Page ${state.page} of ${pages} • ${total} items`; document.getElementById('prevPage').disabled=state.page<=1; document.getElementById('nextPage').disabled=state.page>=pages; }
+
+async function loadUsersMap(){ const snap=await db.ref('users').once('value'); const map={}; const byEmail={}; if(snap.exists()) snap.forEach(s=>{ const u=s.val()||{}; const name=(u.firstName&&u.lastName)?`${u.firstName} ${u.lastName}`:(u.name||u.email||s.key); const email=(u.email||'').toLowerCase(); map[s.key]={ name, email };
+	if(email) byEmail[email]={ uid:s.key, name };
+}); state.users=map; state.usersByEmail=byEmail; }
+async function loadCompanyUsers(companyId){
+	try{
+		const compUsersSnap=await db.ref(`companies/${companyId}/users`).once('value');
+		const list=[];
+		if(compUsersSnap.exists()){
+			const val=compUsersSnap.val();
+			for(const [uid,meta] of Object.entries(val)){
+				const base=state.users[uid]||{};
+				const name = meta?.name || base.name || (meta?.email||'');
+				const email = (meta?.email || base.email || '').toLowerCase();
+				const title = meta?.title || meta?.jobTitle || '';
+				if(email) list.push({ uid, name, email, title });
+			}
+		}
+		state.companyUsers=list.sort((a,b)=> (a.name||'').localeCompare(b.name||''));
+		populateTabVisUserSelect();
+	}catch(e){ state.companyUsers=[]; }
+}
+// ===== Per-user Tab Visibility =====
+function TAB_VIS_PATH(companyId){ return `companies/${companyId}/accessControl/requestsTabsVisibility`; }
+async function loadTabVisibility(companyId){
+	try{
+		const snap=await db.ref(TAB_VIS_PATH(companyId)).once('value');
+		state.tabVisibility = snap.exists()? (snap.val()||{}) : {};
+	}catch(e){ state.tabVisibility={}; }
+	renderTabVisibilityTable();
+	applyTabVisibilityForCurrentUser();
+    populateTabVisUserSelect();
+}
+function getDefaultTabVisibility(){ return { board:true, settings:true, staff:true }; }
+function getTabVisibilityForUser(uid){ return Object.assign({}, getDefaultTabVisibility(), state.tabVisibility?.[uid]||{}); }
+function getCurrentUserTabVisibility(){ const uid=authManager?.currentUser?.uid||''; return getTabVisibilityForUser(uid); }
+function applyTabVisibilityForCurrentUser(){ const allow=getCurrentUserTabVisibility(); const bBtn=document.getElementById('tabBoardBtn'); const sBtn=document.getElementById('tabSettingsBtn'); const tBtn=document.getElementById('tabStaffBtn'); const board=document.getElementById('boardTab'); const settings=document.getElementById('settingsTab'); const staff=document.getElementById('staffTab');
+	// Toggle tab authorization class to control visibility via CSS
+	if(bBtn){ bBtn.classList.toggle('tab-authorized', !!allow.board); }
+	if(sBtn){ sBtn.classList.toggle('tab-authorized', !!allow.settings); }
+	if(tBtn){ tBtn.classList.toggle('tab-authorized', !!allow.staff); }
+	// Determine current active content
+	const currentShown = [
+		{key:'board', el:board},
+		{key:'settings', el:settings},
+		{key:'staff', el:staff}
+	].find(x=>x.el && x.el.classList.contains('active'));
+	const firstAllowed = ['board','settings','staff'].find(k=>allow[k]);
+	if(!firstAllowed){
+		[board, settings, staff].forEach(el=>{ if(el){ el.classList.remove('active'); }});
+		[bBtn, sBtn, tBtn].forEach(btn=>{ if(btn){ btn.classList.remove('active'); }});
+		return;
+	}
+	if(!currentShown || !allow[currentShown.key]){
+		switchTab(firstAllowed);
+	}
+}
+function renderTabVisibilityTable(){ const tbody=document.querySelector('#tabVisibilityTable tbody'); if(!tbody) return; const q=(document.getElementById('tabVisSearch')?.value||'').trim().toLowerCase(); tbody.innerHTML='';
+	// Merge users from both tabVisibility and assignVisibility
+	const tabUids = Object.keys(state.tabVisibility||{});
+	const assignUids = Object.keys(state.assignVisibility||{});
+	const allUids = [...new Set([...tabUids, ...assignUids])];
+	const rows = allUids.map(uid=>{
+		const u = (state.companyUsers||[]).find(x=>x.uid===uid) || { uid, name: (state.users?.[uid]?.name)||uid, email: (state.users?.[uid]?.email)||'' };
+		return u;
+	}).filter(u=>{ const hay=(u.name||'')+' '+(u.email||''); return !q || hay.toLowerCase().includes(q); });
+	if(rows.length===0){ const tr=document.createElement('tr'); const td=document.createElement('td'); td.colSpan=7; td.style.color='#6b7280'; td.style.fontSize='.9rem'; td.style.padding='8px'; td.textContent='No selected users yet'; tr.appendChild(td); tbody.appendChild(tr); return; }
+	rows.forEach(u=>{
+		const vis=getTabVisibilityForUser(u.uid);
+		const assignVis=state.assignVisibility[u.uid]||{};
+		const tr=document.createElement('tr');
+		const userTd=document.createElement('td'); userTd.style.padding='6px'; userTd.innerHTML=`<div style=\"font-weight:600;color:#374151\">${u.name||u.email||u.uid}</div><div style=\"color:#9ca3af;font-size:.75rem\">${u.email||''}</div>`;
+		const mk=(checked)=>{ const i=document.createElement('input'); i.type='checkbox'; i.checked=!!checked; i.style.cursor='pointer'; return i; };
+		const boardTd=document.createElement('td'); boardTd.style.textAlign='center'; boardTd.style.padding='6px'; const cbB=mk(vis.board);
+		const settingsTd=document.createElement('td'); settingsTd.style.textAlign='center'; settingsTd.style.padding='6px'; const cbS=mk(vis.settings);
+		const staffTd=document.createElement('td'); staffTd.style.textAlign='center'; staffTd.style.padding='6px'; const cbT=mk(vis.staff);
+		const canAssignTd=document.createElement('td'); canAssignTd.style.textAlign='center'; canAssignTd.style.padding='6px'; const cbA=mk(assignVis.canAssign!==false);
+		const viewAllTd=document.createElement('td'); viewAllTd.style.textAlign='center'; viewAllTd.style.padding='6px'; const cbV=mk(assignVis.viewAll===true);
+		cbB.addEventListener('change', ()=> updateTabVisibilityForUser(u.uid,'board', cbB.checked));
+		cbS.addEventListener('change', ()=> updateTabVisibilityForUser(u.uid,'settings', cbS.checked));
+		cbT.addEventListener('change', ()=> updateTabVisibilityForUser(u.uid,'staff', cbT.checked));
+		cbA.addEventListener('change', ()=> updateAssignVisForUser(u.uid, cbA.checked));
+		cbV.addEventListener('change', ()=> updateViewAllForUser(u.uid, cbV.checked));
+		const removeTd=document.createElement('td'); removeTd.style.textAlign='center'; removeTd.style.padding='6px'; const rm=document.createElement('button'); rm.className='btn'; rm.style.border='1px solid #ddd'; rm.style.background='#fff'; rm.style.padding='.25rem .5rem'; rm.innerHTML='<i class="fas fa-times"></i>'; rm.title='Remove from list'; rm.addEventListener('click', ()=> removeUserFromPermissions(u.uid)); removeTd.appendChild(rm);
+		boardTd.appendChild(cbB); settingsTd.appendChild(cbS); staffTd.appendChild(cbT); canAssignTd.appendChild(cbA); viewAllTd.appendChild(cbV);
+		tr.appendChild(userTd); tr.appendChild(boardTd); tr.appendChild(settingsTd); tr.appendChild(staffTd); tr.appendChild(canAssignTd); tr.appendChild(viewAllTd); tr.appendChild(removeTd);
+		tbody.appendChild(tr);
+	});
+}
+async function updateTabVisibilityForUser(uid,key,value){ const user=authManager.currentUser; if(!user?.companyId) return; await db.ref(`${TAB_VIS_PATH(user.companyId)}/${uid}/${key}`).set(!!value); if(!state.tabVisibility[uid]) state.tabVisibility[uid]={}; state.tabVisibility[uid][key]=!!value; if(uid===user.uid){ applyTabVisibilityForCurrentUser(); } }
+
+function populateTabVisUserSelect(){ const sel=document.getElementById('tabVisUserSelect'); if(!sel) return; const configuredTab=new Set(Object.keys(state.tabVisibility||{})); const configuredAssign=new Set(Object.keys(state.assignVisibility||{})); sel.innerHTML='<option value="">Add user…</option>'; (state.companyUsers||[]).forEach(u=>{ if(configuredTab.has(u.uid) && configuredAssign.has(u.uid)) return; const opt=document.createElement('option'); opt.value=u.uid; opt.textContent=`${u.name||u.email} (${u.email})`; sel.appendChild(opt); }); }
+
+// ===== Assign Button Visibility =====
+function ASSIGN_VIS_PATH(companyId){ return `companies/${companyId}/accessControl/assignButtonVisibility`; }
+async function loadAssignVisibility(companyId){
+	try{
+		const snap=await db.ref(ASSIGN_VIS_PATH(companyId)).once('value');
+		state.assignVisibility = snap.exists()? (snap.val()||{}) : {};
+	}catch(e){ state.assignVisibility={}; }
+	renderTabVisibilityTable();
+	populateTabVisUserSelect();
+}
+function canCurrentUserAssign(){
+	const uid=authManager?.currentUser?.uid||'';
+	const configured = Object.keys(state.assignVisibility||{});
+	// If no users configured, everyone can assign
+	if(configured.length===0) return true;
+	// If user is in list, check their canAssign flag
+	const userConfig = state.assignVisibility[uid];
+	if(userConfig) return userConfig.canAssign !== false;
+	// User not in list = cannot assign
+	return false;
+}
+async function updateAssignVisForUser(uid, canAssign){
+	const user=authManager.currentUser; if(!user?.companyId) return;
+	await db.ref(`${ASSIGN_VIS_PATH(user.companyId)}/${uid}/canAssign`).set(!!canAssign);
+	if(!state.assignVisibility[uid]) state.assignVisibility[uid]={};
+	state.assignVisibility[uid].canAssign=!!canAssign;
+}
+async function updateViewAllForUser(uid, viewAll){
+	const user=authManager.currentUser; if(!user?.companyId) return;
+	await db.ref(`${ASSIGN_VIS_PATH(user.companyId)}/${uid}/viewAll`).set(!!viewAll);
+	if(!state.assignVisibility[uid]) state.assignVisibility[uid]={};
+	state.assignVisibility[uid].viewAll=!!viewAll;
+	// Reload tickets to apply the change
+	if(uid===user.uid){ await loadTickets(user.companyId); }
+}
+function canCurrentUserViewAll(){
+	const uid=authManager?.currentUser?.uid||'';
+	const userConfig = state.assignVisibility[uid];
+	return userConfig?.viewAll === true;
+}
+async function addUserToTabVisibility(uid){ if(!uid) return; const user=authManager.currentUser; if(!user?.companyId) return; if(state.tabVisibility[uid] && state.assignVisibility[uid]) return; const defaults={ board:true, settings:true, staff:true, __active:true }; await db.ref(`${TAB_VIS_PATH(user.companyId)}/${uid}`).set(defaults); state.tabVisibility[uid]={ board:true, settings:true, staff:true, __active:true }; await db.ref(`${ASSIGN_VIS_PATH(user.companyId)}/${uid}`).set({ canAssign:true, addedAt: new Date().toISOString() }); state.assignVisibility[uid]={ canAssign:true }; renderTabVisibilityTable(); populateTabVisUserSelect(); }
+async function removeUserFromPermissions(uid){ if(!uid) return; const user=authManager.currentUser; if(!user?.companyId) return; if(!confirm('Remove this user from the permissions list?')) return; await db.ref(`${TAB_VIS_PATH(user.companyId)}/${uid}`).remove(); await db.ref(`${ASSIGN_VIS_PATH(user.companyId)}/${uid}`).remove(); delete state.tabVisibility[uid]; delete state.assignVisibility[uid]; renderTabVisibilityTable(); populateTabVisUserSelect(); if(uid===user.uid){ applyTabVisibilityForCurrentUser(); } }
+async function removeUserFromTabVisibility(uid){ await removeUserFromPermissions(uid); }
+// Category filter loader removed
+
+// Settings Tab Handlers
+function switchTab(tab){ const board=document.getElementById('boardTab'); const settings=document.getElementById('settingsTab'); const staff=document.getElementById('staffTab'); const bBtn=document.getElementById('tabBoardBtn'); const sBtn=document.getElementById('tabSettingsBtn'); const tBtn=document.getElementById('tabStaffBtn');
+	// Enforce per-user tab visibility
+	const allow = (typeof getCurrentUserTabVisibility==='function') ? getCurrentUserTabVisibility() : { board:true, settings:true, staff:true };
+	if(tab==='settings' && !allow.settings) return;
+	if(tab==='staff' && !allow.staff) return;
+	if(tab==='board' && !allow.board) return;
+	// Clear active classes
+	[board, settings, staff].forEach(el=>{ if(el){ el.classList.remove('active'); }});
+	[bBtn, sBtn, tBtn].forEach(btn=>{ if(btn){ btn.classList.remove('active'); }});
+	// Activate selected tab
+	if(tab==='settings'){ if(settings) settings.classList.add('active'); if(sBtn) sBtn.classList.add('active'); }
+	else if(tab==='staff'){ if(staff) staff.classList.add('active'); if(tBtn) tBtn.classList.add('active'); }
+	else { if(board) board.classList.add('active'); if(bBtn) bBtn.classList.add('active'); }
+}
+
+function slugify(text){ return (text||'').toString().trim().toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').substring(0,64) || 'option'; }
+
+async function loadTicketFieldOptions(companyId){ const base=`companies/${companyId}/fieldOptions/tickets`; const subjectsSnap = await db.ref(`${base}/subjects`).once('value'); const subjects = subjectsSnap.exists()? subjectsSnap.val() : {}; state.subjects = subjects||{}; renderSubjectsTable(subjects); }
+
+ 
+
+function renderSubjectsTable(data){ const tbody=document.querySelector('#subjectsTable tbody'); if(!tbody) return; tbody.innerHTML=''; const entries=Object.entries(data||{}); if(entries.length===0){ const tr=document.createElement('tr'); const td=document.createElement('td'); td.colSpan=4; td.style.color='#6b7280'; td.style.fontSize='.9rem'; td.style.padding='8px'; td.textContent='No subjects yet'; tr.appendChild(td); tbody.appendChild(tr); return; } entries.forEach(([key,o])=>{ const tr=document.createElement('tr'); const labelTd=document.createElement('td'); labelTd.style.padding='6px'; labelTd.innerHTML=`<div style="font-weight:600;color:#374151">${o.label||o.value||key}</div><div style="color:#9ca3af;font-size:.75rem">${o.value||key}</div>`; const recipsTd=document.createElement('td'); recipsTd.style.padding='6px'; const recips = Array.isArray(o.recipients)? o.recipients : (o.recipients && typeof o.recipients==='object'? Object.keys(o.recipients) : []); if(recips.length===0){ recipsTd.innerHTML='<span style="color:#9ca3af">—</span>'; } else { const shown = recips.slice(0,3).map(e=>`<span style="display:inline-block;background:#eef2ff;color:#1e40af;padding:.1rem .4rem;border-radius:999px;font-size:.75rem;margin-right:4px">${e}</span>`).join(''); const more = recips.length>3? `<span style="color:#6b7280;font-size:.8rem">+${recips.length-3} more</span>`:''; recipsTd.innerHTML = shown + more; }
+ const enabledTd=document.createElement('td'); enabledTd.style.padding='6px'; const toggle=document.createElement('input'); toggle.type='checkbox'; toggle.checked=(o.enabled!==false); toggle.title='Enable/Disable'; toggle.addEventListener('change', async ()=>{ const user=authManager.currentUser; if(!user?.companyId) return; await db.ref(`companies/${user.companyId}/fieldOptions/tickets/subjects/${key}/enabled`).set(toggle.checked); }); enabledTd.appendChild(toggle);
+ const actionsTd=document.createElement('td'); actionsTd.style.padding='6px'; const edit=document.createElement('button'); edit.className='btn'; edit.style.border='1px solid #ddd'; edit.style.background='#fff'; edit.style.padding='.25rem .5rem'; edit.innerHTML='<i class="fas fa-pen"></i>'; edit.title='Edit'; edit.addEventListener('click', ()=> openSubjectModal(key)); const del=document.createElement('button'); del.className='btn'; del.style.border='1px solid #ddd'; del.style.background='#fff'; del.style.padding='.25rem .5rem'; del.innerHTML='<i class="fas fa-trash"></i>'; del.title='Remove'; del.addEventListener('click', async ()=>{ if(!confirm('Remove this subject?')) return; const user=authManager.currentUser; if(!user?.companyId) return; await db.ref(`companies/${user.companyId}/fieldOptions/tickets/subjects/${key}`).remove(); await loadTicketFieldOptions(user.companyId); }); actionsTd.appendChild(edit); actionsTd.appendChild(del);
+ tr.appendChild(labelTd); tr.appendChild(recipsTd); tr.appendChild(enabledTd); tr.appendChild(actionsTd); tbody.appendChild(tr); }); }
+
+
+async function loadTickets(companyId){ 
+	const currentUid = authManager?.currentUser?.uid || '';
+	const viewAll = canCurrentUserViewAll();
+	const snap=await db.ref(`companies/${companyId}/tickets`).once('value'); 
+	const items=[]; 
+	if(snap.exists()) snap.forEach(s=>{ 
+		const v=s.val()||{}; 
+		// If user has viewAll permission, show all tickets; otherwise only their own
+		if(viewAll || v.requestedBy === currentUid) {
+			items.push({ id:s.key, ...v }); 
+		}
+	}); 
+	items.sort((a,b)=> (b.createdAt||b.date||'').localeCompare(a.createdAt||a.date||'')); 
+	state.items=items; 
+	state.filtered=items; 
+	renderTable(); 
+}
+
+document.addEventListener('DOMContentLoaded',()=>{ bindSidebarToggle(); (function bindNotifications(){ const btn=document.getElementById('notificationBtn'); const dropdown=document.querySelector('.notification-dropdown'); const badge=document.querySelector('.notification-badge'); if(badge) badge.style.display='none'; if(btn && dropdown){ btn.addEventListener('click', (e)=>{ e.stopPropagation(); dropdown.classList.toggle('show'); }); document.addEventListener('click', (e)=>{ if(!dropdown.contains(e.target) && !btn.contains(e.target)) dropdown.classList.remove('show'); }); } const markAll=document.querySelector('.mark-all-read'); if(markAll){ markAll.addEventListener('click', ()=>{ dropdown?.classList.remove('show'); if(badge) badge.style.display='none'; }); } })(); document.getElementById('clearFilters').onclick=()=>{ ['searchInput','priorityFilter','statusFilter','fromDate','toDate'].forEach(id=>document.getElementById(id).value=''); applyFilters(); }; ['searchInput','priorityFilter','statusFilter','fromDate','toDate'].forEach(id=>document.getElementById(id).addEventListener('input',applyFilters)); document.getElementById('prevPage').onclick=()=>{ if(state.page>1){ state.page--; renderTable(); } }; document.getElementById('nextPage').onclick=()=>{ const pages=Math.max(1, Math.ceil(state.filtered.length/state.pageSize)); if(state.page<pages){ state.page++; renderTable(); } }; document.getElementById('refreshBtn').onclick=()=>{ auth.currentUser && getCompanyIdFor(auth.currentUser.uid).then(id=>id&&loadTickets(id)); }; 
+	// Tabs
+	document.getElementById('tabBoardBtn').addEventListener('click',()=> switchTab('board'));
+	document.getElementById('tabSettingsBtn').addEventListener('click',()=> switchTab('settings'));
+	document.getElementById('tabStaffBtn').addEventListener('click',()=> switchTab('staff'));
+	// Ensure tabs are visible immediately with default permissions
+	try{ applyTabVisibilityForCurrentUser(); }catch(_e){}
+	// Tab Visibility search
+	const tabVisSearch=document.getElementById('tabVisSearch');
+	if(tabVisSearch){ tabVisSearch.addEventListener('input', ()=> renderTabVisibilityTable()); }
+	const tabVisAddBtn=document.getElementById('tabVisAddBtn');
+	if(tabVisAddBtn){ tabVisAddBtn.addEventListener('click', ()=>{ const sel=document.getElementById('tabVisUserSelect'); if(!sel||!sel.value) return; addUserToTabVisibility(sel.value); sel.value=''; }); }
+	// Tab Visibility collapse toggle
+	const tabVisToggleBtn=document.getElementById('tabVisToggleBtn');
+	if(tabVisToggleBtn){
+		const body=document.getElementById('tabVisBody');
+		const applyCollapsed=(collapsed)=>{
+			if(!body) return;
+			body.style.display = collapsed? 'none':'block';
+			tabVisToggleBtn.setAttribute('aria-expanded', (!collapsed).toString());
+			const icon=tabVisToggleBtn.querySelector('i');
+			if(icon){ icon.className = collapsed? 'fas fa-chevron-down':'fas fa-chevron-up'; }
+		};
+		// initial state from localStorage
+		try{ const saved=localStorage.getItem('tabVisCollapsed'); applyCollapsed(saved==='true'); }catch(_e){ applyCollapsed(false); }
+		tabVisToggleBtn.addEventListener('click', ()=>{
+			const isCollapsed = (document.getElementById('tabVisBody')?.style.display==='none');
+			applyCollapsed(!isCollapsed);
+			try{ localStorage.setItem('tabVisCollapsed', (!isCollapsed).toString()); }catch(_e){}
+		});
+	}
+	// Settings handlers
+	document.getElementById('addSubjectBtn').addEventListener('click', openSubjectModal);
+	// Subjects collapse toggle
+	const subjectsToggleBtn=document.getElementById('subjectsToggleBtn');
+	if(subjectsToggleBtn){
+		const sBody=document.getElementById('subjectsBody');
+		const applySubjectsCollapsed=(collapsed)=>{
+			if(!sBody) return;
+			sBody.style.display = collapsed? 'none':'block';
+			subjectsToggleBtn.setAttribute('aria-expanded', (!collapsed).toString());
+			const icon=subjectsToggleBtn.querySelector('i');
+			if(icon){ icon.className = collapsed? 'fas fa-chevron-down':'fas fa-chevron-up'; }
+		};
+		try{ const saved=localStorage.getItem('subjectsCollapsed'); applySubjectsCollapsed(saved==='true'); }catch(_e){ applySubjectsCollapsed(false); }
+		subjectsToggleBtn.addEventListener('click', ()=>{
+			const isCollapsed=(document.getElementById('subjectsBody')?.style.display==='none');
+			applySubjectsCollapsed(!isCollapsed);
+			try{ localStorage.setItem('subjectsCollapsed', (!isCollapsed).toString()); }catch(_e){}
+		});
+	}
+	// Modal buttons
+	document.getElementById('closeSubjectModalBtn').addEventListener('click', closeSubjectModal);
+	document.getElementById('cancelSubjectBtn').addEventListener('click', closeSubjectModal);
+	document.getElementById('saveSubjectBtn').addEventListener('click', saveSubjectFromModal);
+	document.getElementById('addSubjectRecipientBtn').addEventListener('click', addSubjectRecipientFromSelect);
+	document.getElementById('addSubjectTeamBtn').addEventListener('click', addSubjectTeamFromSelect);
+	// Staff handlers
+	document.getElementById('addTeamBtn').addEventListener('click', ()=> openTeamModal());
+	document.getElementById('closeTeamModalBtn').addEventListener('click', closeTeamModal);
+	document.getElementById('cancelTeamBtn').addEventListener('click', closeTeamModal);
+	document.getElementById('addMemberBtn').addEventListener('click', addMemberFromSelect);
+	document.getElementById('saveTeamBtn').addEventListener('click', saveTeamFromModal);
+
+	// Row click -> open ticket details modal (delegated)
+	const ticketsTbody=document.querySelector('#ticketsTable tbody');
+	if(ticketsTbody){
+		ticketsTbody.addEventListener('click', (e)=>{
+			// Don't open modal if clicking on an action link/button
+			const isAction = e.target.closest('a,button');
+			if(isAction) return;
+			const tr=e.target.closest('tr');
+			if(!tr) return;
+			const id=tr.getAttribute('data-id');
+			if(id) openTicketDetailsModal(id);
+		});
+	}
+
+	// Ticket details modal close handlers
+	document.getElementById('closeTicketDetailsBtn')?.addEventListener('click', closeTicketDetailsModal);
+	document.getElementById('editTicketBtn')?.addEventListener('click', ()=>{ const id=window._currentTicketId; if(id) window.location.href = `tick.html?id=${id}`; });
+	document.getElementById('assignTicketBtn')?.addEventListener('click', ()=> openAssignPanel());
+	document.getElementById('assignCancelBtn')?.addEventListener('click', closeAssignPanel);
+	document.getElementById('assignSaveBtn')?.addEventListener('click', async ()=>{ const sel=document.getElementById('assignSelect'); if(!sel||!sel.value||!window._currentTicketId) return; await assignTicketTo(window._currentTicketId, sel.value); closeAssignPanel(); });
+	document.getElementById('deleteTicketBtn')?.addEventListener('click', deleteCurrentTicket);
+	document.getElementById('resolveTicketBtn')?.addEventListener('click', openResolveModal);
+	document.getElementById('ticketDetailsModal')?.addEventListener('click', (e)=>{
+		if(e.target && e.target.id==='ticketDetailsModal') closeTicketDetailsModal();
+	});
+	// Resolve modal handlers
+	document.getElementById('closeResolveModalBtn')?.addEventListener('click', closeResolveModal);
+	document.getElementById('cancelResolveBtn')?.addEventListener('click', closeResolveModal);
+	document.getElementById('confirmResolveBtn')?.addEventListener('click', confirmResolveTicket);
+	document.getElementById('resolveTicketModal')?.addEventListener('click', (e)=>{
+		if(e.target && e.target.id==='resolveTicketModal') closeResolveModal();
+	});
+	// Complete modal handlers
+	document.getElementById('completeTicketBtn')?.addEventListener('click', openCompleteModal);
+	document.getElementById('closeCompleteModalBtn')?.addEventListener('click', closeCompleteModal);
+	document.getElementById('cancelCompleteBtn')?.addEventListener('click', closeCompleteModal);
+	document.getElementById('confirmCompleteBtn')?.addEventListener('click', confirmCompleteTicket);
+	document.getElementById('completeTicketModal')?.addEventListener('click', (e)=>{
+		if(e.target && e.target.id==='completeTicketModal') closeCompleteModal();
+	});
+	document.addEventListener('keydown', (e)=>{
+		if(e.key==='Escape') closeTicketDetailsModal();
+	});
+});
+
+function populateSubjectTeamSelect(){ const sel=document.getElementById('subjectTeamSelect'); if(!sel) return; const selected=new Set(window._subjectModalSelectedTeamIds||[]); sel.innerHTML='<option value="">Select a team</option>'; const teams=state.teams||{}; Object.entries(teams).forEach(([id,t])=>{ if(selected.has(id)) return; const opt=document.createElement('option'); opt.value=id; opt.textContent=t.name||id; sel.appendChild(opt); }); }
+function renderSubjectTeamsSelectedList(){ const ul=document.getElementById('subjectTeamsList'); if(!ul) return; ul.innerHTML=''; const ids=(window._subjectModalSelectedTeamIds||[]); if(ids.length===0){ const li=document.createElement('li'); li.style.color='#6b7280'; li.textContent='No teams selected'; ul.appendChild(li); return; } ids.forEach((id,idx)=>{ const team=(state.teams||{})[id]||{}; const name=team.name||id; const li=document.createElement('li'); li.style.display='flex'; li.style.alignItems='center'; li.style.justifyContent='space-between'; li.style.padding='6px 8px'; li.style.border='1px solid #eef2f7'; li.style.borderRadius='6px'; li.style.marginBottom='6px'; const left=document.createElement('div'); left.style.display='flex'; left.style.alignItems='center'; left.style.gap='8px'; const avatar=document.createElement('div'); avatar.style.width='28px'; avatar.style.height='28px'; avatar.style.borderRadius='6px'; avatar.style.background='#10b981'; avatar.style.display='flex'; avatar.style.alignItems='center'; avatar.style.justifyContent='center'; avatar.style.color='#fff'; avatar.style.fontWeight='700'; avatar.style.fontSize='12px'; const initials=(name||'T').trim().split(/\s+/).map(p=>p[0]).slice(0,2).join('').toUpperCase(); avatar.textContent=initials||'T'; const text=document.createElement('div'); text.innerHTML=`<div style=\"font-weight:600;color:#374151\">${name}</div><div style=\"color:#6b7280;font-size:.8rem\">${id}</div>`; left.appendChild(avatar); left.appendChild(text); const rm=document.createElement('button'); rm.className='btn'; rm.style.border='1px solid #ddd'; rm.style.background='#fff'; rm.style.padding='.25rem .5rem'; rm.innerHTML='<i class=\"fas fa-times\"></i>'; rm.title='Remove'; rm.addEventListener('click', ()=>{ ids.splice(idx,1); window._subjectModalSelectedTeamIds=ids; renderSubjectTeamsSelectedList(); populateSubjectTeamSelect(); }); li.appendChild(left); li.appendChild(rm); ul.appendChild(li); }); }
+function addSubjectTeamFromSelect(){ const sel=document.getElementById('subjectTeamSelect'); if(!sel||!sel.value) return; const ids=(window._subjectModalSelectedTeamIds||[]); if(!ids.includes(sel.value)) ids.push(sel.value); window._subjectModalSelectedTeamIds=ids; renderSubjectTeamsSelectedList(); populateSubjectTeamSelect(); sel.value=''; }
+function populateSubjectRecipientSelect(){ const sel=document.getElementById('subjectRecipientSelect'); if(!sel) return; sel.innerHTML='<option value="">Select a company user</option>'; (state.companyUsers||[]).forEach(u=>{ const opt=document.createElement('option'); opt.value=(u.email||'').toLowerCase(); opt.textContent=`${u.name||u.email} (${u.email})`; sel.appendChild(opt); }); }
+function renderSubjectRecipientsList(){ const ul=document.getElementById('subjectRecipientsList'); if(!ul) return; ul.innerHTML=''; const rec=(window._subjectModalRecips||[]); if(rec.length===0){ const li=document.createElement('li'); li.style.color='#6b7280'; li.textContent='No recipients added'; ul.appendChild(li); return; } rec.forEach((email,idx)=>{ const li=document.createElement('li'); li.style.display='flex'; li.style.alignItems='center'; li.style.justifyContent='space-between'; li.style.padding='6px 8px'; li.style.border='1px solid #eef2f7'; li.style.borderRadius='6px'; li.style.marginBottom='6px'; const left=document.createElement('div'); left.style.display='flex'; left.style.alignItems='center'; left.style.gap='8px'; const avatar=document.createElement('div'); avatar.style.width='28px'; avatar.style.height='28px'; avatar.style.borderRadius='50%'; avatar.style.background='#6366f1'; avatar.style.display='flex'; avatar.style.alignItems='center'; avatar.style.justifyContent='center'; avatar.style.color='#fff'; avatar.style.fontWeight='600'; avatar.style.fontSize='12px'; const initials=(email||'U').trim()[0]?.toUpperCase()||'U'; avatar.textContent=initials; const text=document.createElement('div'); const name=state.usersByEmail[email]?.name||email; text.innerHTML = `<div style="font-weight:600;color:#374151">${name}</div><div style="color:#6b7280;font-size:.8rem">${email}</div>`; left.appendChild(avatar); left.appendChild(text); const rm=document.createElement('button'); rm.className='btn'; rm.style.border='1px solid #ddd'; rm.style.background='#fff'; rm.style.padding='.25rem .5rem'; rm.innerHTML='<i class="fas fa-times"></i>'; rm.title='Remove'; rm.addEventListener('click', ()=>{ rec.splice(idx,1); window._subjectModalRecips=rec; renderSubjectRecipientsList(); }); li.appendChild(left); li.appendChild(rm); ul.appendChild(li); }); }
+function addSubjectRecipientFromSelect(){ const sel=document.getElementById('subjectRecipientSelect'); if(!sel||!sel.value) return; const email=(sel.value||'').toLowerCase(); const rec=(window._subjectModalRecips||[]); if(!rec.includes(email)) rec.push(email); window._subjectModalRecips=rec; renderSubjectRecipientsList(); sel.value=''; }
+function openSubjectModal(key){
+	const m=document.getElementById('subjectModal'); if(!m) return;
+	const title=document.getElementById('subjectModalTitle');
+	m.setAttribute('data-id', key||'');
+	const labelInput=document.getElementById('modalSubjectLabel');
+	const freeText=document.getElementById('modalSubjectRecipients');
+	window._subjectModalRecips=[];
+	window._subjectModalSelectedTeamIds=[];
+	populateSubjectRecipientSelect();
+	if(key && state.subjects && state.subjects[key]){
+		const subj=state.subjects[key];
+		labelInput.value=subj.label||subj.value||key;
+		freeText.value='';
+		const recips = Array.isArray(subj.recipients)? subj.recipients : (subj.recipients&&typeof subj.recipients==='object'? Object.keys(subj.recipients):[]);
+		window._subjectModalRecips = (recips||[]).map(e=>String(e||'').toLowerCase());
+		window._subjectModalSelectedTeamIds = Array.isArray(subj.teamIds)? [...subj.teamIds]:[];
+		if(title){ title.innerHTML = '<i class="fas fa-pen"></i> Edit Subject'; }
+	} else {
+		labelInput.value='';
+		freeText.value='';
+		window._subjectModalRecips=[];
+		window._subjectModalSelectedTeamIds=[];
+		if(title){ title.innerHTML = '<i class="fas fa-plus-circle"></i> New Subject'; }
+	}
+	renderSubjectRecipientsList();
+	populateSubjectTeamSelect();
+	renderSubjectTeamsSelectedList();
+	m.style.display='flex';
+}
+function closeSubjectModal(){ const m=document.getElementById('subjectModal'); if(!m) return; m.style.display='none'; }
+function parseEmails(input){ return (input||'').split(/[\n,;]+/).map(e=>e.trim()).filter(Boolean).filter(e=>/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.toLowerCase())); }
+async function saveSubjectFromModal(){ const user=authManager.currentUser; if(!user?.companyId) return; const label=(document.getElementById('modalSubjectLabel').value||'').trim(); const freeText=document.getElementById('modalSubjectRecipients').value||''; if(!label){ document.getElementById('modalSubjectLabel').focus(); return; }
+	// recipients from dropdown list + free text
+	const selectedList=(window._subjectModalRecips||[]).map(e=>String(e||'').toLowerCase());
+	const extra=parseEmails(freeText).map(e=>e.toLowerCase());
+	const recipients=Array.from(new Set([...selectedList, ...extra]));
+	 const value=slugify(label);
+	 const teamIds=[...(window._subjectModalSelectedTeamIds||[])];
+	const modal=document.getElementById('subjectModal'); const existingKey=modal.getAttribute('data-id')||'';
+	const basePath=`companies/${user.companyId}/fieldOptions/tickets/subjects`;
+	const payload={ label, value, recipients, teamIds, enabled:true };
+	if(existingKey && state.subjects && state.subjects[existingKey]){
+		const prev=state.subjects[existingKey];
+		payload.createdAt = prev.createdAt || Date.now();
+		payload.createdBy = prev.createdBy || (user.uid||null);
+	} else {
+		payload.createdAt = Date.now();
+		payload.createdBy = user.uid||null;
+	}
+	if(existingKey && existingKey!==value){
+		// rename: write new then remove old
+		await db.ref(`${basePath}/${value}`).set(payload);
+		await db.ref(`${basePath}/${existingKey}`).remove();
+	} else {
+		await db.ref(`${basePath}/${value}`).set(payload);
+	}
+	closeSubjectModal();
+	await loadTicketFieldOptions(user.companyId);
+}
+
+// Teams (Staff) management
+function TEAM_PATH(companyId){ return `companies/${companyId}/tickets/staff/teams`; }
+async function loadTeams(companyId){ const snap=await db.ref(TEAM_PATH(companyId)).once('value'); const data=snap.exists()? snap.val():{}; state.teams=data||{}; renderTeamsTable(); buildStaffMembersIndex(); }
+function renderTeamsTable(){ const tbody=document.querySelector('#teamsTable tbody'); if(!tbody) return; tbody.innerHTML=''; const entries=Object.entries(state.teams||{}); if(entries.length===0){ const tr=document.createElement('tr'); const td=document.createElement('td'); td.colSpan=4; td.style.color='#6b7280'; td.style.fontSize='.9rem'; td.style.padding='8px'; td.textContent='No teams yet'; tr.appendChild(td); tbody.appendChild(tr); return; } entries.forEach(([id,t])=>{ const members = t.members? Object.values(t.members):[]; const tr=document.createElement('tr'); const nameTd=document.createElement('td'); nameTd.style.padding='6px'; nameTd.innerHTML=`<div style="font-weight:600;color:#374151">${t.name||id}</div><div style="color:#9ca3af;font-size:.75rem">${id}</div>`; const memTd=document.createElement('td'); memTd.style.padding='6px'; memTd.innerHTML = members.length? members.slice(0,3).map(m=>`<span style="display:inline-block;background:#eef2ff;color:#1e40af;padding:.1rem .4rem;border-radius:999px;font-size:.75rem;margin-right:4px">${m.name||m.email||''}</span>`).join('') + (members.length>3? `<span style="color:#6b7280;font-size:.8rem">+${members.length-3} more</span>`:'' ) : '<span style="color:#9ca3af">—</span>';
+ const enabledTd=document.createElement('td'); enabledTd.style.padding='6px'; const toggle=document.createElement('input'); toggle.type='checkbox'; toggle.checked=(t.enabled!==false); toggle.addEventListener('change', async ()=>{ const user=authManager.currentUser; if(!user?.companyId) return; await db.ref(`${TEAM_PATH(user.companyId)}/${id}/enabled`).set(toggle.checked); }); enabledTd.appendChild(toggle);
+ const actionsTd=document.createElement('td'); actionsTd.style.padding='6px'; const edit=document.createElement('button'); edit.className='btn'; edit.style.border='1px solid #ddd'; edit.style.background='#fff'; edit.style.padding='.25rem .5rem'; edit.innerHTML='<i class="fas fa-pen"></i>'; edit.title='Edit'; edit.addEventListener('click', ()=> openTeamModal(id)); const del=document.createElement('button'); del.className='btn'; del.style.border='1px solid #ddd'; del.style.background='#fff'; del.style.padding='.25rem .5rem'; del.innerHTML='<i class="fas fa-trash"></i>'; del.title='Remove'; del.addEventListener('click', async ()=>{ if(!confirm('Remove this team?')) return; const user=authManager.currentUser; if(!user?.companyId) return; await db.ref(`${TEAM_PATH(user.companyId)}/${id}`).remove(); await loadTeams(user.companyId); }); actionsTd.appendChild(edit); actionsTd.appendChild(del);
+ tr.appendChild(nameTd); tr.appendChild(memTd); tr.appendChild(enabledTd); tr.appendChild(actionsTd); tbody.appendChild(tr); }); }
+function populateTeamMemberSelect(){ const sel=document.getElementById('teamMemberSelect'); if(!sel) return; sel.innerHTML='<option value="">Select a company user</option>'; state.companyUsers.forEach(u=>{ const opt=document.createElement('option'); opt.value=u.uid; opt.textContent = `${u.name||u.email} (${u.email})`; sel.appendChild(opt); }); }
+function renderTeamMembersList(){ const ul=document.getElementById('teamMembersList'); if(!ul) return; ul.innerHTML=''; const members=(window._teamModalMembers||[]); if(members.length===0){ const li=document.createElement('li'); li.style.color='#6b7280'; li.textContent='No members added'; ul.appendChild(li); return; } members.forEach((m,idx)=>{ const li=document.createElement('li'); li.style.display='flex'; li.style.alignItems='center'; li.style.justifyContent='space-between'; li.style.padding='6px 8px'; li.style.border='1px solid #eef2f7'; li.style.borderRadius='6px'; li.style.marginBottom='6px'; const left=document.createElement('div'); left.style.display='flex'; left.style.alignItems='center'; left.style.gap='8px'; const avatar=document.createElement('div'); avatar.style.width='28px'; avatar.style.height='28px'; avatar.style.borderRadius='50%'; avatar.style.background='#3498db'; avatar.style.display='flex'; avatar.style.alignItems='center'; avatar.style.justifyContent='center'; avatar.style.color='#fff'; avatar.style.fontWeight='600'; avatar.style.fontSize='12px'; const initials=(m.name||m.email||'U').trim().split(/\s+/).slice(0,2).map(p=>p[0]).join('').toUpperCase(); avatar.textContent=initials||'U'; const text=document.createElement('div'); text.innerHTML = `<div style="font-weight:600;color:#374151">${m.name||m.email||'User'}</div><div style="color:#6b7280;font-size:.8rem">${m.email||''}</div>`; left.appendChild(avatar); left.appendChild(text); const rm=document.createElement('button'); rm.className='btn'; rm.style.border='1px solid #ddd'; rm.style.background='#fff'; rm.style.padding='.25rem .5rem'; rm.innerHTML='<i class="fas fa-times"></i>'; rm.title='Remove'; rm.addEventListener('click', ()=>{ members.splice(idx,1); window._teamModalMembers=members; renderTeamMembersList(); }); li.appendChild(left); li.appendChild(rm); ul.appendChild(li); }); }
+function openTeamModal(id){ const m=document.getElementById('teamModal'); if(!m) return; m.setAttribute('data-id', id||''); const nameInput=document.getElementById('teamNameInput'); nameInput.value=''; populateTeamMemberSelect(); // seed select
+	// prepare members in modal state
+	let members=[];
+	if(id){ const t=state.teams[id]; if(t){ nameInput.value=t.name||id; const mems=t.members? Object.values(t.members):[]; members = mems.map(mm=>{ const email=(mm.email||'').toLowerCase(); const map=state.usersByEmail[email]; return { uid: map?.uid||null, name:mm.name||map?.name||email, email, title:mm.title||'' };
+		}); } }
+	window._teamModalMembers = members;
+	renderTeamMembersList();
+	m.style.display='flex'; }
+function closeTeamModal(){ const m=document.getElementById('teamModal'); if(!m) return; m.style.display='none'; }
+function addMemberFromSelect(){ const sel=document.getElementById('teamMemberSelect'); if(!sel||!sel.value) return; const uid=sel.value; const u=state.companyUsers.find(x=>x.uid===uid); if(!u) return; const email=(u.email||'').toLowerCase(); const members=(window._teamModalMembers||[]); if(members.some(m=>(m.email||'').toLowerCase()===email)) return; members.push({ uid, name:u.name||u.email, email, title:u.title||'' }); window._teamModalMembers=members; renderTeamMembersList(); sel.value=''; }
+async function saveTeamFromModal(){ const m=document.getElementById('teamModal'); const id=m.getAttribute('data-id')||''; const user=authManager.currentUser; if(!user?.companyId) return; const name=(document.getElementById('teamNameInput').value||'').trim(); if(!name){ document.getElementById('teamNameInput').focus(); return; } const teamId = id || slugify(name);
+	const membersArr=(window._teamModalMembers||[]);
+	const members={};
+	membersArr.forEach(mm=>{ const key = db.ref().push().key; members[key] = { name:mm.name||'', title:mm.title||'', email:(mm.email||'').toLowerCase() } });
+	const payload={ name, enabled:true, members, updatedAt: Date.now(), updatedBy: user.uid||null };
+	if(!id) { payload.createdAt=Date.now(); payload.createdBy=user.uid||null; }
+	await db.ref(`${TEAM_PATH(user.companyId)}/${teamId}`).set(payload); closeTeamModal(); await loadTeams(user.companyId); }
+function buildStaffMembersIndex(){ const list=[]; const teams=state.teams||{}; Object.values(teams).forEach(t=>{ const mems=t.members? Object.values(t.members):[]; mems.forEach(m=>{ const email=(m.email||'').toLowerCase(); const name=m.name||email||'Staff'; const title=m.title||''; list.push({ name, email, title }); }); }); state.staffMembers=list; }
+
+function closeTicketDetailsModal(){ const m=document.getElementById('ticketDetailsModal'); if(!m) return; m.style.display='none'; }
+function openTicketDetailsModal(id){ const m=document.getElementById('ticketDetailsModal'); if(!m) return; window._currentTicketId=id; const item=state.items.find(i=>i.id===id); const render=(x)=>{
+		// Header title
+	const title=document.getElementById('ticketDetailsTitle'); if(title){ title.innerHTML = `<i class=\"fas fa-ticket-alt\"></i> Ticket Details — ${x.referenceNumber||id}`; title.setAttribute('data-id', id); }
+		// Top fields
+		document.getElementById('tdRef').textContent = x.referenceNumber||'-';
+		document.getElementById('tdSubject').textContent = x.subject||'-';
+		document.getElementById('tdPriority').innerHTML = badgePriority(x.priority||'low');
+		document.getElementById('tdStatus').innerHTML = statusChip(x.status||'open');
+		document.getElementById('tdDepartment').textContent = x.department||'-';
+		const requestedName = x.requestedByName || (x.requestedBy ? (state.users[x.requestedBy]?.name||x.requestedBy) : '-');
+		document.getElementById('tdRequestedBy').textContent = requestedName || '-';
+		const dt = x.dateTime || (x.date? `${x.date}${x.time? ' '+x.time:''}` : '-');
+		document.getElementById('tdDateTime').textContent = dt || '-';
+		// Assigned
+		const assignedLabel = x.assignedToName || (x.assignedTo? (state.users[x.assignedTo]?.name||'') : '') || (x.assignedToEmail||'') || '-';
+		document.getElementById('tdAssignedTo').textContent = assignedLabel || '-';
+		// Description
+		document.getElementById('tdDescription').textContent = x.description||'';
+		// Attachments
+		const list=document.getElementById('tdAttachments');
+		list.innerHTML='';
+		if(Array.isArray(x.attachments) && x.attachments.length>0){
+				x.attachments.forEach((a,idx)=>{
+						const li=document.createElement('li');
+						li.style.padding='6px 8px';
+						li.style.border='1px solid #eef2f7';
+						li.style.borderRadius='6px';
+						li.style.marginBottom='6px';
+						const name = a?.name || `Attachment ${idx+1}`;
+						const size = a?.size ? ` <span style="color:#6b7280;font-size:.8rem">(${a.size})</span>` : '';
+						let href = a?.dataUrl || a?.url || '';
+						const icon = '<i class="fas fa-paperclip" style="margin-right:6px;color:#6b7280"></i>';
+						if(href){
+								li.innerHTML = `${icon}<a href="${href}" ${a?.dataUrl? `download="${name}"`:''} target="_blank" rel="noopener">${name}</a>${size}`;
+						} else {
+								li.innerHTML = `${icon}<span>${name}</span>${size}`;
+						}
+						list.appendChild(li);
+				});
+		} else {
+				const li=document.createElement('li');
+				li.style.color='#6b7280';
+				li.textContent='No attachments';
+				list.appendChild(li);
+		}
+		// Apply assign button visibility
+		const assignBtn=document.getElementById('assignTicketBtn');
+		if(assignBtn){ assignBtn.style.display = canCurrentUserAssign()? 'inline-block':'none'; }
+		// Edit button visibility — only ticket creator can edit
+		const editBtn=document.getElementById('editTicketBtn');
+		if(editBtn){
+			const currentUid = authManager?.currentUser?.uid||'';
+			const isCreator = currentUid && x.requestedBy === currentUid;
+			editBtn.style.display = isCreator? 'inline-block':'none';
+			editBtn.onclick = ()=>{ window.location.href = `tick.html?id=${id}`; };
+		}
+		// Delete button visibility — only ticket creator can delete
+		const delBtn=document.getElementById('deleteTicketBtn');
+		if(delBtn){
+			const currentUidDel = authManager?.currentUser?.uid||'';
+			const isCreatorDel = currentUidDel && x.requestedBy === currentUidDel;
+			delBtn.style.display = isCreatorDel? 'inline-block':'none';
+		}
+		// Apply resolve button visibility - only show to assigned user and if not already resolved
+		const resolveBtn=document.getElementById('resolveTicketBtn');
+		if(resolveBtn){
+			const currentUserEmail = (authManager?.currentUser?.email||'').toLowerCase();
+			const assignedEmail = (x.assignedToEmail||'').toLowerCase();
+			const isAssignedToMe = currentUserEmail && assignedEmail && currentUserEmail === assignedEmail;
+			const isResolved = x.status === 'resolved' || x.status === 'completed';
+			resolveBtn.style.display = (isAssignedToMe && !isResolved)? 'inline-block':'none';
+		}
+		// Apply complete button visibility - only show to ticket creator when status is resolved
+		const completeBtn=document.getElementById('completeTicketBtn');
+		if(completeBtn){
+			const currentUid = authManager?.currentUser?.uid||'';
+			const isCreator = currentUid && x.requestedBy === currentUid;
+			const isResolvedStatus = x.status === 'resolved';
+			completeBtn.style.display = (isCreator && isResolvedStatus)? 'inline-block':'none';
+		}
+		m.style.display='flex';
+	};
+	if(item){ render(item); }
+	else {
+		// Fallback fetch just in case
+		(async()=>{
+			try{
+				const user=authManager.currentUser; if(!user?.companyId) return;
+				const snap=await db.ref(`companies/${user.companyId}/tickets/${id}`).once('value');
+				const x = snap.val()||{ id };
+				render({ id, ...x });
+			}catch(e){ console.error('Failed to load ticket', e); }
+		})();
+	}
+}
+function openAssignPanel(){ const panel=document.getElementById('assignPanel'); const sel=document.getElementById('assignSelect'); if(!panel||!sel) return; sel.innerHTML='<option value="">Select staff member</option>'; const added=new Set(); (state.staffMembers||[]).forEach(m=>{ const email=(m.email||'').toLowerCase(); if(!email || added.has(email)) return; const opt=document.createElement('option'); opt.value=email; opt.textContent=`${m.name||email} — ${m.title||'Staff'} (${email})`; sel.appendChild(opt); added.add(email); }); Object.values(state.users||{}).forEach(u=>{ const email=(u.email||'').toLowerCase(); if(!email || added.has(email)) return; const opt=document.createElement('option'); opt.value=email; opt.textContent=`${u.name||email} (${email})`; sel.appendChild(opt); added.add(email); }); panel.style.display='block'; }
+function closeAssignPanel(){ const panel=document.getElementById('assignPanel'); if(panel) panel.style.display='none'; }
+
+// ===== Resolve Ticket =====
+function openResolveModal(){
+	const m=document.getElementById('resolveTicketModal'); if(!m) return;
+	document.getElementById('resolveNotes').value='';
+	m.style.display='flex';
+}
+function closeResolveModal(){
+	const m=document.getElementById('resolveTicketModal'); if(m) m.style.display='none';
+}
+async function confirmResolveTicket(){
+	const id=window._currentTicketId; if(!id) return;
+	const user=authManager.currentUser; if(!user?.companyId) return;
+	const notes=(document.getElementById('resolveNotes')?.value||'').trim();
+	try{
+		const updates={
+			status:'resolved',
+			resolvedAt: new Date().toISOString(),
+			resolvedBy: user.uid,
+			resolvedByName: user.name||user.email||'',
+			resolvedByEmail: user.email||''
+		};
+		if(notes){ updates.resolutionNotes = notes; }
+		await db.ref(`companies/${user.companyId}/tickets/${id}`).update(updates);
+		// Update local state
+		const item=state.items.find(i=>i.id===id);
+		if(item){ Object.assign(item, updates); }
+		closeResolveModal();
+		closeTicketDetailsModal();
+		applyFilters();
+		alert('Ticket resolved successfully!');
+	}catch(e){
+		console.error('Failed to resolve ticket', e);
+		alert('Failed to resolve ticket. Please try again.');
+	}
+}
+
+// ===== Complete Ticket =====
+function openCompleteModal(){
+	const m=document.getElementById('completeTicketModal'); if(!m) return;
+	document.getElementById('completeNotes').value='';
+	m.style.display='flex';
+}
+function closeCompleteModal(){
+	const m=document.getElementById('completeTicketModal'); if(m) m.style.display='none';
+}
+async function confirmCompleteTicket(){
+	const id=window._currentTicketId; if(!id) return;
+	const user=authManager.currentUser; if(!user?.companyId) return;
+	const notes=(document.getElementById('completeNotes')?.value||'').trim();
+	try{
+		const updates={
+			status:'completed',
+			completedAt: new Date().toISOString(),
+			completedBy: user.uid,
+			completedByName: user.name||user.email||'',
+			completedByEmail: user.email||''
+		};
+		if(notes){ updates.completionNotes = notes; }
+		await db.ref(`companies/${user.companyId}/tickets/${id}`).update(updates);
+		// Update local state
+		const item=state.items.find(i=>i.id===id);
+		if(item){ Object.assign(item, updates); }
+		closeCompleteModal();
+		closeTicketDetailsModal();
+		applyFilters();
+		alert('Ticket marked as completed!');
+	}catch(e){
+		console.error('Failed to complete ticket', e);
+		alert('Failed to complete ticket. Please try again.');
+	}
+}
+async function assignTicketTo(ticketId, email){ const user=authManager.currentUser; if(!user?.companyId) return; const emailLc=(email||'').toLowerCase(); let assignedToName=''; let assignedToEmail=emailLc; let assignedTo=null; const fromStaff=(state.staffMembers||[]).find(m=>(m.email||'').toLowerCase()===emailLc); if(fromStaff) assignedToName=fromStaff.name||''; if(state.usersByEmail[emailLc]){ assignedTo=state.usersByEmail[emailLc].uid; if(!assignedToName) assignedToName=state.usersByEmail[emailLc].name; } const ref=db.ref(`companies/${user.companyId}/tickets/${ticketId}`); await ref.update({ assignedToName: assignedToName||null, assignedToEmail: assignedToEmail||null, assignedTo: assignedTo||null, updatedAt: new Date().toISOString(), status: 'in-progress' }); const idx=state.items.findIndex(i=>i.id===ticketId); if(idx>=0){ state.items[idx].assignedToName=assignedToName||null; state.items[idx].assignedToEmail=assignedToEmail||null; state.items[idx].assignedTo=assignedTo||null; state.items[idx].status='in-progress'; }
+	// Trigger assignment email (non-blocking)
+	afterAssignmentEmailNotify(ticketId, assignedToEmail, assignedToName);
+	state.filtered=[...state.items]; renderTable(); try{ if(assignedTo){ const notif={ type:'ticket', title:'Ticket assigned to you', message:`You have been assigned ${state.items[idx]?.referenceNumber||''}`, ticketId, companyId:user.companyId, createdAt: Date.now(), read:false, link:`tick.html?id=${ticketId}` }; await db.ref(`notifications/${assignedTo}`).push(notif); } }catch(_e){} document.getElementById('tdAssignedTo').textContent = assignedToName || assignedToEmail || '-'; document.getElementById('tdStatus').innerHTML = statusChip('in-progress'); }
+
+// Send assignment email to the assignee
+async function sendTicketAssignmentEmail(companyId, ticket, toEmail, toName){
+	if (!toEmail) return;
+	if (typeof emailjs === 'undefined'){ console.warn('EmailJS not available for assignment email'); return; }
+	try{
+		const companySnap = await db.ref(`companies/${companyId}`).once('value');
+		const company = companySnap.val()||{};
+		const companyName = company.companyName || 'Company';
+		const priorityText = (ticket.priority||'medium').replace(/^./,c=>c.toUpperCase());
+		const ticketDate = ticket.dateTime || ticket.date || new Date().toLocaleString();
+		const refNumber = ticket.referenceNumber || ticket.id || 'N/A';
+		const messageBody = `Dear ${toName||'Team Member'},\n\nA ticket has been assigned to you.\n\nTICKET DETAILS:\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nReference Number: ${refNumber}\nSubject: ${ticket.subject||'Untitled'}\nPriority: ${priorityText}\nDate: ${ticketDate}\nDepartment: ${ticket.department||'Not specified'}\nRequested By: ${ticket.requestedByName||'N/A'}\nStatus: In Progress\n\nDESCRIPTION:\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n${ticket.description||'No description provided'}\n\nPlease review and take action.\n\nReview Link: ${window.location.origin}/tick.html?id=${ticket.id||''}\n\nBest regards,\n${companyName} Support System`;
+
+		const emailData = {
+			to_email: toEmail,
+			to_name: toName || 'Team Member',
+			from_name: companyName + ' Support System',
+			subject: `[Ticket Assigned] ${ticket.subject||'Untitled'} - ${refNumber}`,
+			message: messageBody,
+			ticket_reference: refNumber,
+			ticket_subject: ticket.subject || 'Untitled',
+			ticket_date: ticketDate,
+			ticket_priority: priorityText,
+			ticket_description: ticket.description || 'No description provided',
+			ticket_status: 'In Progress',
+			ticket_department: ticket.department || 'Not specified',
+			ticket_requestor: ticket.requestedByName || 'N/A',
+			approval_link: `${window.location.origin}/tick.html?id=${ticket.id||''}`,
+			company_name: companyName
+		};
+		const res = await emailjs.send(EMAILJS_CONFIG.serviceId, EMAILJS_CONFIG.templateId, emailData);
+		console.log('Assignment email sent to', toEmail, res);
+	}catch(err){
+		console.error('Failed to send assignment email to', toEmail, err);
+	}
+}
+
+// After assignment DB update, trigger email send
+async function afterAssignmentEmailNotify(ticketId, assignedToEmail, assignedToName){
+	try{
+		const companyId = authManager?.currentUser?.companyId;
+		if(!companyId || !assignedToEmail) return;
+		let ticket = state.items.find(i=>i.id===ticketId);
+		if(!ticket){
+			const snap = await db.ref(`companies/${companyId}/tickets/${ticketId}`).once('value');
+			ticket = { id: ticketId, ...(snap.val()||{}) };
+		}
+		await sendTicketAssignmentEmail(companyId, ticket, assignedToEmail, assignedToName);
+	}catch(e){ console.error('afterAssignmentEmailNotify error', e); }
+}
+
+async function deleteCurrentTicket(){
+	const id = window._currentTicketId;
+	if(!id) return;
+	if(!confirm('Delete this ticket? This action cannot be undone.')) return;
+	try{
+		const user = authManager.currentUser;
+		if(!user?.companyId) return;
+		await db.ref(`companies/${user.companyId}/tickets/${id}`).remove();
+		// Update local state
+		state.items = state.items.filter(x=>x.id!==id);
+		state.filtered = state.filtered.filter(x=>x.id!==id);
+		renderTable();
+		closeTicketDetailsModal();
+	}catch(e){
+		console.error('Failed to delete ticket', e);
+		alert('Failed to delete the ticket. Please try again.');
+	}
+}
+
+const authManager=new AuthManager(); async function waitForCompanyId(timeoutMs=6000){ const start=Date.now(); return new Promise(resolve=>{ const t=setInterval(()=>{ if(authManager.currentUser && authManager.currentUser.companyId){ clearInterval(t); resolve(); } else if(Date.now()-start>timeoutMs){ clearInterval(t); resolve(); } },150); }); }
+async function getCompanyIdFor(uid){ const snap=await db.ref('users/'+uid).once('value'); const u=snap.val()||{}; return u.companyId||u.companyID||u.company||u.company_id||null; }
+
+(async function initTicketBoard(){ await waitForCompanyId(); const user=authManager.currentUser; window.authManager = authManager; if(!user) return; setBranding(authManager.currentCompany||{}); if(typeof initializeMenuAuthorization==='function') initializeMenuAuthorization(); await loadUsersMap(); await loadCompanyUsers(user.companyId); await loadTabVisibility(user.companyId); await loadAssignVisibility(user.companyId); await loadTeams(user.companyId); await loadTickets(user.companyId); await loadTicketFieldOptions(user.companyId); })();
+</script>
+</body>
+</html>

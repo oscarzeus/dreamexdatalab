@@ -853,12 +853,19 @@
 					<a href="#"><i class="fas fa-shield-alt"></i> Safety</a>
 					<ul class="submenu">
 						<li data-feature="training_view" data-requires-permission="training_view"><a href="trainingboard.html">Training</a></li>
-						<li data-feature="risk_view" data-requires-permission="risk_view"><a href="riskboard.html">Risk Management</a></li>
 						<li data-feature="jsa_view" data-requires-permission="jsa_view"><a href="jsaboard.html">Job Safety Analysis</a></li>
 						<li data-feature="ptw_view" data-requires-permission="ptw_view"><a href="ptwboard.html">Permit to Work</a></li>
 						<li data-feature="incident_view" data-requires-permission="incident_view"><a href="incidentboard.html">Incident Reports</a></li>
 						<li data-feature="inspection_view" data-requires-permission="inspection_view"><a href="inspectionboard.html">Inspection</a></li>
 						<li data-feature="audit_view" data-requires-permission="audit_view"><a href="auditboard.html">Audit</a></li>
+					</ul>
+				</li>
+				<!-- Risk Management (separate section) -->
+				<li class="menu-dropdown" data-feature="risk_view" data-requires-permission="risk_view">
+					<a href="#"><i class="fas fa-exclamation-triangle"></i> Risk Management</a>
+					<ul class="submenu">
+						<li data-feature="risk_view" data-requires-permission="risk_view"><a href="riskboard.html">Risk Management</a></li>
+						<li data-feature="risk_view" data-requires-permission="risk_register_view"><a href="riskreg.html">Risk Register</a></li>
 					</ul>
 				</li>
 					<li class="menu-dropdown" data-feature="investigation_view" data-requires-permission="investigation_view">
@@ -906,6 +913,7 @@
 						<li data-feature="access_daily_view" data-requires-permission="access_daily_view"><a href="accessdaily.html">Daily Gate Pass Control</a></li>
 						<li data-feature="removal_view" data-requires-permission="removal_view"><a href="removalboard.html">Property Removal</a></li>
 						<li data-feature="security_level_evaluation_view" data-requires-permission="security_level_evaluation_view"><a href="seclevel.html">Security Level Evaluation</a></li>
+						<li data-feature="nfc_view" data-requires-permission="nfc_view"><a href="nfc.html">NFC Card Management</a></li>
 					</ul>
 				</li>
 				<li class="menu-dropdown" data-feature="logistics_view" data-requires-permission="logistics_view">
@@ -2288,38 +2296,86 @@
 					}
 				}); 
 				console.log('🔐 All authorized pages from company features:', authorizedPages);
-				const authorizedFeatures=new Set(); 
-				authorizedPages.forEach(p=>{ 
-					if(p.feature) authorizedFeatures.add(p.feature); 
-				}); 
+				
+				// Create set of authorized features and hrefs (with alias mapping)
+				const authorizedFeatures = new Set();
+				const authorizedHrefs = new Set();
+
+				const featureAlias = (key) => {
+					if (!key) return key;
+					// Treat these as aliases of each other
+					if (key === 'risk_view') return 'risk_management_section';
+					if (key === 'risk_management_section') return 'risk_view';
+					return null;
+				};
+				const normalizeHref = (href) => {
+					if (!href) return '';
+					try {
+						const u = new URL(href, window.location.origin);
+						return (u.pathname || '').replace(/^\//, '');
+					} catch {
+						return String(href).replace(/^\//, '');
+					}
+				};
+
+				authorizedPages.forEach(pageInfo => {
+					if (pageInfo.feature) {
+						authorizedFeatures.add(pageInfo.feature);
+						const alias = featureAlias(pageInfo.feature);
+						if (alias) authorizedFeatures.add(alias);
+					}
+					if (pageInfo.href) authorizedHrefs.add(normalizeHref(pageInfo.href));
+					if (pageInfo.page) authorizedHrefs.add(normalizeHref(pageInfo.page));
+					if (pageInfo.url) authorizedHrefs.add(normalizeHref(pageInfo.url));
+				});
+
 				console.log('🎯 Authorized features for accessboard.html:', Array.from(authorizedFeatures));
+				console.log('🔗 Authorized hrefs for accessboard.html:', Array.from(authorizedHrefs));
+				
 				this.resetMenuVisibility(); 
 				let visibleCount = 0;
+				
 				document.querySelectorAll('#roleBasedMenu li[data-feature]').forEach(item=>{ 
-					const feature=item.getAttribute('data-feature'); 
+					const featureAttribute = item.getAttribute('data-feature'); 
 					const isDropdownContainer = item.classList.contains('menu-dropdown');
+					const anchor = item.querySelector('a[href]');
+					const href = anchor ? anchor.getAttribute('href') : '';
+					const normalized = normalizeHref(href);
+					const featureAuthorized = authorizedFeatures.has(featureAttribute);
+					const hrefAuthorized = normalized && authorizedHrefs.has(normalized);
+					const isAuthorized = featureAuthorized || hrefAuthorized;
 					
 					if (isDropdownContainer) {
 						return; // Handle dropdowns separately after all items are processed
 					}
 					
-					if(authorizedFeatures.has(feature)){ 
+					if(isAuthorized){ 
 						item.classList.add('menu-visible'); 
 						visibleCount++;
-						console.log(`✅ Feature authorized - showing menu item: ${feature}`);
+						console.log(`✅ Authorized - showing: feature=${featureAttribute} href=${normalized || '—'}`);
 					} else {
-						console.log(`❌ Feature not authorized - hiding menu item: ${feature}`);
+						item.classList.remove('menu-visible');
+						console.log(`❌ Not authorized - hiding: feature=${featureAttribute} href=${normalized || '—'}`);
 					}
 				}); 
 				// Handle dropdown menus - show if they have visible children
 				document.querySelectorAll('#roleBasedMenu li.menu-dropdown').forEach(drop=>{ 
-					const feature=drop.getAttribute('data-feature'); 
-					const hasVisible=[...drop.querySelectorAll('.submenu li[data-feature]')].some(li=>li.classList.contains('menu-visible')); 
-					if(hasVisible || authorizedFeatures.has(feature)) {
+					const dropdownFeature = drop.getAttribute('data-feature'); 
+					const submenuItems = drop.querySelectorAll('.submenu li[data-feature]');
+					let hasVisibleChildren = false;
+					
+					submenuItems.forEach(submenuItem => {
+						if (submenuItem.classList.contains('menu-visible')) {
+							hasVisibleChildren = true;
+						}
+					});
+					
+					if(hasVisibleChildren || authorizedFeatures.has(dropdownFeature)) {
 						drop.classList.add('menu-visible'); 
-						console.log(`✅ Showing dropdown menu: ${feature} (has visible children or directly authorized)`);
+						console.log(`✅ Showing dropdown menu: ${dropdownFeature} (has visible children or directly authorized)`);
 					} else {
-						console.log(`❌ Hiding dropdown menu: ${feature} (no visible children and not authorized)`);
+						drop.classList.remove('menu-visible');
+						console.log(`❌ Hiding dropdown menu: ${dropdownFeature} (no visible children and not authorized)`);
 					}
 				}); 
 				console.log(`🎯 Company feature authorization completed - ${visibleCount} items initially visible`);
@@ -2345,9 +2401,46 @@
 				if (!permissionsSnapshot.exists()) {
 					console.log(`⚠️ No permissions found for role ${userRole} in company ${companyId}`);
 					
+					// Try to get all roles to see what's available
+					const allRolesRef = database.ref(`companies/${companyId}/roles`);
+					const allRolesSnapshot = await allRolesRef.once('value');
+					
+					if (allRolesSnapshot.exists()) {
+						const allRoles = allRolesSnapshot.val();
+						console.log('🔍 Available roles in company:', Object.keys(allRoles));
+						
+						// Enhanced debugging for administrator role
+						if (userRole === 'administrator') {
+							console.log('🔑 ADMINISTRATOR - Full roles data:', allRoles);
+							if (allRoles.administrator) {
+								console.log('🔑 ADMINISTRATOR role found in company:', allRoles.administrator);
+								if (allRoles.administrator.permissions) {
+									console.log('🔑 ADMINISTRATOR permissions found:', allRoles.administrator.permissions);
+									this.filterMenuByPermissions(allRoles.administrator.permissions);
+									return;
+								}
+							}
+						}
+						
+						// Check if the role exists with different casing or format
+						const roleKeys = Object.keys(allRoles);
+						const matchingRole = roleKeys.find(key => 
+							key.toLowerCase() === userRole.toLowerCase() ||
+							key.replace(/\s+/g, '').toLowerCase() === userRole.replace(/\s+/g, '').toLowerCase()
+						);
+						
+						if (matchingRole && allRoles[matchingRole].permissions) {
+							console.log(`✅ Found matching role: ${matchingRole}`);
+							const permissions = allRoles[matchingRole].permissions;
+							this.filterMenuByPermissions(permissions);
+							return;
+						}
+					}
+					
 					// CRITICAL: If user is administrator but no permissions found, provide full access as fallback
 					if (userRole === 'administrator') {
 						console.log('🔑 ADMINISTRATOR FALLBACK - Skipping role filtering (keeping all company features visible)');
+						this.ensureHomeIsVisible();
 						this.showSidebarAfterAuth();
 						return;
 					}
@@ -2355,6 +2448,7 @@
 					// For other roles without permissions, hide all items with permission requirements
 					console.log('❌ No valid permissions found - filtering out items requiring permissions');
 					this.hideItemsRequiringPermissions();
+					this.ensureHomeIsVisible();
 					this.showSidebarAfterAuth();
 					return;
 				}
@@ -2368,6 +2462,7 @@
 			} catch (error) {
 				console.error('❌ Error applying role-based filtering:', error);
 				// Don't hide everything on error - keep company features visible
+				this.ensureHomeIsVisible();
 				this.showSidebarAfterAuth();
 			}
 		}
@@ -2379,50 +2474,82 @@
 			if (!permissions) {
 				console.log('⚠️ No permissions object provided');
 				this.hideItemsRequiringPermissions();
+				this.ensureHomeIsVisible();
 				this.showSidebarAfterAuth();
 				return;
 			}
 			
-			// Only check items that are already visible from company features
-			const visibleMenuItems = document.querySelectorAll('#roleBasedMenu li.menu-visible[data-requires-permission]');
-			console.log(`🎯 Found ${visibleMenuItems.length} visible menu items requiring permissions to check`);
-			
+			const permissionAlias = (key) => {
+				if (!key) return key;
+				if (key === 'risk_view') return 'risk_management_section';
+				if (key === 'risk_management_section') return 'risk_view';
+				return null;
+			};
+
+			// Evaluate all permission-gated items (allow role permissions to add visibility too)
+			const itemsRequiringPermissions = document.querySelectorAll('#roleBasedMenu li[data-requires-permission]');
+			console.log(`🎯 Found ${itemsRequiringPermissions.length} items requiring permissions to check`);
+
 			let hiddenCount = 0;
-			
-			visibleMenuItems.forEach(item => {
+			let shownByPermission = 0;
+
+			itemsRequiringPermissions.forEach(item => {
 				const requiresPermission = item.getAttribute('data-requires-permission');
 				const feature = item.getAttribute('data-feature');
-				
-				if (requiresPermission) {
-					const hasPermission = permissions[requiresPermission];
-					const hasViewPermission = hasPermission === true || 
-											 (hasPermission && hasPermission.view === true);
-					
-					if (!hasViewPermission) {
-						item.classList.remove('menu-visible');
-						hiddenCount++;
-						console.log(`❌ Hiding menu item (no permission): ${feature} (requires: ${requiresPermission})`);
-					} else {
-						console.log(`✅ Keeping menu item visible: ${feature} (has permission: ${requiresPermission})`);
-					}
+
+				const perm = permissions[requiresPermission];
+				const aliasKey = permissionAlias(requiresPermission);
+				const aliasPerm = aliasKey ? permissions[aliasKey] : undefined;
+
+				const hasViewPermission = (p) => p === true || (p && p.view === true);
+				const allowed = hasViewPermission(perm) || hasViewPermission(aliasPerm);
+
+				if (allowed) {
+					if (!item.classList.contains('menu-visible')) shownByPermission++;
+					item.classList.add('menu-visible');
+					console.log(`✅ Showing by permission: ${feature} (requires: ${requiresPermission}${aliasKey ? ` | alias: ${aliasKey}` : ''})`);
+				} else {
+					if (item.classList.contains('menu-visible')) hiddenCount++;
+					item.classList.remove('menu-visible');
+					console.log(`❌ Hiding (no permission): ${feature} (requires: ${requiresPermission}${aliasKey ? ` | alias: ${aliasKey}` : ''})`);
 				}
 			});
-			
+
 			// Re-check dropdown menus after permission filtering
 			const dropdownMenus = document.querySelectorAll('#roleBasedMenu li.menu-dropdown');
 			dropdownMenus.forEach(dropdown => {
 				const submenuItems = dropdown.querySelectorAll('.submenu li.menu-visible');
 				const dropdownFeature = dropdown.getAttribute('data-feature');
-				
+				const dropdownRequires = dropdown.getAttribute('data-requires-permission');
+
 				if (submenuItems.length === 0) {
-					dropdown.classList.remove('menu-visible');
-					console.log(`❌ Hiding dropdown (no visible children): ${dropdownFeature}`);
+					if (dropdownRequires) {
+						const perm = permissions[dropdownRequires];
+						const aliasKey = permissionAlias(dropdownRequires);
+						const aliasPerm = aliasKey ? permissions[aliasKey] : undefined;
+						const hasViewPermission = (p) => p === true || (p && p.view === true);
+						const allowed = hasViewPermission(perm) || hasViewPermission(aliasPerm);
+						if (allowed) {
+							dropdown.classList.add('menu-visible');
+							console.log(`✅ Showing dropdown by permission: ${dropdownFeature}`);
+						} else {
+							dropdown.classList.remove('menu-visible');
+							hiddenCount++;
+							console.log(`❌ Hiding dropdown (no children and no permission): ${dropdownFeature}`);
+						}
+					} else {
+						dropdown.classList.remove('menu-visible');
+						console.log(`❌ Hiding dropdown (no visible children): ${dropdownFeature}`);
+					}
 				} else {
 					console.log(`✅ Keeping dropdown visible (has ${submenuItems.length} visible children): ${dropdownFeature}`);
 				}
 			});
+
+			console.log(`🎯 Role-based filtering completed - ${hiddenCount} items hidden; ${shownByPermission} items shown by permission`);
 			
-			console.log(`🎯 Role-based filtering completed - ${hiddenCount} items hidden due to lack of permissions`);
+			// Ensure at least home is visible
+			this.ensureHomeIsVisible();
 			
 			// Show sidebar after all filtering is complete
 			this.showSidebarAfterAuth();
@@ -2444,7 +2571,30 @@
 				console.log(`❌ Hiding menu item (requires permission): ${feature} (${requiresPermission})`);
 			});
 			
+			// Hide dropdowns that only contain permission-required items
+			const dropdownMenus = document.querySelectorAll('#roleBasedMenu li.menu-dropdown');
+			dropdownMenus.forEach(dropdown => {
+				const visibleSubmenuItems = dropdown.querySelectorAll('.submenu li.menu-visible');
+				if (visibleSubmenuItems.length === 0) {
+					dropdown.classList.remove('menu-visible');
+					const dropdownFeature = dropdown.getAttribute('data-feature');
+					console.log(`❌ Hiding dropdown (no visible children): ${dropdownFeature}`);
+				}
+			});
+			
 			console.log(`🔒 Hidden ${hiddenCount} items requiring permissions`);
+			
+			// Ensure at least home is visible
+			this.ensureHomeIsVisible();
+		}
+
+		// Ensure home menu item is visible as fallback
+		ensureHomeIsVisible() {
+			const homeItem = document.querySelector('#roleBasedMenu li[data-feature="home_view"]');
+			if (homeItem && !homeItem.classList.contains('menu-visible')) {
+				homeItem.classList.add('menu-visible');
+				console.log('✅ Ensured home menu item is visible as fallback');
+			}
 		}
 
 		// Show sidebar and remove loading state after authentication and filtering

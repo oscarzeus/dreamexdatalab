@@ -1,604 +1,430 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <title>Helpdesk - Submit Ticket</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"/>
-    <style>
-        :root{
-            --primary-color:#2c3e50; --secondary-color:#3498db; --text-primary:#333; --border-color:#e0e0e0;
-            --sidebar-width:250px; --green:#2ecc71; --red:#e74c3c; --orange:#e67e22; --blue:#3498db;
-        }
-        *{box-sizing:border-box;margin:0;padding:0}
-        body{font-family:Inter,system-ui,Arial,sans-serif;background:#f8f9fa;color:var(--text-primary);font-size:14px}
-        .app-container{display:flex;min-height:100vh}
-        .sidebar{width:var(--sidebar-width);background:var(--primary-color);color:#fff;padding:1rem;position:fixed;height:100vh;overflow-y:auto}
-        .logo h2{font-size:1.05rem;text-align:center;padding:1rem 0;border-bottom:1px solid rgba(255,255,255,.1)}
-        .menu{list-style:none;margin-top:1rem}
-        .menu a{color:#fff;text-decoration:none;display:flex;align-items:center;gap:.5rem;font-size:.8rem;border-radius:6px;padding:.5rem .6rem}
-        .menu a:hover,.menu a.active{background:var(--secondary-color)}
-        .submenu{list-style:none;margin-left:.75rem;display:none;margin-top:.25rem}
-        .menu-dropdown:hover .submenu{display:block}
-        .submenu a{font-size:.75rem;padding:.45rem .65rem}
-        [data-feature]:not(.menu-visible){display:none !important}
-        .menu-dropdown:not(.menu-visible){display:none !important}
-        .sidebar.menu-loading .menu-item,
-        .sidebar.menu-loading .menu-dropdown,
-        .sidebar.menu-loading li[data-feature],
-        .sidebar.menu-loading [data-feature]{display:none !important}
-        .sidebar.menu-loading .menu-visible,
-        .sidebar.menu-loading li.menu-visible,
-        .sidebar.menu-loading [data-feature].menu-visible{display:block !important}
-        .menu-loading [data-feature]{display:none !important}
-        .menu-loading .menu-dropdown{display:none !important}
-        .menu-visible{display:block !important}
-        li.menu-visible,[data-feature].menu-visible{display:block !important}
-        .main-content{flex:1;margin-left:var(--sidebar-width);padding:.5rem}
-        .top-nav{display:flex;justify-content:space-between;align-items:center;padding:.5rem .75rem;background:#fff;box-shadow:0 2px 5px rgba(0,0,0,.1);position:sticky;top:0;z-index:20}
-        .sidebar-toggle-btn{background:none;border:none;cursor:pointer;font-size:1.15rem;color:#666;padding:.45rem;border-radius:6px}
-        #headerCompanyLogo{width:40px;height:40px;border-radius:6px;object-fit:contain;display:none}
-        #headerCompanyLogo.visible{display:block}
-        #headerCompanyName{font-weight:600;color:var(--primary-color);font-size:.85rem}
-        .page-header{background:linear-gradient(135deg,var(--primary-color),var(--secondary-color));color:#fff;padding:.6rem .75rem;margin:.5rem 0;display:flex;justify-content:space-between;align-items:center;box-shadow:0 10px 28px rgba(0,0,0,.18),0 6px 16px rgba(0,0,0,.14)}
-        .btn{display:inline-block;padding:.4rem .8rem;border-radius:6px;border:1px solid transparent;font-size:.8rem;cursor:pointer;text-decoration:none}
-        .btn-primary{background:var(--primary-color);color:#fff;border-color:var(--primary-color)}
-        .btn-secondary{background:#6c757d;color:#fff;border-color:#6c757d}
-        .btn-outline{background:transparent;color:#fff;border-color:rgba(255,255,255,.6)}
-        .form-section{background:#fff;border:1px solid var(--border-color);border-radius:8px;padding:16px;margin-bottom:12px;box-shadow:0 2px 4px rgba(0,0,0,.05)}
-        .form-section h3{margin-bottom:10px;color:var(--primary-color);font-size:16px;border-bottom:1px solid #eee;padding-bottom:8px}
-        .form-row{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:10px}
-        .form-group{flex:1 1 260px}
-        label{display:block;margin-bottom:4px;font-weight:600;font-size:.85rem}
-        .form-control{width:100%;padding:10px;border:1px solid #ced4da;border-radius:6px;font-size:.9rem}
-        textarea.form-control{min-height:90px;resize:vertical}
-        select.form-control{cursor:pointer}
-        .action-buttons{display:flex;gap:10px;justify-content:flex-end;margin-top:12px}
-        /* Notifications (match project-list) */
-        .notifications{position:relative;display:flex;align-items:center}
-        .notification-btn{background:none;border:none;cursor:pointer;position:relative;font-size:1.2rem;padding:.5rem;display:flex;align-items:center;justify-content:center;color:#555}
-        .notification-badge{position:absolute;top:-5px;right:-5px;background:#e74c3c;color:#fff;border-radius:50%;padding:.15rem .45rem;font-size:.7rem;display:none}
-        .notification-dropdown{display:none;position:absolute;right:0;top:100%;width:320px;background:#fff;border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,0.15);z-index:1000;border:1px solid #e9ecef;max-height:400px;overflow:hidden}
-        .notification-dropdown.show{display:block;animation:slideDown .2s ease-out}
-        @keyframes slideDown{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
-        .notification-header{padding:12px 16px;border-bottom:1px solid #e9ecef;background:linear-gradient(135deg,#f8f9fa 0%, #e9ecef 100%);display:flex;justify-content:space-between;align-items:center}
-        .notification-header h3{margin:0;color:#333;font-size:14px;font-weight:600}
-        .mark-all-read{background:none;border:none;color:#3498db;cursor:pointer;font-size:12px;padding:4px 8px;border-radius:4px}
-        .mark-all-read:hover{background:#e3f2fd;color:#1976d2}
-        .notification-list{max-height:320px;overflow-y:auto;padding:0}
-        .notification-list::-webkit-scrollbar{width:4px}
-        .notification-list::-webkit-scrollbar-track{background:#f1f1f1}
-        .notification-list::-webkit-scrollbar-thumb{background:#c1c1c1;border-radius:2px}
-        .notification-item{padding:12px 16px;border-bottom:1px solid #f1f1f1;cursor:pointer;transition:background-color .2s ease;position:relative}
-        .notification-item:hover{background:#f8f9fa}
-        .notification-item.unread{background:#e8f4fd;border-left:3px solid #3498db}
-        .notification-empty{padding:40px 20px;text-align:center;color:#999;display:none}
-        .notification-empty i{font-size:32px;margin-bottom:12px;color:#ddd}
-        .notification-empty-title{font-size:14px;font-weight:500;margin-bottom:4px;color:#666}
-        .notification-empty-message{font-size:12px;color:#999}
-        .user-profile{position:relative}
-        .user-profile img{width:38px;height:38px;border-radius:50%;object-fit:cover}
-        .profile-btn{background:none;border:none;border-radius:50%;overflow:hidden;width:38px;height:38px;cursor:pointer}
-        .profile-btn img{width:100%;height:100%;object-fit:cover}
-        .profile-dropdown{display:none;position:absolute;right:0;top:110%;background:#fff;border-radius:8px;min-width:200px;box-shadow:0 6px 18px rgba(0,0,0,0.12);overflow:hidden;border:1px solid #e9ecef;z-index:1000}
-        .profile-dropdown.show{display:block}
-        .profile-dropdown ul{list-style:none;margin:0;padding:0}
-        .profile-dropdown li a{display:block;padding:.65rem .85rem;font-size:.72rem;text-decoration:none;color:#1e293b;font-weight:500}
-        .profile-dropdown li a:hover{background:#f1f5f9}
-        .file-list{list-style:none;margin:10px 0 0;padding:0}
-        .file-item{display:flex;align-items:center;gap:10px;background:#f9f9f9;border:1px solid #eee;border-radius:6px;padding:8px 10px;margin-bottom:8px}
-        .file-actions button{background:none;border:none;cursor:pointer}
-        .file-actions .delete-file{color:#dc3545}
-        .tag{display:inline-block;padding:.12rem .5rem;border-radius:999px;font-size:.75rem;color:#fff}
-        .tag.low{background:#2ecc71}.tag.medium{background:#f39c12}.tag.high{background:#e74c3c}.tag.urgent{background:#c0392b}
-        @media(max-width:768px){.form-row{flex-direction:column}}
-    </style>
-    <script>
-        // prevent FOUC in some older browsers
-    </script>
-}</head>
+	<meta charset="UTF-8"/>
+	<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+	<title>Support - Submit Ticket</title>
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"/>
+	<style>
+		:root{ --primary-color:#2c3e50; --secondary-color:#34495e; --sidebar-width:250px; --border-color:#e0e0e0; --bg:#f8f9fa }
+		*{box-sizing:border-box;margin:0;padding:0}
+		body{font-family:Inter,system-ui,Arial,sans-serif;font-size:14px;background:var(--bg);color:#333}
+		.app-container{display:flex;min-height:100vh}
+		.sidebar{width:var(--sidebar-width);background:var(--primary-color);color:#fff;padding:1rem;position:fixed;top:0;left:0;bottom:0;overflow-y:auto;transition:transform .3s ease;z-index:1000}
+		.sidebar.collapsed{transform:translateX(-100%)}
+		.logo h2{font-size:1.05rem;text-align:center;padding:1rem 0;border-bottom:1px solid rgba(255,255,255,.1)}
+		.menu{list-style:none;margin-top:1rem}
+		.menu a{color:#fff;display:flex;align-items:center;gap:.5rem;text-decoration:none;font-size:.8rem;border-radius:6px;padding:.5rem .6rem}
+		.menu a:hover,.menu a.active{background:rgba(255,255,255,0.12)}
+		/* Submenu behavior to match project-list */
+		.submenu{list-style:none;margin-left:.75rem;display:none;margin-top:.25rem}
+		.menu-dropdown:hover .submenu{display:block}
+		.submenu a{font-size:.75rem;padding:.45rem .65rem}
+		/* Feature/role-based visibility */
+		[data-feature]:not(.menu-visible){display:none!important}
+		.menu-dropdown:not(.menu-visible){display:none!important}
+		.sidebar.menu-loading .menu-item,
+		.sidebar.menu-loading .menu-dropdown,
+		.sidebar.menu-loading li[data-feature],
+		.sidebar.menu-loading [data-feature]{display:none!important}
+		.sidebar.menu-loading .menu-visible,
+		.sidebar.menu-loading li.menu-visible,
+		.sidebar.menu-loading [data-feature].menu-visible{display:block!important}
+		.menu-visible{display:block!important}
+		li.menu-visible,[data-feature].menu-visible{display:block!important}
+		.main-content{flex:1;margin-left:var(--sidebar-width);padding:.3rem; padding-top:3.2rem; transition:margin-left .3s ease}
+		.main-content.sidebar-collapsed{margin-left:0}
+		.top-nav{display:flex;justify-content:space-between;align-items:center;padding:.5rem .75rem;background:#fff;box-shadow:0 2px 5px rgba(0,0,0,.1);position:fixed;top:.25rem;right:.5rem;left:calc(var(--sidebar-width) + .5rem);height:50px;min-height:50px;z-index:100;transition:left .3s ease}
+		.main-content.sidebar-collapsed .top-nav{left:.5rem}
+		.sidebar-toggle-btn{background:none;border:none;cursor:pointer;font-size:1.15rem;color:#666;padding:.45rem;border-radius:6px}
+		#headerCompanyLogo{width:40px;height:40px;border-radius:6px;object-fit:contain;display:none}
+		#headerCompanyLogo.visible{display:block}
+		#headerCompanyName{font-weight:600;color:var(--primary-color);font-size:.85rem}
+		/* Avatar and profile dropdown */
+		.profile-btn{background:none;border:none;border-radius:50%;overflow:hidden;width:38px;height:38px;cursor:pointer}
+		.profile-btn img{width:100%;height:100%;object-fit:cover}
+		.user-profile{position:relative}
+		.profile-dropdown{display:none;position:absolute;right:0;top:110%;background:#fff;border-radius:8px;min-width:200px;box-shadow:0 6px 18px rgba(0,0,0,0.12);overflow:hidden;border:1px solid #e9ecef;z-index:1000}
+		.profile-dropdown.show{display:block}
+		.profile-dropdown ul{list-style:none;margin:0;padding:0}
+		.profile-dropdown li a{display:block;padding:.65rem .85rem;font-size:.72rem;text-decoration:none;color:#1e293b;font-weight:500}
+		.profile-dropdown li a:hover{background:#f1f5f9}
+		/* Notifications (match project-list) */
+		.notifications{position:relative;display:flex;align-items:center}
+		.notification-btn{background:none;border:none;cursor:pointer;position:relative;font-size:1.2rem;padding:.5rem;display:flex;align-items:center;justify-content:center}
+		.notification-badge{position:absolute;top:-5px;right:-5px;background:#e74c3c;color:#fff;border-radius:50%;padding:.15rem .45rem;font-size:.7rem;display:none}
+		.notification-dropdown{display:none;position:absolute;right:0;top:100%;width:320px;background:#fff;border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,.15);z-index:1000;border:1px solid #e9ecef;max-height:400px;overflow:hidden}
+		.notification-dropdown.show{display:block;animation:slideDown .2s ease-out}
+		@keyframes slideDown{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
+		.notification-header{padding:12px 16px;border-bottom:1px solid #e9ecef;background:linear-gradient(135deg,#f8f9fa 0%, #e9ecef 100%);display:flex;justify-content:space-between;align-items:center}
+		.notification-header h3{margin:0;color:#333;font-size:14px;font-weight:600}
+		.mark-all-read{background:none;border:none;color:#3498db;cursor:pointer;font-size:12px;padding:4px 8px;border-radius:4px}
+		.mark-all-read:hover{background:#e3f2fd;color:#1976d2}
+		.notification-list{max-height:320px;overflow-y:auto;padding:0}
+		.notification-item{padding:12px 16px;border-bottom:1px solid #f1f1f1;cursor:pointer;transition:background-color .2s ease;position:relative}
+		.notification-item:hover{background:#f8f9fa}
+		.notification-item.unread{background:#e8f4fd;border-left:3px solid #3498db}
+		.notification-empty{padding:40px 20px;text-align:center;color:#999;display:none}
+		.notification-empty i{font-size:32px;margin-bottom:12px;color:#ddd}
+		.notification-empty-title{font-size:14px;font-weight:500;margin-bottom:4px;color:#666}
+		.notification-empty-message{font-size:12px;color:#999}
+		/* Content */
+		.page-header{background:linear-gradient(135deg,var(--primary-color),var(--secondary-color));color:#fff;padding:.6rem .75rem;margin:.5rem 0;display:flex;justify-content:space-between;align-items:center;box-shadow:0 10px 28px rgba(0,0,0,.18),0 6px 16px rgba(0,0,0,.14)}
+		.btn{display:inline-block;padding:.4rem .8rem;border-radius:6px;border:1px solid transparent;font-size:.8rem;cursor:pointer;text-decoration:none}
+		.btn-primary{background:var(--primary-color);color:#fff;border-color:var(--primary-color)}
+		.btn-secondary{background:#6c757d;color:#fff;border-color:#6c757d}
+		.btn-outline{background:transparent;color:#fff;border-color:rgba(255,255,255,.6)}
+		.form-section{background:#fff;border:1px solid var(--border-color);border-radius:8px;padding:16px;margin-bottom:12px;box-shadow:0 2px 4px rgba(0,0,0,.05)}
+		.form-section h3{margin-bottom:10px;color:var(--primary-color);font-size:16px;border-bottom:1px solid #eee;padding-bottom:8px}
+		.form-row{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:10px}
+		.form-group{flex:1 1 260px}
+		label{display:block;margin-bottom:4px;font-weight:600;font-size:.85rem}
+		.form-control{width:100%;padding:10px;border:1px solid #ced4da;border-radius:6px;font-size:.9rem}
+		textarea.form-control{min-height:90px;resize:vertical}
+		select.form-control{cursor:pointer}
+		.action-buttons{display:flex;gap:10px;justify-content:flex-end;margin-top:12px}
+		.file-list{list-style:none;margin:10px 0 0;padding:0}
+		.file-item{display:flex;align-items:center;gap:10px;background:#f9f9f9;border:1px solid #eee;border-radius:6px;padding:8px 10px;margin-bottom:8px}
+		.file-actions button{background:none;border:none;cursor:pointer}
+		.file-actions .delete-file{color:#dc3545}
+		.tag{display:inline-block;padding:.12rem .5rem;border-radius:999px;font-size:.75rem;color:#fff}
+		.tag.low{background:#2ecc71}.tag.medium{background:#f39c12}.tag.high{background:#e74c3c}
+		@media(max-width:768px){.form-row{flex-direction:column}}
+	</style>
+</head>
 <body>
 <div class="app-container">
-    <nav class="sidebar menu-loading" id="sidebar">
-        <div class="logo"><h2>Dreamex Datalab</h2></div>
-        <ul class="menu" id="roleBasedMenu">
-            <!-- Reuse the exact sidebar from project-list for parity -->
-            <li class="menu-item" data-feature="home_view"><a href="index.html"><i class="fas fa-home"></i> Home</a></li>
-            <li class="menu-dropdown" data-feature="health_view">
-                <a href="#"><i class="fas fa-medkit"></i> Health</a>
-                <ul class="submenu">
-                    <li data-feature="health_assessment_view" data-requires-permission="health_assessment_view"><a href="health-assessment.html">Assessment</a></li>
-                    <li data-feature="health_consultation_view" data-requires-permission="health_consultation_view"><a href="health-consultation.html">Consultation</a></li>
-                    <li data-feature="medical_folder_view" data-requires-permission="medical_folder_view"><a href="medical-folder.html">Medical Folder</a></li>
-                </ul>
-            </li>
-            <!-- Risk Management (separate section) -->
-            <li class="menu-dropdown" data-feature="risk_view" data-requires-permission="risk_view">
-                <a href="#"><i class="fas fa-exclamation-triangle"></i> Risk Management</a>
-            <ul class="submenu">
-                <li data-feature="risk_view" data-requires-permission="risk_view"><a href="riskboard.html">Risk Management</a></li>
-                <li data-feature="risk_view" data-requires-permission="risk_register_view"><a href="riskreg.html">Risk Register</a></li>
-            </ul>
-            </li>
-            <li class="menu-dropdown" data-feature="safety_view" data-requires-permission="safety_view">
-                <a href="#"><i class="fas fa-shield-alt"></i> Safety</a>
-                <ul class="submenu">
-                    <li data-feature="training_view" data-requires-permission="training_view"><a href="trainingboard.html">Training</a></li>
-                    <li data-feature="jsa_view" data-requires-permission="jsa_view"><a href="jsaboard.html">Job Safety Analysis</a></li>
-                    <li data-feature="ptw_view" data-requires-permission="ptw_view"><a href="ptwboard.html">Permit to Work</a></li>
-                    <li data-feature="incident_view" data-requires-permission="incident_view"><a href="incidentboard.html">Incident Reports</a></li>
-                    <li data-feature="inspection_view" data-requires-permission="inspection_view"><a href="inspectionboard.html">Inspection</a></li>
-                    <li data-feature="audit_view" data-requires-permission="audit_view"><a href="auditboard.html">Audit</a></li>
-                </ul>
-            </li>
-            <li class="menu-dropdown" data-feature="investigation_view" data-requires-permission="investigation_view">
-                <a href="#"><i class="fas fa-search-plus"></i> Investigation</a>
-                <ul class="submenu">
-                    <li data-feature="investigation_dashboard_view" data-requires-permission="investigation_dashboard_view"><a href="investigation-dashboard.html">Investigation Dashboard</a></li>
-                    <li data-feature="investigation_list_view" data-requires-permission="investigation_list_view"><a href="investigation-list.html">Investigation List</a></li>
-                    <li data-feature="create_investigation_view" data-requires-permission="create_investigation_view"><a href="investigation-create.html">Create Investigation</a></li>
-                </ul>
-            </li>
-            <li class="menu-dropdown" data-feature="fuel_management" data-requires-permission="fuel_management">
-                <a href="#"><i class="fas fa-gas-pump"></i> Fuel Management</a>
-                <ul class="submenu">
-                    <li data-feature="vessel_offloading" data-requires-permission="vessel_offloading"><a href="vessel-offloading.html">Vessel Offloading</a></li>
-                    <li data-feature="fuel_storage" data-requires-permission="fuel_storage"><a href="fuelstor.html">Fuel Storage Status</a></li>
-                    <li data-feature="tank_transfer" data-requires-permission="tank_transfer"><a href="fueltrans.html">Tank-to-Tank Transfer</a></li>
-                    <li data-feature="truck_loading" data-requires-permission="truck_loading"><a href="fuel-truck-loading.html">Fuel Truck Loading</a></li>
-                    <li data-feature="quality_analysis" data-requires-permission="quality_analysis"><a href="fuel-quality-analysis.html">Fuel Quality Analysis</a></li>
-                    <li data-feature="fuel_distribution" data-requires-permission="fuel_distribution"><a href="fueldist.html">Fuel Distribution</a></li>
-                    <li data-feature="fuel_consumption_analysis" data-requires-permission="fuel_consumption_analysis"><a href="fuelanalys.html">Consumption Analysis</a></li>
-                    <li data-feature="fuel_daily_report" data-requires-permission="fuel_daily_report"><a href="fueldaily.html">Daily Fuel Report</a></li>
-                </ul>
-            </li>
-            <li class="menu-dropdown" data-feature="environment_view">
-                <a href="#"><i class="fas fa-leaf"></i> Environment</a>
-                <ul class="submenu">
-                    <li data-feature="water_view" data-requires-permission="water_view"><a href="waterboard.html">Water Quality</a></li>
-                </ul>
-            </li>
-            <li class="menu-dropdown" data-feature="security_view" data-requires-permission="security_view">
-                <a href="#"><i class="fas fa-lock"></i> Security</a>
-                <ul class="submenu">
-                    <li data-feature="access_view" data-requires-permission="access_view"><a href="accessboard.html">Access Request</a></li>
-                    <li data-feature="access_daily_view" data-requires-permission="access_daily_view"><a href="accessdaily.html">Daily Access Control</a></li>
-                    <li data-feature="removal_view" data-requires-permission="removal_view"><a href="removalboard.html">Property Removal</a></li>
-                    <li data-feature="security_site_map_view" data-requires-permission="security_site_map_view"><a href="sitemap.html">Security Site Map</a></li>
-                    <li data-feature="security_level_evaluation_view" data-requires-permission="security_level_evaluation_view"><a href="seclevel.html">Security Level Evaluation</a></li>
-                </ul>
-            </li>
-            <li class="menu-dropdown" data-feature="logistics_view" data-requires-permission="logistics_view">
-                <a href="#"><i class="fas fa-truck"></i> Logistics</a>
-                <ul class="submenu">
-                    <li data-feature="fleet_view" data-requires-permission="fleet_view"><a href="fleet.html">Fleet Management</a></li>
-                    <li data-feature="travel_view" data-requires-permission="travel_view"><a href="travel.html">Travel Requests</a></li>
-                </ul>
-            </li>
-            <li class="menu-dropdown" data-feature="accommodation_view" data-requires-permission="accommodation_view">
-                <a href="#"><i class="fas fa-bed"></i> Accommodation</a>
-                <ul class="submenu">
-                    <li data-feature="camp_view" data-requires-permission="camp_view"><a href="camp.html">Camp Management</a></li>
-                    <li data-feature="camp_settings_view" data-requires-permission="camp_settings_view"><a href="campset.html">Camp Settings</a></li>
-                </ul>
-            </li>
-            <li class="menu-dropdown" data-feature="hr_view" data-requires-permission="hr_view">
-                <a href="#"><i class="fas fa-users"></i> HR</a>
-                <ul class="submenu">
-                    <li data-feature="human_hr_view" data-requires-permission="human_hr_view"><a href="human-hr.html"><i class="fas fa-user-tie"></i> Human HR</a></li>
-                    <li data-feature="staff_management_view" data-requires-permission="staff_management_view"><a href="staff.html">Staffing</a></li>
-                    <li data-feature="authority_to_recruit_view" data-requires-permission="authority_to_recruit_view"><a href="recruit.html">Authority to Recruit</a></li>
-                    <li data-feature="job_advertising_view" data-requires-permission="job_advertising_view"><a href="jobpost.html">Job Advertising</a></li>
-                    <li data-feature="screening_view" data-requires-permission="screening_view"><a href="jobscreen.html">Screening</a></li>
-                    <li data-feature="interview_view" data-requires-permission="interview_view"><a href="interview.html">Interview</a></li>
-                    <li data-feature="offer_view" data-requires-permission="offer_view"><a href="offer.html">Offer Management</a></li>
-                    <li data-feature="contract_view" data-requires-permission="contract_view"><a href="contract.html">Contract Management</a></li>
-                    <li data-feature="salary_management_view" data-requires-permission="salary_management_view"><a href="salary.html">Salary Management</a></li>
-                    <li data-feature="onboarding_view" data-requires-permission="onboarding_view"><a href="onboard.html">Onboarding</a></li>
-                    <li data-feature="chart_view" data-requires-permission="chart_view"><a href="chart.html">Chart Setup</a></li>
-                    <li data-feature="chartboard_view" data-requires-permission="chartboard_view"><a href="chartboard.html">Org Chart</a></li>
-                    <li data-feature="kpi_dashboard_view" data-requires-permission="kpi_dashboard_view"><a href="kpi.html">KPI</a></li>
-                    <li data-feature="payroll_view" data-requires-permission="payroll_view"><a href="payroll.html">Payroll</a></li>
-                </ul>
-            </li>
-            <li class="menu-dropdown" data-feature="project_management_section">
-                <a href="#"><i class="fas fa-project-diagram"></i> Project Management</a>
-                <ul class="submenu">
-                    <li data-feature="project_dashboard_view" data-requires-permission="project_dashboard_view"><a href="project-dashboard.html"><i class="fas fa-tachometer-alt"></i> Project Dashboard</a></li>
-                    <li data-feature="project_create_view" data-requires-permission="project_create_view"><a href="project-create.html"><i class="fas fa-plus-circle"></i> Create Project</a></li>
-                    <li data-feature="project_list_view" data-requires-permission="project_list_view"><a href="project-list.html"><i class="fas fa-list"></i> Project List</a></li>
-                    <li data-feature="project_reports_view" data-requires-permission="project_reports_view"><a href="project-reports.html"><i class="fas fa-chart-bar"></i> Project Reports</a></li>
-                </ul>
-            </li>
-            <li class="menu-dropdown" data-feature="inventory_view" data-requires-permission="inventory_view">
-                <a href="#"><i class="fas fa-boxes"></i> Inventory Management</a>
-                <ul class="submenu">
-                    <li data-feature="inventory_dashboard_view" data-requires-permission="inventory_dashboard_view"><a href="inventory-dashboard.html"><i class="fas fa-tachometer-alt"></i> Inventory Dashboard</a></li>
-                    <li data-feature="inventory_items_view" data-requires-permission="inventory_items_view"><a href="inventory-items.html"><i class="fas fa-cubes"></i> Items Management</a></li>
-                    <li data-feature="inventory_warehouses_view" data-requires-permission="inventory_warehouses_view"><a href="inventory-warehouses.html"><i class="fas fa-warehouse"></i> Warehouses</a></li>
-                    <li data-feature="inventory_reservations_view" data-requires-permission="inventory_reservations_view"><a href="inventory-reservations.html"><i class="fas fa-bookmark"></i> Material Reservations</a></li>
-                    <li data-feature="inventory_approvals_view" data-requires-permission="inventory_approvals_view"><a href="inventory-approvals.html"><i class="fas fa-check-circle"></i> Approvals</a></li>
-                    <li data-feature="inventory_issue_view" data-requires-permission="inventory_issue_view"><a href="inventory-issue.html"><i class="fas fa-shipping-fast"></i> Material Issue</a></li>
-                </ul>
-            </li>
-            <li class="menu-dropdown" data-feature="catering_view" data-requires-permission="catering_view">
-                <a href="#"><i class="fas fa-utensils"></i> Workspaces — Catering</a>
-                <ul class="submenu">
-                    <li data-feature="catering_manage_types" data-requires-permission="catering_manage_types"><a href="catering-meal-types.html"><i class="fas fa-list"></i> Meal Types</a></li>
-                    <li data-feature="catering_assign" data-requires-permission="catering_assign"><a href="catering-eligibility.html"><i class="fas fa-user-check"></i> Eligibility & Assign</a></li>
-                    <li data-feature="catering_consumption_manual" data-requires-permission="catering_consumption_manual"><a href="catering-consumption.html"><i class="fas fa-keyboard"></i> Consumption (Manual)</a></li>
-                    <li data-feature="catering_consumption_nfc" data-requires-permission="catering_consumption_nfc"><a href="catering-consumption.html#nfc"><i class="fas fa-id-card"></i> Consumption (NFC)</a></li>
-                    <li data-feature="catering_reports" data-requires-permission="catering_reports"><a href="catering-reports.html"><i class="fas fa-chart-line"></i> Reports</a></li>
-                </ul>
-            </li>
-            <li class="menu-item" data-feature="communication_view"><a href="info.html"><i class="fas fa-comments"></i> Communication</a></li>
-            <li class="menu-dropdown" data-feature="settings_view">
-                <a href="#"><i class="fas fa-cog"></i> Settings</a>
-                <ul class="submenu">
-                    <li data-feature="account_settings_view" data-requires-permission="account_settings_view"><a href="account.html">Account Settings</a></li>
-                    <li data-feature="company_management_view" data-requires-permission="company_management_view"><a href="companymanagement.html">Company Management</a></li>
-                    <li data-feature="approval_settings_view" data-requires-permission="approval_settings_view"><a href="approval-settings.html">Approval Flow Settings</a></li>
-                    <li data-feature="field_setup_view" data-requires-permission="field_setup_view"><a href="fieldsetup.html">Field Setup</a></li>
-                    <li data-feature="preferences_view" data-requires-permission="preferences_view"><a href="preferences.html">Preferences</a></li>
-                    <li data-feature="notification_settings_view" data-requires-permission="notification_settings_view"><a href="notification-settings.html">Notification Settings</a></li>
-                    <li data-feature="audit_log_view" data-requires-permission="audit_log_view"><a href="auditlog.html"><i class="fas fa-history"></i> Audit Log</a></li>
-                    <li data-feature="user_management_view" data-requires-permission="user_management_view"><a href="users.html">User & Role Management</a></li>
-                    <li data-feature="role_permissions_view" data-requires-permission="role_permissions_view"><a href="roles.html">Role Permissions</a></li>
-                </ul>
-            </li>
-        </ul>
-    </nav>
+	<nav class="sidebar menu-loading" id="sidebar">
+		<div class="logo"><h2>Dreamex Datalab</h2></div>
+		<ul class="menu" id="roleBasedMenu">
+			<li class="menu-item" data-feature="home_view"><a href="index.html"><i class="fas fa-home"></i> Home</a></li>
+			<li class="menu-dropdown" data-feature="health_view">
+				<a href="#"><i class="fas fa-medkit"></i> Health</a>
+				<ul class="submenu">
+					<li data-feature="health_assessment_view" data-requires-permission="health_assessment_view"><a href="health-assessment.html">Assessment</a></li>
+					<li data-feature="health_consultation_view" data-requires-permission="health_consultation_view"><a href="health-consultation.html">Consultation</a></li>
+					<li data-feature="medical_folder_view" data-requires-permission="medical_folder_view"><a href="medical-folder.html">Medical Folder</a></li>
+				</ul>
+			</li>
+			<!-- Risk Management (separate section) -->
+			<li class="menu-dropdown" data-feature="risk_view" data-requires-permission="risk_view">
+				<a href="#"><i class="fas fa-exclamation-triangle"></i> Risk Management</a>
+				<ul class="submenu">
+					<li data-feature="risk_view" data-requires-permission="risk_view"><a href="riskboard.html">Risk Management</a></li>
+					<li data-feature="risk_view" data-requires-permission="risk_register_view"><a href="riskreg.html">Risk Register</a></li>
+				</ul>
+			</li>
+			<li class="menu-dropdown" data-feature="safety_view" data-requires-permission="safety_view">
+				<a href="#"><i class="fas fa-shield-alt"></i> Safety</a>
+				<ul class="submenu">
+					<li data-feature="training_view" data-requires-permission="training_view"><a href="trainingboard.html">Training</a></li>
+					<li data-feature="jsa_view" data-requires-permission="jsa_view"><a href="jsaboard.html">Job Safety Analysis</a></li>
+					<li data-feature="ptw_view" data-requires-permission="ptw_view"><a href="ptwboard.html">Permit to Work</a></li>
+					<li data-feature="incident_view" data-requires-permission="incident_view"><a href="incidentboard.html">Incident Reports</a></li>
+					<li data-feature="inspection_view" data-requires-permission="inspection_view"><a href="inspectionboard.html">Inspection</a></li>
+					<li data-feature="audit_view" data-requires-permission="audit_view"><a href="auditboard.html">Audit</a></li>
+				</ul>
+			</li>
+			<li class="menu-dropdown" data-feature="investigation_view" data-requires-permission="investigation_view">
+				<a href="#"><i class="fas fa-search-plus"></i> Investigation</a>
+				<ul class="submenu">
+					<li data-feature="investigation_dashboard_view" data-requires-permission="investigation_dashboard_view"><a href="investigation-dashboard.html">Investigation Dashboard</a></li>
+					<li data-feature="investigation_list_view" data-requires-permission="investigation_list_view"><a href="investigation-list.html">Investigation List</a></li>
+					<li data-feature="create_investigation_view" data-requires-permission="create_investigation_view"><a href="investigation-create.html">Create Investigation</a></li>
+				</ul>
+			</li>
+			<li class="menu-dropdown" data-feature="fuel_management" data-requires-permission="fuel_management">
+				<a href="#"><i class="fas fa-gas-pump"></i> Fuel Management</a>
+				<ul class="submenu">
+					<li data-feature="vessel_offloading" data-requires-permission="vessel_offloading"><a href="vessel-offloading.html">Vessel Offloading</a></li>
+					<li data-feature="fuel_storage" data-requires-permission="fuel_storage"><a href="fuelstor.html">Fuel Storage Status</a></li>
+					<li data-feature="tank_transfer" data-requires-permission="tank_transfer"><a href="fueltrans.html">Tank-to-Tank Transfer</a></li>
+					<li data-feature="truck_loading" data-requires-permission="truck_loading"><a href="fuel-truck-loading.html">Fuel Truck Loading</a></li>
+					<li data-feature="quality_analysis" data-requires-permission="quality_analysis"><a href="fuel-quality-analysis.html">Fuel Quality Analysis</a></li>
+					<li data-feature="fuel_distribution" data-requires-permission="fuel_distribution"><a href="fueldist.html">Fuel Distribution</a></li>
+					<li data-feature="fuel_consumption_analysis" data-requires-permission="fuel_consumption_analysis"><a href="fuelanalys.html">Consumption Analysis</a></li>
+					<li data-feature="fuel_daily_report" data-requires-permission="fuel_daily_report"><a href="fueldaily.html">Daily Fuel Report</a></li>
+				</ul>
+			</li>
+			<li class="menu-dropdown" data-feature="environment_view">
+				<a href="#"><i class="fas fa-leaf"></i> Environment</a>
+				<ul class="submenu">
+					<li data-feature="water_view" data-requires-permission="water_view"><a href="waterboard.html">Water Quality</a></li>
+				</ul>
+			</li>
+			<li class="menu-dropdown" data-feature="security_view" data-requires-permission="security_view">
+				<a href="#"><i class="fas fa-lock"></i> Security</a>
+				<ul class="submenu">
+					<li data-feature="access_view" data-requires-permission="access_view"><a href="accessboard.html">Access Request</a></li>
+					<li data-feature="access_daily_view" data-requires-permission="access_daily_view"><a href="accessdaily.html">Daily Access Control</a></li>
+					<li data-feature="removal_view" data-requires-permission="removal_view"><a href="removalboard.html">Property Removal</a></li>
+					<li data-feature="security_site_map_view" data-requires-permission="security_site_map_view"><a href="sitemap.html">Security Site Map</a></li>
+					<li data-feature="security_level_evaluation_view" data-requires-permission="security_level_evaluation_view"><a href="seclevel.html">Security Level Evaluation</a></li>
+					<li data-feature="nfc_view" data-requires-permission="nfc_view"><a href="nfc.html">NFC Card Management</a></li>
+				</ul>
+			</li>
+			<li class="menu-dropdown" data-feature="logistics_view" data-requires-permission="logistics_view">
+				<a href="#"><i class="fas fa-truck"></i> Logistics</a>
+				<ul class="submenu">
+					<li data-feature="fleet_view" data-requires-permission="fleet_view"><a href="fleet.html">Fleet Management</a></li>
+					<li data-feature="travel_view" data-requires-permission="travel_view"><a href="travel.html">Travel Requests</a></li>
+				</ul>
+			</li>
+			<li class="menu-dropdown" data-feature="accommodation_view" data-requires-permission="accommodation_view">
+				<a href="#"><i class="fas fa-bed"></i> Accommodation</a>
+				<ul class="submenu">
+					<li data-feature="camp_view" data-requires-permission="camp_view"><a href="camp.html">Camp Management</a></li>
+					<li data-feature="camp_settings_view" data-requires-permission="camp_settings_view"><a href="campset.html">Camp Settings</a></li>
+				</ul>
+			</li>
+			<li class="menu-dropdown" data-feature="hr_view" data-requires-permission="hr_view">
+				<a href="#"><i class="fas fa-users"></i> HR</a>
+				<ul class="submenu">
+					<li data-feature="human_hr_view" data-requires-permission="human_hr_view"><a href="human-hr.html"><i class="fas fa-user-tie"></i> Human HR</a></li>
+					<li data-feature="staff_management_view" data-requires-permission="staff_management_view"><a href="staff.html">Staffing</a></li>
+					<li data-feature="authority_to_recruit_view" data-requires-permission="authority_to_recruit_view"><a href="recruit.html">Authority to Recruit</a></li>
+					<li data-feature="job_advertising_view" data-requires-permission="job_advertising_view"><a href="jobpost.html">Job Advertising</a></li>
+					<li data-feature="screening_view" data-requires-permission="screening_view"><a href="jobscreen.html">Screening</a></li>
+					<li data-feature="interview_view" data-requires-permission="interview_view"><a href="interview.html">Interview</a></li>
+					<li data-feature="offer_view" data-requires-permission="offer_view"><a href="offer.html">Offer Management</a></li>
+					<li data-feature="contract_view" data-requires-permission="contract_view"><a href="contract.html">Contract Management</a></li>
+					<li data-feature="salary_management_view" data-requires-permission="salary_management_view"><a href="salary.html">Salary Management</a></li>
+					<li data-feature="onboarding_view" data-requires-permission="onboarding_view"><a href="onboard.html">Onboarding</a></li>
+					<li data-feature="chart_view" data-requires-permission="chart_view"><a href="chart.html">Chart Setup</a></li>
+					<li data-feature="chartboard_view" data-requires-permission="chartboard_view"><a href="chartboard.html">Org Chart</a></li>
+					<li data-feature="kpi_dashboard_view" data-requires-permission="kpi_dashboard_view"><a href="kpi.html">KPI</a></li>
+					<li data-feature="payroll_view" data-requires-permission="payroll_view"><a href="payroll.html">Payroll</a></li>
+				</ul>
+			</li>
+			<!-- Project Management as section button with submenu -->
+			<li class="menu-dropdown" data-feature="project_management_section">
+				<a href="#"><i class="fas fa-project-diagram"></i> Project Management</a>
+				<ul class="submenu">
+					<li data-feature="project_dashboard_view" data-requires-permission="project_dashboard_view"><a href="project-dashboard.html"><i class="fas fa-tachometer-alt"></i> Project Dashboard</a></li>
+					<li data-feature="project_create_view" data-requires-permission="project_create_view"><a href="project-create.html"><i class="fas fa-plus-circle"></i> Create Project</a></li>
+					<li data-feature="project_list_view" data-requires-permission="project_list_view"><a href="project-list.html"><i class="fas fa-list"></i> Project List</a></li>
+					<li data-feature="project_reports_view" data-requires-permission="project_reports_view"><a href="project-reports.html"><i class="fas fa-chart-bar"></i> Project Reports</a></li>
+				</ul>
+			</li>
+			<!-- Inventory Management as section button with submenu -->
+			<li class="menu-dropdown" data-feature="inventory_view" data-requires-permission="inventory_view">
+				<a href="#"><i class="fas fa-boxes"></i> Inventory Management</a>
+				<ul class="submenu">
+					<li data-feature="inventory_dashboard_view" data-requires-permission="inventory_dashboard_view"><a href="inventory-dashboard.html"><i class="fas fa-tachometer-alt"></i> Inventory Dashboard</a></li>
+					<li data-feature="inventory_items_view" data-requires-permission="inventory_items_view"><a href="inventory-items.html"><i class="fas fa-cubes"></i> Items Management</a></li>
+					<li data-feature="inventory_warehouses_view" data-requires-permission="inventory_warehouses_view"><a href="inventory-warehouses.html"><i class="fas fa-warehouse"></i> Warehouses</a></li>
+					<li data-feature="inventory_reservations_view" data-requires-permission="inventory_reservations_view"><a href="inventory-reservations.html"><i class="fas fa-bookmark"></i> Material Reservations</a></li>
+					<li data-feature="inventory_approvals_view" data-requires-permission="inventory_approvals_view"><a href="inventory-approvals.html"><i class="fas fa-check-circle"></i> Approvals</a></li>
+					<li data-feature="inventory_issue_view" data-requires-permission="inventory_issue_view"><a href="inventory-issue.html"><i class="fas fa-shipping-fast"></i> Material Issue</a></li>
+				</ul>
+			</li>
+			<!-- Workspaces: Catering -->
+			<li class="menu-dropdown" data-feature="catering_view" data-requires-permission="catering_view">
+				<a href="#"><i class="fas fa-utensils"></i> Workspaces — Catering</a>
+				<ul class="submenu">
+					<li data-feature="catering_manage_types" data-requires-permission="catering_manage_types"><a href="catering-meal-types.html"><i class="fas fa-list"></i> Meal Types</a></li>
+					<li data-feature="catering_assign" data-requires-permission="catering_assign"><a href="catering-eligibility.html"><i class="fas fa-user-check"></i> Eligibility & Assign</a></li>
+					<li data-feature="catering_consumption_manual" data-requires-permission="catering_consumption_manual"><a href="catering-consumption.html"><i class="fas fa-keyboard"></i> Consumption (Manual)</a></li>
+					<li data-feature="catering_consumption_nfc" data-requires-permission="catering_consumption_nfc"><a href="catering-consumption.html#nfc"><i class="fas fa-id-card"></i> Consumption (NFC)</a></li>
+					<li data-feature="catering_reports" data-requires-permission="catering_reports"><a href="catering-reports.html"><i class="fas fa-chart-line"></i> Reports</a></li>
+				</ul>
+			</li>
+			<li data-feature="requests_view" data-requires-permission="requests_view"><a href="tickboard.html"><i class="fas fa-ticket-alt"></i> Requests</a></li>
+			<li data-feature="communication_view"><a href="info.html"><i class="fas fa-comments"></i> Communication</a></li>
+			<li class="menu-dropdown" data-feature="settings_view">
+				<a href="#"><i class="fas fa-cog"></i> Settings</a>
+				<ul class="submenu">
+					<li data-feature="account_settings_view" data-requires-permission="account_settings_view"><a href="account.html">Account Settings</a></li>
+					<li data-feature="company_management_view" data-requires-permission="company_management_view"><a href="companymanagement.html">Company Management</a></li>
+					<li data-feature="approval_settings_view" data-requires-permission="approval_settings_view"><a href="approval-settings.html">Approval Flow Settings</a></li>
+					<li data-feature="field_setup_view" data-requires-permission="field_setup_view"><a href="fieldsetup.html">Field Setup</a></li>
+					<li data-feature="preferences_view" data-requires-permission="preferences_view"><a href="preferences.html">Preferences</a></li>
+					<li data-feature="notification_settings_view" data-requires-permission="notification_settings_view"><a href="notification-settings.html">Notification Settings</a></li>
+					<li data-feature="audit_log_view" data-requires-permission="audit_log_view"><a href="auditlog.html"><i class="fas fa-history"></i> Audit Log</a></li>
+					<li data-feature="user_management_view" data-requires-permission="user_management_view"><a href="users.html">User & Role Management</a></li>
+					<li data-feature="role_permissions_view" data-requires-permission="role_permissions_view"><a href="roles.html">Role Permissions</a></li>
+				</ul>
+			</li>
+		</ul>
+	</nav>
 
-    <main class="main-content" id="mainContent">
-        <header class="top-nav">
-            <div style="display:flex;align-items:center;gap:.7rem">
-                <button id="sidebarToggle" class="sidebar-toggle-btn" title="Toggle menu"><i class="fas fa-bars"></i></button>
-                <img id="headerCompanyLogo" alt="Company Logo"/>
-                <span id="headerCompanyName"></span>
-            </div>
-            <div style="display:flex;align-items:center;gap:1rem;position:relative">
-                <div class="notifications">
-                    <button id="notificationBtn" class="notification-btn">
-                        <i class="fas fa-bell"></i>
-                        <span class="notification-badge">0</span>
-                    </button>
-                    <div class="notification-dropdown">
-                        <div class="notification-header">
-                            <h3>Notifications</h3>
-                            <button class="mark-all-read" type="button">Mark all as read</button>
-                        </div>
-                        <div class="notification-list">
-                            <div class="notification-empty">
-                                <i class="fas fa-inbox"></i>
-                                <div class="notification-empty-title">No notifications</div>
-                                <div class="notification-empty-message">You're all caught up</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="user-profile"><button id="userProfileBtn" class="profile-btn"><img src="" alt="User Avatar"/></button><div class="profile-dropdown"><ul></ul></div></div>
-            </div>
-        </header>
+	<main class="main-content" id="mainContent">
+		<header class="top-nav">
+			<div style="display:flex;align-items:center;gap:.7rem">
+				<button id="sidebarToggle" class="sidebar-toggle-btn" title="Toggle menu"><i class="fas fa-bars"></i></button>
+				<img id="headerCompanyLogo" alt="Company Logo"/>
+				<span id="headerCompanyName"></span>
+			</div>
+			<div style="display:flex;align-items:center;gap:1rem;position:relative">
+				<div class="notifications">
+					<button id="notificationBtn" class="notification-btn">
+						<i class="fas fa-bell"></i>
+						<span class="notification-badge">0</span>
+					</button>
+					<div class="notification-dropdown">
+						<div class="notification-header">
+							<h3>Notifications</h3>
+							<button class="mark-all-read" type="button">Mark all as read</button>
+						</div>
+						<div class="notification-list">
+							<div class="notification-empty">
+								<i class="fas fa-inbox"></i>
+								<div class="notification-empty-title">No notifications</div>
+								<div class="notification-empty-message">You're all caught up</div>
+							</div>
+						</div>
+					</div>
+				</div>
+				<div class="user-profile"><button id="userProfileBtn" class="profile-btn"><img src="" alt="User Avatar"/></button><div class="profile-dropdown"><ul></ul></div></div>
+			</div>
+		</header>
 
-        <div class="page-header">
-            <div style="display:flex;align-items:center;gap:.6rem">
-                <i class="fas fa-ticket"></i>
-                <span>Submit Ticket</span>
-            </div>
-            <div>
-                <a href="tickboard.html" class="btn btn-outline"><i class="fas fa-table-list"></i> Ticket Board</a>
-            </div>
-        </div>
+		<div class="page-header">
+			<div style="display:flex;align-items:center;gap:.6rem">
+				<i class="fas fa-ticket"></i>
+				<span>Submit Ticket</span>
+			</div>
+			<div>
+				<a href="tickboard.html" class="btn btn-outline"><i class="fas fa-table-list"></i> Ticket Board</a>
+			</div>
+		</div>
 
-        <form id="ticketForm">
-            <input type="hidden" id="ticketId"/>
-            <div class="form-section">
-                <h3>Basic Information</h3>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="ticketRef">Reference</label>
-                        <input id="ticketRef" class="form-control" placeholder="Auto-generated" readonly/>
-                    </div>
-                    <div class="form-group">
-                        <label for="ticketTitle">Subject *</label>
-                        <input id="ticketTitle" class="form-control" required placeholder="Brief subject"/>
-                    </div>
-                    <div class="form-group">
-                        <label for="ticketType">Type</label>
-                        <select id="ticketType" class="form-control">
-                            <option value="">Select Type</option>
-                            <option value="question">Question</option>
-                            <option value="incident">Incident</option>
-                            <option value="problem">Problem</option>
-                            <option value="task">Task</option>
-                            <option value="feature-request">Feature Request</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label for="ticketPriority">Priority *</label>
-                        <select id="ticketPriority" class="form-control" required>
-                            <option value="">Select Priority</option>
-                            <option value="low">Low</option>
-                            <option value="medium">Medium</option>
-                            <option value="high">High</option>
-                            <option value="urgent">Urgent</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="ticketDateTime">Date & Time *</label>
-                        <input type="datetime-local" id="ticketDateTime" class="form-control" required/>
-                    </div>
-                    <div class="form-group">
-                        <label for="ticketStatus">Status</label>
-                        <select id="ticketStatus" class="form-control">
-                            <option value="open">Open</option>
-                            <option value="in-progress">In Progress</option>
-                            <option value="pending">Pending</option>
-                            <option value="resolved">Resolved</option>
-                            <option value="closed">Closed</option>
-                            <option value="draft">Draft</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label for="ticketDepartment">Department</label>
-                        <select id="ticketDepartment" class="form-control">
-                            <option value="">Select Department</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label for="ticketAssignedTo">Assigned To</label>
-                        <select id="ticketAssignedTo" class="form-control">
-                            <option value="">Select Person</option>
-                        </select>
-                    </div>
-                </div>
-            </div>
+		<form id="ticketForm">
+			<input type="hidden" id="ticketId"/>
+			<div class="form-section">
+				<h3>Basic Information</h3>
+				<div class="form-row">
+					<div class="form-group">
+						<label for="ticketRef">Reference</label>
+						<input id="ticketRef" class="form-control" placeholder="Auto-generated" readonly/>
+					</div>
+					<div class="form-group">
+						<label for="ticketSubject">Subject *</label>
+						<select id="ticketSubject" class="form-control" required>
+							<option value="">Select Subject</option>
+						</select>
+					</div>
+					<div class="form-group">
+						<label for="ticketPriority">Priority *</label>
+						<select id="ticketPriority" class="form-control" required>
+							<option value="">Select Priority</option>
+							<option value="low">Low</option>
+							<option value="medium">Medium</option>
+							<option value="high">High</option>
+						</select>
+					</div>
+					<div class="form-group">
+						<!-- Category field removed -->
+					</div>
+				</div>
+				<div class="form-row">
+					<div class="form-group">
+						<label for="ticketDateTime">Date & Time *</label>
+						<input type="datetime-local" id="ticketDateTime" class="form-control" required/>
+					</div>
+					<div class="form-group">
+						<label for="ticketStatus">Status</label>
+						<select id="ticketStatus" class="form-control">
+							<option value="open">Open</option>
+							<option value="in-progress">In Progress</option>
+							<option value="pending">Pending</option>
+							<option value="resolved">Resolved</option>
+							<option value="closed">Closed</option>
+						</select>
+					</div>
+					<div class="form-group">
+						<label for="department">Department</label>
+						<select id="department" class="form-control">
+							<option value="">Select Department</option>
+						</select>
+					</div>
+					<div class="form-group">
+						<!-- Assigned To field removed -->
+					</div>
+					<div class="form-group">
+						<label>Requested By</label>
+						<input id="requestedByName" class="form-control" readonly/>
+						<input type="hidden" id="requestedById"/>
+					</div>
+					<div class="form-group">
+						<label>Date Reported</label>
+						<input id="dateReported" class="form-control" readonly/>
+					</div>
+				</div>
+			</div>
 
-            <div class="form-section">
-                <h3>Details</h3>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="ticketCategory">Category</label>
-                        <select id="ticketCategory" class="form-control">
-                            <option value="">Select Category</option>
-                        </select>
-                    </div>
-                    <div class="form-group" style="flex:1 1 100%">
-                        <label for="ticketDescription">Description *</label>
-                        <textarea id="ticketDescription" class="form-control" required placeholder="Describe your issue or request"></textarea>
-                    </div>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Requested By</label>
-                        <input id="requestedByName" class="form-control" readonly/>
-                        <input type="hidden" id="requestedById"/>
-                    </div>
-                    <div class="form-group">
-                        <label>Date Submitted</label>
-                        <input id="dateSubmitted" class="form-control" readonly/>
-                    </div>
-                </div>
-            </div>
+			<div class="form-section">
+				<h3>Details</h3>
+				<div class="form-row">
+					<div class="form-group" style="flex:1 1 100%">
+						<label for="ticketDescription">Description *</label>
+						<textarea id="ticketDescription" class="form-control" required placeholder="Describe the issue or request"></textarea>
+					</div>
+				</div>
+				<div class="form-row">
+					<div>
+						<label class="btn btn-secondary" style="display:inline-flex;align-items:center;gap:.4rem">
+							<i class="fas fa-upload"></i> Attach Files
+							<input type="file" id="fileUpload" multiple style="display:none"/>
+						</label>
+						<small style="margin-left:8px;color:#666">Max 5MB each</small>
+					</div>
+				</div>
+				<ul id="fileList" class="file-list"></ul>
+			</div>
 
-            <div class="form-section">
-                <h3>Attachments</h3>
-                <div>
-                    <label class="btn btn-secondary" style="display:inline-flex;align-items:center;gap:.4rem">
-                        <i class="fas fa-upload"></i> Choose Files
-                        <input type="file" id="fileUpload" multiple style="display:none"/>
-                    </label>
-                    <small style="margin-left:8px;color:#666">Max 5MB each</small>
-                </div>
-                <ul id="fileList" class="file-list"></ul>
-            </div>
-
-            <div class="action-buttons">
-                <button type="button" id="cancelBtn" class="btn btn-secondary">Cancel</button>
-                <button type="button" id="saveDraftBtn" class="btn btn-secondary">Save Draft</button>
-                <button type="submit" id="submitBtn" class="btn btn-primary">Submit Ticket</button>
-            </div>
-        </form>
-    </main>
+			<div class="action-buttons">
+				<button type="button" id="cancelBtn" class="btn btn-secondary">Cancel</button>
+				<button type="submit" id="submitBtn" class="btn btn-primary">Submit Ticket</button>
+			</div>
+		</form>
+	</main>
 </div>
 
-<!-- Firebase v8 Scripts for Centralized Authentication (match project-list) -->
+<!-- Firebase v8 scripts -->
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
+<!-- EmailJS v4 (match incidentboard) -->
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <script>
-// Firebase configuration (match project-list centralized auth)
-const firebaseConfig = {
-    apiKey: "AIzaSyCUTmTn0rRBb0M-UkQJxnUMrWqXYU_BgIc",
-    authDomain: "users-8be65.firebaseapp.com",
-    databaseURL: "https://users-8be65-default-rtdb.firebaseio.com",
-    projectId: "users-8be65",
-    storageBucket: "users-8be65.firebasestorage.app",
-    messagingSenderId: "909025468149",
-    appId: "1:909025468149:web:fb4e7c4a8b4bd6d1076e4d",
-    measurementId: "G-XHFMRCJQEZ"
+// Firebase config (match centralized usage)
+const firebaseConfig={
+	apiKey:"AIzaSyCUTmTn0rRBb0M-UkQJxnUMrWqXYU_BgIc",
+	authDomain:"users-8be65.firebaseapp.com",
+	databaseURL:"https://users-8be65-default-rtdb.firebaseio.com",
+	projectId:"users-8be65",
+	storageBucket:"users-8be65.firebasestorage.app",
+	messagingSenderId:"909025468149",
+	appId:"1:909025468149:web:fb4e7c4a8b4bd6d1076e4d",
+	measurementId:"G-XHFMRCJQEZ"
 };
 function initializeFirebase(){ if(!window.firebase || !window.firebase.apps || window.firebase.apps.length===0){ window.firebase.initializeApp(firebaseConfig); } return window.firebase; }
-const firebase = initializeFirebase();
-const db = firebase.database();
-const auth = firebase.auth();
-const storage = firebase.storage();
+const firebase=initializeFirebase();
+const db=firebase.database(), auth=firebase.auth(), storage=firebase.storage();
 
-// Centralized AuthManager (same as incident pages)
+// AuthManager (same pattern as other pages)
 class AuthManager{
-    constructor(){ this.currentUser=this.getCurrentUser(); this.currentCompany=null; this.init(); }
-    getCurrentUser(){ try{ return JSON.parse(localStorage.getItem('currentUser')||'null'); }catch{ return null; } }
-    setCurrentUser(u){ localStorage.setItem('currentUser', JSON.stringify(u)); localStorage.setItem('user', JSON.stringify(u)); this.currentUser=u; }
-    async init(){ if(!this.currentUser){ window.location.href='login.html'; return; } await this.loadUserCompany(); this.updateCompanyBranding(); await this.updateUIForAuthenticatedUser(); this.bindProfileDropdown(); }
-    async loadUserCompany(){ if(!this.currentUser) return; try{ const snap=await firebase.database().ref('companies').once('value'); if(!snap.exists()) return; const companies=snap.val(); for(const [cid,comp] of Object.entries(companies)){ if(comp.status!=='active') continue; if(comp.users){ for(const [uid,u] of Object.entries(comp.users)){ if(u.authUid===this.currentUser.uid || uid===this.currentUser.uid){ this.currentUser.companyId=cid; this.currentUser.companyName=comp.companyName; this.currentUser.role=u.role||u.userRole||'user'; this.currentCompany=comp; this.setCurrentUser(this.currentUser); return; } } } } }catch(e){} }
-    updateCompanyBranding(){ const logoEl=document.getElementById('headerCompanyLogo'); const nameEl=document.getElementById('headerCompanyName'); if(!this.currentCompany){ this.showFallbackBranding(); return; } if(nameEl) nameEl.textContent=this.currentCompany.companyName||''; const logoUrl=this.currentCompany.logo||this.currentCompany.logoUrl; if(logoEl){ if(logoUrl){ logoEl.src=logoUrl; logoEl.classList.add('visible'); } else { const svg=this.generateCompanyInitialsSVG(this.getCompanyInitials(this.currentCompany.companyName||'')); logoEl.src=svg; logoEl.classList.add('visible'); } } if(this.currentCompany.branding){ const root=document.documentElement; if(this.currentCompany.branding.primaryColor) root.style.setProperty('--primary-color', this.currentCompany.branding.primaryColor); if(this.currentCompany.branding.secondaryColor) root.style.setProperty('--secondary-color', this.currentCompany.branding.secondaryColor); } }
-    showFallbackBranding(){ const logoEl=document.getElementById('headerCompanyLogo'); if(logoEl){ const svg=this.generateCompanyInitialsSVG('DX'); logoEl.src=svg; logoEl.classList.add('visible'); } }
-    getCompanyInitials(name){ if(!name) return 'CO'; const parts=name.trim().split(/\s+/); if(parts.length===1) return parts[0].substring(0,2).toUpperCase(); return (parts[0][0]+parts[1][0]).toUpperCase(); }
-    generateCompanyInitialsSVG(initials){ const svg=`<svg width="44" height="44" viewBox="0 0 44 44" xmlns="http://www.w3.org/2000/svg"><rect width="44" height="44" rx="6" fill="#f0f3f6"/><text x="50%" y="52%" dominant-baseline="middle" text-anchor="middle" fill="#495057" font-family="Inter,Arial,sans-serif" font-weight="600" font-size="14">${initials}</text></svg>`; return 'data:image/svg+xml;base64,'+btoa(svg); }
-    getUserDisplayName(){ if(!this.currentUser) return 'User'; const n=v=>typeof v==='string'?v.trim().replace(/\s+/g,' '):''; const cand=[this.currentUser.displayName,this.currentUser.name,this.currentUser.username]; for(const c of cand){ const cleaned=n(c); if(cleaned) return cleaned; } if(this.currentUser.email) return n(this.currentUser.email.split('@')[0])||'User'; return 'User'; }
-    getUserInitials(){ const dn=this.getUserDisplayName(); const parts=dn.split(' ').filter(Boolean); if(parts.length===1) return parts[0].substring(0,2).toUpperCase(); return parts.slice(0,2).map(p=>p[0]).join('').toUpperCase(); }
-    async getUserAvatarUrl(){ if(!this.currentUser) return null; const companyId=this.currentUser.companyId||'default'; const paths=[`companies/${companyId}/avatars/${this.currentUser.uid}/profile.jpg`,`companies/${companyId}/avatars/${this.currentUser.uid}/profile.png`,`companies/${companyId}/avatars/${this.currentUser.uid}/profile.jpeg`,`companies/${companyId}/avatars/${this.currentUser.uid}/avatar.jpg`,`companies/${companyId}/avatars/${this.currentUser.uid}/avatar.png`,`avatars/${this.currentUser.uid}/profile.jpg`,`avatars/${this.currentUser.uid}/profile.png`,`avatars/${this.currentUser.uid}/avatar.jpg`,`avatars/${this.currentUser.uid}/avatar.png`,`profiles/${this.currentUser.uid}/profile.jpg`,`profiles/${this.currentUser.uid}/profile.png`]; for(const p of paths){ try{ const ref=firebase.storage().ref(p); const url=await ref.getDownloadURL(); return url; }catch(err){ continue; } } return null; }
-    async updateUIForAuthenticatedUser(){ const btn=document.getElementById('userProfileBtn'); const list=document.querySelector('.profile-dropdown ul'); if(!btn||!list||!this.currentUser) return; const displayName=this.getUserDisplayName(); const email=this.currentUser.email||''; let avatarUrl=null; try{ avatarUrl=await this.getUserAvatarUrl(); }catch(e){} const btnImg=btn.querySelector('img'); if(avatarUrl&&btnImg){ btnImg.src=avatarUrl; btnImg.alt=displayName+' Avatar'; btnImg.style.display='block'; btnImg.onerror=()=>{ btnImg.style.display='none'; btn.innerHTML=`<div style="width:38px;height:38px;border-radius:50%;background:#3498db;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:.8rem;">${this.getUserInitials()}</div>`; }; } else { btn.innerHTML=`<div style="width:38px;height:38px;border-radius:50%;background:#3498db;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:.8rem;">${this.getUserInitials()}</div>`; }
-        const avatarHtml= avatarUrl? `<img src="${avatarUrl}" alt="${displayName} Avatar" style="width:32px;height:32px;border-radius:50%;object-fit:cover;">` : `<div style="width:32px;height:32px;border-radius:50%;background:#3498db;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:12px;">${this.getUserInitials()}</div>`; list.innerHTML=`<li style=\"border-bottom:1px solid #eee;padding:12px 16px;background:#f8f9fa;\"><div style=\"display:flex;align-items:center;gap:12px;\">${avatarHtml}<div><div style=\"font-weight:600;color:#333;font-size:14px;margin-bottom:2px;\">${displayName}</div><div style=\"color:#666;font-size:12px;\">${email}</div></div></div></li><li><a href=\"profile.html\"><i class=\"fas fa-user\"></i> Profile</a></li><li><a href=\"account.html\"><i class=\"fas fa-cog\"></i> Account Settings</a></li><li><a href=\"#\" id=\"logoutLink\"><i class=\"fas fa-sign-out-alt\"></i> Sign out</a></li>`; list.querySelector('#logoutLink')?.addEventListener('click', e=>{ e.preventDefault(); this.logout(); }); }
-    bindProfileDropdown(){ const btn=document.getElementById('userProfileBtn'); const dd=document.querySelector('.profile-dropdown'); if(btn&&dd){ btn.addEventListener('click', e=>{ e.stopPropagation(); dd.classList.toggle('show'); }); document.addEventListener('click', e=>{ if(!btn.contains(e.target)) dd.classList.remove('show'); }); } }
-    async logout(){ try{ await firebase.auth().signOut(); localStorage.removeItem('currentUser'); localStorage.removeItem('user'); window.location.href='login.html'; }catch(error){ console.error('Logout error:',error); localStorage.removeItem('currentUser'); localStorage.removeItem('user'); window.location.href='login.html'; } }
+	constructor(){ this.currentUser=this.getCurrentUser(); this.currentCompany=null; this.init(); }
+	getCurrentUser(){ try{ return JSON.parse(localStorage.getItem('currentUser')||'null'); }catch{ return null; } }
+	setCurrentUser(u){ localStorage.setItem('currentUser', JSON.stringify(u)); localStorage.setItem('user', JSON.stringify(u)); this.currentUser=u; }
+	async init(){ if(!this.currentUser){ window.location.href='login.html'; return; } await this.loadUserCompany(); this.updateCompanyBranding(); await this.updateUIForAuthenticatedUser(); this.bindProfileDropdown(); }
+	async loadUserCompany(){ if(!this.currentUser) return; try{ const snap=await firebase.database().ref('companies').once('value'); if(!snap.exists()) return; const companies=snap.val(); for(const [cid,comp] of Object.entries(companies)){ if(comp.status!=='active') continue; if(comp.users){ for(const [uid,u] of Object.entries(comp.users)){ if(u.authUid===this.currentUser.uid || uid===this.currentUser.uid){ this.currentUser.companyId=cid; this.currentUser.companyName=comp.companyName; this.currentUser.role=u.role||u.userRole||'user'; this.currentCompany=comp; this.setCurrentUser(this.currentUser); return; } } } } }catch(e){} }
+	updateCompanyBranding(){ const logoEl=document.getElementById('headerCompanyLogo'); const nameEl=document.getElementById('headerCompanyName'); if(!this.currentCompany){ this.showFallbackBranding(); return; } if(nameEl) nameEl.textContent=this.currentCompany.companyName||''; const logoUrl=this.currentCompany.logo||this.currentCompany.logoUrl; if(logoEl){ if(logoUrl){ logoEl.src=logoUrl; logoEl.classList.add('visible'); } else { const svg=this.generateCompanyInitialsSVG(this.getCompanyInitials(this.currentCompany.companyName||'')); logoEl.src=svg; logoEl.classList.add('visible'); } } if(this.currentCompany.branding){ const root=document.documentElement; if(this.currentCompany.branding.primaryColor) root.style.setProperty('--primary-color', this.currentCompany.branding.primaryColor); if(this.currentCompany.branding.secondaryColor) root.style.setProperty('--secondary-color', this.currentCompany.branding.secondaryColor); } }
+	showFallbackBranding(){ const logoEl=document.getElementById('headerCompanyLogo'); if(logoEl){ const svg=this.generateCompanyInitialsSVG('DX'); logoEl.src=svg; logoEl.classList.add('visible'); } }
+	getCompanyInitials(name){ if(!name) return 'CO'; const parts=name.trim().split(/\s+/); if(parts.length===1) return parts[0].substring(0,2).toUpperCase(); return (parts[0][0]+parts[1][0]).toUpperCase(); }
+	generateCompanyInitialsSVG(initials){ const svg=`<svg width="44" height="44" viewBox="0 0 44 44" xmlns="http://www.w3.org/2000/svg"><rect width="44" height="44" rx="6" fill="#f0f3f6"/><text x="50%" y="52%" dominant-baseline="middle" text-anchor="middle" fill="#495057" font-family="Inter,Arial,sans-serif" font-weight="600" font-size="14">${initials}</text></svg>`; return 'data:image/svg+xml;base64,'+btoa(svg); }
+	getUserDisplayName(){ if(!this.currentUser) return 'User'; const n=v=>typeof v==='string'?v.trim().replace(/\s+/g,' '):''; const cand=[this.currentUser.displayName,this.currentUser.name,this.currentUser.username]; for(const c of cand){ const cleaned=n(c); if(cleaned) return cleaned; } if(this.currentUser.email) return n(this.currentUser.email.split('@')[0])||'User'; return 'User'; }
+	getUserInitials(){ const dn=this.getUserDisplayName(); const parts=dn.split(' ').filter(Boolean); if(parts.length===1) return parts[0].substring(0,2).toUpperCase(); return parts.slice(0,2).map(p=>p[0]).join('').toUpperCase(); }
+	async getUserAvatarUrl(){ if(!this.currentUser) return null; const companyId=this.currentUser.companyId||'default'; const paths=[`companies/${companyId}/avatars/${this.currentUser.uid}/profile.jpg`,`companies/${companyId}/avatars/${this.currentUser.uid}/profile.png`,`companies/${companyId}/avatars/${this.currentUser.uid}/profile.jpeg`,`companies/${companyId}/avatars/${this.currentUser.uid}/avatar.jpg`,`companies/${companyId}/avatars/${this.currentUser.uid}/avatar.png`,`avatars/${this.currentUser.uid}/profile.jpg`,`avatars/${this.currentUser.uid}/profile.png`,`avatars/${this.currentUser.uid}/avatar.jpg`,`avatars/${this.currentUser.uid}/avatar.png`,`profiles/${this.currentUser.uid}/profile.jpg`,`profiles/${this.currentUser.uid}/profile.png`]; for(const p of paths){ try{ const ref=firebase.storage().ref(p); const url=await ref.getDownloadURL(); return url; }catch(err){ continue; } } return null; }
+	async updateUIForAuthenticatedUser(){ const btn=document.getElementById('userProfileBtn'); const list=document.querySelector('.profile-dropdown ul'); if(!btn||!list||!this.currentUser) return; const displayName=this.getUserDisplayName(); const email=this.currentUser.email||''; let avatarUrl=null; try{ avatarUrl=await this.getUserAvatarUrl(); }catch(e){} const btnImg=btn.querySelector('img'); if(avatarUrl&&btnImg){ btnImg.src=avatarUrl; btnImg.alt=displayName+' Avatar'; btnImg.style.display='block'; btnImg.onerror=()=>{ btnImg.style.display='none'; btn.innerHTML=`<div style="width:38px;height:38px;border-radius:50%;background:#3498db;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:.8rem;">${this.getUserInitials()}</div>`; }; } else { btn.innerHTML=`<div style="width:38px;height:38px;border-radius:50%;background:#3498db;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:.8rem;">${this.getUserInitials()}</div>`; }
+		const avatarHtml= avatarUrl? `<img src="${avatarUrl}" alt="${displayName} Avatar" style="width:32px;height:32px;border-radius:50%;object-fit:cover;">` : `<div style="width:32px;height:32px;border-radius:50%;background:#3498db;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:12px;">${this.getUserInitials()}</div>`; list.innerHTML=`<li style="border-bottom:1px solid #eee;padding:12px 16px;background:#f8f9fa;"><div style="display:flex;align-items:center;gap:12px;">${avatarHtml}<div><div style="font-weight:600;color:#333;font-size:14px;margin-bottom:2px;">${displayName}</div><div style="color:#666;font-size:12px;">${email}</div></div></div></li><li><a href="profile.html"><i class="fas fa-user"></i> Profile</a></li><li><a href="account.html"><i class="fas fa-cog"></i> Account Settings</a></li><li><a href="#" id="logoutLink"><i class="fas fa-sign-out-alt"></i> Sign out</a></li>`; list.querySelector('#logoutLink')?.addEventListener('click', e=>{ e.preventDefault(); this.logout(); }); }
+	bindProfileDropdown(){ const btn=document.getElementById('userProfileBtn'); const dd=document.querySelector('.profile-dropdown'); if(btn&&dd){ btn.addEventListener('click', e=>{ e.stopPropagation(); dd.classList.toggle('show'); }); document.addEventListener('click', e=>{ if(!btn.contains(e.target)) dd.classList.remove('show'); }); } }
+	async logout(){ try{ await firebase.auth().signOut(); localStorage.removeItem('currentUser'); localStorage.removeItem('user'); window.location.href='login.html'; }catch(error){ console.error('Logout error:',error); localStorage.removeItem('currentUser'); localStorage.removeItem('user'); window.location.href='login.html'; } }
 }
 
-function bindSidebarToggle(){
-    const btn=document.getElementById('sidebarToggle'), sidebar=document.getElementById('sidebar'), main=document.getElementById('mainContent');
-    if(!btn||!sidebar||!main)return;
-    btn.addEventListener('click',()=>{ const collapsed=sidebar.classList.toggle('collapsed'); main.style.marginLeft=collapsed?'0':getComputedStyle(document.documentElement).getPropertyValue('--sidebar-width'); });
-}
-function svgInitials(name='U'){ const initials=(name.trim().split(/\s+/).slice(0,2).map(p=>p[0]).join('')||'U').toUpperCase(); const svg=`<svg width="38" height="38" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><circle cx="20" cy="20" r="20" fill="#3498db"/><text x="20" y="25" text-anchor="middle" fill="#fff" font-size="14" font-weight="600" font-family="Inter, Arial, sans-serif">${initials}</text></svg>`; return 'data:image/svg+xml;base64,'+btoa(svg); }
-function setBranding(company){ const logo=document.getElementById('headerCompanyLogo'); const nameEl=document.getElementById('headerCompanyName'); if(nameEl) nameEl.textContent=company?.companyName||''; if(logo){ if(company?.logo||company?.logoUrl){ logo.src=company.logo||company.logoUrl; logo.classList.add('visible'); } else { logo.src=svgInitials(company?.companyName||'DX'); logo.classList.add('visible'); } } if(company?.branding){ const root=document.documentElement; if(company.branding.primaryColor) root.style.setProperty('--primary-color',company.branding.primaryColor); if(company.branding.secondaryColor) root.style.setProperty('--secondary-color',company.branding.secondaryColor); } }
-
-function formatBytes(b){ if(!b) return '0B'; const u=['B','KB','MB','GB']; const i=Math.floor(Math.log(b)/Math.log(1024)); return (b/Math.pow(1024,i)).toFixed(2)+' '+u[i]; }
-function sanitizeFileName(name){ if(!name) return 'file'; const base=name.split('/').pop().split('\\').pop(); const cleaned=base.replace(/[\n\r\t]/g,' ').replace(/[#\[\]*?\\^${}|<>%`]/g,'-'); const collapsed=cleaned.replace(/\s+/g,' ').trim(); return collapsed.slice(0,80) || 'file'; }
-function fileToDataUrl(file){ return new Promise((resolve,reject)=>{ const reader=new FileReader(); reader.onload=()=>resolve(reader.result); reader.onerror=reject; reader.readAsDataURL(file); }); }
-function toLocalDateTimeInputValue(d){ const pad=n=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`; }
-function getDateTimeParts(){ const el=document.getElementById('ticketDateTime'); const v=el?.value||''; if(v){ const [date,timeFull]=v.split('T'); const time=(timeFull||'').slice(0,5); return {date,time,iso:v}; } const now=new Date(); const iso=toLocalDateTimeInputValue(now); return {date:iso.slice(0,10), time:iso.slice(11,16), iso}; }
-function sanitizeAttachmentFields(obj){ const allowed=['name','size','contentType','dataUrl','url','path','uploadedAt']; const out={}; for(const k of allowed){ if(obj && obj[k]!==undefined) out[k]=obj[k]; } return out; }
-function compactObject(obj){ if(!obj || typeof obj!=='object') return obj; const out={}; for(const [k,v] of Object.entries(obj)){ if(v===undefined||v===null) continue; if(typeof v==='string' && v.trim()==='') continue; out[k]=v; } return out; }
-
-const attachedFiles=[];
-const fileInputElId='fileUpload';
-document.addEventListener('DOMContentLoaded',()=>{
-    bindSidebarToggle();
-    const now=new Date();
-    const today=now.toISOString().split('T')[0];
-    const dtEl=document.getElementById('ticketDateTime'); if(dtEl) dtEl.value=toLocalDateTimeInputValue(now);
-    document.getElementById('dateSubmitted').value=today;
-    const fileInput=document.getElementById(fileInputElId), fileList=document.getElementById('fileList');
-    fileInput.addEventListener('change',()=>{ [...fileInput.files].forEach(f=>{ if(f.size>5*1024*1024){ alert(`File ${f.name} exceeds 5MB`); return; } attachedFiles.push({ file:f, name:f.name, size:formatBytes(f.size) }); }); fileInput.value=''; renderFiles(); });
-    function renderFiles(){ fileList.innerHTML=''; if(attachedFiles.length===0){ fileList.innerHTML='<li style="color:#888">No files attached</li>'; return; } attachedFiles.forEach((fi,idx)=>{ const li=document.createElement('li'); li.className='file-item'; li.innerHTML=`<i class="fas fa-file"></i><span style="flex:1">${fi.name}</span><span style="color:#666">${fi.size||''}</span><div class="file-actions"><button class="delete-file" data-i="${idx}" title="Remove"><i class="fas fa-trash"></i></button></div>`; li.querySelector('.delete-file').onclick=()=>{ attachedFiles.splice(idx,1); renderFiles(); }; fileList.appendChild(li); }); }
-    // Notification dropdown toggle
-    (function bindNotifications(){
-        const btn=document.getElementById('notificationBtn');
-        const dropdown=document.querySelector('.notification-dropdown');
-        const badge=document.querySelector('.notification-badge');
-        if(badge) badge.style.display='none';
-        if(btn && dropdown){
-            btn.addEventListener('click', (e)=>{ e.stopPropagation(); dropdown.classList.toggle('show'); });
-            document.addEventListener('click', (e)=>{ if(!dropdown.contains(e.target) && !btn.contains(e.target)) dropdown.classList.remove('show'); });
-        }
-        const markAll=document.querySelector('.mark-all-read');
-        if(markAll){ markAll.addEventListener('click', ()=>{ dropdown?.classList.remove('show'); if(badge) badge.style.display='none'; }); }
-    })();
-});
-
-async function uploadAttachments(){
-    const out=[];
-    for(const item of attachedFiles){
-        if(item.url || item.dataUrl){ out.push(sanitizeAttachmentFields(item)); continue; }
-        if(item.file){
-            const dataUrl=await fileToDataUrl(item.file);
-            out.push({ name:item.name, size:item.size, contentType:item.file.type||'application/octet-stream', dataUrl, uploadedAt: firebase.database.ServerValue.TIMESTAMP });
-        }
-    }
-    return out;
-}
-
-async function loadDepartments(companyId){ const sel=document.getElementById('ticketDepartment'); while(sel.options.length>1) sel.remove(1);
-    if(companyId){ const snap=await db.ref(`companies/${companyId}/fieldOptions/department`).once('value'); const arr=snap.val(); if(Array.isArray(arr)){ arr.filter(x=>x?.enabled!==false).forEach(x=>{ const o=document.createElement('option'); o.value=x.value||x.key||x.label; o.textContent=x.label||x.value; sel.appendChild(o); }); } }
-    if(sel.options.length===1){ const g=await db.ref('fieldOptions/department').once('value'); const v=g.val(); if(v){ (Array.isArray(v)?v:Object.keys(v).map(k=>({value:k,label:v[k]?.label||k}))).forEach(x=>{ const o=document.createElement('option'); o.value=x.value; o.textContent=x.label; sel.appendChild(o); }); } }
-    if(sel.options.length===1){ ['Support','Operations','HR','Finance','IT'].forEach(n=>{ const o=document.createElement('option'); o.value=n; o.textContent=n; sel.appendChild(o); }); }
-}
-async function loadUsers(){ const sel=document.getElementById('ticketAssignedTo'); while(sel.options.length>1) sel.remove(1); const snap=await db.ref('users').once('value'); if(snap.exists()) snap.forEach(s=>{ const u=s.val()||{}; const o=document.createElement('option'); o.value=s.key; o.textContent=(u.firstName&&u.lastName)?`${u.firstName} ${u.lastName}`:(u.name||u.email||s.key); sel.appendChild(o); }); }
-async function loadCategories(){ const sel=document.getElementById('ticketCategory'); sel.length=1; const snap=await db.ref('fieldOptions/ticket-category').once('value'); if(snap.exists()) snap.forEach(s=>{ const o=s.val(); if(o?.enabled){ const opt=document.createElement('option'); opt.value=o.value; opt.textContent=o.label; sel.appendChild(opt); }}); else ['access','billing','bug','change-request','question','other'].forEach(v=>{ const opt=document.createElement('option'); opt.value=v; opt.textContent=v.replace(/-/g,' ').replace(/\b\w/g,m=>m.toUpperCase()); sel.appendChild(opt); }); }
-async function generateTicketRef(){ const tr=await db.ref('counters/tickets').transaction(v=>(v||0)+1); if(tr.committed){ const n=String(tr.snapshot.val()).padStart(5,'0'); document.getElementById('ticketRef').value=`TCK-${n}`; } else { document.getElementById('ticketRef').value=`TCK-${Date.now()}`; } }
-async function loadTicketIfEditing(companyId){ const params=new URLSearchParams(location.search); const id=params.get('id'); if(!id) return null; document.getElementById('ticketId').value=id; const ref=await db.ref(`companies/${companyId}/tickets/${id}`).once('value'); if(!ref.exists()) return null; const d=ref.val(); document.title='Edit Ticket - Helpdesk'; document.querySelector('.page-header span').textContent='Edit Ticket'; document.getElementById('ticketRef').value=d.referenceNumber||''; document.getElementById('ticketTitle').value=d.title||''; document.getElementById('ticketType').value=d.type||''; document.getElementById('ticketPriority').value=d.priority||''; (function setEditDateTime(){ const el=document.getElementById('ticketDateTime'); if(!el) return; let val=''; if(d.dateTime){ const m=d.dateTime.match(/^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})/); if(m) val=`${m[1]}T${m[2]}`; } if(!val){ const date=(d.date||'').slice(0,10); const time=(d.time||'').slice(0,5); if(date){ val=`${date}T${time||'00:00'}`; } } if(val) el.value=val; })(); document.getElementById('ticketStatus').value=d.status||'open'; document.getElementById('ticketDepartment').value=d.department||''; document.getElementById('ticketAssignedTo').value=d.assignedTo||''; document.getElementById('ticketCategory').value=d.category||''; document.getElementById('ticketDescription').value=d.description||''; if(Array.isArray(d.attachments)){ d.attachments.forEach(a=>attachedFiles.push(sanitizeAttachmentFields(a||{}))); const fileList=document.getElementById('fileList'); fileList.innerHTML=''; attachedFiles.forEach((fi,idx)=>{ const li=document.createElement('li'); li.className='file-item'; li.innerHTML=`<i class="fas fa-file"></i><span style="flex:1">${fi.name}</span><span style="color:#666">${fi.size||''}</span><div class=\"file-actions\"><button class=\"delete-file\" data-i=\"${idx}\" title=\"Remove\"><i class=\"fas fa-trash\"></i></button></div>`; li.querySelector('.delete-file').onclick=()=>{ attachedFiles.splice(idx,1); li.remove(); }; fileList.appendChild(li); }); }
-    return d; }
-
-document.addEventListener('DOMContentLoaded',()=>{
-    // handled earlier as well
-});
-
-// Use centralized AuthManager
-const authManager = new AuthManager();
-window.authManager = authManager;
-async function waitForCompanyId(timeoutMs=6000){ const start=Date.now(); return new Promise(resolve=>{ const t=setInterval(()=>{ if(authManager.currentUser && authManager.currentUser.companyId){ clearInterval(t); resolve(); } else if(Date.now()-start>timeoutMs){ clearInterval(t); resolve(); } },150); }); }
-
-(async function initTicketPage(){
-    await waitForCompanyId();
-    const user=authManager.currentUser; if(!user) return;
-    setBranding(authManager.currentCompany||{});
-    document.getElementById('requestedByName').value = authManager.getUserDisplayName();
-    document.getElementById('requestedById').value = user.uid;
-    if (typeof initializeMenuAuthorization === 'function') {
-        initializeMenuAuthorization();
-    }
-    await Promise.all([loadDepartments(user.companyId), loadUsers(), loadCategories()]);
-    const existing = await loadTicketIfEditing(user.companyId);
-    if(!existing) await generateTicketRef();
-
-    document.getElementById('cancelBtn').onclick=()=>{ if(confirm('Cancel and discard changes?')) location.href='tickboard.html'; };
-    document.getElementById('saveDraftBtn').onclick=async ()=>{
-        const id=document.getElementById('ticketId').value;
-        const ref = id? db.ref(`companies/${user.companyId}/tickets/${id}`) : db.ref(`companies/${user.companyId}/tickets`).push();
-        const dt=getDateTimeParts();
-        const todayStr=new Date().toISOString().split('T')[0];
-        const payload={
-            referenceNumber: document.getElementById('ticketRef').value || `TCK-${Date.now()}`,
-            title: document.getElementById('ticketTitle').value || 'Draft Ticket',
-            type: document.getElementById('ticketType').value || 'question',
-            priority: document.getElementById('ticketPriority').value || 'low',
-            status:'draft',
-            date: dt.date || todayStr,
-            time: dt.time || '',
-            dateTime: dt.iso,
-            department: document.getElementById('ticketDepartment').value||'',
-            assignedTo: document.getElementById('ticketAssignedTo').value||'',
-            category: document.getElementById('ticketCategory').value||'',
-            description: document.getElementById('ticketDescription').value||'',
-            requestedBy: user.uid, requestedByName: document.getElementById('requestedByName').value, dateSubmitted: document.getElementById('dateSubmitted').value,
-            updatedAt: new Date().toISOString(), createdAt: existing?.createdAt || new Date().toISOString()
-        };
-        await ref.update(payload);
-        alert('Draft saved'); location.href='tickboard.html';
-    };
-
-    document.getElementById('ticketForm').addEventListener('submit', async (e)=>{
-        e.preventDefault();
-        const btn=document.getElementById('submitBtn'); btn.disabled=true; btn.textContent='Submitting...';
-        try{
-            const id=document.getElementById('ticketId').value;
-            const ref=id? db.ref(`companies/${user.companyId}/tickets/${id}`): db.ref(`companies/${user.companyId}/tickets`).push();
-            const attachments=await uploadAttachments();
-            const dt=getDateTimeParts();
-            const payload={
-                referenceNumber: document.getElementById('ticketRef').value,
-                title: document.getElementById('ticketTitle').value,
-                type: document.getElementById('ticketType').value || 'question',
-                priority: document.getElementById('ticketPriority').value,
-                status: document.getElementById('ticketStatus').value || 'open',
-                date: dt.date,
-                time: dt.time,
-                dateTime: dt.iso,
-                department: document.getElementById('ticketDepartment').value,
-                assignedTo: document.getElementById('ticketAssignedTo').value,
-                category: document.getElementById('ticketCategory').value,
-                description: document.getElementById('ticketDescription').value,
-                attachments,
-                requestedBy: user.uid, requestedByName: document.getElementById('requestedByName').value, dateSubmitted: document.getElementById('dateSubmitted').value,
-                updatedAt: new Date().toISOString(),
-            };
-            if(!id) payload.createdAt=new Date().toISOString(); else { const snap=await ref.once('value'); payload.createdAt=snap.val()?.createdAt||new Date().toISOString(); }
-            await ref.update(payload);
-            alert(id?'Ticket updated':'Ticket submitted');
-            location.href='tickboard.html';
-        }catch(err){
-            console.error(err);
-            alert('Error submitting ticket: '+(err?.message||err));
-        }finally{
-            btn.disabled=false; btn.textContent='Submit Ticket';
-        }
-    });
-})();
-
-// ===== ROLE-BASED MENU AUTHORIZATION SYSTEM (ported) =====
+// ===== ROLE-BASED MENU AUTHORIZATION (same as project-list) =====
 let isMenuUpdateInProgress=false;
 function resetMenuVisibility(){ document.querySelectorAll('[data-feature]').forEach(i=>i.classList.remove('menu-visible')); document.querySelectorAll('.menu-dropdown').forEach(d=>d.classList.remove('menu-visible')); }
 function showSidebarAfterAuth(){ const sidebar=document.querySelector('.sidebar'); if(sidebar){ sidebar.classList.remove('menu-loading'); } }
@@ -610,9 +436,487 @@ async function applyRoleBasedFiltering(companyId, userRole){ try{ const database
 function filterMenuByPermissions(permissions){ const permissionAlias=(key)=>{ if(!key) return key; if(key==='risk_view') return 'risk_management_section'; if(key==='risk_management_section') return 'risk_view'; return null; }; const items=document.querySelectorAll('#roleBasedMenu li[data-requires-permission]'); items.forEach(item=>{ const req=item.getAttribute('data-requires-permission'); const perm=permissions[req]; const aliasKey=permissionAlias(req); const aliasPerm=aliasKey?permissions[aliasKey]:undefined; const hasView=(p)=> p===true || (p && p.view===true); const allowed=hasView(perm) || hasView(aliasPerm); if(allowed) item.classList.add('menu-visible'); else item.classList.remove('menu-visible'); }); document.querySelectorAll('#roleBasedMenu li.menu-dropdown').forEach(drop=>{ const submenuVisible=drop.querySelectorAll('.submenu li.menu-visible').length>0; const req=drop.getAttribute('data-requires-permission'); if(submenuVisible) { drop.classList.add('menu-visible'); } else if(req){ const perm=permissions[req]; const aliasKey=permissionAlias(req); const aliasPerm=aliasKey?permissions[aliasKey]:undefined; const hasView=(p)=> p===true || (p && p.view===true); if(hasView(perm)||hasView(aliasPerm)) drop.classList.add('menu-visible'); else drop.classList.remove('menu-visible'); } else { drop.classList.remove('menu-visible'); } }); ensureHomeIsVisible(); showSidebarAfterAuth(); }
 async function updateMenuWithFeatureAuthorization(){ if(isMenuUpdateInProgress) return; isMenuUpdateInProgress=true; try{ let cu=null, companyId=null, userRole=null; if(window.authManager && window.authManager.currentUser){ cu=window.authManager.currentUser; companyId=cu.companyId; userRole=cu.role; } else if(firebase.auth().currentUser){ cu=firebase.auth().currentUser; } if(!companyId && cu){ const companies=(await firebase.database().ref('companies').once('value')).val()||{}; for(const [cid,comp] of Object.entries(companies)){ if(comp.status!=='active') continue; if(comp.users && comp.users[cu.uid]){ companyId=cid; userRole=comp.users[cu.uid].role||comp.users[cu.uid].userRole; break; } } } if(!companyId){ resetMenuVisibility(); return; } const pages=await applyFeatureBasedMenuVisibility(companyId); if(userRole){ await applyRoleBasedFiltering(companyId, userRole, pages); } } finally { isMenuUpdateInProgress=false; } }
 function initializeMenuAuthorization(){ const sidebar=document.querySelector('.sidebar'); if(sidebar) sidebar.classList.add('menu-loading'); setTimeout(()=>{ updateMenuWithFeatureAuthorization(); }, 300); }
-// ===== END ROLE-BASED MENU AUTHORIZATION SYSTEM =====
+// ===== END ROLE-BASED MENU AUTHORIZATION =====
 
-// Notifications already bound in DOMContentLoaded
+function bindSidebarToggle(){
+	const btn=document.getElementById('sidebarToggle'), sidebar=document.querySelector('.sidebar'), main=document.getElementById('mainContent');
+	if(!btn||!sidebar||!main) return;
+	btn.addEventListener('click',()=>{
+		const collapsed=sidebar.classList.toggle('collapsed');
+		if(collapsed){ main.classList.add('sidebar-collapsed'); } else { main.classList.remove('sidebar-collapsed'); }
+	});
+}
+
+// EmailJS Configuration for Ticket Notifications
+const EMAILJS_CONFIG = {
+	publicKey: 'fHs6oaqQgkcPoUwpv',
+	serviceId: 'service_p2e9swy',
+	templateId: 'template_dh0qouc'
+};
+
+// Initialize EmailJS with error handling
+if (typeof emailjs !== 'undefined') {
+	try {
+		emailjs.init(EMAILJS_CONFIG.publicKey);
+		console.log('EmailJS initialized successfully for tickets');
+	} catch (err) {
+		console.error('Failed to initialize EmailJS:', err);
+	}
+} else {
+	console.error('EmailJS library not loaded');
+}
+
+// Send ticket email notification to all global recipients
+// Returns an array of emails that were sent
+async function sendTicketEmailNotification(companyId, ticket, ticketId) {
+	if (!companyId || !ticket) return [];
+	
+	try {
+		// Get notification recipients settings for tickets
+		const settingsSnap = await db.ref(`companies/${companyId}/ticketSettings/notifications`).once('value');
+		const settings = settingsSnap.val() || {};
+		
+		// Get recipients
+		const recipients = settings.recipients || {};
+		const emails = Array.isArray(recipients)
+			? recipients.filter(Boolean)
+			: Object.values(recipients).map(r => (typeof r === 'string' ? r : (r?.email||''))).filter(Boolean);
+		
+		if (emails.length === 0) {
+			console.log('No global ticket recipients configured');
+			return [];
+		}
+		
+		// Get company info
+		const companySnap = await db.ref(`companies/${companyId}`).once('value');
+		const company = companySnap.val() || {};
+		const companyName = company.companyName || 'Company';
+		
+		if (typeof emailjs === 'undefined') {
+			console.warn('EmailJS not loaded, cannot send notification');
+			return;
+		}
+		
+		// Send to each recipient individually
+		const sentEmails = [];
+		for (const email of emails) {
+			try {
+				const reporterName = ticket.requestedByName || ticket.requestedBy || 'Support System';
+				const ticketDate = ticket.dateTime || ticket.date || new Date().toLocaleDateString();
+				const refNumber = ticket.referenceNumber || ticketId || 'N/A';
+				const priorityText = (ticket.priority || 'medium').charAt(0).toUpperCase() + (ticket.priority || 'medium').slice(1);
+				
+				// Format message
+				const messageBody = `Dear Support Team,
+
+A new ticket has been submitted and requires your attention.
+
+TICKET DETAILS:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Reference Number: ${refNumber}
+Subject: ${ticket.subject || 'Untitled'}
+Priority: ${priorityText}
+Date Submitted: ${ticketDate}
+Department: ${ticket.department || 'Not specified'}
+Requested By: ${reporterName}
+Status: ${ticket.status || 'Open'}
+
+DESCRIPTION:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+${ticket.description || 'No description provided'}
+
+Please review this ticket through the Support System and take appropriate action.
+
+Review Link: ${window.location.origin}/tickboard.html
+
+Best regards,
+${companyName} Support System
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+This is an automated notification from the Support Management System.
+If you have questions, please contact your support department.`;
+
+				// EmailJS template variables
+				const emailData = {
+					to_email: email,
+					to_name: 'Support Team',
+					from_name: companyName + ' Support System',
+					subject: `[Support Ticket] ${ticket.subject || 'New Ticket'} - ${refNumber}`,
+					message: messageBody,
+					position_title: `Support Ticket: ${ticket.subject || 'Untitled'}`,
+					position_code: refNumber,
+					department: ticket.department || 'Support',
+					requesting_manager: reporterName,
+					request_date: ticketDate,
+					employment_type: 'Support Ticket',
+					work_location: ticket.department || 'Not specified',
+					working_hours: ticketDate,
+					contract_duration: priorityText,
+					reporting_manager: reporterName,
+					budget_code: refNumber,
+					salary_min: priorityText,
+					salary_max: ticket.status || 'Open',
+					annual_budget_impact: 'Support',
+					benefits_package: ticket.department || 'Support',
+					department_budget: 'New Ticket',
+					current_stage: '1',
+					total_stages: '1',
+					approver_role: 'Support Team',
+					approval_type: 'Review Required',
+					notification_context: 'New Support Ticket Notification',
+					business_need: ticket.description || 'No description provided',
+					key_responsibilities: 'Review and respond to ticket',
+					required_skills: `Department: ${ticket.department || 'Not specified'}`,
+					required_experience: `Priority: ${priorityText}`,
+					priority_level: ticket.priority || 'medium',
+					approval_link: `${window.location.origin}/tickboard.html`,
+					system_link: `${window.location.origin}/tickboard.html`,
+					company_name: companyName,
+					company_email: 'support@dreamexdatalab.com',
+					company_initial: companyName.charAt(0).toUpperCase(),
+					hr_email: 'support@dreamexdatalab.com',
+					budget_team_email: 'support@dreamexdatalab.com',
+					request_id: refNumber,
+					generation_timestamp: new Date().toLocaleString(),
+					submission_date: ticketDate,
+					ticket_reference: refNumber,
+					ticket_subject: ticket.subject || 'Untitled',
+					ticket_date: ticketDate,
+					ticket_priority: priorityText,
+					ticket_description: ticket.description || 'No description provided',
+					ticket_status: ticket.status || 'Open',
+					ticket_department: ticket.department || 'Not specified',
+					ticket_requestor: reporterName,
+					event_action: 'New Submission'
+				};
+				
+				const response = await emailjs.send(EMAILJS_CONFIG.serviceId, EMAILJS_CONFIG.templateId, emailData);
+				console.log('Global ticket notification sent to:', email, response);
+				sentEmails.push(email);
+			} catch (err) {
+				console.error('Failed to send ticket notification to:', email, err);
+			}
+		}
+		return sentEmails;
+	} catch (error) {
+		console.error('Error sending global ticket notifications:', error);
+		return [];
+	}
+}
+
+function svgInitials(name='U'){ const initials=(name.trim().split(/\s+/).slice(0,2).map(p=>p[0]).join('')||'U').toUpperCase(); const svg=`<svg width="38" height="38" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><circle cx="20" cy="20" r="20" fill="#3498db"/><text x="20" y="25" text-anchor="middle" fill="#fff" font-size="14" font-weight="600" font-family="Inter, Arial, sans-serif">${initials}</text></svg>`; return 'data:image/svg+xml;base64,'+btoa(svg); }
+function setBranding(company){ const logo=document.getElementById('headerCompanyLogo'); const nameEl=document.getElementById('headerCompanyName'); if(nameEl) nameEl.textContent=company?.companyName||''; if(logo){ if(company?.logo||company?.logoUrl){ logo.src=company.logo||company.logoUrl; logo.classList.add('visible'); } else { logo.src=svgInitials(company?.companyName||'DX'); logo.classList.add('visible'); } } if(company?.branding){ const root=document.documentElement; if(company.branding.primaryColor) root.style.setProperty('--primary-color',company.branding.primaryColor); if(company.branding.secondaryColor) root.style.setProperty('--secondary-color',company.branding.secondaryColor); } }
+
+// Simple helpers
+function toLocalDateTimeInputValue(d){ const pad=n=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`; }
+function getDateTimeParts(){ const el=document.getElementById('ticketDateTime'); const v=el?.value||''; if(v){ const [date, timeFull]=v.split('T'); const time=(timeFull||'').slice(0,5); return { date, time, iso:v }; } const now=new Date(); const iso=toLocalDateTimeInputValue(now); return { date: iso.slice(0,10), time: iso.slice(11,16), iso }; }
+function formatBytes(b){ if(!b) return '0B'; const u=['B','KB','MB','GB']; const i=Math.floor(Math.log(b)/Math.log(1024)); return (b/Math.pow(1024,i)).toFixed(2)+' '+u[i]; }
+function sanitizeAttachmentFields(obj){ const allowed=['name','size','contentType','dataUrl','url','path','uploadedAt']; const out={}; for(const k of allowed){ if(obj && obj[k] !== undefined) out[k]=obj[k]; } return out; }
+function fileToDataUrl(file){ return new Promise((resolve,reject)=>{ const reader=new FileReader(); reader.onload=()=>resolve(reader.result); reader.onerror=reject; reader.readAsDataURL(file); }); }
+function slugify(text){ return (text||'').toString().trim().toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').substring(0,64) || 'option'; }
+
+const attachedFiles=[]; const fileInputId='fileUpload';
+
+document.addEventListener('DOMContentLoaded',()=>{
+	bindSidebarToggle();
+	// Notifications dropdown toggle
+	(function bindNotifications(){
+		const btn=document.getElementById('notificationBtn');
+		const dropdown=document.querySelector('.notification-dropdown');
+		const badge=document.querySelector('.notification-badge');
+		if(badge) badge.style.display='none';
+		if(btn && dropdown){
+			btn.addEventListener('click', (e)=>{ e.stopPropagation(); dropdown.classList.toggle('show'); });
+			document.addEventListener('click', (e)=>{ if(!dropdown.contains(e.target) && !btn.contains(e.target)) dropdown.classList.remove('show'); });
+		}
+		const markAll=document.querySelector('.mark-all-read');
+		if(markAll){ markAll.addEventListener('click', ()=>{ dropdown?.classList.remove('show'); if(badge) badge.style.display='none'; }); }
+	})();
+	const now=new Date(); const today=now.toISOString().split('T')[0];
+	const dtEl=document.getElementById('ticketDateTime'); if(dtEl) dtEl.value=toLocalDateTimeInputValue(now);
+	document.getElementById('dateReported').value=today;
+	const fileInput=document.getElementById(fileInputId), fileList=document.getElementById('fileList');
+	if(fileInput){
+		fileInput.addEventListener('change',()=>{ [...fileInput.files].forEach(f=>{ if(f.size>5*1024*1024){ alert(`File ${f.name} exceeds 5MB`); return; } attachedFiles.push({ file:f, name:f.name, size:formatBytes(f.size) }); }); fileInput.value=''; renderFiles(); });
+	}
+	function renderFiles(){ fileList.innerHTML=''; if(attachedFiles.length===0){ fileList.innerHTML='<li style="color:#888">No files attached</li>'; return; } attachedFiles.forEach((fi,idx)=>{ const li=document.createElement('li'); li.className='file-item'; li.innerHTML=`<i class="fas fa-file"></i><span style="flex:1">${fi.name}</span><span style="color:#666">${fi.size||''}</span><div class="file-actions"><button class="delete-file" data-i="${idx}" title="Remove"><i class="fas fa-trash"></i></button></div>`; li.querySelector('.delete-file').onclick=()=>{ attachedFiles.splice(idx,1); renderFiles(); }; fileList.appendChild(li); }); }
+});
+
+async function uploadAttachments(){ const out=[]; for(const item of attachedFiles){ if(item.url || item.dataUrl){ out.push(sanitizeAttachmentFields(item)); continue; } if(item.file){ const dataUrl=await fileToDataUrl(item.file); out.push({ name:item.name, size:item.size, contentType:item.file.type||'application/octet-stream', dataUrl, uploadedAt: firebase.database.ServerValue.TIMESTAMP }); } } return out; }
+
+async function loadSubjectsSelect(companyId){
+	const sel=document.getElementById('ticketSubject');
+	if(!sel) return;
+	sel.innerHTML = '<option value="">Select Subject</option>';
+	if(!companyId) return;
+	try{
+		const snap=await db.ref(`companies/${companyId}/fieldOptions/tickets/subjects`).once('value');
+		if(snap.exists()){
+			const data=snap.val() || {};
+			Object.keys(data).forEach(key=>{
+				const o=data[key];
+				if(o && (o.enabled!==false)){
+					const opt=document.createElement('option');
+					const label=o.label || o.value || key;
+					opt.value=label;
+					opt.textContent=label;
+					sel.appendChild(opt);
+				}
+			});
+		}
+	} catch(e){ /* noop */ }
+}
+async function loadDepartments(companyId){ const sel=document.getElementById('department'); while(sel.options.length>1) sel.remove(1); if(companyId){ const snap=await db.ref(`companies/${companyId}/fieldOptions/department`).once('value'); const arr=snap.val(); if(Array.isArray(arr)){ arr.filter(x=>x?.enabled!==false).forEach(x=>{ const o=document.createElement('option'); o.value=x.value||x.key||x.label; o.textContent=x.label||x.value; sel.appendChild(o); }); } }
+	if(sel.options.length===1){ const g=await db.ref('fieldOptions/department').once('value'); const v=g.val(); if(v){ (Array.isArray(v)?v:Object.keys(v).map(k=>({value:k,label:v[k]?.label||k}))).forEach(x=>{ const o=document.createElement('option'); o.value=x.value; o.textContent=x.label; sel.appendChild(o); }); } }
+	if(sel.options.length===1){ ['Support','Operations','HR','Finance','IT'].forEach(n=>{ const o=document.createElement('option'); o.value=n; o.textContent=n; sel.appendChild(o); }); }
+}
+// Assigned To functionality removed; loadUsers no longer needed
+
+async function generateReference(){ const tr=await db.ref('counters/tickets').transaction(v=>(v||0)+1); if(tr.committed){ const n=String(tr.snapshot.val()).padStart(5,'0'); document.getElementById('ticketRef').value=`TCK-${n}`; } else { document.getElementById('ticketRef').value=`TCK-${Date.now()}`; } }
+
+async function loadTicketIfEditing(companyId){ const params=new URLSearchParams(location.search); const id=params.get('id'); if(!id) return null; document.getElementById('ticketId').value=id; const ref=await db.ref(`companies/${companyId}/tickets/${id}`).once('value'); if(!ref.exists()) return null; const d=ref.val(); document.title='Edit Ticket - Support'; document.querySelector('.page-header span').textContent='Edit Ticket'; document.getElementById('ticketRef').value=d.referenceNumber||''; const subjSel=document.getElementById('ticketSubject'); if(subjSel){ subjSel.value=d.subject||''; if(d.subject && subjSel.value!==d.subject){ const opt=document.createElement('option'); opt.value=d.subject; opt.textContent=d.subject; subjSel.appendChild(opt); subjSel.value=d.subject; } } document.getElementById('ticketPriority').value=d.priority||''; // Set date/time
+	(function setEditDateTime(){ const el=document.getElementById('ticketDateTime'); if(!el) return; let val=''; if(d.dateTime){ const m=d.dateTime.match(/^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})/); if(m) val=`${m[1]}T${m[2]}`; } if(!val){ const date=(d.date||'').slice(0,10); const time=(d.time||'').slice(0,5); if(date){ val=`${date}T${time||'00:00'}`; } } if(val) el.value=val; })();
+	document.getElementById('ticketStatus').value=d.status||'open'; document.getElementById('department').value=d.department||''; document.getElementById('ticketDescription').value=d.description||'';
+	if(Array.isArray(d.attachments)){ const fileList=document.getElementById('fileList'); d.attachments.forEach(a=>attachedFiles.push(sanitizeAttachmentFields(a||{}))); if(fileList) fileList.innerHTML=''; }
+	return d; }
+
+const authManager=new AuthManager();
+window.authManager=authManager;
+async function waitForCompanyId(timeoutMs=6000){ const start=Date.now(); return new Promise(resolve=>{ const t=setInterval(()=>{ if(authManager.currentUser && authManager.currentUser.companyId){ clearInterval(t); resolve(); } else if(Date.now()-start>timeoutMs){ clearInterval(t); resolve(); } },150); }); }
+
+(async function initTicketPage(){
+	await waitForCompanyId();
+	const user=authManager.currentUser; if(!user) return; setBranding(authManager.currentCompany||{});
+	if(typeof initializeMenuAuthorization==='function') initializeMenuAuthorization();
+	const now=new Date();
+	document.getElementById('requestedByName').value=authManager.getUserDisplayName();
+	document.getElementById('requestedById').value=user.uid;
+	await Promise.all([loadSubjectsSelect(user.companyId), loadDepartments(user.companyId)]);
+	const existing=await loadTicketIfEditing(user.companyId);
+	if(!existing) await generateReference();
+	document.getElementById('cancelBtn').onclick=()=>{ if(confirm('Cancel and discard changes?')) location.href='tickboard.html'; };
+	document.getElementById('ticketForm').addEventListener('submit', async (e)=>{
+		e.preventDefault();
+		const btn=document.getElementById('submitBtn'); btn.disabled=true; btn.textContent='Submitting...';
+		try{
+			const id=document.getElementById('ticketId').value;
+			const ref=id? db.ref(`companies/${user.companyId}/tickets/${id}`): db.ref(`companies/${user.companyId}/tickets`).push();
+			const attachments=await uploadAttachments();
+			const dt=getDateTimeParts();
+			const payload={
+				referenceNumber: document.getElementById('ticketRef').value,
+				subject: document.getElementById('ticketSubject').value,
+				priority: document.getElementById('ticketPriority').value,
+				// category removed
+				date: dt.date,
+				time: dt.time,
+				dateTime: dt.iso,
+				status: document.getElementById('ticketStatus').value || 'open',
+				department: document.getElementById('department').value,
+				description: document.getElementById('ticketDescription').value,
+				attachments,
+				requestedBy: user.uid,
+				requestedByName: document.getElementById('requestedByName').value,
+				dateReported: document.getElementById('dateReported').value,
+				updatedAt: new Date().toISOString()
+			};
+			if(!id) payload.createdAt=new Date().toISOString(); else { const snap=await ref.once('value'); payload.createdAt=snap.val()?.createdAt||new Date().toISOString(); }
+			await ref.update(payload);
+			// Send notification to subject-specific recipients only
+			try{ 
+				console.log('Sending ticket notification for subject:', payload.subject);
+				await notifyRecipientsForSubject(user.companyId, payload.subject, ref.key, payload); 
+			}catch(_e){ 
+				console.error('Error sending subject-based ticket notification:', _e); 
+			}
+			alert(id? 'Ticket updated' : 'Ticket created');
+			location.href='tickboard.html';
+		}catch(err){
+			console.error(err);
+			alert('Error submitting ticket: '+(err?.message||err));
+		}finally{ btn.disabled=false; btn.textContent='Submit Ticket'; }
+	});
+})();
+
+// Send subject/team-based notifications; optionally skip emails already sent
+async function notifyRecipientsForSubject(companyId, subjectLabel, ticketId, payload, skipEmails){
+	const skipSet = new Set((skipEmails||[]).map(e => (e||'').toLowerCase()));
+	const slug=slugify(subjectLabel);
+	console.log('Looking for subject recipients at path:', `companies/${companyId}/fieldOptions/tickets/subjects/${slug}`);
+	
+	let subjRefPath = `companies/${companyId}/fieldOptions/tickets/subjects/${slug}`;
+	let subjSnap=await db.ref(subjRefPath).once('value');
+	if(!subjSnap.exists()) {
+		// Fallback: find by label match if keys aren't slugified
+		const allSubjSnap = await db.ref(`companies/${companyId}/fieldOptions/tickets/subjects`).once('value');
+		const allSubj = allSubjSnap.val() || {};
+		const matchKey = Object.keys(allSubj).find(k => {
+			const o = allSubj[k]||{}; const label=(o.label||o.value||k||'').toString().trim().toLowerCase();
+			return label === (subjectLabel||'').toString().trim().toLowerCase();
+		});
+		if (!matchKey) {
+			console.log('Subject configuration not found for:', subjectLabel, 'slug tried:', slug);
+			return;
+		}
+		subjRefPath = `companies/${companyId}/fieldOptions/tickets/subjects/${matchKey}`;
+		subjSnap = await db.ref(subjRefPath).once('value');
+	}
+
+	const subj=subjSnap.val()||{};
+	console.log('Subject configuration found at', subjRefPath, ':', subj);
+	
+	// Base recipients from subject (emails only)
+	const baseRecips = Array.isArray(subj.recipients)
+		? subj.recipients.filter(Boolean)
+		: (subj.recipients && typeof subj.recipients==='object'
+			? Object.values(subj.recipients).map(r => (typeof r === 'string' ? r : (r?.email||''))).filter(Boolean)
+			: []);
+	// Team recipients from Staff teams (if any)
+	let teamEmails=[];
+	if(Array.isArray(subj.teamIds) && subj.teamIds.length>0){
+		const teamsSnap=await db.ref(`companies/${companyId}/tickets/staff/teams`).once('value');
+		const teams=teamsSnap.val()||{};
+		subj.teamIds.forEach(id=>{
+			const t=teams[id];
+			if(!t || t.enabled===false) return;
+			const members = t.members? Object.values(t.members):[];
+			members.forEach(m=>{ const em=(m?.email||'').trim(); if(em) teamEmails.push(em); });
+		});
+	}
+	// Merge and dedupe
+	let allEmails = Array.from(new Set([...(baseRecips||[]), ...teamEmails])).filter(Boolean);
+	// Filter out emails already sent by global function
+	allEmails = allEmails.filter(e => !skipSet.has((e||'').toLowerCase()));
+	if(allEmails.length===0) return;
+
+	// Push in-app notifications for users we can resolve by email
+	const usersSnap=await db.ref('users').once('value');
+	const notifications=[];
+	if(usersSnap.exists()){
+		const emailToUid={};
+		usersSnap.forEach(s=>{ const u=s.val()||{}; const em=(u.email||'').toLowerCase(); if(em) emailToUid[em]=s.key; });
+		allEmails.forEach(e=>{ const uid=emailToUid[(e||'').toLowerCase()]; if(uid){ const notif={ type:'ticket', title:'New ticket submitted', message:`${payload.referenceNumber||''}: ${payload.subject||''}`, ticketId, companyId, createdAt: Date.now(), read:false, link:`tick.html?id=${ticketId}` }; notifications.push(db.ref(`notifications/${uid}`).push(notif)); } });
+	}
+	if(notifications.length>0) await Promise.allSettled(notifications);
+
+	// Also send email notifications via EmailJS
+	try{
+		console.log('Attempting to send emails to recipients:', allEmails);
+		if (typeof emailjs === 'undefined') {
+			console.error('EmailJS not loaded, cannot send subject-based notifications');
+		} else if (allEmails.length === 0) {
+			console.log('No email recipients found for subject:', subjectLabel);
+		} else {
+			// Company info
+			const companySnap = await db.ref(`companies/${companyId}`).once('value');
+			const company = companySnap.val() || {};
+			const companyName = company.companyName || 'Company';
+			const reporterName = payload.requestedByName || payload.requestedBy || 'Support System';
+			const ticketDate = payload.dateTime || payload.date || new Date().toLocaleDateString();
+			const refNumber = payload.referenceNumber || ticketId || 'N/A';
+			const priorityText = (payload.priority || 'medium').charAt(0).toUpperCase() + (payload.priority || 'medium').slice(1);
+
+			console.log('EmailJS Config:', EMAILJS_CONFIG);
+			for (const email of allEmails) {
+				try{
+					console.log('Sending email to:', email);
+					const messageBody = `Dear Support Team,
+
+A new ticket has been submitted and requires your attention.
+
+TICKET DETAILS:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Reference Number: ${refNumber}
+Subject: ${payload.subject || 'Untitled'}
+Priority: ${priorityText}
+Date Submitted: ${ticketDate}
+Department: ${payload.department || 'Not specified'}
+Requested By: ${reporterName}
+Status: ${payload.status || 'Open'}
+
+DESCRIPTION:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+${payload.description || 'No description provided'}
+
+Please review this ticket through the Support System and take appropriate action.
+
+Review Link: ${window.location.origin}/tickboard.html
+
+Best regards,
+${companyName} Support System
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+This is an automated notification from the Support Management System.
+If you have questions, please contact your support department.`;
+
+					const emailData = {
+						to_email: email,
+						to_name: 'Support Team',
+						from_name: companyName + ' Support System',
+						subject: `[Support Ticket] ${payload.subject || 'New Ticket'} - ${refNumber}`,
+						message: messageBody,
+						position_title: `Support Ticket: ${payload.subject || 'Untitled'}`,
+						position_code: refNumber,
+						department: payload.department || 'Support',
+						requesting_manager: reporterName,
+						request_date: ticketDate,
+						employment_type: 'Support Ticket',
+						work_location: payload.department || 'Not specified',
+						working_hours: ticketDate,
+						contract_duration: priorityText,
+						reporting_manager: reporterName,
+						budget_code: refNumber,
+						salary_min: priorityText,
+						salary_max: payload.status || 'Open',
+						annual_budget_impact: 'Support',
+						benefits_package: payload.department || 'Support',
+						department_budget: 'New Ticket',
+						current_stage: '1',
+						total_stages: '1',
+						approver_role: 'Support Team',
+						approval_type: 'Review Required',
+						notification_context: 'New Support Ticket Notification',
+						business_need: payload.description || 'No description provided',
+						key_responsibilities: 'Review and respond to ticket',
+						required_skills: `Department: ${payload.department || 'Not specified'}`,
+						required_experience: `Priority: ${priorityText}`,
+						priority_level: payload.priority || 'medium',
+						approval_link: `${window.location.origin}/tickboard.html`,
+						system_link: `${window.location.origin}/tickboard.html`,
+						company_name: companyName,
+						company_email: 'support@dreamexdatalab.com',
+						company_initial: companyName.charAt(0).toUpperCase(),
+						hr_email: 'support@dreamexdatalab.com',
+						budget_team_email: 'support@dreamexdatalab.com',
+						request_id: refNumber,
+						generation_timestamp: new Date().toLocaleString(),
+						submission_date: ticketDate,
+						ticket_reference: refNumber,
+						ticket_subject: payload.subject || 'Untitled',
+						ticket_date: ticketDate,
+						ticket_priority: priorityText,
+						ticket_description: payload.description || 'No description provided',
+						ticket_status: payload.status || 'Open',
+						ticket_department: payload.department || 'Not specified',
+						ticket_requestor: reporterName,
+						event_action: 'New Submission'
+					};
+
+					const response = await emailjs.send(EMAILJS_CONFIG.serviceId, EMAILJS_CONFIG.templateId, emailData);
+					console.log('Subject-based ticket notification sent to:', email, 'Response:', response);
+				} catch(err) {
+					console.error('Failed to send subject-based ticket notification to:', email, err);
+				}
+			}
+		}
+	} catch(err){
+		console.error('Error sending subject recipients emails:', err);
+	}
+}
 </script>
 </body>
 </html>

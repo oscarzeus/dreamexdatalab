@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -406,6 +406,14 @@
                         <li data-feature="audit_view" data-requires-permission="audit_view"><a href="auditboard.html">Audit</a></li>
                     </ul>
                 </li>
+                    <li class="menu-dropdown" data-feature="investigation_view" data-requires-permission="investigation_view">
+                    	<a href="#"><i class="fas fa-search-plus"></i> Investigation</a>
+                    	<ul class="submenu">
+                        <li data-feature="investigation_dashboard_view" data-requires-permission="investigation_dashboard_view"><a href="investigation-dashboard.html">Investigation Dashboard</a></li>
+                        <li data-feature="investigation_list_view" data-requires-permission="investigation_list_view"><a href="investigation-list.html">Investigation List</a></li>
+                        <li data-feature="create_investigation_view" data-requires-permission="create_investigation_view"><a href="investigation-create.html">Create Investigation</a></li>
+                    	</ul>
+                    </li>
                 <!-- Risk Management (separate section) -->
                 <li class="menu-dropdown" data-feature="risk_view" data-requires-permission="risk_view">
                     <a href="#"><i class="fas fa-exclamation-triangle"></i> Risk Management</a>
@@ -450,7 +458,9 @@
                         <li data-feature="access_daily_view" data-requires-permission="access_daily_view"><a href="accessdaily.html">Daily Access Control</a></li>
                         <li data-feature="removal_view" data-requires-permission="removal_view"><a href="removalboard.html">Property Removal</a></li>
                     
-						<li data-feature="security_level_evaluation_view" data-requires-permission="security_level_evaluation_view"><a href="seclevel.html">Security Level Evaluation</a></li></ul>
+						<li data-feature="security_level_evaluation_view" data-requires-permission="security_level_evaluation_view"><a href="seclevel.html">Security Level Evaluation</a></li>
+						<li data-feature="nfc_view" data-requires-permission="nfc_view"><a href="nfc.html">NFC Card Management</a></li>
+</ul>
                 </li>
                 <li class="menu-dropdown" data-feature="logistics_view" data-requires-permission="logistics_view">
                     <a href="#"><i class="fas fa-truck"></i> Logistics</a>
@@ -1681,7 +1691,8 @@
                             { label: 'Risk Assessment', value: doc.riskLevel },
                             { label: 'Distribution List', value: doc.distribution },
                             { label: 'References', value: doc.references },
-                            { label: 'Revision History', value: doc.revisionHistory }
+                            { label: 'Revision History', value: doc.revisionHistory },
+                            { label: 'Appendix', value: doc.appendix }
                         ].filter(r => r.value);
 
                         const lastUpdated = doc.updated ? `<div class='modal-details-row'><span class='modal-details-label'>Last Updated:</span> <span class='modal-details-value'>${new Date(doc.updated).toLocaleString()}</span></div>` : '';
@@ -1977,7 +1988,7 @@
                                         // Roles & Responsibilities (stack responsibilities below roles)
                                         const roles = arr(doc.roles).filter(Boolean);
                                         const rolesHtml = roles.length ? `
-                                            <section class="doc-sec">
+                                            <section class="doc-sec roles-sec">
                                                 <h3><i class="fas fa-users-cog"></i> Roles & Responsibilities</h3>
                                                 <div class="rr-list">
                                                     ${roles.map(r=>`
@@ -2117,51 +2128,16 @@
                                             `;
                                         })();
 
-                                        // Revision History as its own section with stacked records
-                                        const revisionHtml = (()=>{
-                                            const rev = doc.revisionHistory;
-                                            if (!rev) return '';
-                                            let content = '';
-                                            if (Array.isArray(rev)) {
-                                                if (!rev.length) return '';
-                                                const isObj = rev.some(r => r && typeof r === 'object');
-                                                if (isObj) {
-                                                    content = `
-                                                        <table class=\"rev-table\">\n                                                            <thead><tr><th>Version</th><th>Date</th><th>Changes</th><th>By</th></tr></thead>\n                                                            <tbody>
-                                                                ${rev.map(r => {
-                                                                    const v = (r && (r.version||r.rev||r.release)) || '';
-                                                                    const d = (r && (r.date||r.when)) || '';
-                                                                    const c = (r && (r.changes||r.change||r.description||r.notes)) || '';
-                                                                    const name = (r && (r.name||r.byName||r.authorName||r.displayName||r.by||r.author||r.editor)) || '';
-                                                                    const rolesArr = [];
-                                                                    if (r) {
-                                                                        if (Array.isArray(r.roles)) rolesArr.push(...r.roles.filter(Boolean));
-                                                                        if (r.role) rolesArr.push(r.role);
-                                                                        if (r.jobTitle) rolesArr.push(r.jobTitle);
-                                                                        if (r.position) rolesArr.push(r.position);
-                                                                        if (r.function) rolesArr.push(r.function);
-                                                                    }
-                                                                    const roleStr = rolesArr.filter(Boolean).join(', ');
-                                                                    const byDisplay = name ? (roleStr ? `${name} — ${roleStr}` : name) : '';
-                                                                    return `<tr><td>${escFn(v)}</td><td>${escFn(d)}</td><td>${escFn(c)}</td><td>${escFn(byDisplay)}</td></tr>`;
-                                                                }).join('')}\n                                                            </tbody>\n                                                        </table>`;
-                                                } else {
-                                                    content = `<ul class=\"rev-list\">${rev.map(r => `<li>${escFn(r)}</li>`).join('')}</ul>`;
-                                                }
-                                            } else if (typeof rev === 'string') {
-                                                const lines = rev.split(/\n+/).map(l=>l.trim()).filter(Boolean);
-                                                if (lines.length > 1) {
-                                                    content = `<ul class=\"rev-list\">${lines.map(l => `<li>${escFn(l)}</li>`).join('')}</ul>`;
-                                                } else {
-                                                    content = `<p>${brFn(rev)}</p>`;
-                                                }
-                                            } else {
-                                                return '';
-                                            }
-                                            return `
-                                                <section class=\"doc-sec\">\n                                                    <h3><i class=\"fas fa-history\"></i> Revision History</h3>\n                                                    ${content}\n                                                </section>
-                                            `;
-                                        })();
+                                        // Revision History intentionally removed from preview per requirement
+                                        const revisionHtml = '';
+
+                                        // Appendix section
+                                        const appendixHtml = doc.appendix ? `
+                                            <section class="doc-sec">
+                                                <h3><i class="fas fa-file-signature"></i> Appendix</h3>
+                                                <p>${brFn(doc.appendix)}</p>
+                                            </section>
+                                        ` : '';
 
                                         const lastUpdatedHtml = (doc.updated ? `<div style=\"margin-top:14px;color:#6b7280;font-size:.8rem;\">Last Updated: ${escFn(new Date(doc.updated).toLocaleString())}</div>` : '');
 
@@ -2216,16 +2192,22 @@
                                                 .print-header,.print-footer{ display:none; }
 
                                                 /* Reserve page margins so content never sits under the fixed header/footer */
-                                                @page { margin: 24mm 12mm 12mm 12mm; }
+                                                @page { size: A4; margin: 15mm; }
 
                                                 @media print {
                                                     /* Show only the preview content, but ensure its ancestors are visible too */
                                                     body * { visibility: hidden !important; }
                                                     #docPreviewModal, #docPreviewModal * { visibility: visible !important; }
-                                                    .doc-preview, .doc-preview * { visibility: visible !important; }
-                                                    html, body { width: 210mm; height: 297mm; }
+                                                    /* Ensure modal pieces render even if framework would hide them */
+                                                    #docPreviewModal,
+                                                    #docPreviewModal .modal-dialog,
+                                                    #docPreviewModal .modal-content,
+                                                    #docPreviewModal .modal-body { display: block !important; }
+                                                    /* Let the browser paginate naturally; avoid fixed height that can clip content */
+                                                    html, body { width: auto !important; height: auto !important; margin: 0 !important; padding: 0 !important; }
                                                     /* Remove modal constraints so content can flow across pages */
                                                     #docPreviewModal,
+                                                    #docPreviewModal .modal-dialog,
                                                     #docPreviewModal .modal-content,
                                                     #docPreviewModal .modal-body {
                                                         position: static !important;
@@ -2239,16 +2221,22 @@
                                                         box-shadow: none !important;
                                                         border: none !important;
                                                     }
+                                                    #docPreviewModal .modal-dialog { max-width: none !important; }
                                                     .doc-preview {
                                                         position: static !important;
-                                                        margin: 0 auto !important;
+                                                        margin: 0 auto !important; /* ensure horizontal centering if width < 100% in future */
                                                         box-shadow: none !important;
                                                         border: none !important;
                                                         background: transparent !important; /* remove card-like background */
-                                                        width: calc(210mm - 24mm) !important; /* page width minus left/right margins */
+                                                        width: 100% !important; /* fill printable content area defined by @page margins */
                                                         /* rely on @page margins for header/footer spacing */
-                                                        padding: 0 !important;
+                                                        padding: 8mm 0 9mm 0 !important; /* tighter top/bottom to fit page while clearing header/footer */
+                                                        font-family: 'Segoe UI','Arial',sans-serif !important;
+                                                        font-size: 11pt !important;
+                                                        line-height: 1.35 !important;
+                                                        color: #111 !important;
                                                     }
+                                                    /* Uniform margins: removed extra bottom clearance on last section */
                                                     /* Place logo to the left of the title block for print */
                                                     .doc-head-left{ flex-direction: row !important; align-items: center !important; gap: 10px !important; }
                                                     .doc-title-group{ display:flex; flex-direction:column; }
@@ -2273,9 +2261,49 @@
                                                         background: transparent !important;
                                                         border: none !important;
                                                         box-shadow: none !important;
-                                                        padding: 0 !important;
+                                                        padding: 0 0 2mm 0 !important; /* extra bottom pad to avoid clipping at page breaks */
                                                         margin: 0 0 8px 0 !important;
+                                                        break-inside: avoid; page-break-inside: avoid; /* keep an item together */
                                                     }
+                                                    /* Ensure the roles section starts with a bit more space on new pages */
+                                                    .doc-preview .roles-sec { padding-top: 3mm !important; }
+                                                    /* --- Enhanced print design --- */
+                                                    .doc-preview h2 {
+                                                        font-size: 20pt !important;
+                                                        font-weight: 600 !important;
+                                                        margin: 0 0 8mm 0 !important;
+                                                        letter-spacing: .3px !important;
+                                                    }
+                                                    .doc-preview h3 {
+                                                        font-size: 12pt !important;
+                                                        font-weight: 600 !important;
+                                                        margin: 6mm 0 3mm !important;
+                                                        padding-bottom: 2mm !important;
+                                                        border-bottom: 0.3mm solid #d0d2d6 !important;
+                                                        color: #222 !important;
+                                                        background: none !important;
+                                                        letter-spacing: .5px !important;
+                                                        text-transform: uppercase !important;
+                                                    }
+                                                    .doc-preview h3 i { color: #666 !important; margin-right: 6px !important; }
+                                                    .doc-preview p, .doc-preview li { orphans:3; widows:3; }
+                                                    .doc-preview table { width:100% !important; border-collapse:collapse !important; margin:3mm 0 6mm !important; }
+                                                    .doc-preview table th { background:#f4f5f7 !important; font-weight:600 !important; color:#222 !important; }
+                                                    .doc-preview table th, .doc-preview table td {
+                                                        border: 0.25mm solid #cfd1d5 !important;
+                                                        padding: 2.5mm 2mm !important;
+                                                        font-size: 10pt !important;
+                                                        vertical-align: top !important;
+                                                    }
+                                                    .doc-preview .kv-list { margin: 0 0 6mm 0 !important; }
+                                                    .doc-preview .kv-row { display:flex; border-bottom:0.2mm solid #e5e7ea !important; padding:1.5mm 0 !important; }
+                                                    .doc-preview .kv-row:last-child { border-bottom:none !important; }
+                                                    .doc-preview .kv-k { min-width:32mm; font-weight:600; color:#333; }
+                                                    .doc-preview .kv-v { flex:1; }
+                                                    .print-footer { position:fixed !important; bottom:0; left:0; right:0; display:flex !important; justify-content:flex-end; font-size:8.5pt; color:#555; padding:2mm 15mm 1mm; background:#fff; border-top:0.25mm solid #d0d2d6; }
+                                                    .print-footer:after { content: "Page " counter(page); }
+                                                    /* Ensure last section doesn't collide with footer */
+                                                    .doc-preview .doc-sec:last-child { margin-bottom: 6mm !important; }
                                                     .doc-preview .proc-notes{
                                                         background: transparent !important;
                                                         border: none !important;
@@ -2293,9 +2321,18 @@
                                                     /* Hide the modal chrome title "Document Preview" and close button in print */
                                                     #docPreviewModal .modal-header { display: none !important; }
                                                     .doc-preview, .doc-preview * { box-sizing: border-box; overflow-wrap: anywhere; word-break: break-word; hyphens: auto; }
+                                                    /* Enforce left alignment across content */
+                                                    .doc-preview, .doc-preview p, .doc-preview li, .doc-preview td, .doc-preview th { text-align: left !important; }
                                                     /* reduce risk of awkward splits */
                                                     /* Allow sections to break across pages to avoid large empty gaps */
                                                     .doc-sec { break-inside: auto; page-break-inside: auto; }
+                                                    /* Prevent margin-collapsing at top-of-page causing text to be hidden */
+                                                    .doc-sec { border-top: 0.01mm solid transparent; overflow: visible; }
+                                                    /* Uniform margins: removed extra top padding on first child to rely solely on @page margin */
+                                                    /* Ensure a bit of top offset on new pages so first line isn't hidden */
+                                                    .doc-sec { padding-top: 2mm; }
+                                                    /* Avoid heading at page top being clipped */
+                                                    .doc-sec h3 { padding-top: 1mm; }
                                                     /* Tighten vertical rhythm between sections in print */
                                                     .doc-sec { margin: 10px 0 !important; }
                                                     .doc-sec h3{ margin-bottom: 6px !important; }
@@ -2308,13 +2345,13 @@
                                                     p, li { orphans: 3; widows: 3; }
                                                     /* Print header/footer */
                                                     .print-header,.print-footer{ display:block !important; position: fixed; left: 0; right: 0; color:#6b7280; font-size:.75rem; background:#fff !important; }
-                                                    .print-header{ top: 0; }
+                                                    .print-header{ top: 0; border-bottom:0.3mm solid #d0d2d6; padding:2mm 15mm 1mm; }
                                                     .print-footer{ bottom: 0; }
                                                     /* Chromium-based browsers often don't support counter(pages); use current page only */
                                                     .page-number:after{ content: 'Page ' counter(page); }
                                                 }
                                             </style>
-                                            <div class="doc-preview">
+                                            <div class="doc-preview" style="">
                                                 <div class="print-header" aria-hidden="true">
                                                     <div style="display:flex;justify-content:space-between;gap:10px;">
                                                         <span>${escFn(doc.documentNumber || doc.documentId || doc.number || doc.id || '')}</span>
@@ -2327,6 +2364,7 @@
                                                         <span class="page-number"></span>
                                                     </div>
                                                 </div>
+                                                <!-- Removed spacer: header padding + content top padding now handle clearance -->
                                                 ${headerHtml}
                                                 ${docInfoHtml}
                                                 ${summaryHtml}
@@ -2337,6 +2375,7 @@
                                                 ${stepsHtml}
                                                 ${longTextHtml}
                                                 ${revisionHtml}
+                                                ${appendixHtml}
                                                 ${optHtml}
                                                 ${lastUpdatedHtml}
                                             </div>
@@ -2580,6 +2619,12 @@
                                                     }
                                                 }
                                             }
+
+                                            // Appendix
+                                            if (doc.appendix) {
+                                                sections.push(addH2('Appendix'));
+                                                sections.push(new Paragraph({ text: doc.appendix, spacing: { after: 80 } }));
+                                            }
                                             
                                             // Company name for header (if available on page)
                                             const companyName = (document.getElementById('headerCompanyName')?.textContent || '').trim();
@@ -2731,7 +2776,8 @@
                         line('Distribution List', doc.distribution);
                         
                         line('References', doc.references);
-                        line('Revision History', doc.revisionHistory);
+                        // Removed Revision History from PDF print preview per requirement
+                        line('Appendix', doc.appendix);
 
                         // Definitions
                                     if (Array.isArray(doc.definitions) && doc.definitions.length) {

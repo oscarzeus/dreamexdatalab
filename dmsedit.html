@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -108,6 +108,10 @@
   .btn.secondary { background:#6b7280; }
   .btn.ghost { background:transparent; border:1px solid #d1d5db; color:#374151; }
   .toolbar { display:flex; gap:.5rem; justify-content:flex-end; margin:.5rem 0; }
+  /* Drag handles for procedure reordering */
+  .drag-handle { cursor:grab; user-select:none; font-size:1rem; padding:0 .4rem; color:#64748b; display:inline-flex; align-items:center; }
+  .drag-handle:active { cursor:grabbing; }
+  .procedure.dragging { opacity:.5; }
 
     @media (max-width: 768px) {
       .sidebar { position: static; width: 100%; height: auto; }
@@ -148,6 +152,14 @@
                         <li data-feature="audit_view" data-requires-permission="audit_view"><a href="auditboard.html">Audit</a></li>
                     </ul>
                 </li>
+                    <li class="menu-dropdown" data-feature="investigation_view" data-requires-permission="investigation_view">
+                    	<a href="#"><i class="fas fa-search-plus"></i> Investigation</a>
+                    	<ul class="submenu">
+                        <li data-feature="investigation_dashboard_view" data-requires-permission="investigation_dashboard_view"><a href="investigation-dashboard.html">Investigation Dashboard</a></li>
+                        <li data-feature="investigation_list_view" data-requires-permission="investigation_list_view"><a href="investigation-list.html">Investigation List</a></li>
+                        <li data-feature="create_investigation_view" data-requires-permission="create_investigation_view"><a href="investigation-create.html">Create Investigation</a></li>
+                    	</ul>
+                    </li>
         <!-- Risk Management (separate section) -->
         <li class="menu-dropdown" data-feature="risk_view" data-requires-permission="risk_view">
           <a href="#"><i class="fas fa-exclamation-triangle"></i> Risk Management</a>
@@ -181,7 +193,9 @@
                         <li data-feature="access_daily_view" data-requires-permission="access_daily_view"><a href="accessdaily.html">Daily Access Control</a></li>
                         <li data-feature="removal_view" data-requires-permission="removal_view"><a href="removalboard.html">Property Removal</a></li>
                     
-						<li data-feature="security_level_evaluation_view" data-requires-permission="security_level_evaluation_view"><a href="seclevel.html">Security Level Evaluation</a></li></ul>
+						<li data-feature="security_level_evaluation_view" data-requires-permission="security_level_evaluation_view"><a href="seclevel.html">Security Level Evaluation</a></li>
+						<li data-feature="nfc_view" data-requires-permission="nfc_view"><a href="nfc.html">NFC Card Management</a></li>
+</ul>
                 </li>
                 <li class="menu-dropdown" data-feature="logistics_view" data-requires-permission="logistics_view">
                     <a href="#"><i class="fas fa-truck"></i> Logistics</a>
@@ -400,11 +414,11 @@
                 <div class="muted">Provide a brief assessment of risks related to this document</div>
               </div>
             </div>
-            <div class="row">
+            <div class="row" id="revisionFieldWrapper" style="display:none;">
               <div class="col field" style="flex:1 1 100%">
                 <label for="docRevision" data-i18n="label.revision">Revision History</label>
                 <textarea id="docRevision" rows="3" placeholder="Summary of changes in this version" data-i18n-placeholder="ph.revision" readonly></textarea>
-                <div class="muted">Automatically managed by system</div>
+                <div class="muted">Automatically managed by system (visible after approval)</div>
               </div>
             </div>
             
@@ -416,6 +430,10 @@
             <div class="field">
               <label for="docReferences" data-i18n="label.references">References</label>
               <textarea id="docReferences" rows="2" placeholder="Link or reference notes" data-i18n-placeholder="ph.references"></textarea>
+            </div>
+            <div class="field">
+              <label for="docAppendix" data-i18n="label.appendix">Appendix</label>
+              <textarea id="docAppendix" rows="3" placeholder="Additional notes, annexes, or supplementary materials" data-i18n-placeholder="ph.appendix"></textarea>
             </div>
             <div class="toolbar">
               <button id="saveDraftBtn" class="btn" type="button" data-i18n="btn.saveDraft">Save Draft</button>
@@ -888,9 +906,13 @@
           wrapper.style.borderRadius = '8px';
           wrapper.style.padding = '.75rem';
           wrapper.style.margin = '8px 0';
+          wrapper.setAttribute('draggable', 'true');
           wrapper.innerHTML = `
             <div style="display:grid;grid-template-columns:1fr auto;gap:.5rem;align-items:center;margin-bottom:.5rem;">
-              <input class="proc-title" type="text" placeholder="Procedure title (e.g., Transport)" value="${(title||'').replace(/"/g,'&quot;')}">
+              <div style="display:flex;align-items:center;gap:.4rem;">
+                <span class="drag-handle" title="Drag to reorder" aria-label="Drag to reorder">☰</span>
+                <input class="proc-title" type="text" placeholder="Procedure title (e.g., Transport)" value="${(title||'').replace(/"/g,'&quot;')}">
+              </div>
               <div>
                 <button class="btn ghost add-step" type="button" title="Add step"><i class="fas fa-plus"></i> Add Step</button>
                 <button class="btn ghost" type="button" title="Remove procedure">&times;</button>
@@ -911,6 +933,8 @@
             steps.forEach(s => addStepRow(stepsHost, s.name || '', s.description || ''));
           }
           proceduresContainer.appendChild(wrapper);
+          // Attach drag events
+          wireProcedureDrag(wrapper);
         };
         addProcBtn.addEventListener('click', () => addProcedure('', []));
         // Seed one empty procedure
@@ -965,6 +989,9 @@
         ['docTitle','docType','docCategory','docNumber','docPurpose','docScope','docOwner','docDistribution','docRisk','docReferences'].forEach(id => {
           const el = document.getElementById(id); if (!el) return; el.addEventListener('input', () => this.persistLocalDraft());
         });
+        // Appendix should also trigger local draft persist
+        const appendixEl = document.getElementById('docAppendix');
+        if (appendixEl) appendixEl.addEventListener('input', () => this.persistLocalDraft());
         // Update doc number placeholder when type changes
         const typeEl = document.getElementById('docType'); if (typeEl) typeEl.addEventListener('change', () => { this.updateDocNumberPlaceholder(); this.tryAutoAssignDocNumber(); });
         // Initial placeholder and attempt auto number
@@ -1123,6 +1150,7 @@
           revisionHistory: revisionHistory,
           steps: procedures,
           references: document.getElementById('docReferences').value || '',
+          appendix: document.getElementById('docAppendix')?.value || '',
           status: statusOverride || (this._loadedDoc && this._loadedDoc.status) || 'draft',
           updated: Date.now(),
           updatedBy: this.currentUser?.uid || null
@@ -1576,7 +1604,17 @@
               ${listSteps(p.steps)}
             </div>
         `).join('') : '<em class="muted" data-i18n="preview.noProcedures">No operating procedure</em>';
-        const html = `
+        // Backward-compatibility: normalize appendix from legacy keys if needed
+        const appendixText = (doc.appendix != null && doc.appendix !== '')
+          ? doc.appendix
+          : ((doc.annex != null && doc.annex !== '') ? doc.annex
+            : ((doc.annexe != null && doc.annexe !== '') ? doc.annexe
+              : (Array.isArray(doc.appendices) ? doc.appendices.join('\n')
+                : (doc.appendices && typeof doc.appendices === 'object' ? Object.values(doc.appendices).join('\n') : ''))));
+
+  const statusLower = (doc.status || doc.approvalStatus || '').toString().toLowerCase();
+  const isApproved = statusLower === 'approved' || statusLower === 'approved ✅';
+  const html = `
           <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:.5rem;">
             ${logoHtml}
             <div>
@@ -1605,6 +1643,8 @@
           
           <h4 data-i18n="section.operatingProcedure">Operating procedure</h4>${listProcedures(doc.steps)}
           <h4 data-i18n="label.references">References</h4><p>${md(doc.references)}</p>
+          ${appendixText ? `<h4 data-i18n="label.appendix">Appendix</h4><p>${md(appendixText)}</p>` : ''}
+          ${isApproved && doc.revisionHistory ? `<h4 data-i18n="label.revision">Revision History</h4><p>${md(doc.revisionHistory)}</p>` : ''}
         `;
         const prev = document.getElementById('previewArea');
         prev.innerHTML = html;
@@ -1633,6 +1673,8 @@
         const { jsPDF } = window.jspdf || {};
         if (!jsPDF) return alert('PDF engine not available');
         const docModel = this.buildDocModel();
+        const statusLower = (docModel.status || docModel.approvalStatus || '').toString().toLowerCase();
+        const isApproved = statusLower === 'approved' || statusLower === 'approved ✅';
         if (!this._lastFlowSvg) { await this.renderFlowchart(); }
         const t = (window.__i18nT || ((k)=>k));
         const split = (pdf, text, maxWidth) => pdf.splitTextToSize(String(text||''), maxWidth);
@@ -1821,7 +1863,9 @@
           y += 8;
         });
         y += 12;
-        section(t('label.references') || 'References', docModel.references);
+    section(t('label.references') || 'References', docModel.references);
+    if (docModel.appendix) section(t('label.appendix') || 'Appendix', docModel.appendix);
+    if (isApproved && docModel.revisionHistory) section(t('label.revision') || 'Revision History', docModel.revisionHistory);
         const flowPng = await svgToPngDataUrl(this._lastFlowSvg, Math.min(700, maxW));
         if (flowPng) {
           if (y > pdf.internal.pageSize.getHeight() - (flowPng.height + bottomMargin + 20)) { pdf.addPage(); y = 70; }
@@ -1853,6 +1897,8 @@
         if (!window.docx) return alert('DOCX engine not available');
         const { Document, Packer, Paragraph, HeadingLevel, ImageRun } = window.docx;
         const m = this.buildDocModel();
+        const statusLower = (m.status || m.approvalStatus || '').toString().toLowerCase();
+        const isApproved = statusLower === 'approved' || statusLower === 'approved ✅';
         if (!this._lastFlowSvg) { await this.renderFlowchart(); }
         const dataUrlToUint8 = async (dataUrl) => { const res = await fetch(dataUrl); const buf = await res.arrayBuffer(); return new Uint8Array(buf); };
         const svgToPngDataUrl = async (svgString, width = 1200) => new Promise((resolve) => {
@@ -1928,6 +1974,14 @@
         });
         paras.push(new Paragraph({ text: 'References', heading: HeadingLevel.HEADING_2 }));
         (m.references||'').split('\n').forEach(s=>paras.push(new Paragraph(s)));
+        if (m.appendix) {
+          paras.push(new Paragraph({ text: 'Appendix', heading: HeadingLevel.HEADING_2 }));
+          (m.appendix||'').split('\n').forEach(s=>paras.push(new Paragraph(s)));
+        }
+        if (isApproved && m.revisionHistory) {
+          paras.push(new Paragraph({ text: 'Revision History', heading: HeadingLevel.HEADING_2 }));
+          (m.revisionHistory||'').split('\n').forEach(s=>paras.push(new Paragraph(s)));
+        }
         if (flow) {
           paras.push(new Paragraph({ text: 'Process Flowchart', heading: HeadingLevel.HEADING_2 }));
           const flowW = 600; const flowH = Math.round(flowW * (flow.height/flow.width));
@@ -2028,7 +2082,23 @@
         set('docPurpose', m.purpose);
         set('docScope', m.scope);
         set('docReferences', m.references);
+        // Normalize appendix from potential legacy keys for backward compatibility
+        const normalizedAppendix = (m.appendix != null && m.appendix !== '')
+          ? m.appendix
+          : ((m.annex != null && m.annex !== '') ? m.annex
+            : ((m.annexe != null && m.annexe !== '') ? m.annexe
+              : (Array.isArray(m.appendices) ? m.appendices.join('\n')
+                : (m.appendices && typeof m.appendices === 'object' ? Object.values(m.appendices).join('\n') : ''))));
+        set('docAppendix', normalizedAppendix);
         set('docRevision', m.revisionHistory || m.revision);
+        // Show revision field only if approved
+        try {
+          const wrapper = document.getElementById('revisionFieldWrapper');
+          if (wrapper) {
+            const st = (m.status || m.approvalStatus || '').toString().toLowerCase();
+            wrapper.style.display = (st === 'approved' || st === 'approval' || st === 'approved ✅') ? '' : 'none';
+          }
+        } catch(_) {}
         // Operating procedure (load)
         const proceduresContainer = document.getElementById('proceduresContainer');
         proceduresContainer.innerHTML = '';
@@ -2059,9 +2129,13 @@
           wrapper.style.borderRadius = '8px';
           wrapper.style.padding = '.75rem';
           wrapper.style.margin = '8px 0';
+          wrapper.setAttribute('draggable', 'true');
           wrapper.innerHTML = `
             <div style="display:grid;grid-template-columns:1fr auto;gap:.5rem;align-items:center;margin-bottom:.5rem;">
-              <input class="proc-title" type="text" placeholder="Procedure title (e.g., Transport)" value="${(title||'').replace(/"/g,'&quot;')}">
+              <div style="display:flex;align-items:center;gap:.4rem;">
+                <span class="drag-handle" title="Drag to reorder" aria-label="Drag to reorder">☰</span>
+                <input class="proc-title" type="text" placeholder="Procedure title (e.g., Transport)" value="${(title||'').replace(/"/g,'&quot;')}">
+              </div>
               <div>
                 <button class="btn ghost add-step" type="button" title="Add step"><i class="fas fa-plus"></i> Add Step</button>
                 <button class="btn ghost" type="button" title="Remove procedure">&times;</button>
@@ -2082,7 +2156,56 @@
             steps.forEach(s => addStepRowLoad(stepsHost, s.name || '', s.description || ''));
           }
           proceduresContainer.appendChild(wrapper);
+          // Attach drag events
+          wireProcedureDrag(wrapper);
         };
+        // Drag & drop ordering logic
+        let _draggingProc = null;
+        function wireProcedureDrag(el) {
+          el.addEventListener('dragstart', (e) => {
+            if (!e.target.classList.contains('procedure')) return;
+            _draggingProc = e.target;
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', 'procedure');
+            e.target.classList.add('dragging');
+          });
+          el.addEventListener('dragend', () => {
+            if (_draggingProc) _draggingProc.classList.remove('dragging');
+            _draggingProc = null;
+          });
+        }
+        proceduresContainer.addEventListener('dragover', (e) => {
+          if (!_draggingProc) return;
+          e.preventDefault();
+          const afterElement = getProcedureAfterCursor(proceduresContainer, e.clientY);
+          if (!afterElement) {
+            proceduresContainer.appendChild(_draggingProc);
+          } else if (afterElement !== _draggingProc) {
+            proceduresContainer.insertBefore(_draggingProc, afterElement);
+          }
+        });
+        proceduresContainer.addEventListener('drop', () => {
+          if (_draggingProc) {
+            _draggingProc.classList.remove('dragging');
+            _draggingProc = null;
+            // Persist new order
+            try { Auth.persistLocalDraft(); } catch {}
+          }
+        });
+        function getProcedureAfterCursor(container, y) {
+          const draggableElements = [...container.querySelectorAll('.procedure:not(.dragging)')];
+          let closest = null;
+          let closestOffset = Number.NEGATIVE_INFINITY;
+          draggableElements.forEach(child => {
+            const box = child.getBoundingClientRect();
+            const offset = y - box.top - box.height / 2;
+            if (offset < 0 && offset > closestOffset) {
+              closestOffset = offset;
+              closest = child;
+            }
+          });
+          return closest;
+        }
         if (Array.isArray(m.steps) && m.steps.length) {
           m.steps.forEach(p => addProcedureLoad(p.title || '', p.steps || []));
         } else {
@@ -2165,6 +2288,7 @@
         'section.operatingProcedure': 'Operating procedure',
         'btn.addProcedure': 'Add Operating procedure',
         'label.references': 'References',
+  'label.appendix': 'Appendix',
         'btn.saveDraft': 'Save Draft',
         'btn.submitReview': 'Submit for Review',
         'option.type.procedure': 'Procedure',
@@ -2194,6 +2318,7 @@
         'ph.revision': 'Summary of changes in this version',
         'ph.legacy': 'One per line (role: responsibility)',
         'ph.references': 'Link or reference notes',
+  'ph.appendix': 'Additional notes, annexes, or supplementary materials',
         // dynamic blocks
         'dyn.def.term': 'Term',
         'dyn.def.definition': 'Definition',
@@ -2236,6 +2361,7 @@
         'section.operatingProcedure': 'Procédure opérationnelle',
         'btn.addProcedure': 'Ajouter une procédure opérationnelle',
         'label.references': 'Références',
+  'label.appendix': 'Annexe',
         'btn.saveDraft': 'Enregistrer le brouillon',
         'btn.submitReview': 'Soumettre pour révision',
         'option.type.procedure': 'Procédure',
@@ -2265,6 +2391,7 @@
         'ph.revision': 'Résumé des changements dans cette version',
         'ph.legacy': 'Une par ligne (rôle : responsabilité)',
         'ph.references': 'Lien ou notes de référence',
+  'ph.appendix': 'Notes supplémentaires, annexes ou documents complémentaires',
         // dynamic blocks
         'dyn.def.term': 'Terme',
         'dyn.def.definition': 'Définition',
