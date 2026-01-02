@@ -1220,6 +1220,28 @@ li.menu-visible,
                                 </small>
                             </div>
 
+                            <!-- Permanent Lock -->
+                            <div class="form-group" id="lockCardSection" style="padding: 1rem; background: linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(220, 38, 38, 0.1)); border-radius: 8px; border: 1px solid var(--danger-color);">
+                                <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                    <input type="checkbox" id="enableLock" style="width: 18px; height: 18px; cursor: pointer;">
+                                    <label for="enableLock" style="margin: 0; cursor: pointer; font-weight: 500;">
+                                        <i class="fas fa-lock" style="margin-right: 0.5rem; color: var(--danger-color);"></i>
+                                        Lock Card Permanently
+                                    </label>
+                                </div>
+                                <small style="color: var(--danger-color); display: block; margin-top: 0.5rem; margin-left: 2rem;">
+                                    <i class="fas fa-exclamation-triangle"></i> <strong>WARNING:</strong> This permanently locks the card. No app (including this one) can ever write to it again!
+                                </small>
+                                <div id="lockConfirmation" style="display: none; margin-top: 0.75rem; margin-left: 2rem; padding: 0.75rem; background: rgba(239, 68, 68, 0.2); border-radius: 6px;">
+                                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                        <input type="checkbox" id="confirmLock" style="width: 16px; height: 16px; cursor: pointer;">
+                                        <label for="confirmLock" style="margin: 0; cursor: pointer; font-size: 0.85rem; color: var(--danger-color);">
+                                            I understand this action is <strong>IRREVERSIBLE</strong>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+
                             <!-- Write Button -->
                             <div style="margin-top: 1.5rem; text-align: center;">
                                 <button class="btn btn-success" id="writeNfcBtn" onclick="startNFCWrite()">
@@ -1339,6 +1361,20 @@ li.menu-visible,
             const vcardNameSelect = document.getElementById('vcardName');
             if (vcardNameSelect) {
                 vcardNameSelect.innerHTML = '<option value="">-- Select Organization First --</option>';
+            }
+            
+            // Lock card checkbox toggle confirmation
+            const enableLockCheckbox = document.getElementById('enableLock');
+            const lockConfirmation = document.getElementById('lockConfirmation');
+            const confirmLockCheckbox = document.getElementById('confirmLock');
+            
+            if (enableLockCheckbox && lockConfirmation) {
+                enableLockCheckbox.addEventListener('change', function() {
+                    lockConfirmation.style.display = this.checked ? 'block' : 'none';
+                    if (!this.checked && confirmLockCheckbox) {
+                        confirmLockCheckbox.checked = false;
+                    }
+                });
             }
             // loadCompanies will be called after AuthManager initializes
         });
@@ -2033,8 +2069,54 @@ li.menu-visible,
                         const mimeDecoder = new TextDecoder();
                         const rawData = mimeDecoder.decode(record.data);
                         
-                        // Handle encrypted data types
-                        if (record.mediaType && record.mediaType.startsWith('application/x-encrypted-')) {
+                        // Check for DreamEx proprietary format (DXD: = data, DXP: = password)
+                        if (rawData.startsWith('DXD:')) {
+                            result.encrypted = true;
+                            const typeCode = rawData.charAt(4); // T, U, J, V, or X
+                            const encryptedPayload = rawData.substring(5);
+                            
+                            // Try to decrypt
+                            const decryptResult = await decryptData(encryptedPayload);
+                            if (decryptResult.decrypted) {
+                                result.decrypted = true;
+                                result.data = decryptResult.data;
+                                
+                                // Parse based on type code
+                                const typeMap = { T: 'text', U: 'url', J: 'json', V: 'vcard' };
+                                const originalType = typeMap[typeCode] || 'unknown';
+                                
+                                if (originalType === 'json') {
+                                    try {
+                                        const parsed = JSON.parse(decryptResult.data);
+                                        result.displayData = JSON.stringify(parsed, null, 2);
+                                    } catch {
+                                        result.displayData = decryptResult.data;
+                                    }
+                                } else if (originalType === 'vcard') {
+                                    result.displayData = decryptResult.data;
+                                    result.mediaType = 'text/vcard';
+                                } else if (originalType === 'url') {
+                                    result.displayData = decryptResult.data;
+                                    result.isUrl = true;
+                                } else {
+                                    result.displayData = decryptResult.data;
+                                }
+                                result.decryptionNote = '🔓 Decrypted successfully (Proprietary Format)';
+                            } else {
+                                // Could not decrypt - this is NOT from your company
+                                result.data = '[PROTECTED]';
+                                result.displayData = '🔐 PROPRIETARY ENCRYPTED DATA\n\nThis card uses DreamEx proprietary encryption.\nOnly the originating company can read this data.\n\nYou do not have access to view this card\'s contents.';
+                                result.decryptionNote = 'Access denied - different company encryption key';
+                            }
+                        } else if (rawData.startsWith('DXP:')) {
+                            // Proprietary password hash format
+                            result.data = '(password protection)';
+                            result.displayData = '🔒 Password Protected Card';
+                            result.isPasswordRecord = true;
+                            result.passwordHash = rawData.substring(4);
+                        }
+                        // Handle legacy encrypted data types (for backwards compatibility)
+                        else if (record.mediaType && record.mediaType.startsWith('application/x-encrypted-')) {
                             result.encrypted = true;
                             const originalType = record.mediaType.replace('application/x-encrypted-', '');
                             
@@ -2066,7 +2148,7 @@ li.menu-visible,
                                 result.decryptionNote = decryptResult.error || 'Unable to decrypt';
                             }
                         } else if (record.mediaType === 'application/x-nfc-password') {
-                            // Password hash - don't display
+                            // Legacy password hash - don't display
                             result.data = '(password protection hash)';
                             result.displayData = '🔒 Password Protected Card';
                             result.isPasswordRecord = true;
@@ -2105,6 +2187,15 @@ li.menu-visible,
                             } else {
                                 result.data = rawData;
                                 result.displayData = rawData;
+                            }
+                        } else if (record.mediaType === 'application/octet-stream') {
+                            // Generic binary - check if it's our proprietary format
+                            if (rawData.startsWith('DXD:') || rawData.startsWith('DXP:')) {
+                                // Already handled above, but double check
+                                result.displayData = '🔐 Proprietary encrypted data';
+                            } else {
+                                result.data = arrayBufferToHex(record.data);
+                                result.displayData = 'Binary data: ' + result.data.substring(0, 50) + '...';
                             }
                         } else {
                             result.data = arrayBufferToHex(record.data);
@@ -2635,13 +2726,24 @@ li.menu-visible,
                         clearTimeout(timeout);
                         controller.abort();
                         
-                        // Look for password protection record
+                        // Look for password protection record (both legacy and proprietary formats)
                         for (const record of message.records) {
+                            // Legacy format
                             if (record.recordType === 'mime' && record.mediaType === 'application/x-nfc-password') {
                                 const decoder = new TextDecoder();
                                 const hash = decoder.decode(record.data);
                                 resolve({ protected: true, hash: hash });
                                 return;
+                            }
+                            // Proprietary format (DXP: prefix)
+                            if (record.recordType === 'mime' && record.mediaType === 'application/octet-stream') {
+                                const decoder = new TextDecoder();
+                                const data = decoder.decode(record.data);
+                                if (data.startsWith('DXP:')) {
+                                    const hash = data.substring(4);
+                                    resolve({ protected: true, hash: hash });
+                                    return;
+                                }
                             }
                         }
                         resolve({ protected: false, hash: null });
@@ -2731,6 +2833,17 @@ li.menu-visible,
             const enableEncryption = document.getElementById('enableEncryption').checked;
             writeData.encrypt = enableEncryption;
             
+            // Check if permanent lock is enabled
+            const enableLock = document.getElementById('enableLock').checked;
+            if (enableLock) {
+                const confirmLock = document.getElementById('confirmLock').checked;
+                if (!confirmLock) {
+                    showWriteStatus('Please confirm you understand the lock is permanent.', 'error');
+                    return;
+                }
+                writeData.lockCard = true;
+            }
+            
             try {
                 isWriting = true;
                 writeAbortController = new AbortController();
@@ -2784,14 +2897,26 @@ li.menu-visible,
                     navigator.vibrate([100, 50, 100]);
                 }
                 
-                let successMsg = 'Successfully written to NFC card!';
-                const features = [];
-                if (writeData.encrypt) features.push('🔐 Encrypted');
-                if (writeData.password) features.push('🔒 Password protected');
-                if (features.length > 0) {
-                    successMsg += ' ' + features.join(' | ');
+                // Check if we should lock the card
+                if (writeData.lockCard) {
+                    showWriteStatus('Locking card permanently...', 'writing');
+                    try {
+                        await ndef.makeReadOnly();
+                        showWriteStatus('✅ Card written and PERMANENTLY LOCKED! No app can ever rewrite this card.', 'success');
+                    } catch (lockError) {
+                        console.error('Lock error:', lockError);
+                        showWriteStatus('⚠️ Card written but lock failed: ' + lockError.message + '. Card may still be writable.', 'warning');
+                    }
+                } else {
+                    let successMsg = 'Successfully written to NFC card!';
+                    const features = [];
+                    if (writeData.encrypt) features.push('🔐 Encrypted');
+                    if (writeData.password) features.push('🔒 Password protected');
+                    if (features.length > 0) {
+                        successMsg += ' ' + features.join(' | ');
+                    }
+                    showWriteStatus(successMsg, 'success');
                 }
-                showWriteStatus(successMsg, 'success');
                 
                 // Clear password field after successful write
                 document.getElementById('cardPassword').value = '';
@@ -2897,72 +3022,76 @@ li.menu-visible,
             const records = [];
             const shouldEncrypt = writeData.encrypt;
             
-            // Add password protection record if password is set
+            // Add password protection record if password is set (also encrypted format)
             if (writeData.password) {
                 const passwordHash = await hashPassword(writeData.password);
+                if (shouldEncrypt) {
+                    // Even password hash uses proprietary format
+                    records.push({
+                        recordType: 'mime',
+                        mediaType: 'application/octet-stream',
+                        data: new TextEncoder().encode('DXP:' + passwordHash)
+                    });
+                } else {
+                    records.push({
+                        recordType: 'mime',
+                        mediaType: 'application/x-nfc-password',
+                        data: new TextEncoder().encode(passwordHash)
+                    });
+                }
+            }
+            
+            if (shouldEncrypt) {
+                // PROPRIETARY ENCRYPTED FORMAT
+                // Creates a single binary blob that other apps cannot interpret
+                // Format: DXD:[type_code][encrypted_payload]
+                // Type codes: T=text, U=url, J=json, V=vcard
+                const typeCode = { text: 'T', url: 'U', json: 'J', vcard: 'V' }[writeData.type] || 'X';
+                const encryptedPayload = await encryptData(writeData.data);
+                const proprietaryData = 'DXD:' + typeCode + encryptedPayload;
+                
+                // Store as raw binary with generic MIME type - completely unrecognizable
                 records.push({
                     recordType: 'mime',
-                    mediaType: 'application/x-nfc-password',
-                    data: new TextEncoder().encode(passwordHash)
+                    mediaType: 'application/octet-stream',
+                    data: new TextEncoder().encode(proprietaryData)
                 });
-            }
-            
-            // Prepare data (encrypt if enabled)
-            let dataToWrite = writeData.data;
-            if (shouldEncrypt) {
-                dataToWrite = await encryptData(writeData.data);
-                console.log('📦 Data encrypted for secure storage');
-            }
-            
-            // Add the main data record
-            switch (writeData.type) {
-                case 'text':
-                    if (shouldEncrypt) {
-                        // Store encrypted text as MIME type for proper handling
-                        records.push({
-                            recordType: 'mime',
-                            mediaType: 'application/x-encrypted-text',
-                            data: new TextEncoder().encode(dataToWrite)
-                        });
-                    } else {
+                
+                console.log('🔐 Data stored in proprietary encrypted format - unreadable by other apps');
+            } else {
+                // Unencrypted - use standard formats
+                switch (writeData.type) {
+                    case 'text':
                         records.push({
                             recordType: 'text',
-                            data: dataToWrite,
+                            data: writeData.data,
                             lang: 'en'
                         });
-                    }
-                    break;
-                    
-                case 'url':
-                    if (shouldEncrypt) {
-                        records.push({
-                            recordType: 'mime',
-                            mediaType: 'application/x-encrypted-url',
-                            data: new TextEncoder().encode(dataToWrite)
-                        });
-                    } else {
+                        break;
+                        
+                    case 'url':
                         records.push({
                             recordType: 'url',
-                            data: dataToWrite
+                            data: writeData.data
                         });
-                    }
-                    break;
-                    
-                case 'json':
-                    records.push({
-                        recordType: 'mime',
-                        mediaType: shouldEncrypt ? 'application/x-encrypted-json' : 'application/json',
-                        data: new TextEncoder().encode(dataToWrite)
-                    });
-                    break;
-                    
-                case 'vcard':
-                    records.push({
-                        recordType: 'mime',
-                        mediaType: shouldEncrypt ? 'application/x-encrypted-vcard' : 'text/vcard',
-                        data: new TextEncoder().encode(dataToWrite)
-                    });
-                    break;
+                        break;
+                        
+                    case 'json':
+                        records.push({
+                            recordType: 'mime',
+                            mediaType: 'application/json',
+                            data: new TextEncoder().encode(writeData.data)
+                        });
+                        break;
+                        
+                    case 'vcard':
+                        records.push({
+                            recordType: 'mime',
+                            mediaType: 'text/vcard',
+                            data: new TextEncoder().encode(writeData.data)
+                        });
+                        break;
+                }
             }
             
             return { records };
