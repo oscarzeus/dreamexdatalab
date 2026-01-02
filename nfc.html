@@ -1628,6 +1628,7 @@ li.menu-visible,
                 if (record.passwordProtected) securityBadges.push('<span class="badge badge-warning">🔒 Password</span>');
                 const securityHtml = securityBadges.length > 0 ? securityBadges.join(' ') : '<span style="color: var(--text-secondary);">-</span>';
 
+                const performer = record.writerName || record.scannerName || '-';
                 return `
                     <tr>
                         <td>${writeHistory.length - index}</td>
@@ -1635,11 +1636,117 @@ li.menu-visible,
                         <td>${typeBadge}</td>
                         <td>${escapeHtml(record.name || '-')}</td>
                         <td>${escapeHtml(record.organization || '-')}</td>
-                        <td>${escapeHtml(record.writerName || '-')}</td>
+                        <td>${escapeHtml(performer)}</td>
                         <td>${securityHtml}</td>
                     </tr>
                 `;
             }).join('');
+        }
+
+        // Extract summary (name, organization, type) from parsed card data
+        function summarizeCardData(cardData) {
+            let name = '-';
+            let organization = '-';
+            let type = 'unknown';
+
+            for (const r of (cardData.records || [])) {
+                // Prefer vCard
+                const data = (typeof r.displayData === 'string') ? r.displayData : '';
+                if ((r.mediaType === 'text/vcard') || (/BEGIN:VCARD/i.test(data))) {
+                    type = 'vcard';
+                    const fnMatch = data.match(/\nFN:(.*)/i) || data.match(/\nN:(.*)/i);
+                    if (fnMatch && fnMatch[1]) {
+                        name = fnMatch[1].trim();
+                    } else if (name === '-' && data.length) {
+                        name = data.substring(0, 50);
+                    }
+                    const orgMatch = data.match(/\nORG:(.*)/i);
+                    if (orgMatch && orgMatch[1]) {
+                        organization = orgMatch[1].trim();
+                    }
+                    break;
+                }
+                // URL
+                if (r.isUrl) {
+                    type = 'url';
+                    name = data ? data.substring(0, 50) : 'URL';
+                }
+                // Text
+                if (r.type === 'text' && !r.isUrl && type === 'unknown') {
+                    type = 'text';
+                    name = data ? data.substring(0, 50) : '-';
+                }
+                // JSON
+                if ((r.mediaType === 'application/json') && type === 'unknown') {
+                    type = 'json';
+                    name = 'JSON Data';
+                }
+            }
+
+            // Encryption / password flags
+            const encrypted = (cardData.records || []).some(r => r.encrypted === true);
+            const passwordProtected = (cardData.records || []).some(r => r.isPasswordRecord === true);
+
+            return { name, organization, type, encrypted, passwordProtected };
+        }
+
+        // Save scan record to Firebase (permanent)
+        async function addScanRecordFirebase(cardData) {
+            try {
+                const currentUser = window.authManager?.currentUser;
+                if (!currentUser || !currentUser.companyId) {
+                    console.warn('No user/companyId; skipping scan record save');
+                    return;
+                }
+
+                const summary = summarizeCardData(cardData);
+                const newRecord = {
+                    timestamp: cardData.timestamp || new Date().toISOString(),
+                    type: summary.type,
+                    name: summary.name,
+                    organization: summary.organization,
+                    status: 'scan',
+                    encrypted: summary.encrypted,
+                    passwordProtected: summary.passwordProtected,
+                    scannedBy: currentUser.uid || 'unknown',
+                    scannerName: currentUser.displayName || currentUser.email || 'Unknown User',
+                    serialNumber: cardData.serialNumber || 'Unknown',
+                    recordCount: cardData.recordCount || (cardData.records ? cardData.records.length : 0)
+                };
+
+                await db.ref(`companies/${currentUser.companyId}/nfcRecords`).push(newRecord);
+
+                // Update local state immediately for UI responsiveness
+                writeHistory.unshift({ id: Date.now().toString(), ...newRecord });
+                renderWriteHistory();
+            } catch (err) {
+                console.error('Failed to save scan record:', err);
+            }
+        }
+
+        // Real-time listener for NFC records (company-scoped)
+        let nfcRecordsRef = null;
+        function setupRecordRealtimeListener() {
+            try {
+                const currentUser = window.authManager?.currentUser;
+                if (!currentUser || !currentUser.companyId) return;
+
+                // Detach previous
+                if (nfcRecordsRef) nfcRecordsRef.off();
+                nfcRecordsRef = db.ref(`companies/${currentUser.companyId}/nfcRecords`);
+
+                nfcRecordsRef.on('value', (snapshot) => {
+                    const list = [];
+                    snapshot.forEach(child => {
+                        list.push({ id: child.key, ...child.val() });
+                    });
+                    list.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+                    writeHistory = list;
+                    renderWriteHistory();
+                });
+            } catch (e) {
+                console.error('setupRecordRealtimeListener error', e);
+            }
         }
 
 
@@ -1672,6 +1779,8 @@ li.menu-visible,
             checkNFCSupport();
             loadScanHistory();
             loadWriteHistory();
+            // Attempt to attach real-time listener; will no-op if auth not ready
+            setupRecordRealtimeListener();
             setupWritePreview();
             
             // Show loading state immediately for organization dropdown
@@ -1685,6 +1794,16 @@ li.menu-visible,
             }
             
             // loadCompanies will be called after AuthManager initializes
+            // If AuthManager isn't ready yet, retry attaching the realtime listener
+            let attempts = 0;
+            const retry = setInterval(() => {
+                attempts++;
+                if (window.authManager?.currentUser?.companyId) {
+                    setupRecordRealtimeListener();
+                    clearInterval(retry);
+                }
+                if (attempts > 20) clearInterval(retry);
+            }, 300);
         });
 
         // Load company from user's company scope
@@ -2287,6 +2406,9 @@ li.menu-visible,
 
             // Add to history
             addToHistory(cardData);
+
+            // Persist scan to Firebase and show in Record tab
+            addScanRecordFirebase(cardData);
 
             updateStatus('Card read successfully!', 'active');
 
