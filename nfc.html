@@ -523,6 +523,126 @@ li.menu-visible,
             display: block;
         }
 
+        /* Main Tab Navigation (accessboard style) */
+        .main-tab-nav {
+            display: flex;
+            gap: 0;
+            border-bottom: 2px solid #e5e7eb;
+            margin-bottom: 1.5rem;
+            background: var(--bg-primary);
+            padding: 0 1rem;
+        }
+
+        .main-tab-btn {
+            padding: 0.75rem 1.5rem;
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: #6b7280;
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            position: relative;
+            transition: color 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .main-tab-btn:hover {
+            color: #111827;
+        }
+
+        .main-tab-btn.active {
+            color: var(--primary-color);
+            font-weight: 600;
+        }
+
+        .main-tab-btn.active::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: var(--primary-color);
+        }
+
+        .main-tab-content {
+            display: none;
+        }
+
+        .main-tab-content.active {
+            display: block;
+        }
+
+        /* Record History Table */
+        .record-table-container {
+            background: var(--bg-primary);
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .record-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+        }
+
+        .record-table th {
+            background: var(--bg-secondary);
+            padding: 0.75rem 1rem;
+            text-align: left;
+            font-weight: 600;
+            color: var(--text-primary);
+            border-bottom: 2px solid var(--border-color);
+        }
+
+        .record-table td {
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid var(--border-color);
+            color: var(--text-secondary);
+        }
+
+        .record-table tr:hover {
+            background: var(--bg-secondary);
+        }
+
+        .record-table .badge {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .record-table .badge-success {
+            background: rgba(46, 204, 113, 0.15);
+            color: #27ae60;
+        }
+
+        .record-table .badge-info {
+            background: rgba(52, 152, 219, 0.15);
+            color: #3498db;
+        }
+
+        .record-table .badge-warning {
+            background: rgba(241, 196, 15, 0.15);
+            color: #f39c12;
+        }
+
+        .record-empty {
+            text-align: center;
+            padding: 3rem;
+            color: var(--text-secondary);
+        }
+
+        .record-empty i {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            opacity: 0.5;
+        }
+
         /* Loading Spinner */
         .spinner {
             display: inline-block;
@@ -1056,6 +1176,18 @@ li.menu-visible,
 			<h1><i class="fas fa-wifi"></i> NFC Card Reader & Writer</h1>
 		</div>
 
+            <!-- Main Tab Navigation -->
+            <div class="main-tab-nav">
+                <button class="main-tab-btn active" data-tab="nfcTab" onclick="switchMainTab('nfcTab')">
+                    <i class="fas fa-wifi"></i> NFC
+                </button>
+                <button class="main-tab-btn" data-tab="recordTab" onclick="switchMainTab('recordTab')">
+                    <i class="fas fa-history"></i> Record
+                </button>
+            </div>
+
+            <!-- NFC Tab Content -->
+            <div class="main-tab-content active" id="nfcTab">
             <div class="nfc-container">
                 <!-- Scanner/Writer Section -->
                 <div class="nfc-card scanner-section">
@@ -1234,59 +1366,94 @@ li.menu-visible,
                             <div class="write-status" id="writeStatus"></div>
                         </div>
 
-                        <!-- Write Preview -->
+                        <!-- Card Information Section -->
                         <div style="margin-top: 1.5rem;">
                             <h3 style="color: var(--primary-color); margin-bottom: 0.75rem;">
-                                <i class="fas fa-eye"></i> Data Preview
+                                <i class="fas fa-database"></i> Card Information
                             </h3>
-                            <div class="raw-data">
-                                <pre id="writePreview">Select a data type and enter content to see preview...</pre>
+
+                            <div class="no-data" id="noDataMessage" style="padding: 1.5rem; background: var(--bg-tertiary); border-radius: 8px; text-align: center;">
+                                <i class="fas fa-credit-card" style="font-size: 2rem; color: var(--text-secondary); margin-bottom: 0.5rem;"></i>
+                                <p>No card scanned yet</p>
+                                <p style="font-size: 0.9rem; color: var(--text-secondary);">Tap an NFC card to your device to read its data</p>
                             </div>
-                        </div>
-                    </div>
-                </div>
 
-                <!-- Data Display Section -->
-                <div class="nfc-card data-section">
-                    <h2><i class="fas fa-database"></i> Card Information</h2>
+                            <div id="cardDataContainer" style="display: none;">
+                                <!-- Serial Number -->
+                                <div class="serial-number" id="serialNumberSection" style="display: none;">
+                                    <h4><i class="fas fa-fingerprint"></i> Card Serial Number</h4>
+                                    <div class="serial-value" id="serialNumber"></div>
+                                </div>
 
-                    <div class="no-data" id="noDataMessage">
-                        <i class="fas fa-credit-card"></i>
-                        <p>No card scanned yet</p>
-                        <p style="font-size: 0.9rem;">Tap an NFC card to your device to read its data</p>
-                    </div>
+                                <!-- Tabs for different data views -->
+                                <div class="tabs">
+                                    <button class="tab-btn active" onclick="switchTab('parsed')">
+                                        <i class="fas fa-list"></i> Parsed Data
+                                    </button>
+                                    <button class="tab-btn" onclick="switchTab('raw')">
+                                        <i class="fas fa-code"></i> Raw Data
+                                    </button>
+                                </div>
 
-                    <div id="cardDataContainer" style="display: none;">
-                        <!-- Serial Number -->
-                        <div class="serial-number" id="serialNumberSection" style="display: none;">
-                            <h3><i class="fas fa-fingerprint"></i> Card Serial Number</h3>
-                            <div class="serial-value" id="serialNumber"></div>
-                        </div>
+                                <!-- Parsed Data Tab -->
+                                <div class="tab-content active" id="parsedTab">
+                                    <div class="nfc-data-list" id="nfcDataList"></div>
+                                </div>
 
-                        <!-- Tabs for different data views -->
-                        <div class="tabs">
-                            <button class="tab-btn active" onclick="switchTab('parsed')">
-                                <i class="fas fa-list"></i> Parsed Data
-                            </button>
-                            <button class="tab-btn" onclick="switchTab('raw')">
-                                <i class="fas fa-code"></i> Raw Data
-                            </button>
-                        </div>
-
-                        <!-- Parsed Data Tab -->
-                        <div class="tab-content active" id="parsedTab">
-                            <div class="nfc-data-list" id="nfcDataList"></div>
-                        </div>
-
-                        <!-- Raw Data Tab -->
-                        <div class="tab-content" id="rawTab">
-                            <div class="raw-data">
-                                <pre id="rawDataContent"></pre>
+                                <!-- Raw Data Tab -->
+                                <div class="tab-content" id="rawTab">
+                                    <div class="raw-data">
+                                        <pre id="rawDataContent"></pre>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
+            </div>
+            <!-- End of NFC Tab Content -->
+
+            <!-- Record Tab Content -->
+            <div class="main-tab-content" id="recordTab">
+                <div class="record-table-container">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                        <h2 style="margin: 0; color: var(--primary-color);">
+                            <i class="fas fa-history"></i> NFC Write History
+                        </h2>
+                        <button class="btn btn-danger" onclick="clearWriteHistory()" style="font-size: 0.85rem;">
+                            <i class="fas fa-trash"></i> Clear History
+                        </button>
+                    </div>
+                    
+                    <div id="recordTableContent">
+                        <table class="record-table">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Date & Time</th>
+                                    <th>Type</th>
+                                    <th>Name</th>
+                                    <th>Organization</th>
+                                    <th>Written By</th>
+                                    <th>Security</th>
+                                </tr>
+                            </thead>
+                            <tbody id="recordTableBody">
+                                <tr>
+                                    <td colspan="8" class="record-empty">
+                                        <i class="fas fa-inbox"></i>
+                                        <p>No write records yet</p>
+                                        <p style="font-size: 0.85rem;">Records will appear here after you write to NFC cards</p>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <!-- End of Record Tab Content -->
+
         </main>
     </div>
 
@@ -1300,6 +1467,181 @@ li.menu-visible,
         let currentMode = 'read';
         let selectedWriteType = 'text';
         let writeAbortController = null;
+        let writeHistory = [];
+
+        // Main Tab Switching Function
+        function switchMainTab(tabId) {
+            // Update tab buttons
+            document.querySelectorAll('.main-tab-btn').forEach(btn => {
+                btn.classList.remove('active');
+                if (btn.dataset.tab === tabId) {
+                    btn.classList.add('active');
+                }
+            });
+
+            // Update tab content
+            document.querySelectorAll('.main-tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            document.getElementById(tabId).classList.add('active');
+
+            // Load write history when switching to Record tab
+            if (tabId === 'recordTab') {
+                loadWriteHistory();
+            }
+        }
+
+        // Write History Management - Firebase Storage
+        async function loadWriteHistory() {
+            const tbody = document.getElementById('recordTableBody');
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="7" class="record-empty">
+                        <i class="fas fa-spinner fa-spin"></i>
+                        <p>Loading records...</p>
+                    </td>
+                </tr>
+            `;
+            
+            try {
+                const currentUser = window.authManager?.currentUser;
+                if (!currentUser || !currentUser.companyId) {
+                    renderWriteHistory();
+                    return;
+                }
+                
+                const snapshot = await db.ref(`companies/${currentUser.companyId}/nfcRecords`).orderByChild('timestamp').once('value');
+                writeHistory = [];
+                
+                if (snapshot.exists()) {
+                    snapshot.forEach(child => {
+                        writeHistory.push({
+                            id: child.key,
+                            ...child.val()
+                        });
+                    });
+                    // Sort by timestamp descending (newest first)
+                    writeHistory.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+                }
+                
+                renderWriteHistory();
+            } catch (error) {
+                console.error('Error loading write history:', error);
+                renderWriteHistory();
+            }
+        }
+
+        async function addWriteRecord(record) {
+            try {
+                const currentUser = window.authManager?.currentUser;
+                if (!currentUser || !currentUser.companyId) {
+                    console.warn('No user or company ID - cannot save record');
+                    return;
+                }
+                
+                const newRecord = {
+                    timestamp: new Date().toISOString(),
+                    type: record.type || 'unknown',
+                    name: record.name || '-',
+                    organization: record.organization || '-',
+                    status: 'success',
+                    encrypted: record.encrypted || false,
+                    passwordProtected: record.passwordProtected || false,
+                    writtenBy: currentUser.uid || 'unknown',
+                    writerName: currentUser.displayName || currentUser.email || 'Unknown User'
+                };
+                
+                // Save to Firebase
+                await db.ref(`companies/${currentUser.companyId}/nfcRecords`).push(newRecord);
+                
+                // Add to local array for immediate display
+                writeHistory.unshift({ id: Date.now().toString(), ...newRecord });
+                renderWriteHistory();
+                
+                console.log('✅ NFC record saved to Firebase');
+            } catch (error) {
+                console.error('Error saving write record:', error);
+            }
+        }
+
+        async function clearWriteHistory() {
+            if (!confirm('Are you sure you want to clear all write history? This cannot be undone.')) {
+                return;
+            }
+            
+            try {
+                const currentUser = window.authManager?.currentUser;
+                if (!currentUser || !currentUser.companyId) {
+                    return;
+                }
+                
+                // Clear from Firebase
+                await db.ref(`companies/${currentUser.companyId}/nfcRecords`).remove();
+                
+                writeHistory = [];
+                renderWriteHistory();
+                
+                console.log('✅ NFC records cleared from Firebase');
+            } catch (error) {
+                console.error('Error clearing write history:', error);
+                alert('Error clearing records. Please try again.');
+            }
+        }
+
+        function renderWriteHistory() {
+            const tbody = document.getElementById('recordTableBody');
+            
+            if (!tbody) return;
+            
+            if (writeHistory.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="8" class="record-empty">
+                            <i class="fas fa-inbox"></i>
+                            <p>No write records yet</p>
+                            <p style="font-size: 0.85rem;">Records will appear here after you write to NFC cards</p>
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = writeHistory.map((record, index) => {
+                const date = new Date(record.timestamp);
+                const formattedDate = date.toLocaleDateString('en-US', { 
+                    year: 'numeric', 
+                    month: 'short', 
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+                
+                const typeBadge = {
+                    'text': '<span class="badge badge-info">Text</span>',
+                    'url': '<span class="badge badge-info">URL</span>',
+                    'json': '<span class="badge badge-warning">JSON</span>',
+                    'vcard': '<span class="badge badge-success">vCard</span>'
+                }[record.type] || '<span class="badge badge-info">Unknown</span>';
+
+                const securityBadges = [];
+                if (record.encrypted) securityBadges.push('<span class="badge badge-success">🔐 Encrypted</span>');
+                if (record.passwordProtected) securityBadges.push('<span class="badge badge-warning">🔒 Password</span>');
+                const securityHtml = securityBadges.length > 0 ? securityBadges.join(' ') : '<span style="color: var(--text-secondary);">-</span>';
+
+                return `
+                    <tr>
+                        <td>${writeHistory.length - index}</td>
+                        <td>${formattedDate}</td>
+                        <td>${typeBadge}</td>
+                        <td>${escapeHtml(record.name || '-')}</td>
+                        <td>${escapeHtml(record.organization || '-')}</td>
+                        <td>${escapeHtml(record.writerName || '-')}</td>
+                        <td>${securityHtml}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
 
         // Firebase Configuration
         const firebaseConfig = {
@@ -1329,6 +1671,7 @@ li.menu-visible,
         document.addEventListener('DOMContentLoaded', () => {
             checkNFCSupport();
             loadScanHistory();
+            loadWriteHistory();
             setupWritePreview();
             
             // Show loading state immediately for organization dropdown
@@ -2859,6 +3202,15 @@ li.menu-visible,
                     successMsg += ' ' + features.join(' | ');
                 }
                 showWriteStatus(successMsg, 'success');
+                
+                // Add to write history
+                addWriteRecord({
+                    type: writeData.type,
+                    name: writeData.type === 'vcard' ? (document.getElementById('vcardName')?.selectedOptions[0]?.text || '-') : (writeData.data?.substring(0, 30) || '-'),
+                    organization: writeData.type === 'vcard' ? (document.getElementById('vcardOrg')?.value || '-') : '-',
+                    encrypted: writeData.encrypt || false,
+                    passwordProtected: !!writeData.password
+                });
                 
                 // Clear password field after successful write
                 document.getElementById('cardPassword').value = '';
