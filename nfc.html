@@ -2557,16 +2557,269 @@ li.menu-visible,
             updateWritePreview();
         }
 
-        // Check if Web NFC is supported
+        // =============================================
+        // WebToApp / WebView NFC Bridge Support
+        // =============================================
+        let isWebViewApp = false;
+        let nativeNFCAvailable = false;
+        
+        // Detect if running in WebView/WebToApp environment
+        function detectWebViewEnvironment() {
+            const userAgent = navigator.userAgent || '';
+            isWebViewApp = (
+                userAgent.includes('wv') ||
+                userAgent.includes('WebView') ||
+                userAgent.includes('Android') && !userAgent.includes('Chrome/') ||
+                window.AndroidNFC !== undefined ||
+                window.Android !== undefined ||
+                window.NativeNFC !== undefined ||
+                window.webkit?.messageHandlers?.nfc !== undefined ||
+                window.gonative !== undefined ||
+                window.webtoapp !== undefined
+            );
+            
+            console.log('WebView environment detected:', isWebViewApp);
+            console.log('User Agent:', userAgent);
+            
+            // Check for native NFC bridges from various WebToApp platforms
+            nativeNFCAvailable = (
+                typeof window.AndroidNFC !== 'undefined' ||
+                typeof window.Android?.scanNFC !== 'undefined' ||
+                typeof window.NativeNFC !== 'undefined' ||
+                typeof window.webkit?.messageHandlers?.nfc !== 'undefined' ||
+                typeof window.gonative?.nfc !== 'undefined' ||
+                typeof window.webtoapp?.nfc !== 'undefined'
+            );
+            
+            console.log('Native NFC bridge available:', nativeNFCAvailable);
+            
+            return isWebViewApp;
+        }
+        
+        // Global handler for receiving NFC data from native Android app
+        // WebToApp platforms will call this function when an NFC tag is scanned
+        window.handleNativeNFC = function(serialNumber, data) {
+            console.log('📱 NFC data received from native Android:', { serialNumber, data });
+            
+            // Vibrate for feedback
+            if ('vibrate' in navigator) {
+                navigator.vibrate([100, 50, 100]);
+            }
+            
+            updateStatus('✅ Card read successfully!', 'active');
+            
+            // Parse the data if it's a string
+            let parsedData = data;
+            if (typeof data === 'string') {
+                try {
+                    parsedData = JSON.parse(data);
+                } catch (e) {
+                    parsedData = { text: data };
+                }
+            }
+            
+            // Build card data object
+            const cardData = {
+                serialNumber: serialNumber || 'Unknown',
+                timestamp: new Date().toISOString(),
+                records: parsedData?.records || [{ type: 'text', data: parsedData?.text || data || 'No data' }],
+                rawRecords: parsedData?.rawRecords || [],
+                source: 'native_android'
+            };
+            
+            // Display the data
+            displayCardData(cardData);
+            
+            // Add to history
+            addToHistory(cardData);
+            
+            // Save to Firebase
+            addScanRecordFirebase(cardData);
+            
+            return true;
+        };
+        
+        // Alternative handler names that WebToApp platforms might use
+        window.onNFCTagDiscovered = window.handleNativeNFC;
+        window.onNFCRead = window.handleNativeNFC;
+        window.nfcCallback = window.handleNativeNFC;
+        window.receiveNFCData = window.handleNativeNFC;
+        
+        // Handler for NFC write completion from native app
+        window.onNativeNFCWriteComplete = function(success, message) {
+            console.log('📱 NFC write result from native:', { success, message });
+            if (success) {
+                showWriteStatus('✅ ' + (message || 'Data written to NFC card successfully!'), 'success');
+            } else {
+                showWriteStatus('❌ ' + (message || 'Failed to write to NFC card'), 'error');
+            }
+            isWriting = false;
+            updateWriteUI(false);
+        };
+        
+        // Request native app to start NFC scanning
+        function requestNativeNFCScan() {
+            console.log('Requesting native NFC scan...');
+            
+            // Try various WebToApp platform bridges
+            if (typeof window.AndroidNFC?.startScan === 'function') {
+                window.AndroidNFC.startScan();
+                return true;
+            }
+            if (typeof window.Android?.scanNFC === 'function') {
+                window.Android.scanNFC();
+                return true;
+            }
+            if (typeof window.Android?.startNFCScan === 'function') {
+                window.Android.startNFCScan();
+                return true;
+            }
+            if (typeof window.NativeNFC?.scan === 'function') {
+                window.NativeNFC.scan();
+                return true;
+            }
+            if (typeof window.gonative?.nfc?.scan === 'function') {
+                window.gonative.nfc.scan();
+                return true;
+            }
+            if (typeof window.webtoapp?.nfc?.scan === 'function') {
+                window.webtoapp.nfc.scan();
+                return true;
+            }
+            if (window.webkit?.messageHandlers?.nfc) {
+                window.webkit.messageHandlers.nfc.postMessage({ action: 'scan' });
+                return true;
+            }
+            
+            // Generic Android JavaScript interface call
+            if (typeof window.Android?.postMessage === 'function') {
+                window.Android.postMessage(JSON.stringify({ action: 'startNFCScan' }));
+                return true;
+            }
+            
+            return false;
+        }
+        
+        // Request native app to write NFC data
+        function requestNativeNFCWrite(data) {
+            console.log('Requesting native NFC write...', data);
+            
+            const payload = JSON.stringify(data);
+            
+            if (typeof window.AndroidNFC?.write === 'function') {
+                window.AndroidNFC.write(payload);
+                return true;
+            }
+            if (typeof window.Android?.writeNFC === 'function') {
+                window.Android.writeNFC(payload);
+                return true;
+            }
+            if (typeof window.NativeNFC?.write === 'function') {
+                window.NativeNFC.write(payload);
+                return true;
+            }
+            if (typeof window.gonative?.nfc?.write === 'function') {
+                window.gonative.nfc.write(payload);
+                return true;
+            }
+            if (typeof window.webtoapp?.nfc?.write === 'function') {
+                window.webtoapp.nfc.write(payload);
+                return true;
+            }
+            if (window.webkit?.messageHandlers?.nfc) {
+                window.webkit.messageHandlers.nfc.postMessage({ action: 'write', data: data });
+                return true;
+            }
+            
+            return false;
+        }
+        
+        // Check if Web NFC is supported (updated for WebView support)
         function checkNFCSupport() {
+            // First detect WebView environment
+            detectWebViewEnvironment();
+            
+            // If we have a native NFC bridge, use that
+            if (nativeNFCAvailable) {
+                console.log('✅ Native NFC bridge detected - using native Android NFC');
+                updateStatus('📱 Native NFC ready. Tap "Start Scanning" to begin.', '');
+                return true;
+            }
+            
+            // If in WebView but no native bridge, show helpful message
+            if (isWebViewApp && !('NDEFReader' in window)) {
+                console.log('⚠️ WebView detected without NFC bridge');
+                updateStatus('📱 NFC ready via native app. Tap "Start Scanning" to begin.', '');
+                // Don't disable buttons - let native app handle NFC
+                return true;
+            }
+            
+            // Standard Web NFC check
             if (!('NDEFReader' in window)) {
+                // In WebView, don't disable - native app might handle NFC
+                if (isWebViewApp) {
+                    console.log('WebView mode - assuming native NFC available');
+                    updateStatus('📱 Tap "Start Scanning" to use device NFC.', '');
+                    return true;
+                }
+                
                 document.getElementById('startScanBtn').disabled = true;
                 document.getElementById('writeNfcBtn').disabled = true;
-                document.getElementById('scanStatus').textContent = 'Web NFC not supported on this browser';
+                document.getElementById('scanStatus').textContent = 'Web NFC not supported. Use Chrome on Android.';
                 document.getElementById('scanStatus').classList.add('error');
                 return false;
             }
+            
             return true;
+        }
+        
+        // Request NFC permission (simplified for WebView)
+        async function requestNFCPermission() {
+            // In WebView, skip permission check - native app handles it
+            if (isWebViewApp) {
+                console.log('WebView mode - skipping web permission check');
+                return true;
+            }
+            
+            try {
+                if ('permissions' in navigator) {
+                    const result = await navigator.permissions.query({ name: 'nfc' });
+                    console.log('NFC permission status:', result.state);
+                    
+                    if (result.state === 'denied') {
+                        // Don't block in WebView - try anyway
+                        console.warn('NFC permission denied, but will try native bridge');
+                        return true;
+                    }
+                }
+                return true;
+            } catch (error) {
+                console.log('Permissions API not available:', error);
+                return true;
+            }
+        }
+        
+        // Show help for enabling NFC permissions
+        function showNFCPermissionHelp() {
+            const helpMessage = `
+To enable NFC access:
+
+📱 For WebToApp/WebView apps:
+1. Make sure NFC is enabled on your device
+   Settings → Connected devices → NFC → ON
+2. The app needs NFC permission in Android settings
+   Settings → Apps → [Your App] → Permissions → Allow NFC
+
+📱 On Android Chrome:
+1. Tap the lock icon (🔒) in the address bar
+2. Tap "Site settings" → Find "NFC" → "Allow"
+
+🔐 Requirements:
+• NFC must be enabled on your device
+• Hold the card to the back of your phone
+            `.trim();
+            
+            alert(helpMessage);
         }
 
         // Switch between read and write modes
@@ -2719,23 +2972,81 @@ li.menu-visible,
             if (!checkNFCSupport()) return;
 
             try {
-                // Request permission and start reading
-                nfcReader = new NDEFReader();
-                abortController = new AbortController();
+                // Request permission first
+                const hasPermission = await requestNFCPermission();
+                if (!hasPermission) return;
+                
+                updateStatus('📱 Initializing NFC reader...', 'active');
+                
+                // Try native Android bridge first (for WebToApp / WebView apps)
+                if (isWebViewApp || nativeNFCAvailable) {
+                    console.log('Attempting native NFC scan...');
+                    const nativeStarted = requestNativeNFCScan();
+                    if (nativeStarted) {
+                        isScanning = true;
+                        updateScanUI(true);
+                        updateStatus('📱 Scanning... Hold your NFC card near the device', 'active');
+                        console.log('Native NFC scan started');
+                        return;
+                    }
+                    console.log('Native bridge not available, trying Web NFC...');
+                }
+                
+                // Fallback to Web NFC API
+                if ('NDEFReader' in window) {
+                    nfcReader = new NDEFReader();
+                    abortController = new AbortController();
 
-                await nfcReader.scan({ signal: abortController.signal });
+                    // The scan() call will trigger the permission prompt if needed
+                    await nfcReader.scan({ signal: abortController.signal });
 
-                isScanning = true;
-                updateScanUI(true);
-                updateStatus('Scanning... Hold your NFC card near the device', 'active');
+                    isScanning = true;
+                    updateScanUI(true);
+                    updateStatus('✅ Scanning... Hold your NFC card near the device', 'active');
 
-                // Handle reading events
-                nfcReader.addEventListener('reading', handleNFCReading);
-                nfcReader.addEventListener('readingerror', handleNFCError);
+                    // Handle reading events
+                    nfcReader.addEventListener('reading', handleNFCReading);
+                    nfcReader.addEventListener('readingerror', handleNFCError);
+                } else if (isWebViewApp) {
+                    // WebView without NDEFReader - assume native app handles NFC
+                    isScanning = true;
+                    updateScanUI(true);
+                    updateStatus('📱 Waiting for NFC card... Hold card near device', 'active');
+                    console.log('WebView mode - waiting for native NFC callback');
+                } else {
+                    throw new Error('NFC not available');
+                }
 
             } catch (error) {
                 console.error('Error starting NFC scan:', error);
-                handleNFCError(error);
+                
+                // In WebView, try to continue anyway - native app might handle it
+                if (isWebViewApp) {
+                    console.log('WebView: ignoring error, waiting for native NFC');
+                    isScanning = true;
+                    updateScanUI(true);
+                    updateStatus('📱 Ready for NFC. Hold card near device.', 'active');
+                    return;
+                }
+                
+                // Provide specific guidance for permission errors
+                if (error.name === 'NotAllowedError') {
+                    updateStatus('❌ NFC permission denied. Tap "Help" for instructions.', 'error');
+                    
+                    // Add a help button temporarily
+                    const statusEl = document.getElementById('scanStatus');
+                    if (statusEl && !document.getElementById('nfcHelpBtn')) {
+                        const helpBtn = document.createElement('button');
+                        helpBtn.id = 'nfcHelpBtn';
+                        helpBtn.className = 'btn btn-primary';
+                        helpBtn.style.cssText = 'margin-left: 10px; padding: 0.5rem 1rem; font-size: 0.85rem;';
+                        helpBtn.innerHTML = '<i class="fas fa-question-circle"></i> Help';
+                        helpBtn.onclick = showNFCPermissionHelp;
+                        statusEl.parentNode.insertBefore(helpBtn, statusEl.nextSibling);
+                    }
+                } else {
+                    handleNFCError(error);
+                }
             }
         }
 
@@ -2789,12 +3100,36 @@ li.menu-visible,
             
             let errorMessage = 'Error reading NFC card';
             
+            // In WebView mode, be more forgiving - native app might handle NFC
+            if (isWebViewApp) {
+                console.log('WebView mode - suppressing NFC error, waiting for native callback');
+                if (error.name !== 'AbortError') {
+                    updateStatus('📱 Ready for NFC. Hold card near device.', 'active');
+                }
+                return;
+            }
+            
             if (error.name === 'NotAllowedError') {
-                errorMessage = 'NFC permission denied. Please allow NFC access.';
+                errorMessage = '❌ NFC permission denied. Please allow NFC access in your browser settings.';
+                // Show help button
+                setTimeout(() => {
+                    const statusEl = document.getElementById('scanStatus');
+                    if (statusEl && !document.getElementById('nfcHelpBtn')) {
+                        const helpBtn = document.createElement('button');
+                        helpBtn.id = 'nfcHelpBtn';
+                        helpBtn.className = 'btn btn-primary';
+                        helpBtn.style.cssText = 'margin-left: 10px; padding: 0.5rem 1rem; font-size: 0.85rem;';
+                        helpBtn.innerHTML = '<i class="fas fa-question-circle"></i> How to Enable';
+                        helpBtn.onclick = showNFCPermissionHelp;
+                        statusEl.parentNode.insertBefore(helpBtn, statusEl.nextSibling);
+                    }
+                }, 100);
             } else if (error.name === 'NotSupportedError') {
-                errorMessage = 'NFC is not supported on this device.';
+                errorMessage = '❌ NFC is not supported on this device or browser.';
             } else if (error.name === 'AbortError') {
                 errorMessage = 'Scanning cancelled.';
+            } else if (error.name === 'SecurityError') {
+                errorMessage = '🔒 Security error: NFC requires HTTPS connection.';
             } else if (error.message) {
                 errorMessage = error.message;
             }
@@ -3672,6 +4007,28 @@ li.menu-visible,
                 document.getElementById('nfcIcon').classList.add('writing');
                 document.getElementById('nfcIconContainer').classList.add('scanning');
                 showWriteStatus('Writing to NFC card...', 'writing');
+                
+                // Try native Android bridge first (for WebToApp / WebView apps)
+                if (isWebViewApp || nativeNFCAvailable) {
+                    console.log('Attempting native NFC write...');
+                    const nativeWriteStarted = requestNativeNFCWrite(writeData);
+                    if (nativeWriteStarted) {
+                        console.log('Native NFC write requested');
+                        // Native app will call onNativeNFCWriteComplete when done
+                        return;
+                    }
+                    console.log('Native write bridge not available, trying Web NFC...');
+                }
+                
+                // Fallback to Web NFC API
+                if (!('NDEFReader' in window)) {
+                    if (isWebViewApp) {
+                        // WebView mode - assume native handles it
+                        showWriteStatus('📱 Hold card near device to write...', 'writing');
+                        return;
+                    }
+                    throw new Error('NFC not available for writing');
+                }
                 
                 const ndef = new NDEFReader();
                 writeAbortController = new AbortController();
