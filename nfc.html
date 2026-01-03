@@ -2,8 +2,20 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 <title>NFC Card Reader - Dreamex Datalab</title>
+
+<!-- PWA Meta Tags -->
+<meta name="theme-color" content="#2c3e50" />
+<meta name="description" content="NFC Card Reader & Writer - Scan and write NFC cards for employee management" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="DataLab NFC" />
+<link rel="manifest" href="/manifest.json" />
+<link rel="apple-touch-icon" href="/icons/icon-192.svg" />
+<link rel="icon" type="image/svg+xml" href="/icons/icon-192.svg" />
+
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
 <!-- Firebase v8 Scripts for Centralized Authentication -->
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
@@ -7144,5 +7156,111 @@ To enable NFC access:
             </div>
         </div>
     </div>
+
+    <!-- PWA Install Prompt Banner -->
+    <div id="pwaInstallBanner" style="display: none; position: fixed; bottom: 0; left: 0; right: 0; background: linear-gradient(135deg, #2c3e50, #34495e); color: white; padding: 1rem; z-index: 10000; box-shadow: 0 -4px 20px rgba(0,0,0,0.3);">
+        <div style="display: flex; align-items: center; justify-content: space-between; max-width: 600px; margin: 0 auto;">
+            <div style="display: flex; align-items: center; gap: 1rem;">
+                <i class="fas fa-mobile-alt" style="font-size: 2rem; color: #3498db;"></i>
+                <div>
+                    <strong style="display: block; font-size: 1rem;">Install DataLab NFC App</strong>
+                    <span style="font-size: 0.8rem; opacity: 0.9;">Add to home screen for the best experience</span>
+                </div>
+            </div>
+            <div style="display: flex; gap: 0.5rem;">
+                <button onclick="dismissInstallBanner()" style="background: transparent; border: 1px solid rgba(255,255,255,0.3); color: white; padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; font-size: 0.85rem;">Later</button>
+                <button onclick="installPWA()" style="background: #3498db; border: none; color: white; padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 600;"><i class="fas fa-download"></i> Install</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Service Worker & PWA Installation Script -->
+    <script>
+        // PWA Install Prompt
+        let deferredPrompt = null;
+        
+        window.addEventListener('beforeinstallprompt', (e) => {
+            console.log('📱 PWA: beforeinstallprompt fired');
+            e.preventDefault();
+            deferredPrompt = e;
+            
+            // Show install banner after a short delay
+            setTimeout(() => {
+                const banner = document.getElementById('pwaInstallBanner');
+                if (banner && !localStorage.getItem('pwa-install-dismissed')) {
+                    banner.style.display = 'block';
+                }
+            }, 3000);
+        });
+        
+        function installPWA() {
+            if (!deferredPrompt) {
+                alert('To install: Open this page in Chrome, tap the menu (⋮) and select "Add to Home Screen"');
+                return;
+            }
+            
+            deferredPrompt.prompt();
+            deferredPrompt.userChoice.then((choiceResult) => {
+                if (choiceResult.outcome === 'accepted') {
+                    console.log('📱 PWA: User accepted install');
+                }
+                deferredPrompt = null;
+                document.getElementById('pwaInstallBanner').style.display = 'none';
+            });
+        }
+        
+        function dismissInstallBanner() {
+            document.getElementById('pwaInstallBanner').style.display = 'none';
+            localStorage.setItem('pwa-install-dismissed', Date.now());
+        }
+        
+        // Detect if running as installed PWA
+        function isPWAInstalled() {
+            return window.matchMedia('(display-mode: standalone)').matches ||
+                   window.navigator.standalone === true ||
+                   document.referrer.includes('android-app://');
+        }
+        
+        window.addEventListener('appinstalled', () => {
+            console.log('📱 PWA: App was installed');
+            document.getElementById('pwaInstallBanner').style.display = 'none';
+            deferredPrompt = null;
+        });
+        
+        // Register Service Worker
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/service-worker.js')
+                    .then((registration) => {
+                        console.log('📱 PWA: Service Worker registered with scope:', registration.scope);
+                        
+                        // Check for updates
+                        registration.addEventListener('updatefound', () => {
+                            const newWorker = registration.installing;
+                            newWorker.addEventListener('statechange', () => {
+                                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                    // New version available
+                                    if (confirm('A new version is available. Reload to update?')) {
+                                        newWorker.postMessage('SKIP_WAITING');
+                                        window.location.reload();
+                                    }
+                                }
+                            });
+                        });
+                    })
+                    .catch((error) => {
+                        console.error('📱 PWA: Service Worker registration failed:', error);
+                    });
+            });
+        }
+        
+        // Log PWA status
+        console.log('📱 PWA Status:', {
+            installed: isPWAInstalled(),
+            standalone: window.matchMedia('(display-mode: standalone)').matches,
+            serviceWorkerSupported: 'serviceWorker' in navigator,
+            nfcSupported: 'NDEFReader' in window
+        });
+    </script>
 </body>
 </html>
