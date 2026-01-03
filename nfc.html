@@ -1414,6 +1414,20 @@ li.menu-visible,
                                 </small>
                             </div>
 
+                            <!-- Permanent Lock Option -->
+                            <div class="form-group" style="padding: 1rem; background: linear-gradient(135deg, rgba(231, 76, 60, 0.1), rgba(192, 57, 43, 0.1)); border-radius: 8px; border: 1px solid var(--danger-color);">
+                                <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                    <input type="checkbox" id="enablePermanentLock" style="width: 18px; height: 18px; cursor: pointer;">
+                                    <label for="enablePermanentLock" style="margin: 0; cursor: pointer; font-weight: 500;">
+                                        <i class="fas fa-lock" style="margin-right: 0.5rem; color: var(--danger-color);"></i>
+                                        Make Card Read-Only (Permanent)
+                                    </label>
+                                </div>
+                                <small style="color: var(--danger-color); display: block; margin-top: 0.5rem; margin-left: 2rem;">
+                                    <i class="fas fa-exclamation-triangle"></i> <strong>WARNING:</strong> This is PERMANENT and cannot be undone! The card will be locked forever and cannot be modified by any app.
+                                </small>
+                            </div>
+
                             <!-- Write Button -->
                             <div style="margin-top: 1.5rem; text-align: center;">
                                 <button class="btn btn-success" id="writeNfcBtn" onclick="startNFCWrite()">
@@ -6231,20 +6245,16 @@ To enable NFC access:
                 showWriteStatus('❌ NFC not supported. Please use Chrome on Android.', 'error');
                 return;
             }
-
-            // Check optional features
-            const enablePassword = document.getElementById('enablePassword')?.checked;
-            if (enablePassword) {
-                const password = document.getElementById('cardPassword')?.value;
-                if (!password || password.length < 4) {
-                    showWriteStatus('Password must be at least 4 characters.', 'error');
-                    return;
-                }
-                writeData.password = password;
-            }
             
             writeData.encrypt = document.getElementById('enableEncryption')?.checked || false;
             writeData.permanentLock = document.getElementById('enablePermanentLock')?.checked || false;
+
+            // Confirm permanent lock
+            if (writeData.permanentLock) {
+                if (!confirm('⚠️ WARNING: This will PERMANENTLY lock the NFC card after writing. It cannot be undone and no app will be able to modify this card ever again. Are you absolutely sure?')) {
+                    return;
+                }
+            }
 
             // Update UI
             document.getElementById('writeNfcBtn').style.display = 'none';
@@ -6277,12 +6287,15 @@ To enable NFC access:
                 
                 showWriteStatus('✅ Successfully written to NFC card!', 'success');
 
-                // If user requested permanent read-only, queue lock request in Firebase for mobile app
+                // If user requested permanent read-only, lock the card now
                 if (writeData.permanentLock) {
                     try {
-                        await queuePermanentLock(writeData._serialForLock);
-                    } catch (e) {
-                        console.error('Error queuing permanent lock', e);
+                        showWriteStatus('🔒 Locking card permanently...', 'writing');
+                        await ndef.makeReadOnly();
+                        showWriteStatus('✅ Card written and PERMANENTLY locked! No app can modify it now.', 'success');
+                    } catch (lockError) {
+                        console.error('Error locking card:', lockError);
+                        showWriteStatus('⚠️ Data written, but failed to lock card: ' + lockError.message, 'error');
                     }
                 }
                 
@@ -6406,25 +6419,6 @@ To enable NFC access:
             const records = [];
             const shouldEncrypt = writeData.encrypt;
             
-            // Add password protection record if password is set (also encrypted format)
-            if (writeData.password) {
-                const passwordHash = await hashPassword(writeData.password);
-                if (shouldEncrypt) {
-                    // Even password hash uses proprietary format
-                    records.push({
-                        recordType: 'mime',
-                        mediaType: 'application/octet-stream',
-                        data: new TextEncoder().encode('DXP:' + passwordHash)
-                    });
-                } else {
-                    records.push({
-                        recordType: 'mime',
-                        mediaType: 'application/x-nfc-password',
-                        data: new TextEncoder().encode(passwordHash)
-                    });
-                }
-            }
-            
             if (shouldEncrypt) {
                 // PROPRIETARY ENCRYPTED FORMAT
                 // Creates a single binary blob that other apps cannot interpret
@@ -6443,7 +6437,7 @@ To enable NFC access:
                 
                 console.log('🔐 Data stored in proprietary encrypted format - unreadable by other apps');
             } else {
-                // Unencrypted - use standard formats
+                // Unencrypted - use standard formats (readable by any NFC app)
                 switch (writeData.type) {
                     case 'text':
                         records.push({
