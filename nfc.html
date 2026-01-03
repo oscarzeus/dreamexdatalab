@@ -4228,6 +4228,9 @@ li.menu-visible,
                 console.log('🔥 DEBUG: Switching to NFC tab to show results...');
                 switchMainTab('nfcTab');
             }
+
+            // Always show scan results in Read mode
+            ensureReadModeVisible();
             
             displayCardData(cardData);
             console.log('🔥 DEBUG: displayCardData completed');
@@ -4266,6 +4269,8 @@ li.menu-visible,
                         return;
                     }
                     console.warn('🔥 DEBUG: No user/companyId after retries; skipping scan record save');
+                    // Notify user that save failed due to auth
+                    updateStatus('⚠️ Card scanned but not saved — please log in first', 'error');
                     return;
                 }
 
@@ -4273,11 +4278,17 @@ li.menu-visible,
                 // Use addScanRecordFirebase to save
                 await addScanRecordFirebase(cardData);
                 console.log('✅ NFC record saved to Firebase');
+
+                // Show user-visible confirmation
+                updateStatus('✅ Card scanned and saved to Records!', 'active');
                 
             } catch (err) {
                 console.error('Failed to save native NFC record:', err);
                 if (retryCount < maxRetries) {
                     setTimeout(() => saveNativeNFCRecord(cardData, retryCount + 1), retryDelay);
+                } else {
+                    // After all retries failed, notify user
+                    updateStatus('⚠️ Card displayed but could not save to Records (not logged in?)', 'error');
                 }
             }
         }
@@ -4342,6 +4353,9 @@ li.menu-visible,
                         console.log('🔥 DEBUG: Switching to NFC tab to show results...');
                         switchMainTab('nfcTab');
                     }
+
+                    // Always show scan results in Read mode
+                    ensureReadModeVisible();
                     
                     displayCardData(cardData);
                     console.log('🔥 DEBUG: Calling addToHistory...');
@@ -4758,6 +4772,25 @@ To enable NFC access:
             }
         }
 
+        // Always display scan results in the Read section
+        function ensureReadModeVisible() {
+            try {
+                if (typeof currentMode !== 'undefined' && currentMode === 'read') return;
+                if (typeof switchMode === 'function') {
+                    switchMode('read');
+                    return;
+                }
+            } catch (_) {}
+
+            // Fallback: directly toggle sections
+            try {
+                const readSection = document.getElementById('readModeSection');
+                const writeSection = document.getElementById('writeModeSection');
+                if (readSection) readSection.style.display = 'block';
+                if (writeSection) writeSection.style.display = 'none';
+            } catch (_) {}
+        }
+
         // Select write data type
         function selectWriteType(type) {
             selectedWriteType = type;
@@ -4886,6 +4919,9 @@ To enable NFC access:
         // Start NFC scanning
         async function startNFCScan() {
             if (!checkNFCSupport()) return;
+
+            // If user is on Write tab, switch to Read tab for scanning/results
+            ensureReadModeVisible();
 
             try {
                 // Request permission first
@@ -5026,6 +5062,9 @@ To enable NFC access:
                     }
                 }
             }
+
+            // Always show results on the Read tab/section
+            ensureReadModeVisible();
 
             displayCardData(cardData);
 
