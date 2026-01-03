@@ -3936,6 +3936,16 @@ li.menu-visible,
                 window.gonative !== undefined ||
                 window.webtoapp !== undefined
             );
+
+            // Prefer explicit WebToApp helper detection if available
+            try {
+                if (typeof getAppPlatform === 'function') {
+                    const platform = getAppPlatform();
+                    if (platform) {
+                        isWebViewApp = true;
+                    }
+                }
+            } catch (_) {}
             
             console.log('WebView environment detected:', isWebViewApp);
             console.log('User Agent:', userAgent);
@@ -3954,6 +3964,110 @@ li.menu-visible,
             
             return isWebViewApp;
         }
+
+        // =============================================
+        // WebToApp Custom Tab NFC Fallback
+        // =============================================
+        function isWebToAppApp() {
+            try {
+                return (typeof getAppPlatform === 'function' && getAppPlatform() !== null);
+            } catch (_) {
+                return false;
+            }
+        }
+
+        function isWebToAppCustomTab() {
+            try {
+                return (typeof isInCustomTab === 'function' && isInCustomTab());
+            } catch (_) {
+                return false;
+            }
+        }
+
+        function getWebToAppCustomTabDataSafe() {
+            try {
+                if (typeof getCustomTabData === 'function') return getCustomTabData();
+            } catch (_) {}
+            return null;
+        }
+
+        function sanitizeCardDataForTransfer(cardData) {
+            try {
+                // Keep payload small and JSON-serializable
+                return {
+                    serialNumber: cardData?.serialNumber || 'Unknown',
+                    timestamp: cardData?.timestamp || new Date().toISOString(),
+                    records: Array.isArray(cardData?.records) ? cardData.records : [],
+                    recordCount: typeof cardData?.recordCount === 'number' ? cardData.recordCount : (Array.isArray(cardData?.records) ? cardData.records.length : 0),
+                    source: cardData?.source || 'custom_tab_web_nfc'
+                };
+            } catch (_) {
+                return {
+                    serialNumber: 'Unknown',
+                    timestamp: new Date().toISOString(),
+                    records: [],
+                    recordCount: 0,
+                    source: 'custom_tab_web_nfc'
+                };
+            }
+        }
+
+        function openNfcScanInCustomTab() {
+            // Only makes sense inside the WebToApp app, not in regular browsers.
+            if (!isWebToAppApp()) return false;
+            // Avoid loops: if we're already in a custom tab, don't open another.
+            if (isWebToAppCustomTab()) return false;
+            if (typeof openCustomTab !== 'function') return false;
+
+            const urlToOpen = window.location.href;
+
+            const open = () => {
+                try {
+                    openCustomTab(urlToOpen, { purpose: 'nfc_scan' });
+                    return true;
+                } catch (e) {
+                    console.warn('openCustomTab failed:', e);
+                    return false;
+                }
+            };
+
+            // If executeWhenAppReady exists, prefer it (ensures bridge is injected)
+            if (typeof executeWhenAppReady === 'function') {
+                try {
+                    executeWhenAppReady(open);
+                    return true;
+                } catch (e) {
+                    console.warn('executeWhenAppReady/openCustomTab failed:', e);
+                    return false;
+                }
+            }
+
+            return open();
+        }
+
+        // Receive results from a custom tab scan and display them in-app
+        document.addEventListener('customTabClosed', function (e) {
+            try {
+                if (!e || !e.detail) return;
+                // If closed manually, ignore
+                if (typeof e.detail === 'object' && e.detail && 'reason' in e.detail) return;
+
+                const returned = e.detail;
+                const payload = (returned && typeof returned === 'object' && returned.nfc) ? returned.nfc : returned;
+                if (!payload) return;
+
+                // Route through our native-result handler so parsing/display is consistent
+                if (typeof window.onNativeReadResult === 'function') {
+                    window.onNativeReadResult(payload);
+                } else if (typeof window.handleNativeNFC === 'function') {
+                    // Fallback signature
+                    const sn = payload.serialNumber || payload.serial || payload.uid || payload.id || payload.tagId;
+                    window.handleNativeNFC(sn, payload);
+                }
+            } catch (err) {
+                console.warn('customTabClosed handler error:', err);
+            }
+        });
         
         // =============================================
         // Mobile Debug Console Functions
@@ -3987,10 +4101,76 @@ li.menu-visible,
         
         // Global handler for receiving NFC data from native Android app
         // WebToApp platforms will call this function when an NFC tag is scanned
+        // NOTE: Some wrappers call this with (serial, data), others call it with a single payload.
+        // Also, native callbacks can fire before DOMContentLoaded; queue those and flush when UI is ready.
+        window.__pendingNativeNFCQueue = window.__pendingNativeNFCQueue || [];
+
+        function isNfcUiReady() {
+            return !!(
+                document.getElementById('scanStatus') &&
+                document.getElementById('noDataMessage') &&
+                document.getElementById('cardDataContainer') &&
+                document.getElementById('nfcDataList')
+            );
+        }
+
+        function enqueueNativeNfc(handlerName, argsArray) {
+            window.__pendingNativeNFCQueue.push({ handlerName, args: argsArray, ts: Date.now() });
+            // Keep queue bounded
+            if (window.__pendingNativeNFCQueue.length > 10) {
+                window.__pendingNativeNFCQueue.shift();
+            }
+        }
+
+        function flushNativeNfcQueue() {
+            if (!isNfcUiReady()) return;
+            const q = window.__pendingNativeNFCQueue;
+            if (!Array.isArray(q) || q.length === 0) return;
+
+            // Copy then clear (avoid re-entrancy)
+            const items = q.slice();
+            window.__pendingNativeNFCQueue.length = 0;
+
+            for (const item of items) {
+                try {
+                    if (item.handlerName === 'handleNativeNFC' && typeof window.handleNativeNFC === 'function') {
+                        window.handleNativeNFC.apply(window, item.args || []);
+                    } else if (item.handlerName === 'onNativeReadResult' && typeof window.onNativeReadResult === 'function') {
+                        window.onNativeReadResult.apply(window, item.args || []);
+                    }
+                } catch (e) {
+                    console.warn('Failed flushing native NFC queue item:', item, e);
+                }
+            }
+        }
+
+        // Flush queued NFC events as soon as UI is ready
+        document.addEventListener('DOMContentLoaded', flushNativeNfcQueue);
+        window.addEventListener('load', flushNativeNfcQueue);
+
         window.handleNativeNFC = function(serialNumber, data) {
+            // Normalize common calling conventions:
+            // - (serial, data)
+            // - (payload)
+            // - (serial) where serial is an object
+            let normalizedSerial = serialNumber;
+            let normalizedPayload = data;
+
+            // Single-argument payload (object or JSON string)
+            if (typeof normalizedPayload === 'undefined' && (typeof normalizedSerial === 'object' || typeof normalizedSerial === 'string')) {
+                normalizedPayload = normalizedSerial;
+                normalizedSerial = undefined;
+            }
+
+            // If UI isn't ready yet, queue and return.
+            if (!isNfcUiReady()) {
+                enqueueNativeNfc('handleNativeNFC', [normalizedSerial, normalizedPayload]);
+                return true;
+            }
+
             debugLog('handleNativeNFC called!', 'success');
-            debugLog('Serial: ' + (serialNumber || 'none') + ', Data type: ' + typeof data, 'info');
-            console.log('🔥 DEBUG: handleNativeNFC called with:', { serialNumber, data });
+            debugLog('Serial: ' + (normalizedSerial || 'none') + ', Data type: ' + typeof normalizedPayload, 'info');
+            console.log('🔥 DEBUG: handleNativeNFC called with:', { serialNumber: normalizedSerial, data: normalizedPayload });
             console.log('🔥 DEBUG: AuthManager state:', window.authManager?.currentUser?.companyId || 'NO_AUTH');
             console.log('🔥 DEBUG: Firebase available:', typeof firebase !== 'undefined');
             
@@ -4009,72 +4189,34 @@ li.menu-visible,
 
             updateStatus('✅ Card read successfully!', 'active');
             
-            // Parse the data if it's a string
-            let parsedData = data;
-            if (typeof data === 'string' && data) {
+            // Parse the payload into an object and then normalize via buildCardDataFromNativeResult
+            let parsedPayload = normalizedPayload;
+            if (typeof parsedPayload === 'string' && parsedPayload) {
                 try {
-                    parsedData = JSON.parse(data);
+                    parsedPayload = JSON.parse(parsedPayload);
                 } catch (e) {
-                    parsedData = { text: data };
+                    parsedPayload = { text: parsedPayload };
                 }
             }
-            
-            // Build records array in format compatible with summarizeCardData
-            let records = [];
-            if (parsedData?.records && Array.isArray(parsedData.records)) {
-                records = parsedData.records;
-            } else if (parsedData?.text) {
-                // Check if it looks like a vCard
-                if (parsedData.text.includes('BEGIN:VCARD')) {
-                    records = [{
-                        type: 'text',
-                        mediaType: 'text/vcard',
-                        displayData: parsedData.text,
-                        data: parsedData.text
-                    }];
-                } else if (parsedData.text.startsWith('http://') || parsedData.text.startsWith('https://')) {
-                    records = [{
-                        type: 'url',
-                        isUrl: true,
-                        displayData: parsedData.text,
-                        data: parsedData.text
-                    }];
-                } else {
-                    records = [{
-                        type: 'text',
-                        displayData: parsedData.text,
-                        data: parsedData.text
-                    }];
-                }
-            } else if (typeof data === 'string' && data) {
-                // Raw string data
-                if (data.includes('BEGIN:VCARD')) {
-                    records = [{
-                        type: 'text',
-                        mediaType: 'text/vcard',
-                        displayData: data,
-                        data: data
-                    }];
-                } else {
-                    records = [{
-                        type: 'text',
-                        displayData: data,
-                        data: data
-                    }];
-                }
-            } else {
-                records = [{ type: 'text', displayData: 'Card detected', data: 'No data' }];
+            if (typeof parsedPayload !== 'object' || parsedPayload === null) {
+                parsedPayload = { text: String(normalizedPayload || '') };
             }
-            
-            // Build card data object
-            const cardData = {
-                serialNumber: serialNumber || 'Unknown',
+
+            const cardData = buildCardDataFromNativeResult(parsedPayload) || {
+                serialNumber: normalizedSerial || 'Unknown',
                 timestamp: new Date().toISOString(),
-                records: records,
-                rawRecords: parsedData?.rawRecords || [],
-                recordCount: records.length,
+                records: [{ type: 'text', displayData: String(normalizedPayload || 'Card detected'), data: String(normalizedPayload || '') }],
+                recordCount: 1,
                 source: 'native_android'
             };
+
+            // If the native layer provided serial separately, prefer it.
+            if (normalizedSerial && (cardData.serialNumber === 'Unknown' || !cardData.serialNumber)) {
+                cardData.serialNumber = normalizedSerial;
+            }
+
+            // Tag source for analytics/debugging
+            cardData.source = cardData.source || 'native_android';
             
             // Display the data
             console.log('🔥 DEBUG: About to call displayCardData...');
@@ -4082,7 +4224,7 @@ li.menu-visible,
             // Ensure we're on the NFC tab to see the results
             const currentTab = document.querySelector('.main-tab-content.active')?.id;
             console.log('🔥 DEBUG: Current active tab:', currentTab);
-            if (currentTab !== 'nfcTab') {
+            if (currentTab !== 'nfcTab' && typeof window.switchMainTab === 'function') {
                 console.log('🔥 DEBUG: Switching to NFC tab to show results...');
                 switchMainTab('nfcTab');
             }
@@ -4178,6 +4320,12 @@ li.menu-visible,
             debugLog('onNativeReadResult called!', 'success');
             console.log('🔥 DEBUG: onNativeReadResult called with:', payload);
             try {
+                // If UI isn't ready yet, queue and return.
+                if (!isNfcUiReady()) {
+                    enqueueNativeNfc('onNativeReadResult', [payload]);
+                    return;
+                }
+
                 const data = (typeof payload === 'string') ? JSON.parse(payload) : payload || {};
                 debugLog('Parsed: ' + JSON.stringify(data).substring(0, 100), 'info');
                 console.log('🔥 DEBUG: Parsed data:', data);
@@ -4190,7 +4338,7 @@ li.menu-visible,
                     // Ensure we're on the NFC tab to see the results
                     const currentTab = document.querySelector('.main-tab-content.active')?.id;
                     console.log('🔥 DEBUG: Current active tab:', currentTab);
-                    if (currentTab !== 'nfcTab') {
+                    if (currentTab !== 'nfcTab' && typeof window.switchMainTab === 'function') {
                         console.log('🔥 DEBUG: Switching to NFC tab to show results...');
                         switchMainTab('nfcTab');
                     }
@@ -4757,6 +4905,18 @@ To enable NFC access:
                         console.log('Native NFC scan started');
                         return;
                     }
+                    // If we're in WebToApp app and no native NFC bridge is available,
+                    // use a Custom Tab (Chrome) for Web NFC as a reliable fallback.
+                    if (!nativeNFCAvailable && !('NDEFReader' in window)) {
+                        const opened = openNfcScanInCustomTab();
+                        if (opened) {
+                            isScanning = true;
+                            updateScanUI(true);
+                            updateStatus('🌐 Opening NFC scanner in Chrome (Custom Tab)...', 'active');
+                            return;
+                        }
+                    }
+
                     console.log('Native bridge not available, trying Web NFC...');
                 }
                 
@@ -4844,6 +5004,29 @@ To enable NFC access:
 
             // Parse and display the data (with decryption)
             const cardData = await parseNFCMessage(message, serialNumber);
+
+            // If this page is opened as a WebToApp Custom Tab specifically for scanning,
+            // send the result back to the app and close the tab.
+            if (isWebToAppCustomTab()) {
+                const data = getWebToAppCustomTabDataSafe();
+                if (data && data.purpose === 'nfc_scan' && typeof closeCustomTab === 'function') {
+                    updateStatus('✅ Card read. Returning to app...', 'active');
+                    try {
+                        const transferable = sanitizeCardDataForTransfer({
+                            ...cardData,
+                            source: 'custom_tab_web_nfc'
+                        });
+                        // Small delay so status message paints before closing
+                        setTimeout(() => {
+                            try { closeCustomTab({ nfc: transferable }); } catch (_) {}
+                        }, 200);
+                        return;
+                    } catch (e) {
+                        console.warn('Failed to return NFC data to app:', e);
+                    }
+                }
+            }
+
             displayCardData(cardData);
 
             // Add to history
