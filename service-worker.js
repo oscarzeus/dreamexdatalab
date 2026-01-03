@@ -1,20 +1,12 @@
-/* Dreamex DataLab Service Worker - PWA with NFC Support */
+/* Dreamex DataLab Service Worker - Basic PWA Shell */
 // Bump this version whenever HTML changes should invalidate the cache
-const CACHE_VERSION = 'datalab-v3-nfc';
+const CACHE_VERSION = 'datalab-v2';
 const CORE_ASSETS = [
   '/',
   '/index.html',
-  '/nfc.html',
-  '/login.html',
-  '/dashboard.html',
   '/company-complete-registration.html',
-  '/manifest.json',
-  '/auth-manager.js',
-  'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css',
-  'https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js',
-  'https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js',
-  'https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js',
-  'https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js'
+  '/manifest.json'
+  // Add: '/css/styles.css', '/js/user-display.js', etc. when stable
 ];
 
 self.addEventListener('install', (event) => {

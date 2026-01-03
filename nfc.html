@@ -2,20 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>NFC Card Reader - Dreamex Datalab</title>
-
-<!-- PWA Meta Tags -->
-<meta name="theme-color" content="#2c3e50" />
-<meta name="description" content="NFC Card Reader & Writer - Scan and write NFC cards for employee management" />
-<meta name="mobile-web-app-capable" content="yes" />
-<meta name="apple-mobile-web-app-capable" content="yes" />
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-<meta name="apple-mobile-web-app-title" content="DataLab NFC" />
-<link rel="manifest" href="/manifest.json" />
-<link rel="apple-touch-icon" href="/icons/icon-192.svg" />
-<link rel="icon" type="image/svg+xml" href="/icons/icon-192.svg" />
-
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
 <!-- Firebase v8 Scripts for Centralized Authentication -->
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
@@ -4075,7 +4063,20 @@ li.menu-visible,
                     }];
                 }
             } else {
-                records = [{ type: 'text', displayData: 'Card detected', data: 'No data' }];
+                // If no standard format, try the more robust native result parser
+                const fallbackCardData = buildCardDataFromNativeResult(parsedData || data);
+                if (fallbackCardData && fallbackCardData.records && fallbackCardData.records.length > 0 && 
+                    !(fallbackCardData.records.length === 1 && fallbackCardData.records[0].displayData === JSON.stringify(parsedData || data))) {
+                    // Use the fallback parsing
+                    records = fallbackCardData.records;
+                    if (serialNumber && serialNumber !== 'Unknown') {
+                        // Keep the provided serial number
+                    } else {
+                        serialNumber = fallbackCardData.serialNumber;
+                    }
+                } else {
+                    records = [{ type: 'text', displayData: 'Card detected', data: 'No data' }];
+                }
             }
             
             // Build card data object
@@ -4189,6 +4190,14 @@ li.menu-visible,
         window.onNativeReadResult = function(payload) {
             debugLog('onNativeReadResult called!', 'success');
             console.log('🔥 DEBUG: onNativeReadResult called with:', payload);
+            
+            // Vibrate for feedback
+            if ('vibrate' in navigator) {
+                navigator.vibrate([100, 50, 100]);
+            }
+            
+            updateStatus('✅ Card read successfully!', 'active');
+            
             try {
                 const data = (typeof payload === 'string') ? JSON.parse(payload) : payload || {};
                 debugLog('Parsed: ' + JSON.stringify(data).substring(0, 100), 'info');
@@ -7156,211 +7165,5 @@ To enable NFC access:
             </div>
         </div>
     </div>
-
-    <!-- PWA Install Prompt Banner -->
-    <div id="pwaInstallBanner" style="display: none; position: fixed; bottom: 0; left: 0; right: 0; background: linear-gradient(135deg, #2c3e50, #34495e); color: white; padding: 1rem; z-index: 10000; box-shadow: 0 -4px 20px rgba(0,0,0,0.3);">
-        <div style="display: flex; align-items: center; justify-content: space-between; max-width: 600px; margin: 0 auto; flex-wrap: wrap; gap: 0.75rem;">
-            <div style="display: flex; align-items: center; gap: 1rem;">
-                <i class="fas fa-mobile-alt" style="font-size: 2rem; color: #3498db;"></i>
-                <div>
-                    <strong style="display: block; font-size: 1rem;">📱 Install DataLab NFC App</strong>
-                    <span style="font-size: 0.8rem; opacity: 0.9;" id="installInstructions">Add to home screen for the best NFC experience</span>
-                </div>
-            </div>
-            <div style="display: flex; gap: 0.5rem;">
-                <button onclick="dismissInstallBanner()" style="background: transparent; border: 1px solid rgba(255,255,255,0.3); color: white; padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; font-size: 0.85rem;">Later</button>
-                <button onclick="installPWA()" id="installBtn" style="background: #3498db; border: none; color: white; padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 600;"><i class="fas fa-download"></i> Install</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Service Worker & PWA Installation Script -->
-    <script>
-        // PWA Install Prompt
-        let deferredPrompt = null;
-        let bannerShown = false;
-        
-        // Show banner function
-        function showInstallBanner() {
-            const banner = document.getElementById('pwaInstallBanner');
-            const dismissed = localStorage.getItem('pwa-install-dismissed');
-            
-            // Don't show if already installed as PWA
-            if (isPWAInstalled()) {
-                console.log('📱 PWA: Already installed, not showing banner');
-                return;
-            }
-            
-            // Don't show if dismissed within last 24 hours
-            if (dismissed && (Date.now() - parseInt(dismissed)) < 86400000) {
-                console.log('📱 PWA: Banner dismissed recently, not showing');
-                return;
-            }
-            
-            if (banner && !bannerShown) {
-                banner.style.display = 'block';
-                bannerShown = true;
-                console.log('📱 PWA: Install banner shown');
-            }
-        }
-        
-        window.addEventListener('beforeinstallprompt', (e) => {
-            console.log('📱 PWA: beforeinstallprompt fired');
-            e.preventDefault();
-            deferredPrompt = e;
-            
-            // Update button text
-            const installBtn = document.getElementById('installBtn');
-            if (installBtn) {
-                installBtn.innerHTML = '<i class="fas fa-download"></i> Install Now';
-            }
-            
-            // Show install banner
-            showInstallBanner();
-        });
-        
-        function installPWA() {
-            if (deferredPrompt) {
-                // Native install prompt available
-                deferredPrompt.prompt();
-                deferredPrompt.userChoice.then((choiceResult) => {
-                    if (choiceResult.outcome === 'accepted') {
-                        console.log('📱 PWA: User accepted install');
-                    }
-                    deferredPrompt = null;
-                    document.getElementById('pwaInstallBanner').style.display = 'none';
-                });
-            } else {
-                // Show manual install instructions
-                showManualInstallInstructions();
-            }
-        }
-        
-        function showManualInstallInstructions() {
-            const isAndroid = /android/i.test(navigator.userAgent);
-            const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
-            const isChrome = /chrome/i.test(navigator.userAgent) && !/edge/i.test(navigator.userAgent);
-            const isSamsung = /samsungbrowser/i.test(navigator.userAgent);
-            
-            let instructions = '';
-            
-            if (isIOS) {
-                instructions = `📱 To install on iOS:
-                
-1. Tap the Share button (📤) at the bottom
-2. Scroll down and tap "Add to Home Screen"
-3. Tap "Add" in the top right
-
-The app will appear on your home screen!`;
-            } else if (isAndroid) {
-                if (isChrome) {
-                    instructions = `📱 To install on Android Chrome:
-                    
-1. Tap the menu button (⋮) in the top right
-2. Tap "Add to Home screen" or "Install app"
-3. Tap "Add" or "Install"
-
-The app will appear on your home screen!`;
-                } else if (isSamsung) {
-                    instructions = `📱 To install on Samsung Browser:
-                    
-1. Tap the menu button (≡) at the bottom
-2. Tap "Add page to" → "Home screen"
-3. Tap "Add"
-
-The app will appear on your home screen!`;
-                } else {
-                    instructions = `📱 To install this app:
-                    
-1. Open this page in Chrome browser
-2. Tap the menu button (⋮)
-3. Tap "Add to Home screen"
-
-For best NFC support, use Chrome!`;
-                }
-            } else {
-                instructions = `📱 To install this app:
-                
-On Android: Open in Chrome → Menu (⋮) → "Add to Home screen"
-On iOS: Tap Share (📤) → "Add to Home Screen"
-
-For NFC support, use Chrome on Android!`;
-            }
-            
-            alert(instructions);
-        }
-        
-        function dismissInstallBanner() {
-            document.getElementById('pwaInstallBanner').style.display = 'none';
-            localStorage.setItem('pwa-install-dismissed', Date.now().toString());
-            bannerShown = false;
-        }
-        
-        // Detect if running as installed PWA
-        function isPWAInstalled() {
-            return window.matchMedia('(display-mode: standalone)').matches ||
-                   window.navigator.standalone === true ||
-                   document.referrer.includes('android-app://');
-        }
-        
-        window.addEventListener('appinstalled', () => {
-            console.log('📱 PWA: App was installed');
-            document.getElementById('pwaInstallBanner').style.display = 'none';
-            deferredPrompt = null;
-        });
-        
-        // Always show banner after delay (for browsers that don't fire beforeinstallprompt)
-        setTimeout(() => {
-            if (!bannerShown) {
-                console.log('📱 PWA: Showing banner via timeout (beforeinstallprompt may not have fired)');
-                const instructions = document.getElementById('installInstructions');
-                if (instructions && !deferredPrompt) {
-                    // Update text for manual install
-                    const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
-                    if (isIOS) {
-                        instructions.textContent = 'Tap Share (📤) then "Add to Home Screen"';
-                    } else {
-                        instructions.textContent = 'Tap menu (⋮) then "Add to Home Screen"';
-                    }
-                }
-                showInstallBanner();
-            }
-        }, 2000);
-        
-        // Register Service Worker
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/service-worker.js')
-                    .then((registration) => {
-                        console.log('📱 PWA: Service Worker registered with scope:', registration.scope);
-                        
-                        // Check for updates
-                        registration.addEventListener('updatefound', () => {
-                            const newWorker = registration.installing;
-                            newWorker.addEventListener('statechange', () => {
-                                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                                    // New version available
-                                    if (confirm('A new version is available. Reload to update?')) {
-                                        newWorker.postMessage('SKIP_WAITING');
-                                        window.location.reload();
-                                    }
-                                }
-                            });
-                        });
-                    })
-                    .catch((error) => {
-                        console.error('📱 PWA: Service Worker registration failed:', error);
-                    });
-            });
-        }
-        
-        // Log PWA status
-        console.log('📱 PWA Status:', {
-            installed: isPWAInstalled(),
-            standalone: window.matchMedia('(display-mode: standalone)').matches,
-            serviceWorkerSupported: 'serviceWorker' in navigator,
-            nfcSupported: 'NDEFReader' in window
-        });
-    </script>
 </body>
 </html>
