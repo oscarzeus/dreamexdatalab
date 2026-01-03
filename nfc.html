@@ -10,6 +10,8 @@
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
+<!-- WebToApp.design App Helper Script -->
+<script src="https://webtoapp.design/static/js/app-helper.js"></script>
     
 <style>
 :root { --primary-color:#2c3e50; --secondary-color:#34495e; --accent-color:#e74c3c; --success-color:#27ae60; --warning-color:#f39c12; --info-color:#3498db; --light-color:#ecf0f1; --dark-color:#2c3e50; --sidebar-width:250px; --transition-speed:.25s; --blue: #3498db; --green: #2ecc71; --purple: #9b59b6; --orange: #e67e22; --red: #e74c3c; --text-secondary: #666666; --border-color: #e0e0e0; }
@@ -1295,6 +1297,18 @@ li.menu-visible,
                                     <i class="fas fa-stop"></i> Stop Scanning
                                 </button>
                             </div>
+                            
+                            <!-- Debug Console for Mobile App (toggle visibility) -->
+                            <div id="mobileDebugPanel" style="display: none; margin-top: 1rem; background: #1a1a2e; border-radius: 8px; padding: 0.75rem; max-height: 200px; overflow-y: auto;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                                    <span style="color: #0f0; font-family: monospace; font-size: 0.75rem;">📱 NFC Debug Console</span>
+                                    <button onclick="clearDebugLog()" style="background: #333; color: #fff; border: none; padding: 2px 8px; border-radius: 4px; font-size: 0.65rem; cursor: pointer;">Clear</button>
+                                </div>
+                                <div id="debugLog" style="font-family: monospace; font-size: 0.65rem; color: #0f0; white-space: pre-wrap; word-break: break-all;"></div>
+                            </div>
+                            <button onclick="toggleDebugPanel()" style="margin-top: 0.5rem; background: #333; color: #fff; border: none; padding: 0.4rem 0.8rem; border-radius: 6px; font-size: 0.7rem; cursor: pointer; display: block; margin-left: auto;">
+                                <i class="fas fa-bug"></i> Toggle Debug
+                            </button>
 
                             <!-- Scan History -->
                             <div class="history-section" id="historySection" style="display: none;">
@@ -3941,12 +3955,52 @@ li.menu-visible,
             return isWebViewApp;
         }
         
+        // =============================================
+        // Mobile Debug Console Functions
+        // =============================================
+        function debugLog(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const prefix = type === 'error' ? '❌' : type === 'success' ? '✅' : '📱';
+            const logEntry = `[${timestamp}] ${prefix} ${message}`;
+            
+            console.log(logEntry);
+            
+            const debugPanel = document.getElementById('debugLog');
+            if (debugPanel) {
+                const colorMap = { error: '#f00', success: '#0f0', info: '#0ff' };
+                debugPanel.innerHTML += `<div style="color: ${colorMap[type] || '#0f0'}">${logEntry}</div>`;
+                debugPanel.scrollTop = debugPanel.scrollHeight;
+            }
+        }
+        
+        function toggleDebugPanel() {
+            const panel = document.getElementById('mobileDebugPanel');
+            if (panel) {
+                panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+            }
+        }
+        
+        function clearDebugLog() {
+            const debugPanel = document.getElementById('debugLog');
+            if (debugPanel) debugPanel.innerHTML = '';
+        }
+        
         // Global handler for receiving NFC data from native Android app
         // WebToApp platforms will call this function when an NFC tag is scanned
         window.handleNativeNFC = function(serialNumber, data) {
+            debugLog('handleNativeNFC called!', 'success');
+            debugLog('Serial: ' + (serialNumber || 'none') + ', Data type: ' + typeof data, 'info');
             console.log('🔥 DEBUG: handleNativeNFC called with:', { serialNumber, data });
             console.log('🔥 DEBUG: AuthManager state:', window.authManager?.currentUser?.companyId || 'NO_AUTH');
             console.log('🔥 DEBUG: Firebase available:', typeof firebase !== 'undefined');
+            
+            // IMPORTANT: Show visible alert to confirm data received (for debugging)
+            // Remove this line after confirming NFC is working
+            // alert('NFC Data Received! Serial: ' + (serialNumber || 'unknown'));
+            
+            // Show debug panel automatically when NFC is detected
+            const debugPanel = document.getElementById('mobileDebugPanel');
+            if (debugPanel) debugPanel.style.display = 'block';
             
             // Vibrate for feedback
             if ('vibrate' in navigator) {
@@ -4091,15 +4145,44 @@ li.menu-visible,
         window.onNFCRead = window.handleNativeNFC;
         window.nfcCallback = window.handleNativeNFC;
         window.receiveNFCData = window.handleNativeNFC;
+        
+        // Additional WebToApp.design specific callbacks
+        window.onNfcTag = window.handleNativeNFC;
+        window.onNfcData = window.handleNativeNFC;
+        window.nfcTagReceived = window.handleNativeNFC;
+        window.nfcResult = window.handleNativeNFC;
+        window.onTagDiscovered = window.handleNativeNFC;
+        window.tagCallback = window.handleNativeNFC;
+        window.androidNfcCallback = window.handleNativeNFC;
+        window.appNfcCallback = window.handleNativeNFC;
+        
+        // WebToApp.design specific - they might use these naming conventions
+        window.webToAppNfcCallback = window.handleNativeNFC;
+        window.onWebToAppNFC = window.handleNativeNFC;
+        window.nfcHandler = window.handleNativeNFC;
+        window.handleNFC = window.handleNativeNFC;
+        window.processNfcTag = window.handleNativeNFC;
+        window.onNdefDiscovered = window.handleNativeNFC;
+        window.onNfcIntent = window.handleNativeNFC;
+        
+        // Single-argument variants that receive JSON object
+        window.onNfcTagJSON = window.onNativeReadResult;
+        window.nfcDataReceived = window.onNativeReadResult;
+        window.handleNfcData = window.onNativeReadResult;
+        window.processNfcData = window.onNativeReadResult;
+        window.webToAppNfcData = window.onNativeReadResult;
 
         // Some WebView bridges send a single JSON payload without separate serial argument
         // Normalize those into our cardData format and persist/display
         window.onNativeReadResult = function(payload) {
+            debugLog('onNativeReadResult called!', 'success');
             console.log('🔥 DEBUG: onNativeReadResult called with:', payload);
             try {
                 const data = (typeof payload === 'string') ? JSON.parse(payload) : payload || {};
+                debugLog('Parsed: ' + JSON.stringify(data).substring(0, 100), 'info');
                 console.log('🔥 DEBUG: Parsed data:', data);
                 const cardData = buildCardDataFromNativeResult(data);
+                debugLog('CardData built: ' + (cardData ? 'yes' : 'no'), 'info');
                 console.log('🔥 DEBUG: Built card data:', cardData);
                 if (cardData) {
                     console.log('🔥 DEBUG: Calling displayCardData...');
@@ -4119,31 +4202,191 @@ li.menu-visible,
                     saveNativeNFCRecord(cardData);
                 }
             } catch (e) {
+                debugLog('Parse error: ' + e.message, 'error');
                 console.warn('🔥 DEBUG: onNativeReadResult parse error:', e);
             }
         };
 
         // Generic alias used by some Android WebView wrappers
         window.onNativeNFCData = function(payload) {
+            debugLog('onNativeNFCData called', 'info');
             window.onNativeReadResult(payload);
         };
 
         // Catch postMessage-based bridges (event.data can be string or object)
         window.addEventListener('message', function(event) {
+            debugLog('postMessage received: ' + (typeof event.data), 'info');
             console.log('🔥 DEBUG: postMessage received:', event.data, 'from:', event.origin);
             try {
                 const msg = event.data;
                 // Heuristics: if message appears to contain NFC info, handle it
                 const obj = (typeof msg === 'string') ? JSON.parse(msg) : (msg || {});
                 console.log('🔥 DEBUG: postMessage parsed obj:', obj);
-                if (obj && (obj.serialNumber || obj.serial || obj.uid || obj.id || obj.tagId || obj.records || obj.text || obj.payload || obj.content)) {
+                if (obj && (obj.serialNumber || obj.serial || obj.uid || obj.id || obj.tagId || obj.records || obj.text || obj.payload || obj.content || obj.nfc || obj.tag || obj.nfcData)) {
+                    debugLog('postMessage has NFC data!', 'success');
                     console.log('🔥 DEBUG: postMessage looks like NFC data, calling onNativeReadResult');
-                    window.onNativeReadResult(obj);
+                    // Handle nested NFC data
+                    const nfcData = obj.nfc || obj.nfcData || obj.tag || obj;
+                    window.onNativeReadResult(nfcData);
                 }
             } catch (e) {
                 // Ignore
             }
         });
+
+        // Listen for custom DOM events that WebToApp might dispatch
+        document.addEventListener('nfc', function(event) {
+            debugLog('Custom NFC event!', 'success');
+            console.log('🔥 DEBUG: Custom NFC event received:', event.detail);
+            if (event.detail) {
+                window.onNativeReadResult(event.detail);
+            }
+        });
+        
+        document.addEventListener('nfcTag', function(event) {
+            debugLog('Custom nfcTag event!', 'success');
+            console.log('🔥 DEBUG: Custom nfcTag event received:', event.detail);
+            if (event.detail) {
+                window.onNativeReadResult(event.detail);
+            }
+        });
+        
+        document.addEventListener('nfcRead', function(event) {
+            console.log('🔥 DEBUG: Custom nfcRead event received:', event.detail);
+            if (event.detail) {
+                window.onNativeReadResult(event.detail);
+            }
+        });
+
+        // Check URL parameters for NFC data (some apps pass data this way)
+        function checkURLForNFCData() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const nfcSerial = urlParams.get('nfc_serial') || urlParams.get('serial') || urlParams.get('tagId') || urlParams.get('uid') || urlParams.get('id');
+            const nfcData = urlParams.get('nfc_data') || urlParams.get('data') || urlParams.get('payload') || urlParams.get('content') || urlParams.get('text');
+            
+            if (nfcSerial || nfcData) {
+                debugLog('NFC data in URL! Serial: ' + nfcSerial, 'success');
+                console.log('🔥 DEBUG: NFC data found in URL params:', { nfcSerial, nfcData });
+                window.handleNativeNFC(nfcSerial || 'URL-Scan', nfcData || '');
+                
+                // Clean URL after processing (optional)
+                // window.history.replaceState({}, document.title, window.location.pathname);
+            }
+            
+            // Also check hash for NFC data (some apps pass via hash)
+            const hash = window.location.hash;
+            if (hash && hash.includes('nfc')) {
+                debugLog('NFC data in hash!', 'success');
+                try {
+                    const hashData = JSON.parse(decodeURIComponent(hash.substring(1)));
+                    if (hashData) {
+                        window.onNativeReadResult(hashData);
+                    }
+                } catch(e) {
+                    // Not JSON, try key=value format
+                    const hashParams = new URLSearchParams(hash.substring(1));
+                    const hashSerial = hashParams.get('serial') || hashParams.get('uid');
+                    if (hashSerial) {
+                        window.handleNativeNFC(hashSerial, hashParams.get('data') || '');
+                    }
+                }
+            }
+        }
+
+        // WebToApp.design specific: Check for data injected into window object
+        function checkWindowForNFCData() {
+            // WebToApp might inject data into various window properties
+            const possibleProps = ['nfcTagData', 'lastNfcTag', 'scannedNfc', 'nfcScanResult', 'appNfcData', 'nfcIntent', 'intentData'];
+            for (const prop of possibleProps) {
+                if (window[prop] && typeof window[prop] === 'object') {
+                    debugLog('Found NFC in window.' + prop, 'success');
+                    console.log('🔥 DEBUG: Found NFC data in window.' + prop + ':', window[prop]);
+                    window.onNativeReadResult(window[prop]);
+                    window[prop] = null; // Clear after processing
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        // WebToApp.design specific: Use executeWhenAppReady if available
+        function initWebToAppNFC() {
+            debugLog('Initializing WebToApp integration...', 'info');
+            console.log('🔥 DEBUG: Initializing WebToApp.design NFC integration...');
+            
+            // Check if executeWhenAppReady is available (from app-helper.js)
+            if (typeof executeWhenAppReady === 'function') {
+                debugLog('executeWhenAppReady available', 'success');
+                console.log('🔥 DEBUG: executeWhenAppReady is available, using it...');
+                executeWhenAppReady(function() {
+                    const platform = typeof getAppPlatform === 'function' ? getAppPlatform() : 'unknown';
+                    debugLog('App ready! Platform: ' + platform, 'success');
+                    console.log('🔥 DEBUG: WebToApp app is ready!');
+                    console.log('🔥 DEBUG: App platform:', platform);
+                    
+                    // Check for any pending NFC data
+                    checkURLForNFCData();
+                    checkWindowForNFCData();
+                    
+                    // Log available interfaces
+                    const interfaces = {
+                        Android: typeof window.Android,
+                        AndroidNFC: typeof window.AndroidNFC,
+                        webtoapp: typeof window.webtoapp,
+                        gonative: typeof window.gonative,
+                        NativeNFC: typeof window.NativeNFC
+                    };
+                    debugLog('Interfaces: ' + Object.entries(interfaces).filter(([k,v]) => v !== 'undefined').map(([k,v]) => k).join(', '), 'info');
+                    console.log('🔥 DEBUG: Available app interfaces:', interfaces);
+                });
+            } else {
+                debugLog('executeWhenAppReady not found, using fallback', 'info');
+                console.log('🔥 DEBUG: executeWhenAppReady not available, using fallback...');
+                // Fallback: wait for webtoapp-ready class
+                const observer = new MutationObserver(function(mutations) {
+                    for (const mutation of mutations) {
+                        if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+                            if (document.documentElement.classList.contains('webtoapp-ready')) {
+                                debugLog('webtoapp-ready class detected!', 'success');
+                                console.log('🔥 DEBUG: webtoapp-ready class detected!');
+                                checkURLForNFCData();
+                                checkWindowForNFCData();
+                                observer.disconnect();
+                            }
+                        }
+                    }
+                });
+                observer.observe(document.documentElement, { attributes: true });
+                
+                // Also check immediately in case already ready
+                if (document.documentElement.classList.contains('webtoapp-ready')) {
+                    debugLog('App was already ready', 'success');
+                    console.log('🔥 DEBUG: App was already ready');
+                    checkURLForNFCData();
+                    checkWindowForNFCData();
+                }
+            }
+        }
+
+        // Initialize WebToApp integration on load
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initWebToAppNFC);
+        } else {
+            initWebToAppNFC();
+        }
+
+        // Also periodically check for new NFC data (some apps inject data asynchronously)
+        let nfcPollingInterval = setInterval(function() {
+            if (checkWindowForNFCData()) {
+                console.log('🔥 DEBUG: NFC data found via polling');
+            }
+        }, 1000); // Check every second
+        
+        // Stop polling after 5 minutes to save resources
+        setTimeout(function() {
+            clearInterval(nfcPollingInterval);
+            console.log('🔥 DEBUG: Stopped NFC polling after 5 minutes');
+        }, 300000);
 
         // TEST FUNCTION: Call this manually to verify the NFC flow works
         window.testNFCFlow = function() {
