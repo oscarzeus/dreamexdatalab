@@ -2323,11 +2323,96 @@ li.menu-visible,
                 
                 if (data) {
                     showNFCToolResult(`${tool} Result`, `<pre style="white-space: pre-wrap;">${JSON.stringify(data, null, 2)}</pre>`, 'success');
+                    
+                    // If this is a read operation, save to Firebase for record history
+                    const toolLower = (tool || '').toLowerCase();
+                    if (toolLower === 'read' || toolLower === 'scan' || toolLower === 'info') {
+                        // Build card data and save to Firebase
+                        const cardData = buildCardDataFromNativeResult(data);
+                        if (cardData) {
+                            displayCardData(cardData);
+                            addToHistory(cardData);
+                            saveNativeNFCRecord(cardData);
+                        }
+                    }
                 }
             } else {
                 showNFCToolStatus(`❌ ${tool} failed: ${data || 'Unknown error'}`, 'error');
             }
         };
+        
+        // Build card data from native tool result for Firebase storage
+        function buildCardDataFromNativeResult(data) {
+            try {
+                let serialNumber = 'Unknown';
+                let records = [];
+                
+                // Extract serial number from various possible fields
+                if (data.serialNumber) serialNumber = data.serialNumber;
+                else if (data.serial) serialNumber = data.serial;
+                else if (data.uid) serialNumber = data.uid;
+                else if (data.id) serialNumber = data.id;
+                else if (data.tagId) serialNumber = data.tagId;
+                
+                // Build records array
+                if (data.records && Array.isArray(data.records)) {
+                    records = data.records.map(r => ({
+                        type: r.type || 'text',
+                        mediaType: r.mediaType || r.mimeType || '',
+                        displayData: r.displayData || r.data || r.payload || r.text || '',
+                        data: r.data || r.payload || r.text || '',
+                        isUrl: r.isUrl || (r.type === 'url'),
+                        encrypted: r.encrypted || false
+                    }));
+                } else if (data.text || data.payload || data.content) {
+                    const text = data.text || data.payload || data.content;
+                    let type = 'text';
+                    let mediaType = '';
+                    
+                    if (text.includes('BEGIN:VCARD')) {
+                        type = 'text';
+                        mediaType = 'text/vcard';
+                    } else if (text.startsWith('http://') || text.startsWith('https://')) {
+                        type = 'url';
+                    }
+                    
+                    records = [{
+                        type: type,
+                        mediaType: mediaType,
+                        displayData: text,
+                        data: text,
+                        isUrl: type === 'url'
+                    }];
+                } else if (data.message) {
+                    records = [{
+                        type: 'text',
+                        displayData: data.message,
+                        data: data.message
+                    }];
+                }
+                
+                // If no records but we have data object, store as JSON
+                if (records.length === 0 && Object.keys(data).length > 0) {
+                    records = [{
+                        type: 'text',
+                        mediaType: 'application/json',
+                        displayData: JSON.stringify(data),
+                        data: JSON.stringify(data)
+                    }];
+                }
+                
+                return {
+                    serialNumber: serialNumber,
+                    timestamp: new Date().toISOString(),
+                    records: records,
+                    recordCount: records.length,
+                    source: 'native_tool'
+                };
+            } catch (e) {
+                console.error('Error building card data from native result:', e);
+                return null;
+            }
+        }
         
         // =============================================
         // Password Management Functions
