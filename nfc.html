@@ -3944,13 +3944,15 @@ li.menu-visible,
         // Global handler for receiving NFC data from native Android app
         // WebToApp platforms will call this function when an NFC tag is scanned
         window.handleNativeNFC = function(serialNumber, data) {
-            console.log('📱 NFC data received from native Android:', { serialNumber, data });
+            console.log('🔥 DEBUG: handleNativeNFC called with:', { serialNumber, data });
+            console.log('🔥 DEBUG: AuthManager state:', window.authManager?.currentUser?.companyId || 'NO_AUTH');
+            console.log('🔥 DEBUG: Firebase available:', typeof firebase !== 'undefined');
             
             // Vibrate for feedback
             if ('vibrate' in navigator) {
                 navigator.vibrate([100, 50, 100]);
             }
-            
+
             updateStatus('✅ Card read successfully!', 'active');
             
             // Parse the data if it's a string
@@ -4021,12 +4023,26 @@ li.menu-visible,
             };
             
             // Display the data
+            console.log('🔥 DEBUG: About to call displayCardData...');
+            
+            // Ensure we're on the NFC tab to see the results
+            const currentTab = document.querySelector('.main-tab-content.active')?.id;
+            console.log('🔥 DEBUG: Current active tab:', currentTab);
+            if (currentTab !== 'nfcTab') {
+                console.log('🔥 DEBUG: Switching to NFC tab to show results...');
+                switchMainTab('nfcTab');
+            }
+            
             displayCardData(cardData);
+            console.log('🔥 DEBUG: displayCardData completed');
             
             // Add to local history
+            console.log('🔥 DEBUG: Adding to history...');
             addToHistory(cardData);
+            console.log('🔥 DEBUG: addToHistory completed');
             
             // Save to Firebase - with retry if AuthManager not ready yet
+            console.log('🔥 DEBUG: Calling saveNativeNFCRecord...');
             saveNativeNFCRecord(cardData);
             
             return true;
@@ -4034,21 +4050,30 @@ li.menu-visible,
         
         // Save native NFC record with retry logic for AuthManager
         async function saveNativeNFCRecord(cardData, retryCount = 0) {
+            console.log('🔥 DEBUG: saveNativeNFCRecord called with:', cardData, 'retry:', retryCount);
             const maxRetries = 10;
             const retryDelay = 500; // ms
             
             try {
                 const currentUser = window.authManager?.currentUser;
+                console.log('🔥 DEBUG: Current user check:', {
+                    hasAuthManager: !!window.authManager,
+                    hasCurrentUser: !!currentUser,
+                    hasCompanyId: !!currentUser?.companyId,
+                    authManagerState: window.authManager
+                });
+                
                 if (!currentUser || !currentUser.companyId) {
                     if (retryCount < maxRetries) {
-                        console.log(`AuthManager not ready, retrying (${retryCount + 1}/${maxRetries})...`);
+                        console.log(`🔥 DEBUG: AuthManager not ready, retrying (${retryCount + 1}/${maxRetries})...`);
                         setTimeout(() => saveNativeNFCRecord(cardData, retryCount + 1), retryDelay);
                         return;
                     }
-                    console.warn('No user/companyId after retries; skipping scan record save');
+                    console.warn('🔥 DEBUG: No user/companyId after retries; skipping scan record save');
                     return;
                 }
-                
+
+                console.log('🔥 DEBUG: Calling addScanRecordFirebase...');
                 // Use addScanRecordFirebase to save
                 await addScanRecordFirebase(cardData);
                 console.log('✅ NFC record saved to Firebase');
@@ -4070,16 +4095,31 @@ li.menu-visible,
         // Some WebView bridges send a single JSON payload without separate serial argument
         // Normalize those into our cardData format and persist/display
         window.onNativeReadResult = function(payload) {
+            console.log('🔥 DEBUG: onNativeReadResult called with:', payload);
             try {
                 const data = (typeof payload === 'string') ? JSON.parse(payload) : payload || {};
+                console.log('🔥 DEBUG: Parsed data:', data);
                 const cardData = buildCardDataFromNativeResult(data);
+                console.log('🔥 DEBUG: Built card data:', cardData);
                 if (cardData) {
+                    console.log('🔥 DEBUG: Calling displayCardData...');
+                    
+                    // Ensure we're on the NFC tab to see the results
+                    const currentTab = document.querySelector('.main-tab-content.active')?.id;
+                    console.log('🔥 DEBUG: Current active tab:', currentTab);
+                    if (currentTab !== 'nfcTab') {
+                        console.log('🔥 DEBUG: Switching to NFC tab to show results...');
+                        switchMainTab('nfcTab');
+                    }
+                    
                     displayCardData(cardData);
+                    console.log('🔥 DEBUG: Calling addToHistory...');
                     addToHistory(cardData);
+                    console.log('🔥 DEBUG: Calling saveNativeNFCRecord...');
                     saveNativeNFCRecord(cardData);
                 }
             } catch (e) {
-                console.warn('onNativeReadResult parse error:', e);
+                console.warn('🔥 DEBUG: onNativeReadResult parse error:', e);
             }
         };
 
@@ -4090,18 +4130,37 @@ li.menu-visible,
 
         // Catch postMessage-based bridges (event.data can be string or object)
         window.addEventListener('message', function(event) {
+            console.log('🔥 DEBUG: postMessage received:', event.data, 'from:', event.origin);
             try {
                 const msg = event.data;
                 // Heuristics: if message appears to contain NFC info, handle it
                 const obj = (typeof msg === 'string') ? JSON.parse(msg) : (msg || {});
+                console.log('🔥 DEBUG: postMessage parsed obj:', obj);
                 if (obj && (obj.serialNumber || obj.serial || obj.uid || obj.id || obj.tagId || obj.records || obj.text || obj.payload || obj.content)) {
+                    console.log('🔥 DEBUG: postMessage looks like NFC data, calling onNativeReadResult');
                     window.onNativeReadResult(obj);
                 }
             } catch (e) {
                 // Ignore
             }
         });
-        
+
+        // TEST FUNCTION: Call this manually to verify the NFC flow works
+        window.testNFCFlow = function() {
+            console.log('🔥 DEBUG: Testing NFC flow...');
+            const testData = {
+                serialNumber: 'TEST123456',
+                text: 'This is a test card',
+                timestamp: new Date().toISOString()
+            };
+            
+            console.log('🔥 DEBUG: Calling handleNativeNFC with test data...');
+            window.handleNativeNFC(testData.serialNumber, testData.text);
+            
+            console.log('🔥 DEBUG: Also testing onNativeReadResult...');
+            window.onNativeReadResult(testData);
+        };
+
         // Handler for NFC write completion from native app
         window.onNativeNFCWriteComplete = function(success, message) {
             console.log('📱 NFC write result from native:', { success, message });
