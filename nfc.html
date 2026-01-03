@@ -6217,10 +6217,8 @@ To enable NFC access:
             }
         }
 
-        // Start NFC Write
+        // Start NFC Write - Simple version
         async function startNFCWrite() {
-            if (!checkNFCSupport()) return;
-            
             // Validate input
             const writeData = getWriteData();
             if (!writeData.valid) {
@@ -6228,10 +6226,16 @@ To enable NFC access:
                 return;
             }
 
-            // Check if password protection is enabled and validate password
-            const enablePassword = document.getElementById('enablePassword').checked;
+            // Check for Web NFC support
+            if (!('NDEFReader' in window)) {
+                showWriteStatus('❌ NFC not supported. Please use Chrome on Android.', 'error');
+                return;
+            }
+
+            // Check optional features
+            const enablePassword = document.getElementById('enablePassword')?.checked;
             if (enablePassword) {
-                const password = document.getElementById('cardPassword').value;
+                const password = document.getElementById('cardPassword')?.value;
                 if (!password || password.length < 4) {
                     showWriteStatus('Password must be at least 4 characters.', 'error');
                     return;
@@ -6239,138 +6243,39 @@ To enable NFC access:
                 writeData.password = password;
             }
             
-            // Check if encryption is enabled
-            const enableEncryption = document.getElementById('enableEncryption').checked;
-            writeData.encrypt = enableEncryption;
+            writeData.encrypt = document.getElementById('enableEncryption')?.checked || false;
+            writeData.permanentLock = document.getElementById('enablePermanentLock')?.checked || false;
 
-            // Permanent Read-Only request (to be finalized via mobile app)
-            const enablePermanentLock = document.getElementById('enablePermanentLock').checked;
-            writeData.permanentLock = !!enablePermanentLock;
-
-            // Check if Web NFC is available
-            const webNfcAvailable = ('NDEFReader' in window);
-            const inWebToApp = isWebToAppApp();
-            const inCustomTab = isWebToAppCustomTab();
-
-            // If in WebToApp but no Web NFC (not in Custom Tab), open Custom Tab for write
-            if (!webNfcAvailable && inWebToApp && !inCustomTab) {
-                console.log('🌐 Opening Custom Tab for NFC write...');
-                showWriteStatus('🌐 Opening Chrome for writing...', 'writing');
-                const opened = openNfcToolInCustomTab('write');
-                if (opened) return;
-            }
+            // Update UI
+            document.getElementById('writeNfcBtn').style.display = 'none';
+            document.getElementById('cancelWriteBtn').style.display = 'inline-flex';
+            document.getElementById('nfcIcon')?.classList.add('writing');
+            document.getElementById('nfcIconContainer')?.classList.add('scanning');
             
-            try {
-                isWriting = true;
-                writeAbortController = new AbortController();
-                
-                // Update UI
-                document.getElementById('writeNfcBtn').style.display = 'none';
-                document.getElementById('cancelWriteBtn').style.display = 'inline-flex';
-                document.getElementById('nfcIcon').classList.add('writing');
-                document.getElementById('nfcIconContainer').classList.add('scanning');
-                
-                // In WebView mode, use native bridge directly
-                if (isWebViewApp || nativeNFCAvailable) {
-                    console.log('WebView mode - using native NFC write');
-                    showWriteStatus('📱 Hold your NFC card near the device...', 'writing');
-                    
-                    const nativeWriteStarted = requestNativeNFCWrite(writeData);
-                    if (nativeWriteStarted) {
-                        console.log('Native NFC write requested');
-                        return;
-                    }
-                    
-                    // If native bridge didn't respond, still wait for card
-                    showWriteStatus('📱 Ready to write. Hold card near device...', 'writing');
-                    console.log('Waiting for native NFC write callback...');
-                    return;
-                }
-                
-                showWriteStatus('Checking card... Hold your NFC card near the device.', 'writing');
-                
-                // First, check if the card is password protected (Web NFC only)
-                const protection = await checkCardProtection();
-                // save serial for lock queuing later
-                writeData._serialForLock = protection.serialNumber || null;
-                
-                if (protection.protected) {
-                    // Card is protected - show password modal
-                    pendingWriteData = writeData;
-                    openPasswordModal(protection.hash);
-                    return;
-                }
-                
-                // Card is not protected - proceed with write
-                await executeNFCWrite(writeData);
-                
-            } catch (error) {
-                console.error('NFC Write Error:', error);
-                
-                // In WebView, suppress errors and wait for native
-                if (isWebViewApp) {
-                    console.log('WebView mode - ignoring write error, waiting for native');
-                    showWriteStatus('📱 Hold card near device to write...', 'writing');
-                    return;
-                }
-                
-                handleWriteError(error);
-            }
+            showWriteStatus('📱 Hold your NFC card near the device...', 'writing');
+            
+            // Execute write
+            await executeNFCWrite(writeData);
         }
 
-        // Execute the actual NFC write operation
+        // Execute the actual NFC write operation - Simple version
         async function executeNFCWrite(writeData) {
             try {
-                // Update UI for writing
-                document.getElementById('writeNfcBtn').style.display = 'none';
-                document.getElementById('cancelWriteBtn').style.display = 'inline-flex';
-                document.getElementById('nfcIcon').classList.add('writing');
-                document.getElementById('nfcIconContainer').classList.add('scanning');
-                showWriteStatus('Writing to NFC card...', 'writing');
-                
-                // Try native Android bridge first (for WebToApp / WebView apps)
-                if (isWebViewApp || nativeNFCAvailable) {
-                    console.log('Attempting native NFC write...');
-                    const nativeWriteStarted = requestNativeNFCWrite(writeData);
-                    if (nativeWriteStarted) {
-                        console.log('Native NFC write requested');
-                        // Native app will call onNativeNFCWriteComplete when done
-                        return;
-                    }
-                    console.log('Native write bridge not available, trying Web NFC...');
-                }
-                
-                // Fallback to Web NFC API
-                if (!('NDEFReader' in window)) {
-                    if (isWebViewApp) {
-                        // WebView mode - assume native handles it
-                        showWriteStatus('📱 Hold card near device to write...', 'writing');
-                        return;
-                    }
-                    throw new Error('NFC not available for writing');
-                }
-                
                 const ndef = new NDEFReader();
                 writeAbortController = new AbortController();
                 
-                // Build NDEF message based on type (with password if enabled)
+                // Build NDEF message
                 const message = await buildNDEFMessage(writeData);
                 
+                // Write to card
                 await ndef.write(message, { signal: writeAbortController.signal });
                 
-                // Success
+                // Success feedback
                 if ('vibrate' in navigator) {
                     navigator.vibrate([100, 50, 100]);
                 }
                 
-                let successMsg = 'Successfully written to NFC card!';
-                const features = [];
-                if (writeData.encrypt) features.push('🔐 Encrypted');
-                if (writeData.password) features.push('🔒 Password protected');
-                if (features.length > 0) {
-                    successMsg += ' ' + features.join(' | ');
-                }
-                showWriteStatus(successMsg, 'success');
+                showWriteStatus('✅ Successfully written to NFC card!', 'success');
 
                 // If user requested permanent read-only, queue lock request in Firebase for mobile app
                 if (writeData.permanentLock) {
