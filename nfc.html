@@ -1217,6 +1217,9 @@ li.menu-visible,
                 <button class="main-tab-btn" data-tab="recordTab" onclick="switchMainTab('recordTab')">
                     <i class="fas fa-history"></i> Record
                 </button>
+                <button class="main-tab-btn" data-tab="logTab" onclick="switchMainTab('logTab')">
+                    <i class="fas fa-clipboard-list"></i> Log
+                </button>
                 <button class="main-tab-btn" data-tab="settingsTab" onclick="switchMainTab('settingsTab')">
                     <i class="fas fa-cog"></i> Settings
                 </button>
@@ -1692,6 +1695,78 @@ li.menu-visible,
             </div>
             <!-- End of Settings Tab Content -->
 
+            <!-- Log Tab Content -->
+            <div class="main-tab-content" id="logTab">
+                <div class="record-table-container">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 1rem;">
+                        <h2 style="margin: 0; color: var(--primary-color);">
+                            <i class="fas fa-clipboard-list"></i> Audit Log
+                        </h2>
+                        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                            <select id="logFilterType" onchange="filterAuditLog()" style="padding: 0.5rem; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-primary);">
+                                <option value="all">All Actions</option>
+                                <option value="read">Read</option>
+                                <option value="write">Write</option>
+                                <option value="erase">Erase</option>
+                                <option value="lock">Lock</option>
+                                <option value="error">Errors</option>
+                            </select>
+                            <button class="btn btn-secondary" onclick="exportAuditLog()" style="font-size: 0.85rem;">
+                                <i class="fas fa-download"></i> Export
+                            </button>
+                            <button class="btn btn-danger" onclick="clearAuditLog()" style="font-size: 0.85rem;">
+                                <i class="fas fa-trash"></i> Clear
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Log Stats -->
+                    <div id="logStats" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 1rem; margin-bottom: 1rem;">
+                        <div style="background: var(--bg-secondary); padding: 1rem; border-radius: 8px; text-align: center;">
+                            <div style="font-size: 1.5rem; font-weight: bold; color: var(--primary-color);" id="logStatTotal">0</div>
+                            <div style="font-size: 0.8rem; color: var(--text-secondary);">Total Actions</div>
+                        </div>
+                        <div style="background: var(--bg-secondary); padding: 1rem; border-radius: 8px; text-align: center;">
+                            <div style="font-size: 1.5rem; font-weight: bold; color: var(--success-color);" id="logStatReads">0</div>
+                            <div style="font-size: 0.8rem; color: var(--text-secondary);">Reads</div>
+                        </div>
+                        <div style="background: var(--bg-secondary); padding: 1rem; border-radius: 8px; text-align: center;">
+                            <div style="font-size: 1.5rem; font-weight: bold; color: var(--warning-color);" id="logStatWrites">0</div>
+                            <div style="font-size: 0.8rem; color: var(--text-secondary);">Writes</div>
+                        </div>
+                        <div style="background: var(--bg-secondary); padding: 1rem; border-radius: 8px; text-align: center;">
+                            <div style="font-size: 1.5rem; font-weight: bold; color: var(--danger-color);" id="logStatErrors">0</div>
+                            <div style="font-size: 0.8rem; color: var(--text-secondary);">Errors</div>
+                        </div>
+                    </div>
+                    
+                    <div id="auditLogContent" style="max-height: 500px; overflow-y: auto;">
+                        <table class="record-table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 50px;">#</th>
+                                    <th style="width: 160px;">Timestamp</th>
+                                    <th style="width: 100px;">Action</th>
+                                    <th style="width: 120px;">Status</th>
+                                    <th>Details</th>
+                                    <th style="width: 120px;">User</th>
+                                </tr>
+                            </thead>
+                            <tbody id="auditLogBody">
+                                <tr>
+                                    <td colspan="6" class="record-empty">
+                                        <i class="fas fa-clipboard-list"></i>
+                                        <p>No audit logs yet</p>
+                                        <p style="font-size: 0.85rem;">Actions will be logged here automatically</p>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <!-- End of Log Tab Content -->
+
         </main>
     </div>
 
@@ -1706,6 +1781,197 @@ li.menu-visible,
         let selectedWriteType = 'text';
         let writeAbortController = null;
         let writeHistory = [];
+        let auditLog = [];
+
+        // =============================================
+        // Audit Log Functions
+        // =============================================
+        
+        // Add entry to audit log
+        function addAuditLog(action, status, details, extra = {}) {
+            const entry = {
+                id: Date.now(),
+                timestamp: new Date().toISOString(),
+                action: action,
+                status: status, // 'success', 'error', 'pending', 'info'
+                details: details,
+                user: getCurrentUserEmail() || 'Anonymous',
+                ...extra
+            };
+            
+            auditLog.unshift(entry); // Add to beginning
+            
+            // Keep only last 500 entries in memory
+            if (auditLog.length > 500) {
+                auditLog = auditLog.slice(0, 500);
+            }
+            
+            // Save to localStorage
+            saveAuditLog();
+            
+            // Update UI if log tab is visible
+            updateAuditLogUI();
+            
+            console.log(`📋 [AUDIT] ${action}: ${status} - ${details}`);
+            
+            return entry;
+        }
+        
+        // Get current user email helper
+        function getCurrentUserEmail() {
+            try {
+                if (typeof firebase !== 'undefined' && firebase.auth && firebase.auth().currentUser) {
+                    return firebase.auth().currentUser.email;
+                }
+            } catch (e) {}
+            return null;
+        }
+        
+        // Save audit log to localStorage
+        function saveAuditLog() {
+            try {
+                localStorage.setItem('nfc_audit_log', JSON.stringify(auditLog));
+            } catch (e) {
+                console.error('Failed to save audit log:', e);
+            }
+        }
+        
+        // Load audit log from localStorage
+        function loadAuditLog() {
+            try {
+                const saved = localStorage.getItem('nfc_audit_log');
+                if (saved) {
+                    auditLog = JSON.parse(saved);
+                }
+            } catch (e) {
+                console.error('Failed to load audit log:', e);
+                auditLog = [];
+            }
+            updateAuditLogUI();
+        }
+        
+        // Update audit log UI
+        function updateAuditLogUI() {
+            const tbody = document.getElementById('auditLogBody');
+            if (!tbody) return;
+            
+            const filter = document.getElementById('logFilterType')?.value || 'all';
+            
+            let filteredLog = auditLog;
+            if (filter !== 'all') {
+                filteredLog = auditLog.filter(entry => {
+                    if (filter === 'error') return entry.status === 'error';
+                    return entry.action.toLowerCase().includes(filter.toLowerCase());
+                });
+            }
+            
+            // Update stats
+            document.getElementById('logStatTotal').textContent = auditLog.length;
+            document.getElementById('logStatReads').textContent = auditLog.filter(e => e.action.toLowerCase().includes('read') || e.action.toLowerCase().includes('scan')).length;
+            document.getElementById('logStatWrites').textContent = auditLog.filter(e => e.action.toLowerCase().includes('write')).length;
+            document.getElementById('logStatErrors').textContent = auditLog.filter(e => e.status === 'error').length;
+            
+            if (filteredLog.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="6" class="record-empty">
+                            <i class="fas fa-clipboard-list"></i>
+                            <p>No audit logs${filter !== 'all' ? ' matching filter' : ''}</p>
+                            <p style="font-size: 0.85rem;">Actions will be logged here automatically</p>
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+            
+            tbody.innerHTML = filteredLog.map((entry, index) => {
+                const statusIcon = {
+                    'success': '<i class="fas fa-check-circle" style="color: var(--success-color);"></i>',
+                    'error': '<i class="fas fa-times-circle" style="color: var(--danger-color);"></i>',
+                    'pending': '<i class="fas fa-clock" style="color: var(--warning-color);"></i>',
+                    'info': '<i class="fas fa-info-circle" style="color: var(--primary-color);"></i>'
+                }[entry.status] || '<i class="fas fa-circle" style="color: var(--text-secondary);"></i>';
+                
+                const actionIcon = {
+                    'read': 'fa-wifi',
+                    'scan': 'fa-wifi',
+                    'write': 'fa-pen',
+                    'erase': 'fa-eraser',
+                    'format': 'fa-sync-alt',
+                    'lock': 'fa-lock',
+                    'copy': 'fa-copy',
+                    'password': 'fa-key',
+                    'page': 'fa-file',
+                    'tab': 'fa-folder'
+                };
+                let icon = 'fa-circle';
+                for (const [key, value] of Object.entries(actionIcon)) {
+                    if (entry.action.toLowerCase().includes(key)) {
+                        icon = value;
+                        break;
+                    }
+                }
+                
+                const date = new Date(entry.timestamp);
+                const formattedDate = date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+                
+                return `
+                    <tr>
+                        <td>${filteredLog.length - index}</td>
+                        <td style="font-size: 0.8rem; white-space: nowrap;">${formattedDate}</td>
+                        <td><i class="fas ${icon}" style="margin-right: 0.5rem;"></i>${entry.action}</td>
+                        <td>${statusIcon} ${entry.status}</td>
+                        <td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(entry.details)}">${escapeHtml(entry.details)}</td>
+                        <td style="font-size: 0.8rem;">${escapeHtml(entry.user || '-')}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+        
+        // Filter audit log
+        function filterAuditLog() {
+            updateAuditLogUI();
+        }
+        
+        // Clear audit log
+        function clearAuditLog() {
+            if (!confirm('Are you sure you want to clear all audit logs? This cannot be undone.')) {
+                return;
+            }
+            auditLog = [];
+            saveAuditLog();
+            updateAuditLogUI();
+            addAuditLog('Clear Log', 'info', 'Audit log cleared by user');
+        }
+        
+        // Export audit log as CSV
+        function exportAuditLog() {
+            if (auditLog.length === 0) {
+                alert('No audit logs to export.');
+                return;
+            }
+            
+            const headers = ['ID', 'Timestamp', 'Action', 'Status', 'Details', 'User'];
+            const rows = auditLog.map(entry => [
+                entry.id,
+                entry.timestamp,
+                entry.action,
+                entry.status,
+                `"${(entry.details || '').replace(/"/g, '""')}"`,
+                entry.user || ''
+            ]);
+            
+            const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\\n');
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `nfc_audit_log_${new Date().toISOString().split('T')[0]}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+            
+            addAuditLog('Export Log', 'success', `Exported ${auditLog.length} audit entries`);
+        }
 
         // Main Tab Switching Function
         function switchMainTab(tabId) {
@@ -1731,6 +1997,12 @@ li.menu-visible,
                 loadAssignments();
                 loadNFCAppPreferences();
             }
+            if (tabId === 'logTab') {
+                updateAuditLogUI();
+            }
+            
+            // Log tab switch
+            addAuditLog('Tab Switch', 'info', `Switched to ${tabId.replace('Tab', '')} tab`);
         }
 
         // =============================================
@@ -1867,6 +2139,9 @@ li.menu-visible,
             console.log('Launching NFC tool:', tool);
             currentNFCTool = tool;
             hideNFCToolResult();
+            
+            // Log tool launch
+            addAuditLog('Tool Launch', 'info', `Launched NFC tool: ${tool}`);
             
             // Highlight the selected tool button
             selectNFCToolBtn(tool);
@@ -3954,10 +4229,13 @@ li.menu-visible,
         // Detect if running in WebView/WebToApp environment
         function detectWebViewEnvironment() {
             const userAgent = navigator.userAgent || '';
-            isWebViewApp = (
-                userAgent.includes('wv') ||
-                userAgent.includes('WebView') ||
-                userAgent.includes('Android') && !userAgent.includes('Chrome/') ||
+            
+            // Detect WebView (Android) - important: "Chrome" without "wv" is real Chrome
+            // WebToApp uses Android WebView which has "wv" in user agent
+            const hasWv = userAgent.includes('wv') || userAgent.includes('; wv)');
+            const hasWebView = userAgent.includes('WebView');
+            const isAndroidWithoutChrome = userAgent.includes('Android') && !userAgent.includes('Chrome/');
+            const hasNativeObjects = (
                 window.AndroidNFC !== undefined ||
                 window.Android !== undefined ||
                 window.NativeNFC !== undefined ||
@@ -3965,6 +4243,8 @@ li.menu-visible,
                 window.gonative !== undefined ||
                 window.webtoapp !== undefined
             );
+            
+            isWebViewApp = hasWv || hasWebView || isAndroidWithoutChrome || hasNativeObjects;
 
             // Prefer explicit WebToApp helper detection if available
             try {
@@ -5113,74 +5393,66 @@ To enable NFC access:
 
         // Start NFC scanning
         async function startNFCScan() {
+            // Log scan start
+            addAuditLog('Scan Start', 'pending', 'NFC scan initiated');
+            
             // If user is on Write tab, switch to Read tab for scanning/results
             ensureReadModeVisible();
 
-            // Skip checkNFCSupport for WebView - we'll use Custom Tab fallback
+            // Check if Web NFC is available
             const webNfcAvailable = ('NDEFReader' in window);
             const inWebToApp = isWebToAppApp();
             const inCustomTab = isWebToAppCustomTab();
+            
+            // Detect if we're in a WebView (Web NFC doesn't work reliably in WebViews)
+            const userAgent = navigator.userAgent || '';
+            const isInWebView = userAgent.includes('wv') || userAgent.includes('; wv)') || 
+                               userAgent.includes('WebView') || isWebViewApp;
 
-            console.log('🔥 NFC Scan Debug:', { webNfcAvailable, inWebToApp, inCustomTab, isWebViewApp, nativeNFCAvailable });
+            console.log('🔥 NFC Scan Debug:', { webNfcAvailable, inWebToApp, inCustomTab, isWebViewApp, isInWebView, nativeNFCAvailable });
 
-            // If we're in a Custom Tab (Chrome), Web NFC should work
-            if (inCustomTab && webNfcAvailable) {
-                console.log('🔥 In Custom Tab with Web NFC available - using Web NFC');
-                try {
-                    nfcReader = new NDEFReader();
-                    abortController = new AbortController();
-                    await nfcReader.scan({ signal: abortController.signal });
-
-                    isScanning = true;
-                    updateScanUI(true);
-                    updateStatus('✅ Scanning... Hold your NFC card near the device', 'active');
-
-                    nfcReader.addEventListener('reading', handleNFCReading);
-                    nfcReader.addEventListener('readingerror', handleNFCError);
-                    return;
-                } catch (error) {
-                    console.error('Custom Tab Web NFC error:', error);
-                    updateStatus('❌ NFC error: ' + (error.message || 'Permission denied'), 'error');
-                    return;
-                }
-            }
-
-            // If we're in WebToApp app (not Custom Tab) and Web NFC isn't available,
-            // open a Custom Tab to do the scan there
-            if (inWebToApp && !inCustomTab && !webNfcAvailable) {
-                console.log('🔥 In WebToApp WebView without Web NFC - opening Custom Tab');
-                updateStatus('🌐 Opening Chrome for NFC scan...', 'active');
+            // PRIORITY 1: If in WebToApp WebView (not Custom Tab), open Custom Tab first
+            // Web NFC doesn't work in WebViews, so we need Chrome Custom Tab
+            if ((inWebToApp || isInWebView) && !inCustomTab) {
+                console.log('🔥 In WebView - attempting Custom Tab for NFC');
                 
-                const opened = openNfcScanInCustomTab();
-                if (opened) {
-                    isScanning = true;
-                    updateScanUI(true);
-                    return;
-                } else {
-                    console.warn('Failed to open Custom Tab');
-                    updateStatus('❌ Could not open Chrome for NFC. Try updating your app.', 'error');
-                    return;
+                // Try to open Custom Tab (Chrome) where Web NFC works
+                if (typeof openCustomTab === 'function' || typeof executeWhenAppReady === 'function') {
+                    updateStatus('🌐 Opening Chrome for NFC scan...', 'active');
+                    
+                    const opened = openNfcScanInCustomTab();
+                    if (opened) {
+                        isScanning = true;
+                        updateScanUI(true);
+                        return;
+                    }
                 }
+                
+                // If Custom Tab failed but we have native NFC bridge, try that
+                if (nativeNFCAvailable) {
+                    console.log('🔥 Custom Tab unavailable, trying native NFC bridge');
+                    const nativeStarted = requestNativeNFCScan();
+                    if (nativeStarted) {
+                        isScanning = true;
+                        updateScanUI(true);
+                        updateStatus('📱 Scanning... Hold your NFC card near the device', 'active');
+                        return;
+                    }
+                }
+                
+                // WebView without Custom Tab or native bridge - show help
+                showWebViewNFCHelp();
+                return;
             }
 
-            // Try native bridge (for apps that inject NFC capability)
-            if (nativeNFCAvailable) {
-                console.log('🔥 Trying native NFC bridge');
-                const nativeStarted = requestNativeNFCScan();
-                if (nativeStarted) {
-                    isScanning = true;
-                    updateScanUI(true);
-                    updateStatus('📱 Scanning... Hold your NFC card near the device', 'active');
-                    return;
-                }
-            }
-
-            // Standard Web NFC (works in Chrome on Android)
+            // PRIORITY 2: In Custom Tab or regular Chrome - use Web NFC
             if (webNfcAvailable) {
-                console.log('🔥 Using standard Web NFC');
+                console.log('🔥 Using Web NFC');
                 try {
                     nfcReader = new NDEFReader();
                     abortController = new AbortController();
+                    
+                    // Request permission and start scanning
                     await nfcReader.scan({ signal: abortController.signal });
 
                     isScanning = true;
@@ -5192,8 +5464,16 @@ To enable NFC access:
                     return;
                 } catch (error) {
                     console.error('Web NFC error:', error);
+                    addAuditLog('Scan Error', 'error', error.message || 'NFC error');
+                    
                     if (error.name === 'NotAllowedError') {
-                        updateStatus('❌ NFC permission denied. Allow NFC in site settings.', 'error');
+                        // Show instructions to enable NFC
+                        updateStatus('', '');
+                        showNFCPermissionHelp();
+                    } else if (error.name === 'NotSupportedError') {
+                        updateStatus('❌ NFC not supported on this device or browser.', 'error');
+                    } else if (error.name === 'SecurityError') {
+                        updateStatus('❌ NFC requires HTTPS. Please use a secure connection.', 'error');
                     } else {
                         updateStatus('❌ NFC error: ' + (error.message || 'Unknown error'), 'error');
                     }
@@ -5201,17 +5481,65 @@ To enable NFC access:
                 }
             }
 
-            // Last resort for WebView: wait for native callback
-            if (isWebViewApp) {
-                console.log('🔥 WebView mode - waiting for native NFC callback');
-                isScanning = true;
-                updateScanUI(true);
-                updateStatus('📱 Waiting for NFC... Hold card near device', 'active');
-                return;
-            }
-
             // Nothing worked
             updateStatus('❌ NFC not supported. Use Chrome on Android with NFC enabled.', 'error');
+        }
+        
+        // Show help for WebView environments
+        function showWebViewNFCHelp() {
+            const helpHtml = `
+                <div style="background: var(--bg-secondary); border-radius: 12px; padding: 1.5rem; margin-top: 1rem; border: 1px solid var(--warning-color);">
+                    <h3 style="color: var(--warning-color); margin: 0 0 1rem 0;">
+                        <i class="fas fa-exclamation-triangle"></i> NFC Not Available in App
+                    </h3>
+                    <p style="margin-bottom: 1rem;">NFC reading requires Chrome browser. The app couldn't open Chrome automatically.</p>
+                    <p style="margin-bottom: 1rem;"><strong>Solution:</strong></p>
+                    <ol style="margin-left: 1.5rem; margin-bottom: 1rem;">
+                        <li>Open <strong>Chrome browser</strong> on your device</li>
+                        <li>Go to this website directly in Chrome</li>
+                        <li>Navigate to the NFC page and try again</li>
+                    </ol>
+                    <p style="color: var(--text-secondary); font-size: 0.9rem;">
+                        <i class="fas fa-info-circle"></i> Web NFC only works in Chrome on Android, not in app WebViews.
+                    </p>
+                </div>
+            `;
+            
+            const statusContainer = document.getElementById('scanStatus');
+            if (statusContainer) {
+                statusContainer.innerHTML = helpHtml;
+            }
+            addAuditLog('Scan Error', 'error', 'WebView environment - Custom Tab unavailable');
+        }
+        
+        // Show NFC permission help dialog
+        function showNFCPermissionHelp() {
+            const helpHtml = `
+                <div style="background: var(--bg-secondary); border-radius: 12px; padding: 1.5rem; margin-top: 1rem; border: 1px solid var(--warning-color);">
+                    <h3 style="color: var(--warning-color); margin: 0 0 1rem 0;">
+                        <i class="fas fa-exclamation-triangle"></i> NFC Permission Required
+                    </h3>
+                    <p style="margin-bottom: 1rem;">To read NFC cards, you need to allow NFC access for this site.</p>
+                    <p style="margin-bottom: 1rem;"><strong>How to enable:</strong></p>
+                    <ol style="margin-left: 1.5rem; margin-bottom: 1rem;">
+                        <li>Tap the <strong>lock icon</strong> 🔒 in Chrome's address bar</li>
+                        <li>Tap <strong>"Site settings"</strong> or <strong>"Permissions"</strong></li>
+                        <li>Find <strong>"NFC"</strong> and set it to <strong>"Allow"</strong></li>
+                        <li>Go back and tap <strong>"Start Scanning"</strong> again</li>
+                    </ol>
+                    <p style="color: var(--text-secondary); font-size: 0.9rem;">
+                        <i class="fas fa-info-circle"></i> Make sure NFC is also enabled in your phone's settings.
+                    </p>
+                    <button class="btn btn-primary" onclick="this.parentElement.remove(); startNFCScan();" style="margin-top: 1rem;">
+                        <i class="fas fa-redo"></i> Try Again
+                    </button>
+                </div>
+            `;
+            
+            const statusContainer = document.getElementById('scanStatus');
+            if (statusContainer) {
+                statusContainer.innerHTML = helpHtml;
+            }
         }
 
         // Stop NFC scanning
@@ -5223,6 +5551,7 @@ To enable NFC access:
             isScanning = false;
             updateScanUI(false);
             updateStatus('Scanning stopped', '');
+            addAuditLog('Scan Stop', 'info', 'NFC scan stopped by user');
         }
 
         // Handle NFC reading event
@@ -5230,6 +5559,9 @@ To enable NFC access:
             const { message, serialNumber } = event;
             
             console.log('NFC Tag Read:', { serialNumber, message });
+            
+            // Log successful read
+            addAuditLog('Read Tag', 'success', `Tag read: ${serialNumber || 'Unknown'} with ${message.records.length} record(s)`);
 
             // Vibrate device for feedback (if supported)
             if ('vibrate' in navigator) {
@@ -6237,12 +6569,14 @@ To enable NFC access:
             const writeData = getWriteData();
             if (!writeData.valid) {
                 showWriteStatus(writeData.error, 'error');
+                addAuditLog('Write Failed', 'error', writeData.error);
                 return;
             }
 
             // Check for Web NFC support
             if (!('NDEFReader' in window)) {
                 showWriteStatus('❌ NFC not supported. Please use Chrome on Android.', 'error');
+                addAuditLog('Write Failed', 'error', 'NFC not supported in this browser');
                 return;
             }
             
@@ -6252,9 +6586,13 @@ To enable NFC access:
             // Confirm permanent lock
             if (writeData.permanentLock) {
                 if (!confirm('⚠️ WARNING: This will PERMANENTLY lock the NFC card after writing. It cannot be undone and no app will be able to modify this card ever again. Are you absolutely sure?')) {
+                    addAuditLog('Write Cancelled', 'info', 'User cancelled permanent lock confirmation');
                     return;
                 }
             }
+
+            // Log write start
+            addAuditLog('Write Start', 'pending', `Writing ${writeData.type} data${writeData.encrypt ? ' (encrypted)' : ''}${writeData.permanentLock ? ' with permanent lock' : ''}`);
 
             // Update UI
             document.getElementById('writeNfcBtn').style.display = 'none';
@@ -6286,16 +6624,20 @@ To enable NFC access:
                 }
                 
                 showWriteStatus('✅ Successfully written to NFC card!', 'success');
+                addAuditLog('Write Success', 'success', `${writeData.type} data written to NFC card${writeData.encrypt ? ' (encrypted)' : ''}`);
 
                 // If user requested permanent read-only, lock the card now
                 if (writeData.permanentLock) {
                     try {
                         showWriteStatus('🔒 Locking card permanently...', 'writing');
+                        addAuditLog('Lock Start', 'pending', 'Attempting to permanently lock card');
                         await ndef.makeReadOnly();
                         showWriteStatus('✅ Card written and PERMANENTLY locked! No app can modify it now.', 'success');
+                        addAuditLog('Lock Success', 'success', 'Card permanently locked (read-only)');
                     } catch (lockError) {
                         console.error('Error locking card:', lockError);
                         showWriteStatus('⚠️ Data written, but failed to lock card: ' + lockError.message, 'error');
+                        addAuditLog('Lock Failed', 'error', 'Failed to lock card: ' + lockError.message);
                     }
                 }
                 
@@ -6313,6 +6655,7 @@ To enable NFC access:
                 
             } catch (error) {
                 console.error('NFC Write Error:', error);
+                addAuditLog('Write Failed', 'error', error.message || 'Unknown error');
                 handleWriteError(error);
             } finally {
                 isWriting = false;
@@ -7353,6 +7696,12 @@ To enable NFC access:
             
             // Initialize menu authorization
             initializeMenuAuthorization();
+            
+            // Load audit log
+            loadAuditLog();
+            
+            // Log page load
+            addAuditLog('Page Load', 'info', 'NFC Card Management page loaded');
         });
     </script>
 
