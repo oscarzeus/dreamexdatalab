@@ -4066,6 +4066,41 @@ li.menu-visible,
         window.onNFCRead = window.handleNativeNFC;
         window.nfcCallback = window.handleNativeNFC;
         window.receiveNFCData = window.handleNativeNFC;
+
+        // Some WebView bridges send a single JSON payload without separate serial argument
+        // Normalize those into our cardData format and persist/display
+        window.onNativeReadResult = function(payload) {
+            try {
+                const data = (typeof payload === 'string') ? JSON.parse(payload) : payload || {};
+                const cardData = buildCardDataFromNativeResult(data);
+                if (cardData) {
+                    displayCardData(cardData);
+                    addToHistory(cardData);
+                    saveNativeNFCRecord(cardData);
+                }
+            } catch (e) {
+                console.warn('onNativeReadResult parse error:', e);
+            }
+        };
+
+        // Generic alias used by some Android WebView wrappers
+        window.onNativeNFCData = function(payload) {
+            window.onNativeReadResult(payload);
+        };
+
+        // Catch postMessage-based bridges (event.data can be string or object)
+        window.addEventListener('message', function(event) {
+            try {
+                const msg = event.data;
+                // Heuristics: if message appears to contain NFC info, handle it
+                const obj = (typeof msg === 'string') ? JSON.parse(msg) : (msg || {});
+                if (obj && (obj.serialNumber || obj.serial || obj.uid || obj.id || obj.tagId || obj.records || obj.text || obj.payload || obj.content)) {
+                    window.onNativeReadResult(obj);
+                }
+            } catch (e) {
+                // Ignore
+            }
+        });
         
         // Handler for NFC write completion from native app
         window.onNativeNFCWriteComplete = function(success, message) {
