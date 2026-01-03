@@ -1737,29 +1737,32 @@ li.menu-visible,
             let type = 'unknown';
 
             for (const r of (cardData.records || [])) {
+                // Get display data - handle various formats from native and web
+                const displayData = r.displayData || r.data || '';
+                const data = (typeof displayData === 'string') ? displayData : '';
+                
                 // Prefer vCard
-                const data = (typeof r.displayData === 'string') ? r.displayData : '';
                 if ((r.mediaType === 'text/vcard') || (/BEGIN:VCARD/i.test(data))) {
                     type = 'vcard';
-                    const fnMatch = data.match(/\nFN:(.*)/i) || data.match(/\nN:(.*)/i);
+                    const fnMatch = data.match(/\nFN:(.*)/i) || data.match(/FN:(.*)/i) || data.match(/\nN:(.*)/i);
                     if (fnMatch && fnMatch[1]) {
                         name = fnMatch[1].trim();
                     } else if (name === '-' && data.length) {
                         name = data.substring(0, 50);
                     }
-                    const orgMatch = data.match(/\nORG:(.*)/i);
+                    const orgMatch = data.match(/\nORG:(.*)/i) || data.match(/ORG:(.*)/i);
                     if (orgMatch && orgMatch[1]) {
                         organization = orgMatch[1].trim();
                     }
                     break;
                 }
                 // URL
-                if (r.isUrl) {
+                if (r.isUrl || r.type === 'url' || data.startsWith('http://') || data.startsWith('https://')) {
                     type = 'url';
                     name = data ? data.substring(0, 50) : 'URL';
                 }
                 // Text
-                if (r.type === 'text' && !r.isUrl && type === 'unknown') {
+                if ((r.type === 'text' && !r.isUrl && type === 'unknown') || type === 'unknown') {
                     type = 'text';
                     name = data ? data.substring(0, 50) : '-';
                 }
@@ -2030,34 +2033,44 @@ li.menu-visible,
             try {
                 const currentUser = window.authManager?.currentUser;
                 if (!currentUser || !currentUser.companyId) {
-                    console.warn('No user/companyId; skipping scan record save');
-                    return;
+                    console.warn('addScanRecordFirebase: No user/companyId; cannot save');
+                    console.log('Current authManager state:', window.authManager?.currentUser);
+                    return false;
                 }
+
+                console.log('💾 Saving NFC record to Firebase...', { companyId: currentUser.companyId });
 
                 const summary = summarizeCardData(cardData);
                 const cardId = await generateCardId(cardData.serialNumber || 'Unknown');
                 const newRecord = {
                     timestamp: cardData.timestamp || new Date().toISOString(),
-                    type: summary.type,
-                    name: summary.name,
-                    organization: summary.organization,
+                    type: summary.type || 'unknown',
+                    name: summary.name || '-',
+                    organization: summary.organization || '-',
                     status: 'scan',
-                    encrypted: summary.encrypted,
-                    passwordProtected: summary.passwordProtected,
+                    encrypted: summary.encrypted || false,
+                    passwordProtected: summary.passwordProtected || false,
                     scannedBy: currentUser.uid || 'unknown',
                     scannerName: currentUser.displayName || currentUser.email || 'Unknown User',
                     serialNumber: cardData.serialNumber || 'Unknown',
                     recordCount: cardData.recordCount || (cardData.records ? cardData.records.length : 0),
-                    cardId: cardId
+                    cardId: cardId,
+                    source: cardData.source || 'web'
                 };
+
+                console.log('📝 Record to save:', newRecord);
 
                 await db.ref(`companies/${currentUser.companyId}/nfcRecords`).push(newRecord);
 
                 // Update local state immediately for UI responsiveness
                 writeHistory.unshift({ id: Date.now().toString(), ...newRecord });
                 renderWriteHistory();
+                
+                console.log('✅ NFC record saved successfully');
+                return true;
             } catch (err) {
-                console.error('Failed to save scan record:', err);
+                console.error('❌ Failed to save scan record:', err);
+                return false;
             }
         }
 
@@ -2610,7 +2623,7 @@ li.menu-visible,
             
             // Parse the data if it's a string
             let parsedData = data;
-            if (typeof data === 'string') {
+            if (typeof data === 'string' && data) {
                 try {
                     parsedData = JSON.parse(data);
                 } catch (e) {
@@ -2618,26 +2631,103 @@ li.menu-visible,
                 }
             }
             
+            // Build records array in format compatible with summarizeCardData
+            let records = [];
+            if (parsedData?.records && Array.isArray(parsedData.records)) {
+                records = parsedData.records;
+            } else if (parsedData?.text) {
+                // Check if it looks like a vCard
+                if (parsedData.text.includes('BEGIN:VCARD')) {
+                    records = [{
+                        type: 'text',
+                        mediaType: 'text/vcard',
+                        displayData: parsedData.text,
+                        data: parsedData.text
+                    }];
+                } else if (parsedData.text.startsWith('http://') || parsedData.text.startsWith('https://')) {
+                    records = [{
+                        type: 'url',
+                        isUrl: true,
+                        displayData: parsedData.text,
+                        data: parsedData.text
+                    }];
+                } else {
+                    records = [{
+                        type: 'text',
+                        displayData: parsedData.text,
+                        data: parsedData.text
+                    }];
+                }
+            } else if (typeof data === 'string' && data) {
+                // Raw string data
+                if (data.includes('BEGIN:VCARD')) {
+                    records = [{
+                        type: 'text',
+                        mediaType: 'text/vcard',
+                        displayData: data,
+                        data: data
+                    }];
+                } else {
+                    records = [{
+                        type: 'text',
+                        displayData: data,
+                        data: data
+                    }];
+                }
+            } else {
+                records = [{ type: 'text', displayData: 'Card detected', data: 'No data' }];
+            }
+            
             // Build card data object
             const cardData = {
                 serialNumber: serialNumber || 'Unknown',
                 timestamp: new Date().toISOString(),
-                records: parsedData?.records || [{ type: 'text', data: parsedData?.text || data || 'No data' }],
+                records: records,
                 rawRecords: parsedData?.rawRecords || [],
+                recordCount: records.length,
                 source: 'native_android'
             };
             
             // Display the data
             displayCardData(cardData);
             
-            // Add to history
+            // Add to local history
             addToHistory(cardData);
             
-            // Save to Firebase
-            addScanRecordFirebase(cardData);
+            // Save to Firebase - with retry if AuthManager not ready yet
+            saveNativeNFCRecord(cardData);
             
             return true;
         };
+        
+        // Save native NFC record with retry logic for AuthManager
+        async function saveNativeNFCRecord(cardData, retryCount = 0) {
+            const maxRetries = 10;
+            const retryDelay = 500; // ms
+            
+            try {
+                const currentUser = window.authManager?.currentUser;
+                if (!currentUser || !currentUser.companyId) {
+                    if (retryCount < maxRetries) {
+                        console.log(`AuthManager not ready, retrying (${retryCount + 1}/${maxRetries})...`);
+                        setTimeout(() => saveNativeNFCRecord(cardData, retryCount + 1), retryDelay);
+                        return;
+                    }
+                    console.warn('No user/companyId after retries; skipping scan record save');
+                    return;
+                }
+                
+                // Use addScanRecordFirebase to save
+                await addScanRecordFirebase(cardData);
+                console.log('✅ NFC record saved to Firebase');
+                
+            } catch (err) {
+                console.error('Failed to save native NFC record:', err);
+                if (retryCount < maxRetries) {
+                    setTimeout(() => saveNativeNFCRecord(cardData, retryCount + 1), retryDelay);
+                }
+            }
+        }
         
         // Alternative handler names that WebToApp platforms might use
         window.onNFCTagDiscovered = window.handleNativeNFC;
@@ -3839,6 +3929,17 @@ To enable NFC access:
 
         // Check if card has password protection by reading it first
         async function checkCardProtection() {
+            // In WebView mode, skip password check (native app handles it)
+            if (isWebViewApp || nativeNFCAvailable) {
+                console.log('WebView mode - skipping card protection check');
+                return { protected: false, hash: null, serialNumber: null };
+            }
+            
+            // Web NFC check
+            if (!('NDEFReader' in window)) {
+                return { protected: false, hash: null, serialNumber: null };
+            }
+            
             return new Promise(async (resolve) => {
                 try {
                     const ndef = new NDEFReader();
@@ -3974,13 +4075,30 @@ To enable NFC access:
                 document.getElementById('cancelWriteBtn').style.display = 'inline-flex';
                 document.getElementById('nfcIcon').classList.add('writing');
                 document.getElementById('nfcIconContainer').classList.add('scanning');
+                
+                // In WebView mode, use native bridge directly
+                if (isWebViewApp || nativeNFCAvailable) {
+                    console.log('WebView mode - using native NFC write');
+                    showWriteStatus('📱 Hold your NFC card near the device...', 'writing');
+                    
+                    const nativeWriteStarted = requestNativeNFCWrite(writeData);
+                    if (nativeWriteStarted) {
+                        console.log('Native NFC write requested');
+                        return;
+                    }
+                    
+                    // If native bridge didn't respond, still wait for card
+                    showWriteStatus('📱 Ready to write. Hold card near device...', 'writing');
+                    console.log('Waiting for native NFC write callback...');
+                    return;
+                }
+                
                 showWriteStatus('Checking card... Hold your NFC card near the device.', 'writing');
                 
-                // First, check if the card is password protected
+                // First, check if the card is password protected (Web NFC only)
                 const protection = await checkCardProtection();
                 // save serial for lock queuing later
                 writeData._serialForLock = protection.serialNumber || null;
-                // Proceed with write
                 
                 if (protection.protected) {
                     // Card is protected - show password modal
@@ -3994,6 +4112,14 @@ To enable NFC access:
                 
             } catch (error) {
                 console.error('NFC Write Error:', error);
+                
+                // In WebView, suppress errors and wait for native
+                if (isWebViewApp) {
+                    console.log('WebView mode - ignoring write error, waiting for native');
+                    showWriteStatus('📱 Hold card near device to write...', 'writing');
+                    return;
+                }
+                
                 handleWriteError(error);
             }
         }
@@ -4088,6 +4214,13 @@ To enable NFC access:
 
         // Handle write errors
         function handleWriteError(error) {
+            // In WebView mode, suppress errors and continue waiting for native NFC
+            if (isWebViewApp) {
+                console.log('WebView mode - suppressing write error:', error);
+                showWriteStatus('📱 Ready to write. Hold card near device...', 'writing');
+                return;
+            }
+            
             let errorMessage = 'Error writing to NFC card';
             if (error.name === 'NotAllowedError') {
                 errorMessage = 'NFC permission denied. Please allow NFC access.';
