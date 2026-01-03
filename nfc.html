@@ -1873,6 +1873,21 @@ li.menu-visible,
                     return;
                 }
             }
+
+            // Check if Web NFC is available
+            const webNfcAvailable = ('NDEFReader' in window);
+            const inWebToApp = isWebToAppApp();
+            const inCustomTab = isWebToAppCustomTab();
+
+            // If in WebToApp but no Web NFC (not in Custom Tab), open Custom Tab for the tool
+            if (!webNfcAvailable && inWebToApp && !inCustomTab) {
+                console.log('🌐 Opening Custom Tab for NFC tool:', tool);
+                const opened = openNfcToolInCustomTab(tool);
+                if (opened) {
+                    showNFCToolStatus('🌐 Opening Chrome for ' + tool + '...', 'writing');
+                    return;
+                }
+            }
             
             switch (tool) {
                 case 'read':
@@ -3969,11 +3984,38 @@ li.menu-visible,
         // WebToApp Custom Tab NFC Fallback
         // =============================================
         function isWebToAppApp() {
+            // Check multiple indicators that we're in WebToApp
             try {
-                return (typeof getAppPlatform === 'function' && getAppPlatform() !== null);
-            } catch (_) {
-                return false;
-            }
+                // 1. Check via getAppPlatform (requires user-agent config)
+                if (typeof getAppPlatform === 'function' && getAppPlatform() !== null) {
+                    return true;
+                }
+            } catch (_) {}
+
+            try {
+                // 2. Check for webtoapp-ready class (set by app-helper.js)
+                if (document.documentElement.classList.contains('webtoapp-ready')) {
+                    return true;
+                }
+            } catch (_) {}
+
+            try {
+                // 3. Check for openCustomTab function (injected by WebToApp)
+                if (typeof openCustomTab === 'function') {
+                    return true;
+                }
+            } catch (_) {}
+
+            try {
+                // 4. Check user agent for WebView indicators
+                const ua = navigator.userAgent || '';
+                if (ua.includes('webtoapp.design') || ua.includes('App-WebView')) {
+                    return true;
+                }
+            } catch (_) {}
+
+            // 5. If isWebViewApp was detected, assume it could be WebToApp
+            return isWebViewApp;
         }
 
         function isWebToAppCustomTab() {
@@ -3989,6 +4031,126 @@ li.menu-visible,
                 if (typeof getCustomTabData === 'function') return getCustomTabData();
             } catch (_) {}
             return null;
+        }
+
+        // Open a specific NFC tool operation in Custom Tab (Chrome) where Web NFC works
+        function openNfcToolInCustomTab(toolName, extraData) {
+            if (!isWebToAppApp()) return false;
+            if (isWebToAppCustomTab()) return false;
+            if (typeof openCustomTab !== 'function') return false;
+
+            // Build URL with tool parameter
+            const url = new URL(window.location.href);
+            url.searchParams.set('nfc_tool', toolName);
+            
+            const tabData = { 
+                purpose: 'nfc_tool', 
+                tool: toolName,
+                ...(extraData || {})
+            };
+
+            const open = () => {
+                try {
+                    openCustomTab(url.toString(), tabData);
+                    return true;
+                } catch (e) {
+                    console.warn('openCustomTab for tool failed:', e);
+                    return false;
+                }
+            };
+
+            if (typeof executeWhenAppReady === 'function') {
+                try {
+                    executeWhenAppReady(open);
+                    return true;
+                } catch (e) {
+                    return false;
+                }
+            }
+
+            return open();
+        }
+
+        // Check if Web NFC is available, or open Custom Tab if needed for tool operations
+        function ensureWebNFCForTool(toolName, callback) {
+            const webNfcAvailable = ('NDEFReader' in window);
+            const inCustomTab = isWebToAppCustomTab();
+            const inWebToApp = isWebToAppApp();
+
+            console.log(`🔥 NFC Tool [${toolName}]:`, { webNfcAvailable, inCustomTab, inWebToApp });
+
+            // If Web NFC is available (Chrome or Custom Tab), proceed
+            if (webNfcAvailable) {
+                callback();
+                return true;
+            }
+
+            // If in WebToApp but no Web NFC, open Custom Tab
+            if (inWebToApp && !inCustomTab) {
+                showNFCToolStatus(`🌐 Opening Chrome for ${toolName}...`, 'writing');
+                const opened = openNfcToolInCustomTab(toolName);
+                if (opened) {
+                    return true;
+                }
+            }
+
+            // Fallback to external app
+            showNFCToolStatus(`⚠️ Opening NFC Tools app for ${toolName}...`, 'writing');
+            setTimeout(() => openExternalNFCApp(toolName), 500);
+            return false;
+        }
+
+        // Handle NFC tool operation when page loads in Custom Tab
+        function handleCustomTabToolOnLoad() {
+            const inCustomTab = isWebToAppCustomTab();
+            if (!inCustomTab) return;
+
+            const data = getWebToAppCustomTabDataSafe();
+            if (!data || data.purpose !== 'nfc_tool') return;
+
+            const tool = data.tool;
+            if (!tool) return;
+
+            console.log('🔥 Custom Tab opened for NFC tool:', tool);
+
+            // Auto-launch the tool
+            setTimeout(() => {
+                switch (tool) {
+                    case 'read':
+                        performNFCRead();
+                        break;
+                    case 'erase':
+                        performNFCErase();
+                        break;
+                    case 'lock':
+                        performNFCLock();
+                        break;
+                    case 'copy':
+                        performNFCCopy();
+                        break;
+                    case 'info':
+                        performNFCInfo();
+                        break;
+                    case 'setPassword':
+                        openSetPasswordModal();
+                        break;
+                    case 'removePassword':
+                        openRemovePasswordModal();
+                        break;
+                    case 'write':
+                        document.getElementById('writeModeSection').style.display = 'block';
+                        document.getElementById('readModeSection').style.display = 'none';
+                        break;
+                    default:
+                        console.log('Unknown tool in Custom Tab:', tool);
+                }
+            }, 500);
+        }
+
+        // Initialize Custom Tab tool handling on page load
+        document.addEventListener('DOMContentLoaded', handleCustomTabToolOnLoad);
+        if (document.readyState !== 'loading') {
+            handleCustomTabToolOnLoad();
         }
 
         function sanitizeCardDataForTransfer(cardData) {
@@ -4655,7 +4817,7 @@ li.menu-visible,
             return false;
         }
         
-        // Check if Web NFC is supported (updated for WebView support)
+        // Check if Web NFC is supported (updated for WebView and Custom Tab support)
         function checkNFCSupport() {
             // First detect WebView environment
             detectWebViewEnvironment();
@@ -4666,9 +4828,28 @@ li.menu-visible,
                 updateStatus('📱 Native NFC ready. Tap "Start Scanning" to begin.', '');
                 return true;
             }
+
+            // Check for WebToApp environment with Custom Tab support
+            const inWebToApp = isWebToAppApp();
+            const inCustomTab = isWebToAppCustomTab();
+            const webNfcAvailable = ('NDEFReader' in window);
+
+            // If in Custom Tab (Chrome) with Web NFC, we're good
+            if (inCustomTab && webNfcAvailable) {
+                console.log('✅ Custom Tab with Web NFC available');
+                updateStatus('📱 NFC ready in Chrome. Tap "Start Scanning" to begin.', '');
+                return true;
+            }
+
+            // If in WebToApp (not Custom Tab), we can open Custom Tab for NFC
+            if (inWebToApp && !inCustomTab) {
+                console.log('📱 WebToApp detected - will use Custom Tab for NFC');
+                updateStatus('📱 NFC ready. Tap "Start Scanning" to begin.', '');
+                return true;
+            }
             
             // If in WebView but no native bridge, show helpful message
-            if (isWebViewApp && !('NDEFReader' in window)) {
+            if (isWebViewApp && !webNfcAvailable) {
                 console.log('⚠️ WebView detected without NFC bridge');
                 updateStatus('📱 NFC ready via native app. Tap "Start Scanning" to begin.', '');
                 // Don't disable buttons - let native app handle NFC
@@ -4676,7 +4857,7 @@ li.menu-visible,
             }
             
             // Standard Web NFC check
-            if (!('NDEFReader' in window)) {
+            if (!webNfcAvailable) {
                 // In WebView, don't disable - native app might handle NFC
                 if (isWebViewApp) {
                     console.log('WebView mode - assuming native NFC available');
@@ -4918,100 +5099,105 @@ To enable NFC access:
 
         // Start NFC scanning
         async function startNFCScan() {
-            if (!checkNFCSupport()) return;
-
             // If user is on Write tab, switch to Read tab for scanning/results
             ensureReadModeVisible();
 
-            try {
-                // Request permission first
-                const hasPermission = await requestNFCPermission();
-                if (!hasPermission) return;
-                
-                updateStatus('📱 Initializing NFC reader...', 'active');
-                
-                // Try native Android bridge first (for WebToApp / WebView apps)
-                if (isWebViewApp || nativeNFCAvailable) {
-                    console.log('Attempting native NFC scan...');
-                    const nativeStarted = requestNativeNFCScan();
-                    if (nativeStarted) {
-                        isScanning = true;
-                        updateScanUI(true);
-                        updateStatus('📱 Scanning... Hold your NFC card near the device', 'active');
-                        console.log('Native NFC scan started');
-                        return;
-                    }
-                    // If we're in WebToApp app and no native NFC bridge is available,
-                    // use a Custom Tab (Chrome) for Web NFC as a reliable fallback.
-                    if (!nativeNFCAvailable && !('NDEFReader' in window)) {
-                        const opened = openNfcScanInCustomTab();
-                        if (opened) {
-                            isScanning = true;
-                            updateScanUI(true);
-                            updateStatus('🌐 Opening NFC scanner in Chrome (Custom Tab)...', 'active');
-                            return;
-                        }
-                    }
+            // Skip checkNFCSupport for WebView - we'll use Custom Tab fallback
+            const webNfcAvailable = ('NDEFReader' in window);
+            const inWebToApp = isWebToAppApp();
+            const inCustomTab = isWebToAppCustomTab();
 
-                    console.log('Native bridge not available, trying Web NFC...');
-                }
-                
-                // Fallback to Web NFC API
-                if ('NDEFReader' in window) {
+            console.log('🔥 NFC Scan Debug:', { webNfcAvailable, inWebToApp, inCustomTab, isWebViewApp, nativeNFCAvailable });
+
+            // If we're in a Custom Tab (Chrome), Web NFC should work
+            if (inCustomTab && webNfcAvailable) {
+                console.log('🔥 In Custom Tab with Web NFC available - using Web NFC');
+                try {
                     nfcReader = new NDEFReader();
                     abortController = new AbortController();
-
-                    // The scan() call will trigger the permission prompt if needed
                     await nfcReader.scan({ signal: abortController.signal });
 
                     isScanning = true;
                     updateScanUI(true);
                     updateStatus('✅ Scanning... Hold your NFC card near the device', 'active');
 
-                    // Handle reading events
                     nfcReader.addEventListener('reading', handleNFCReading);
                     nfcReader.addEventListener('readingerror', handleNFCError);
-                } else if (isWebViewApp) {
-                    // WebView without NDEFReader - assume native app handles NFC
-                    isScanning = true;
-                    updateScanUI(true);
-                    updateStatus('📱 Waiting for NFC card... Hold card near device', 'active');
-                    console.log('WebView mode - waiting for native NFC callback');
-                } else {
-                    throw new Error('NFC not available');
-                }
-
-            } catch (error) {
-                console.error('Error starting NFC scan:', error);
-                
-                // In WebView, try to continue anyway - native app might handle it
-                if (isWebViewApp) {
-                    console.log('WebView: ignoring error, waiting for native NFC');
-                    isScanning = true;
-                    updateScanUI(true);
-                    updateStatus('📱 Ready for NFC. Hold card near device.', 'active');
+                    return;
+                } catch (error) {
+                    console.error('Custom Tab Web NFC error:', error);
+                    updateStatus('❌ NFC error: ' + (error.message || 'Permission denied'), 'error');
                     return;
                 }
+            }
+
+            // If we're in WebToApp app (not Custom Tab) and Web NFC isn't available,
+            // open a Custom Tab to do the scan there
+            if (inWebToApp && !inCustomTab && !webNfcAvailable) {
+                console.log('🔥 In WebToApp WebView without Web NFC - opening Custom Tab');
+                updateStatus('🌐 Opening Chrome for NFC scan...', 'active');
                 
-                // Provide specific guidance for permission errors
-                if (error.name === 'NotAllowedError') {
-                    updateStatus('❌ NFC permission denied. Tap "Help" for instructions.', 'error');
-                    
-                    // Add a help button temporarily
-                    const statusEl = document.getElementById('scanStatus');
-                    if (statusEl && !document.getElementById('nfcHelpBtn')) {
-                        const helpBtn = document.createElement('button');
-                        helpBtn.id = 'nfcHelpBtn';
-                        helpBtn.className = 'btn btn-primary';
-                        helpBtn.style.cssText = 'margin-left: 10px; padding: 0.5rem 1rem; font-size: 0.85rem;';
-                        helpBtn.innerHTML = '<i class="fas fa-question-circle"></i> Help';
-                        helpBtn.onclick = showNFCPermissionHelp;
-                        statusEl.parentNode.insertBefore(helpBtn, statusEl.nextSibling);
-                    }
+                const opened = openNfcScanInCustomTab();
+                if (opened) {
+                    isScanning = true;
+                    updateScanUI(true);
+                    return;
                 } else {
-                    handleNFCError(error);
+                    console.warn('Failed to open Custom Tab');
+                    updateStatus('❌ Could not open Chrome for NFC. Try updating your app.', 'error');
+                    return;
                 }
             }
+
+            // Try native bridge (for apps that inject NFC capability)
+            if (nativeNFCAvailable) {
+                console.log('🔥 Trying native NFC bridge');
+                const nativeStarted = requestNativeNFCScan();
+                if (nativeStarted) {
+                    isScanning = true;
+                    updateScanUI(true);
+                    updateStatus('📱 Scanning... Hold your NFC card near the device', 'active');
+                    return;
+                }
+            }
+
+            // Standard Web NFC (works in Chrome on Android)
+            if (webNfcAvailable) {
+                console.log('🔥 Using standard Web NFC');
+                try {
+                    nfcReader = new NDEFReader();
+                    abortController = new AbortController();
+                    await nfcReader.scan({ signal: abortController.signal });
+
+                    isScanning = true;
+                    updateScanUI(true);
+                    updateStatus('✅ Scanning... Hold your NFC card near the device', 'active');
+
+                    nfcReader.addEventListener('reading', handleNFCReading);
+                    nfcReader.addEventListener('readingerror', handleNFCError);
+                    return;
+                } catch (error) {
+                    console.error('Web NFC error:', error);
+                    if (error.name === 'NotAllowedError') {
+                        updateStatus('❌ NFC permission denied. Allow NFC in site settings.', 'error');
+                    } else {
+                        updateStatus('❌ NFC error: ' + (error.message || 'Unknown error'), 'error');
+                    }
+                    return;
+                }
+            }
+
+            // Last resort for WebView: wait for native callback
+            if (isWebViewApp) {
+                console.log('🔥 WebView mode - waiting for native NFC callback');
+                isScanning = true;
+                updateScanUI(true);
+                updateStatus('📱 Waiting for NFC... Hold card near device', 'active');
+                return;
+            }
+
+            // Nothing worked
+            updateStatus('❌ NFC not supported. Use Chrome on Android with NFC enabled.', 'error');
         }
 
         // Stop NFC scanning
@@ -6060,6 +6246,19 @@ To enable NFC access:
             // Permanent Read-Only request (to be finalized via mobile app)
             const enablePermanentLock = document.getElementById('enablePermanentLock').checked;
             writeData.permanentLock = !!enablePermanentLock;
+
+            // Check if Web NFC is available
+            const webNfcAvailable = ('NDEFReader' in window);
+            const inWebToApp = isWebToAppApp();
+            const inCustomTab = isWebToAppCustomTab();
+
+            // If in WebToApp but no Web NFC (not in Custom Tab), open Custom Tab for write
+            if (!webNfcAvailable && inWebToApp && !inCustomTab) {
+                console.log('🌐 Opening Custom Tab for NFC write...');
+                showWriteStatus('🌐 Opening Chrome for writing...', 'writing');
+                const opened = openNfcToolInCustomTab('write');
+                if (opened) return;
+            }
             
             try {
                 isWriting = true;
