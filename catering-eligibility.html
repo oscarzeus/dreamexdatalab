@@ -194,6 +194,14 @@ li.menu-visible,
           <li data-feature="medical_folder_view" data-requires-permission="medical_folder_view"><a href="medical-folder.html">Medical Folder</a></li>
         </ul>
       </li>
+      <!-- Risk Management (separate section) -->
+      <li class="menu-dropdown" data-feature="risk_view" data-requires-permission="risk_view">
+        <a href="#"><i class="fas fa-exclamation-triangle"></i> Risk Management</a>
+        <ul class="submenu">
+          <li data-feature="risk_view" data-requires-permission="risk_view"><a href="riskboard.html">Risk Management</a></li>
+          <li data-feature="risk_view" data-requires-permission="risk_register_view"><a href="riskreg.html">Risk Register</a></li>
+        </ul>
+      </li>
       <li class="menu-dropdown" data-feature="safety_view" data-requires-permission="safety_view">
         <a href="#"><i class="fas fa-shield-alt"></i> Safety</a>
         <ul class="submenu">
@@ -203,14 +211,7 @@ li.menu-visible,
           <li data-feature="incident_view" data-requires-permission="incident_view"><a href="incidentboard.html">Incident Reports</a></li>
           <li data-feature="inspection_view" data-requires-permission="inspection_view"><a href="inspectionboard.html">Inspection</a></li>
           <li data-feature="audit_view" data-requires-permission="audit_view"><a href="auditboard.html">Audit</a></li>
-        <!-- Risk Management (separate section) -->
-<li class="menu-dropdown" data-feature="risk_view" data-requires-permission="risk_view">
-<a href="#"><i class="fas fa-exclamation-triangle"></i> Risk Management</a>
-<ul class="submenu">
-<li data-feature="risk_view" data-requires-permission="risk_view"><a href="riskboard.html">Risk Management</a></li>
-<li data-feature="risk_view" data-requires-permission="risk_register_view"><a href="riskreg.html">Risk Register</a></li>
-</ul>
-</li></ul>
+        </ul>
       </li>
       <li class="menu-dropdown" data-feature="investigation_view" data-requires-permission="investigation_view">
         <a href="#"><i class="fas fa-search-plus"></i> Investigation</a>
@@ -350,7 +351,6 @@ li.menu-visible,
             <div class="notification-header">
               <h3>Notifications</h3>
               <button class="mark-all-read">Mark all as read</button>
-              <button class="clear-all-notifications">Clear all</button>
             </div>
             <div class="notification-list">
               <!-- Notifications will be dynamically added here -->
@@ -387,6 +387,7 @@ li.menu-visible,
             <div>
               <label for="eam_userId" style="display:block;font-size:0.8rem;color:#334155;margin-bottom:0.25rem;">User</label>
               <select id="eam_userId" style="width:100%;padding:0.5rem;border:1px solid #cbd5e1;border-radius:6px;"></select>
+              <div id="eam_userAssignedInfo" style="margin-top:0.45rem;font-size:0.78rem;color:#475569;line-height:1.25;"></div>
             </div>
             <div>
               <label for="eam_mealType" style="display:block;font-size:0.8rem;color:#334155;margin-bottom:0.25rem;">Meal Types (select one or more)</label>
@@ -419,6 +420,24 @@ li.menu-visible,
         </div>
       </div>
     </div>
+
+    <!-- Assignment Details Modal -->
+    <div id="ea_details_modal" class="modal-overlay" aria-hidden="true">
+      <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="ea_details_modal_title" style="max-width:480px;">
+        <div class="modal-header">
+          <div class="modal-title" id="ea_details_modal_title"><i class="fas fa-info-circle"></i> Assignment Details</div>
+          <button class="modal-close" id="ea_details_modal_close" aria-label="Close"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="modal-body" id="ea_details_content" style="padding:1rem;">
+          <!-- Populated dynamically -->
+        </div>
+        <div class="modal-footer">
+          <button id="ea_details_edit" style="background:#3b82f6;color:#fff;border:none;border-radius:6px;padding:0.55rem 0.9rem;font-weight:600;cursor:pointer;"><i class="fas fa-pen"></i> Edit</button>
+          <button id="ea_details_close" style="background:#e2e8f0;color:#111827;border:none;border-radius:6px;padding:0.55rem 0.9rem;font-weight:600;cursor:pointer;">Close</button>
+        </div>
+      </div>
+    </div>
+
     <section class="section" id="eligibilitySection">
 
       <div style="margin-top:1rem;display:flex;justify-content:space-between;gap:0.75rem;align-items:center;flex-wrap:wrap;">
@@ -463,7 +482,68 @@ const firebase = initializeFirebase();
 let isMenuUpdateInProgress = false;
 function resetMenuVisibility(){ document.querySelectorAll('[data-feature]').forEach(i=>i.classList.remove('menu-visible')); document.querySelectorAll('.menu-dropdown').forEach(d=>d.classList.remove('menu-visible')); }
 function ensureHomeIsVisible(){ const home=document.querySelector('#roleBasedMenu li[data-feature="home_view"]'); if(home && !home.classList.contains('menu-visible')) home.classList.add('menu-visible'); }
-function showSidebarAfterAuth(){ const sb=document.querySelector('.sidebar'); if(sb) sb.classList.remove('menu-loading'); }
+function normalizeHref(href){
+  if(!href) return '';
+  try{ const u = new URL(href, window.location.origin); return (u.pathname || '').replace(/^\//,''); }
+  catch{ return String(href).replace(/^\//,''); }
+}
+
+const MENU_CACHE_VERSION = 1;
+const MENU_CACHE_TTL_MS = 5 * 60 * 1000;
+function getMenuCacheKey(){
+  try{
+    const u = (window.authManager && window.authManager.currentUser) || getStoredUser() || (firebase.auth ? firebase.auth().currentUser : null);
+    const uid = u && u.uid ? u.uid : null;
+    const companyId = u && (u.companyId || u.company) ? (u.companyId || u.company) : null;
+    const role = (u && (u.role || u.userRole)) ? (u.role || u.userRole) : 'na';
+    if(!uid || !companyId) return null;
+    return `dreamex_menu_cache_v${MENU_CACHE_VERSION}_${uid}_${companyId}_${role}`;
+  }catch{ return null; }
+}
+function applyCachedMenuVisibility(){
+  try{
+    const key = getMenuCacheKey();
+    if(!key) return;
+    const raw = localStorage.getItem(key);
+    if(!raw) return;
+    const cache = JSON.parse(raw);
+    if(!cache || !cache.ts || (Date.now() - cache.ts) > MENU_CACHE_TTL_MS) return;
+    const features = new Set(cache.features || []);
+    const hrefs = new Set(cache.hrefs || []);
+    document.querySelectorAll('#roleBasedMenu li[data-feature]').forEach(menuItem => {
+      if(menuItem.classList.contains('menu-dropdown')) return;
+      const feat = menuItem.getAttribute('data-feature');
+      const anchor = menuItem.querySelector('a[href]');
+      const href = anchor ? normalizeHref(anchor.getAttribute('href')) : '';
+      if((feat && features.has(feat)) || (href && hrefs.has(href))) menuItem.classList.add('menu-visible');
+    });
+    document.querySelectorAll('#roleBasedMenu li.menu-dropdown').forEach(dropdown => {
+      const feat = dropdown.getAttribute('data-feature');
+      const hasVisibleChildren = [...dropdown.querySelectorAll('.submenu li[data-feature]')].some(li => li.classList.contains('menu-visible'));
+      if(hasVisibleChildren || (feat && features.has(feat))) dropdown.classList.add('menu-visible');
+    });
+    ensureHomeIsVisible();
+  }catch(e){ /* ignore */ }
+}
+function persistMenuVisibilityCache(){
+  try{
+    const key = getMenuCacheKey();
+    if(!key) return;
+    const visible = [...document.querySelectorAll('#roleBasedMenu li.menu-visible[data-feature]')];
+    if(visible.length <= 1) return; // only home
+    const features = [...new Set(visible.map(li => li.getAttribute('data-feature')).filter(Boolean))];
+    const hrefs = [...new Set(visible.map(li => {
+      const a = li.querySelector('a[href]');
+      return a ? normalizeHref(a.getAttribute('href')) : '';
+    }).filter(Boolean))];
+    localStorage.setItem(key, JSON.stringify({ ts: Date.now(), features, hrefs }));
+  }catch(e){ /* ignore */ }
+}
+function showSidebarAfterAuth(){
+  const sb=document.querySelector('.sidebar');
+  if(sb) sb.classList.remove('menu-loading');
+  persistMenuVisibilityCache();
+}
 async function updateMenuWithFeatureAuthorization(){ if(isMenuUpdateInProgress) return; isMenuUpdateInProgress=true; try{
   let currentUser=null, companyId=null, userRole=null;
   if(window.authManager && window.authManager.currentUser){ currentUser=window.authManager.currentUser; companyId=currentUser.companyId; userRole=currentUser.role; }
@@ -477,41 +557,170 @@ async function updateMenuWithFeatureAuthorization(){ if(isMenuUpdateInProgress) 
   if(userRole){ await applyRoleBasedFiltering(companyId, userRole, authorizedPages||[]); } else { showSidebarAfterAuth(); }
 } catch(e){ resetMenuVisibility(); ensureHomeIsVisible(); showSidebarAfterAuth(); } finally { isMenuUpdateInProgress=false; } }
 async function applyFeatureBasedMenuVisibility(companyId){ try{
-  const db=firebase.database();
-  const featuresSnap=await db.ref('/platformFeatures').once('value'); if(!featuresSnap.exists()){ resetMenuVisibility(); return []; }
-  const features=featuresSnap.val();
-  const companySnap=await db.ref(`/companies/${companyId}`).once('value'); const company=companySnap.val()||{};
-  const selected=company.selectedFeatures||[]; if(selected.length===0){ resetMenuVisibility(); return []; }
-  const authorizedPages=[]; selected.forEach(fid=>{ const f=features[fid]; if(f && f.status==='active' && Array.isArray(f.authorizedPages)) authorizedPages.push(...f.authorizedPages); });
+  const database = firebase.database();
+  const featuresSnapshot = await database.ref('/platformFeatures').once('value');
+  if(!featuresSnapshot.exists()){ resetMenuVisibility(); ensureHomeIsVisible(); return []; }
+  const featuresData = featuresSnapshot.val();
+
+  const companySnapshot = await database.ref(`/companies/${companyId}`).once('value');
+  const companyData = companySnapshot.val() || {};
+  const subscribedFeatureIds = companyData.selectedFeatures || [];
+  if(subscribedFeatureIds.length === 0){ resetMenuVisibility(); ensureHomeIsVisible(); return []; }
+
+  const authorizedPages = [];
+  subscribedFeatureIds.forEach(featureId => {
+    const feature = featuresData[featureId];
+    if(feature && feature.status === 'active' && feature.authorizedPages){
+      authorizedPages.push(...feature.authorizedPages);
+    }
+  });
+
   resetMenuVisibility();
-  const authorizedFeatures=new Set(); authorizedPages.forEach(p=>{ if(p.feature) authorizedFeatures.add(p.feature); });
-  document.querySelectorAll('#roleBasedMenu li[data-feature]').forEach(item=>{ const feat=item.getAttribute('data-feature'); const isDrop=item.classList.contains('menu-dropdown'); if(!isDrop && authorizedFeatures.has(feat)) item.classList.add('menu-visible'); });
-  document.querySelectorAll('#roleBasedMenu li.menu-dropdown').forEach(drop=>{ const feature=drop.getAttribute('data-feature'); const hasVisible=[...drop.querySelectorAll('.submenu li[data-feature]')].some(li=>li.classList.contains('menu-visible')); if(hasVisible || authorizedFeatures.has(feature)) drop.classList.add('menu-visible'); });
-  ensureHomeIsVisible(); return authorizedPages;
+
+  const featureAlias = (key) => {
+    if(!key) return key;
+    if(key === 'risk_view') return 'risk_management_section';
+    if(key === 'risk_management_section') return 'risk_view';
+    return null;
+  };
+
+  const authorizedFeatures = new Set();
+  const authorizedHrefs = new Set();
+  authorizedPages.forEach(pageInfo => {
+    if(pageInfo && pageInfo.feature){
+      authorizedFeatures.add(pageInfo.feature);
+      const alias = featureAlias(pageInfo.feature);
+      if(alias) authorizedFeatures.add(alias);
+    }
+    if(pageInfo && pageInfo.href) authorizedHrefs.add(normalizeHref(pageInfo.href));
+    if(pageInfo && pageInfo.page) authorizedHrefs.add(normalizeHref(pageInfo.page));
+    if(pageInfo && pageInfo.url) authorizedHrefs.add(normalizeHref(pageInfo.url));
+  });
+
+  document.querySelectorAll('#roleBasedMenu li[data-feature]').forEach(menuItem => {
+    const featureAttribute = menuItem.getAttribute('data-feature');
+    const isDropdownContainer = menuItem.classList.contains('menu-dropdown');
+    if(isDropdownContainer) return;
+    const anchor = menuItem.querySelector('a[href]');
+    const href = anchor ? anchor.getAttribute('href') : '';
+    const normalized = normalizeHref(href);
+    const isAuthorized = authorizedFeatures.has(featureAttribute) || (normalized && authorizedHrefs.has(normalized));
+    if(isAuthorized) menuItem.classList.add('menu-visible');
+    else menuItem.classList.remove('menu-visible');
+  });
+
+  document.querySelectorAll('#roleBasedMenu li.menu-dropdown').forEach(dropdown => {
+    const dropdownFeature = dropdown.getAttribute('data-feature');
+    const submenuItems = dropdown.querySelectorAll('.submenu li[data-feature]');
+    let hasVisibleChildren = false;
+    submenuItems.forEach(submenuItem => { if(submenuItem.classList.contains('menu-visible')) hasVisibleChildren = true; });
+    if(hasVisibleChildren || authorizedFeatures.has(dropdownFeature)) dropdown.classList.add('menu-visible');
+    else dropdown.classList.remove('menu-visible');
+  });
+
+  ensureHomeIsVisible();
+  return authorizedPages;
 }catch(e){ resetMenuVisibility(); ensureHomeIsVisible(); return []; } }
-async function applyRoleBasedFiltering(companyId, userRole){
+
+async function applyRoleBasedFiltering(companyId, userRole, authorizedPages){
   try{
-    const snap=await firebase.database().ref(`companies/${companyId}/roles/${userRole}/permissions`).once('value');
-    const permissions=snap.exists()? snap.val(): null; if(!permissions){ showSidebarAfterAuth(); ensureHomeIsVisible(); return; }
+    const database = firebase.database();
+    const permissionsRef = database.ref(`companies/${companyId}/roles/${userRole}/permissions`);
+    const permissionsSnapshot = await permissionsRef.once('value');
+
+    if(!permissionsSnapshot.exists()){
+      const allRolesSnapshot = await database.ref(`companies/${companyId}/roles`).once('value');
+
+      if(allRolesSnapshot.exists()){
+        const allRoles = allRolesSnapshot.val();
+
+        if(userRole === 'administrator'){
+          if(allRoles.administrator && allRoles.administrator.permissions){
+            filterMenuByPermissions(allRoles.administrator.permissions);
+            return;
+          }
+        }
+
+        const roleKeys = Object.keys(allRoles || {});
+        const matchingRole = roleKeys.find(key =>
+          key.toLowerCase() === String(userRole).toLowerCase() ||
+          key.replace(/\s+/g,'').toLowerCase() === String(userRole).replace(/\s+/g,'').toLowerCase()
+        );
+
+        if(matchingRole && allRoles[matchingRole] && allRoles[matchingRole].permissions){
+          filterMenuByPermissions(allRoles[matchingRole].permissions);
+          return;
+        }
+      }
+
+      if(userRole === 'administrator'){
+        showSidebarAfterAuth();
+        return;
+      }
+
+      hideItemsRequiringPermissions();
+      showSidebarAfterAuth();
+      return;
+    }
+
+    const permissions = permissionsSnapshot.val();
     filterMenuByPermissions(permissions);
-  }catch(e){ showSidebarAfterAuth(); ensureHomeIsVisible(); }
+  }catch(e){
+    showSidebarAfterAuth();
+  }
 }
+
 function filterMenuByPermissions(permissions){
-  const visible=document.querySelectorAll('#roleBasedMenu li.menu-visible[data-requires-permission]');
-  visible.forEach(item=>{ const req=item.getAttribute('data-requires-permission'); const has=permissions[req]===true || (permissions[req] && permissions[req].view===true); if(!has) item.classList.remove('menu-visible'); });
-  document.querySelectorAll('#roleBasedMenu li.menu-dropdown').forEach(drop=>{
-    const children=drop.querySelectorAll('.submenu li.menu-visible');
-    if(children.length===0){
-      const dropdownRequires=drop.getAttribute('data-requires-permission');
+  if(!permissions){
+    hideItemsRequiringPermissions();
+    showSidebarAfterAuth();
+    return;
+  }
+
+  const permissionAlias = (key) => {
+    if(!key) return key;
+    if(key === 'risk_view') return 'risk_management_section';
+    if(key === 'risk_management_section') return 'risk_view';
+    return null;
+  };
+  const hasViewPermission = (p) => p === true || (p && p.view === true);
+
+  const itemsRequiringPermissions = document.querySelectorAll('#roleBasedMenu li[data-requires-permission]');
+  itemsRequiringPermissions.forEach(item => {
+    const requiresPermission = item.getAttribute('data-requires-permission');
+    const aliasKey = permissionAlias(requiresPermission);
+    const allowed = hasViewPermission(permissions[requiresPermission]) || (aliasKey && hasViewPermission(permissions[aliasKey]));
+    if(allowed) item.classList.add('menu-visible');
+    else item.classList.remove('menu-visible');
+  });
+
+  document.querySelectorAll('#roleBasedMenu li.menu-dropdown').forEach(dropdown => {
+    const submenuItems = dropdown.querySelectorAll('.submenu li.menu-visible');
+    const dropdownRequires = dropdown.getAttribute('data-requires-permission');
+    if(submenuItems.length === 0){
       if(dropdownRequires){
-        const hasContainerPerm=permissions[dropdownRequires]===true || (permissions[dropdownRequires] && permissions[dropdownRequires].view===true);
-        if(!hasContainerPerm) drop.classList.remove('menu-visible');
+        const aliasKey = permissionAlias(dropdownRequires);
+        const allowed = hasViewPermission(permissions[dropdownRequires]) || (aliasKey && hasViewPermission(permissions[aliasKey]));
+        if(allowed) dropdown.classList.add('menu-visible');
+        else dropdown.classList.remove('menu-visible');
       } else {
-        drop.classList.remove('menu-visible');
+        dropdown.classList.remove('menu-visible');
       }
     }
   });
-  ensureHomeIsVisible(); showSidebarAfterAuth();
+
+  ensureHomeIsVisible();
+  showSidebarAfterAuth();
+}
+
+function hideItemsRequiringPermissions(){
+  const items = document.querySelectorAll('#roleBasedMenu li.menu-visible[data-requires-permission]');
+  items.forEach(item => item.classList.remove('menu-visible'));
+  document.querySelectorAll('#roleBasedMenu li.menu-dropdown').forEach(dropdown => {
+    const visibleSubmenuItems = dropdown.querySelectorAll('.submenu li.menu-visible');
+    if(visibleSubmenuItems.length === 0) dropdown.classList.remove('menu-visible');
+  });
+  ensureHomeIsVisible();
 }
 document.addEventListener('DOMContentLoaded', ()=>{
   const sidebar=document.querySelector('.sidebar');
@@ -528,7 +737,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
   try {
     if (firebase && firebase.auth) {
       firebase.auth().onAuthStateChanged(() => {
-        setTimeout(() => updateMenuWithFeatureAuthorization(), 0);
+        updateMenuWithFeatureAuthorization();
       });
     }
   } catch(e) { /* ignore */ }
@@ -538,7 +747,8 @@ document.addEventListener('DOMContentLoaded', ()=>{
 function initializeMenuAuthorization(){
   const sidebar=document.querySelector('.sidebar');
   if(sidebar) sidebar.classList.add('menu-loading');
-  setTimeout(()=>{ updateMenuWithFeatureAuthorization(); }, 500);
+  applyCachedMenuVisibility();
+  updateMenuWithFeatureAuthorization();
 }
 
 window.updateMenuWithFeatureAuthorization = updateMenuWithFeatureAuthorization;
@@ -562,34 +772,81 @@ async function initCompanyBranding(){
   const nameEl = document.getElementById('headerCompanyName');
   try{
     const userLocal = getStoredUser();
+    const amUser = (window.authManager && window.authManager.currentUser) ? window.authManager.currentUser : null;
     const fbUser = (window.firebase && window.firebase.auth) ? window.firebase.auth().currentUser : null;
-    const user = userLocal || fbUser;
+    const user = amUser || userLocal || fbUser;
+    const companyId = (amUser && amUser.companyId) || (userLocal && userLocal.companyId) || (user && user.companyId) || null;
+
+    const quickName = (amUser && amUser.companyName) || (userLocal && userLocal.companyName) || (window.authManager && window.authManager.currentCompany && window.authManager.currentCompany.companyName) || '';
+    if(nameEl && quickName && !String(nameEl.textContent||'').trim()) nameEl.textContent = quickName;
+    if(logoEl && !logoEl.classList.contains('visible')){
+      const initials = getCompanyInitials(quickName || 'Dreamex Datalab');
+      logoEl.src = generateCompanyInitialsSVG(initials);
+      logoEl.classList.add('visible');
+      logoEl.style.display='block';
+    }
+
+    const BRANDING_CACHE_TTL_MS = 60 * 60 * 1000;
+    const cacheKey = companyId ? `dreamex_branding_v1_${companyId}` : null;
+    if(cacheKey){
+      try{
+        const cached = JSON.parse(localStorage.getItem(cacheKey) || 'null');
+        if(cached && cached.ts && (Date.now()-cached.ts) < BRANDING_CACHE_TTL_MS){
+          if(nameEl && cached.companyName) nameEl.textContent = cached.companyName;
+          if(logoEl){
+            const logoUrl = cached.logoUrl;
+            if(logoUrl){ logoEl.src = logoUrl; }
+            else if(cached.companyName){ logoEl.src = generateCompanyInitialsSVG(getCompanyInitials(cached.companyName)); }
+            logoEl.classList.add('visible');
+            logoEl.style.display='block';
+          }
+          if(cached.branding){
+            const root = document.documentElement;
+            if(cached.branding.primaryColor) root.style.setProperty('--primary-color', cached.branding.primaryColor);
+            if(cached.branding.secondaryColor) root.style.setProperty('--secondary-color', cached.branding.secondaryColor);
+          }
+        }
+      }catch(e){ /* ignore */ }
+    }
+
     if(!user || !window.firebase || !window.firebase.database) { return; }
-    const snap = await window.firebase.database().ref('companies').once('value');
+
     let company = null;
-    if(snap.exists()){
-      const companies = snap.val();
-      outer: for(const [cid, comp] of Object.entries(companies)){
-        if(comp.status !== 'active') continue;
-        if(comp.users){
-          for(const [uid, u] of Object.entries(comp.users)){
-            if(u.authUid === (user.uid||user.authUid) || uid === (user.uid||uid)) { company = comp; break outer; }
+    if(companyId){
+      const companySnap = await window.firebase.database().ref(`companies/${companyId}`).once('value');
+      if(companySnap.exists()) company = companySnap.val();
+    }
+    if(!company){
+      const snap = await window.firebase.database().ref('companies').once('value');
+      if(snap.exists()){
+        const companies = snap.val();
+        outer: for(const [cid, comp] of Object.entries(companies)){
+          if(comp.status !== 'active') continue;
+          if(comp.users){
+            for(const [uid, u] of Object.entries(comp.users)){
+              if(u.authUid === (user.uid||user.authUid) || uid === (user.uid||uid)) { company = comp; break outer; }
+            }
           }
         }
       }
     }
     if(company){
-      if(nameEl) nameEl.textContent = company.companyName || '';
-      const logoUrl = company.logo || company.logoUrl;
-      if(logoUrl && logoEl){ logoEl.src = logoUrl; logoEl.classList.add('visible'); logoEl.style.display='block'; }
-      if(!logoUrl && logoEl){ logoEl.src = generateCompanyInitialsSVG(getCompanyInitials(company.companyName||'')); logoEl.classList.add('visible'); logoEl.style.display='block'; }
+      const companyName = company.companyName || company.name || '';
+      const logoUrl = company.logo || company.logoUrl || null;
+      if(nameEl) nameEl.textContent = companyName;
+      if(logoEl){
+        logoEl.src = logoUrl ? logoUrl : generateCompanyInitialsSVG(getCompanyInitials(companyName||''));
+        logoEl.classList.add('visible');
+        logoEl.style.display='block';
+      }
       if(company.branding){
         const root = document.documentElement;
         if(company.branding.primaryColor) root.style.setProperty('--primary-color', company.branding.primaryColor);
         if(company.branding.secondaryColor) root.style.setProperty('--secondary-color', company.branding.secondaryColor);
       }
-    } else {
-      if(logoEl){ logoEl.src = generateCompanyInitialsSVG('DX'); logoEl.classList.add('visible'); logoEl.style.display='block'; }
+      if(cacheKey){
+        try{ localStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), companyName, logoUrl, branding: company.branding || null })); }catch(e){ /* ignore */ }
+      }
     }
   }catch(e){ /* no-op for branding errors */ }
 }
@@ -689,7 +946,8 @@ async function performLogout(){
   // Modal elements for new assignment
   const eam = { modal: byId('ea_modal'), title: byId('ea_modal_title'), close: byId('ea_modal_close'),
     userId: byId('eam_userId'), mealType: byId('eam_mealType'), start: byId('eam_start'), end: byId('eam_end'), active: byId('eam_active'),
-    status: byId('eam_status'), cancel: byId('eam_cancel'), save: byId('eam_save'), addBtn: byId('ea_add_new') };
+    status: byId('eam_status'), cancel: byId('eam_cancel'), save: byId('eam_save'), addBtn: byId('ea_add_new'),
+    assignedInfo: byId('eam_userAssignedInfo') };
   // Custom dropdown elements for Meal Types
   const eamMt = {
     dd: byId('eam_mealType_dropdown'),
@@ -698,6 +956,107 @@ async function performLogout(){
     preview: byId('eam_mealType_preview')
   };
   let eamSaving = false;
+  let mealTypesCache = null;
+
+  const esc = (s) => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+  async function getMealTypesMap(companyId){
+    if(mealTypesCache) return mealTypesCache;
+    try{
+      const snap = await firebase.database().ref(`companies/${companyId}/catering/mealTypes`).once('value');
+      mealTypesCache = snap.val() || {};
+      return mealTypesCache;
+    }catch(e){
+      mealTypesCache = {};
+      return mealTypesCache;
+    }
+  }
+
+  function clearAssignedInfo(){
+    if(!eam.assignedInfo) return;
+    eam.assignedInfo.innerHTML = '';
+  }
+
+  function renderAssignedInfo({ userLabel, eligibilityItems, campItems }){
+    if(!eam.assignedInfo) return;
+    const line = (label, html) => `<div style="margin-top:0.25rem;"><span style="font-weight:600;color:#334155;">${label}:</span> ${html}</div>`;
+    let html = '';
+    if(userLabel) html += `<div style="color:#334155;font-weight:600;">${esc(userLabel)}</div>`;
+
+    if(eligibilityItems && eligibilityItems.length){
+      const parts = eligibilityItems.map(it => {
+        const name = esc(it.mealName || it.mealTypeId || '');
+        const period = (it.validFrom || it.validTo) ? ` <span style="color:#64748b;">(${esc(it.validFrom||'—')} to ${esc(it.validTo||'—')})</span>` : '';
+        const inactive = it.active === false ? ` <span style="color:#ef4444;font-weight:600;">[inactive]</span>` : '';
+        return `${name}${period}${inactive}`;
+      });
+      html += line('From Catering eligibility', parts.join(', '));
+    } else {
+      html += line('From Catering eligibility', '<span style="color:#64748b;">No meal types assigned here</span>');
+    }
+
+    if(campItems && campItems.length){
+      const parts = campItems.map(ci => {
+        const room = ci.roomNumber ? `Room ${esc(ci.roomNumber)}` : 'Room';
+        const meals = (ci.mealTypes || []).map(m => esc(m.name || m.id || '')).filter(Boolean);
+        const mealText = meals.length ? meals.join(', ') : 'No meals';
+        const period = (ci.startDate || ci.endDate) ? ` <span style="color:#64748b;">(${esc(ci.startDate||'—')} to ${esc(ci.endDate||'—')})</span>` : '';
+        return `${room}: ${mealText}${period}`;
+      });
+      html += line('From Camp room assignment', parts.join(' | '));
+    } else {
+      html += line('From Camp room assignment', '<span style="color:#64748b;">No meal plan found in camp</span>');
+    }
+
+    eam.assignedInfo.innerHTML = html;
+  }
+
+  async function refreshUserAssignedInfo(){
+    const user = (eam.userId?.value || '').trim();
+    if(!user){ clearAssignedInfo(); return; }
+    try{
+      const { companyId } = await resolveCompanyContext();
+      const [mealTypes, eligSnap, campSnap, userSnap] = await Promise.all([
+        getMealTypesMap(companyId),
+        firebase.database().ref(`companies/${companyId}/catering/eligibilityAssignments`).orderByChild('user').equalTo(user).once('value'),
+        firebase.database().ref(`companies/${companyId}/roomAssignments`).orderByChild('employeeId').equalTo(user).once('value'),
+        firebase.database().ref(`companies/${companyId}/users/${user}`).once('value')
+      ]);
+
+      const userRec = userSnap.exists() ? (userSnap.val() || {}) : null;
+      const userLabel = userRec ? (computeFullName(userRec) || user) : user;
+
+      const eligRaw = eligSnap.val() || {};
+      const eligibilityItems = Object.values(eligRaw).map(r => ({
+        mealTypeId: r.mealTypeId,
+        mealName: (mealTypes && r.mealTypeId && mealTypes[r.mealTypeId] && mealTypes[r.mealTypeId].name) ? mealTypes[r.mealTypeId].name : r.mealTypeId,
+        active: r.active !== false,
+        validFrom: r.validFrom || '',
+        validTo: r.validTo || ''
+      }));
+
+      const campRaw = campSnap.val() || {};
+      const campItems = Object.values(campRaw)
+        .filter(a => a && a.status !== 'cancelled')
+        .filter(a => a.mealPlan && a.mealPlan.enabled && Array.isArray(a.mealPlan.mealTypes) && a.mealPlan.mealTypes.length > 0)
+        .sort((a,b) => {
+          const at = a.assignedDate ? new Date(a.assignedDate).getTime() : 0;
+          const bt = b.assignedDate ? new Date(b.assignedDate).getTime() : 0;
+          return bt - at;
+        })
+        .slice(0, 3)
+        .map(a => ({
+          roomNumber: a.roomNumber || '',
+          mealTypes: a.mealPlan.mealTypes || [],
+          startDate: a.mealPlan.startDate || '',
+          endDate: a.mealPlan.endDate || ''
+        }));
+
+      renderAssignedInfo({ userLabel, eligibilityItems, campItems });
+    }catch(e){
+      clearAssignedInfo();
+    }
+  }
 
   // Build a friendly full name from user record
   function computeFullName(u){
@@ -870,6 +1229,7 @@ async function performLogout(){
     if(!eam.modal) return;
     // reset modal fields
     if(eam.userId) eam.userId.value='';
+    clearAssignedInfo();
     if(eam.mealType){ Array.from(eam.mealType.options||[]).forEach(o=>o.selected=false); }
     if(eam.start) eam.start.value='';
     if(eam.end) eam.end.value='';
@@ -938,7 +1298,7 @@ async function performLogout(){
     const tr=document.createElement('tr');
     const period = (rec.validFrom || rec.validTo) ? `<div style="font-size:12px;color:#64748b;">${rec.validFrom||'—'} to ${rec.validTo||'—'}</div>` : '';
     tr.innerHTML=`
-      <td style="padding:0.5rem;border-bottom:1px solid #eef2f7;">${(displayUser||rec.user||'').replace(/</g,'&lt;')}</td>
+      <td style="padding:0.5rem;border-bottom:1px solid #eef2f7;cursor:pointer;" class="ea-view-details" data-id="${id}"><span style="color:#2563eb;text-decoration:underline;">${(displayUser||rec.user||'').replace(/</g,'&lt;')}</span></td>
       <td style="padding:0.5rem;border-bottom:1px solid #eef2f7;">${(mealName||rec.mealTypeId||'').replace(/</g,'&lt;')}${period}</td>
       <td style="padding:0.5rem;border-bottom:1px solid #eef2f7;">${rec.active?'<span style="color:#16a34a;font-weight:600;">Yes</span>':'<span style="color:#ef4444;font-weight:600;">No</span>'}</td>
       <td style="padding:0.5rem;border-bottom:1px solid #eef2f7;white-space:nowrap;">
@@ -996,6 +1356,7 @@ async function performLogout(){
             // ensure options loaded before setting value
             await Promise.all([loadCompanyUsersIntoModal(), loadMealTypesOptionsIntoModal()]);
             if(eam.userId) eam.userId.value = rec.user || '';
+            await refreshUserAssignedInfo();
             if(eam.mealType){
               // Multi-select: select the one tied to this record
               Array.from(eam.mealType.options||[]).forEach(o=>{ o.selected = (o.value === (rec.mealTypeId||'')); });
@@ -1059,7 +1420,96 @@ async function performLogout(){
         try{ const { companyId }=await resolveCompanyContext(); await firebase.database().ref(`companies/${companyId}/catering/eligibilityAssignments/${id}`).remove(); await loadAssignments(); }catch(err){}
       });
     });
+    // View details on user cell click
+    els.tbody.querySelectorAll('.ea-view-details').forEach(cell=>{
+      cell.addEventListener('click', ()=> openDetailsModal(cell.getAttribute('data-id')));
+    });
   }
+
+  // ===== Assignment Details Modal =====
+  const detailsModal = {
+    overlay: document.getElementById('ea_details_modal'),
+    content: document.getElementById('ea_details_content'),
+    closeBtn: document.getElementById('ea_details_modal_close'),
+    closeBtn2: document.getElementById('ea_details_close'),
+    editBtn: document.getElementById('ea_details_edit'),
+    currentId: null
+  };
+  function openDetailsModal(id){
+    detailsModal.currentId = id;
+    detailsModal.content.innerHTML = '<p style="color:#64748b;">Loading…</p>';
+    detailsModal.overlay.classList.add('show');
+    detailsModal.overlay.setAttribute('aria-hidden','false');
+    loadAssignmentDetails(id);
+  }
+  function closeDetailsModal(){
+    detailsModal.overlay.classList.remove('show');
+    detailsModal.overlay.setAttribute('aria-hidden','true');
+    detailsModal.currentId = null;
+  }
+  async function loadAssignmentDetails(id){
+    try{
+      const { companyId } = await resolveCompanyContext();
+      const [asgSnap, mtSnap, usersSnap] = await Promise.all([
+        firebase.database().ref(`companies/${companyId}/catering/eligibilityAssignments/${id}`).once('value'),
+        firebase.database().ref(`companies/${companyId}/catering/mealTypes`).once('value'),
+        firebase.database().ref(`companies/${companyId}/users`).once('value')
+      ]);
+      if(!asgSnap.exists()){ detailsModal.content.innerHTML='<p style="color:#b91c1c;">Assignment not found.</p>'; return; }
+      const rec = asgSnap.val();
+      const mealTypes = mtSnap.val()||{};
+      const users = usersSnap.val()||{};
+      const mealType = mealTypes[rec.mealTypeId] || {};
+      const mealName = mealType.name || rec.mealTypeId || '—';
+      const userRec = users[rec.user] || {};
+      const userName = computeFullName(userRec) || rec.user || '—';
+      const userTitle = (userRec.jobTitle || userRec.position || userRec.title || '').toString().trim();
+      const userEmail = userRec.email || '';
+      const fmtDate = (d)=>{ if(!d) return '—'; try{ return new Date(d).toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'}); }catch{ return d; } };
+      const fmtTs = (ts)=>{ if(!ts) return '—'; try{ return new Date(ts).toLocaleString(); }catch{ return ts; } };
+      const statusLabel = rec.active ? '<span style="color:#16a34a;font-weight:600;">Active</span>' : '<span style="color:#ef4444;font-weight:600;">Inactive</span>';
+      const periodHtml = (rec.validFrom || rec.validTo) ? `<strong>Validity Period:</strong> ${fmtDate(rec.validFrom)} to ${fmtDate(rec.validTo)}` : '<strong>Validity Period:</strong> No dates set (always valid)';
+      detailsModal.content.innerHTML = `
+        <div style="display:flex;flex-direction:column;gap:0.75rem;">
+          <div style="display:flex;align-items:center;gap:0.75rem;border-bottom:1px solid #e2e8f0;padding-bottom:0.75rem;">
+            <div style="width:48px;height:48px;border-radius:50%;background:#3b82f6;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:1.1rem;">
+              ${(userName||'U')[0].toUpperCase()}
+            </div>
+            <div>
+              <div style="font-size:1rem;font-weight:600;color:#1f2937;">${escHtml(userName)}</div>
+              ${userTitle ? `<div style="font-size:0.8rem;color:#64748b;">${escHtml(userTitle)}</div>` : ''}
+              ${userEmail ? `<div style="font-size:0.75rem;color:#64748b;">${escHtml(userEmail)}</div>` : ''}
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;font-size:0.85rem;">
+            <div><strong>Meal Type:</strong></div><div>${escHtml(mealName)}</div>
+            <div><strong>Status:</strong></div><div>${statusLabel}</div>
+          </div>
+          <div style="font-size:0.85rem;">${periodHtml}</div>
+          <div style="font-size:0.75rem;color:#94a3b8;border-top:1px solid #e2e8f0;padding-top:0.5rem;margin-top:0.25rem;">
+            <div><strong>Created:</strong> ${fmtTs(rec.createdAt)}</div>
+            <div><strong>Last Updated:</strong> ${fmtTs(rec.updatedAt)}</div>
+          </div>
+        </div>`;
+    }catch(e){
+      detailsModal.content.innerHTML = `<p style="color:#b91c1c;">${e.message||'Failed to load details'}</p>`;
+    }
+  }
+  function escHtml(s){ return String(s||'').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  // Bind details modal close + edit buttons
+  detailsModal.closeBtn?.addEventListener('click', closeDetailsModal);
+  detailsModal.closeBtn2?.addEventListener('click', closeDetailsModal);
+  detailsModal.overlay?.addEventListener('click', (e)=>{ if(e.target===detailsModal.overlay) closeDetailsModal(); });
+  detailsModal.editBtn?.addEventListener('click', ()=>{
+    const id = detailsModal.currentId;
+    closeDetailsModal();
+    if(id){
+      // trigger edit flow
+      const editBtn = els.tbody.querySelector(`.ea-edit[data-id="${id}"]`);
+      if(editBtn) editBtn.click();
+    }
+  });
 
   document.addEventListener('DOMContentLoaded', ()=>{
     ['keyup','change'].forEach(evt=> els.search?.addEventListener(evt, loadAssignments));
@@ -1069,6 +1519,10 @@ async function performLogout(){
     eam.cancel?.addEventListener('click', closeAssignModal);
     eam.modal?.addEventListener('click', (e)=>{ if(e.target===eam.modal) closeAssignModal(); });
     eam.save?.addEventListener('click', saveAssignFromModal);
+    if(eam.userId && !eam.userId._assignedInfoBound){
+      eam.userId._assignedInfoBound = true;
+      eam.userId.addEventListener('change', refreshUserAssignedInfo);
+    }
     // keep custom dropdown in sync when selection changes programmatically
     eam.mealType?.addEventListener('change', ()=>{
       syncMealTypesDropdownFromSelect();

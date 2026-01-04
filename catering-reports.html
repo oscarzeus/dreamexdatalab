@@ -426,7 +426,68 @@ const firebase = initializeFirebase();
 let isMenuUpdateInProgress = false;
 function resetMenuVisibility(){ document.querySelectorAll('[data-feature]').forEach(i=>i.classList.remove('menu-visible')); document.querySelectorAll('.menu-dropdown').forEach(d=>d.classList.remove('menu-visible')); }
 function ensureHomeIsVisible(){ const home=document.querySelector('#roleBasedMenu li[data-feature="home_view"]'); if(home && !home.classList.contains('menu-visible')) home.classList.add('menu-visible'); }
-function showSidebarAfterAuth(){ const sb=document.querySelector('.sidebar'); if(sb) sb.classList.remove('menu-loading'); }
+function normalizeHref(href){
+  if(!href) return '';
+  try{ const u = new URL(href, window.location.origin); return (u.pathname || '').replace(/^\//,''); }
+  catch{ return String(href).replace(/^\//,''); }
+}
+
+const MENU_CACHE_VERSION = 1;
+const MENU_CACHE_TTL_MS = 5 * 60 * 1000;
+function getMenuCacheKey(){
+  try{
+    const u = (window.authManager && window.authManager.currentUser) || getStoredUser() || (firebase.auth ? firebase.auth().currentUser : null);
+    const uid = u && u.uid ? u.uid : null;
+    const companyId = u && (u.companyId || u.company) ? (u.companyId || u.company) : null;
+    const role = (u && (u.role || u.userRole)) ? (u.role || u.userRole) : 'na';
+    if(!uid || !companyId) return null;
+    return `dreamex_menu_cache_v${MENU_CACHE_VERSION}_${uid}_${companyId}_${role}`;
+  }catch{ return null; }
+}
+function applyCachedMenuVisibility(){
+  try{
+    const key = getMenuCacheKey();
+    if(!key) return;
+    const raw = localStorage.getItem(key);
+    if(!raw) return;
+    const cache = JSON.parse(raw);
+    if(!cache || !cache.ts || (Date.now() - cache.ts) > MENU_CACHE_TTL_MS) return;
+    const features = new Set(cache.features || []);
+    const hrefs = new Set(cache.hrefs || []);
+    document.querySelectorAll('#roleBasedMenu li[data-feature]').forEach(menuItem => {
+      if(menuItem.classList.contains('menu-dropdown')) return;
+      const feat = menuItem.getAttribute('data-feature');
+      const anchor = menuItem.querySelector('a[href]');
+      const href = anchor ? normalizeHref(anchor.getAttribute('href')) : '';
+      if((feat && features.has(feat)) || (href && hrefs.has(href))) menuItem.classList.add('menu-visible');
+    });
+    document.querySelectorAll('#roleBasedMenu li.menu-dropdown').forEach(dropdown => {
+      const feat = dropdown.getAttribute('data-feature');
+      const hasVisibleChildren = [...dropdown.querySelectorAll('.submenu li[data-feature]')].some(li => li.classList.contains('menu-visible'));
+      if(hasVisibleChildren || (feat && features.has(feat))) dropdown.classList.add('menu-visible');
+    });
+    ensureHomeIsVisible();
+  }catch(e){ /* ignore */ }
+}
+function persistMenuVisibilityCache(){
+  try{
+    const key = getMenuCacheKey();
+    if(!key) return;
+    const visible = [...document.querySelectorAll('#roleBasedMenu li.menu-visible[data-feature]')];
+    if(visible.length <= 1) return; // only home
+    const features = [...new Set(visible.map(li => li.getAttribute('data-feature')).filter(Boolean))];
+    const hrefs = [...new Set(visible.map(li => {
+      const a = li.querySelector('a[href]');
+      return a ? normalizeHref(a.getAttribute('href')) : '';
+    }).filter(Boolean))];
+    localStorage.setItem(key, JSON.stringify({ ts: Date.now(), features, hrefs }));
+  }catch(e){ /* ignore */ }
+}
+function showSidebarAfterAuth(){
+  const sb=document.querySelector('.sidebar');
+  if(sb) sb.classList.remove('menu-loading');
+  persistMenuVisibilityCache();
+}
 async function updateMenuWithFeatureAuthorization(){ if(isMenuUpdateInProgress) return; isMenuUpdateInProgress=true; try{
   let currentUser=null, companyId=null, userRole=null;
   if(window.authManager && window.authManager.currentUser){ currentUser=window.authManager.currentUser; companyId=currentUser.companyId; userRole=currentUser.role; }
@@ -492,7 +553,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
   try {
     if (firebase && firebase.auth) {
       firebase.auth().onAuthStateChanged(() => {
-        setTimeout(() => updateMenuWithFeatureAuthorization(), 0);
+        updateMenuWithFeatureAuthorization();
       });
     }
   } catch(e) { /* ignore */ }
@@ -501,7 +562,8 @@ document.addEventListener('DOMContentLoaded', ()=>{
 function initializeMenuAuthorization(){
   const sidebar=document.querySelector('.sidebar');
   if(sidebar) sidebar.classList.add('menu-loading');
-  setTimeout(()=>{ updateMenuWithFeatureAuthorization(); }, 500);
+  applyCachedMenuVisibility();
+  updateMenuWithFeatureAuthorization();
 }
 window.updateMenuWithFeatureAuthorization = updateMenuWithFeatureAuthorization;
 // ===== Company branding for header (logo + name) =====
@@ -523,34 +585,81 @@ async function initCompanyBranding(){
   const nameEl = document.getElementById('headerCompanyName');
   try{
     const userLocal = getStoredUser();
+    const amUser = (window.authManager && window.authManager.currentUser) ? window.authManager.currentUser : null;
     const fbUser = (window.firebase && window.firebase.auth) ? window.firebase.auth().currentUser : null;
-    const user = userLocal || fbUser;
+    const user = amUser || userLocal || fbUser;
+    const companyId = (amUser && amUser.companyId) || (userLocal && userLocal.companyId) || (user && user.companyId) || null;
+
+    const quickName = (amUser && amUser.companyName) || (userLocal && userLocal.companyName) || (window.authManager && window.authManager.currentCompany && window.authManager.currentCompany.companyName) || '';
+    if(nameEl && quickName && !String(nameEl.textContent||'').trim()) nameEl.textContent = quickName;
+    if(logoEl && !logoEl.classList.contains('visible')){
+      const initials = getCompanyInitials(quickName || 'Dreamex Datalab');
+      logoEl.src = generateCompanyInitialsSVG(initials);
+      logoEl.classList.add('visible');
+      logoEl.style.display='block';
+    }
+
+    const BRANDING_CACHE_TTL_MS = 60 * 60 * 1000;
+    const cacheKey = companyId ? `dreamex_branding_v1_${companyId}` : null;
+    if(cacheKey){
+      try{
+        const cached = JSON.parse(localStorage.getItem(cacheKey) || 'null');
+        if(cached && cached.ts && (Date.now()-cached.ts) < BRANDING_CACHE_TTL_MS){
+          if(nameEl && cached.companyName) nameEl.textContent = cached.companyName;
+          if(logoEl){
+            const logoUrl = cached.logoUrl;
+            if(logoUrl){ logoEl.src = logoUrl; }
+            else if(cached.companyName){ logoEl.src = generateCompanyInitialsSVG(getCompanyInitials(cached.companyName)); }
+            logoEl.classList.add('visible');
+            logoEl.style.display='block';
+          }
+          if(cached.branding){
+            const root = document.documentElement;
+            if(cached.branding.primaryColor) root.style.setProperty('--primary-color', cached.branding.primaryColor);
+            if(cached.branding.secondaryColor) root.style.setProperty('--secondary-color', cached.branding.secondaryColor);
+          }
+        }
+      }catch(e){ /* ignore */ }
+    }
+
     if(!user || !window.firebase || !window.firebase.database) { return; }
-    const snap = await window.firebase.database().ref('companies').once('value');
+
     let company = null;
-    if(snap.exists()){
-      const companies = snap.val();
-      outer: for(const [cid, comp] of Object.entries(companies)){
-        if(comp.status !== 'active') continue;
-        if(comp.users){
-          for(const [uid, u] of Object.entries(comp.users)){
-            if(u.authUid === (user.uid||user.authUid) || uid === (user.uid||uid)) { company = comp; break outer; }
+    if(companyId){
+      const companySnap = await window.firebase.database().ref(`companies/${companyId}`).once('value');
+      if(companySnap.exists()) company = companySnap.val();
+    }
+    if(!company){
+      const snap = await window.firebase.database().ref('companies').once('value');
+      if(snap.exists()){
+        const companies = snap.val();
+        outer: for(const [cid, comp] of Object.entries(companies)){
+          if(comp.status !== 'active') continue;
+          if(comp.users){
+            for(const [uid, u] of Object.entries(comp.users)){
+              if(u.authUid === (user.uid||user.authUid) || uid === (user.uid||uid)) { company = comp; break outer; }
+            }
           }
         }
       }
     }
     if(company){
-      if(nameEl) nameEl.textContent = company.companyName || '';
-      const logoUrl = company.logo || company.logoUrl;
-      if(logoUrl && logoEl){ logoEl.src = logoUrl; logoEl.classList.add('visible'); logoEl.style.display='block'; }
-      if(!logoUrl && logoEl){ logoEl.src = generateCompanyInitialsSVG(getCompanyInitials(company.companyName||'')); logoEl.classList.add('visible'); logoEl.style.display='block'; }
+      const companyName = company.companyName || company.name || '';
+      const logoUrl = company.logo || company.logoUrl || null;
+      if(nameEl) nameEl.textContent = companyName;
+      if(logoEl){
+        logoEl.src = logoUrl ? logoUrl : generateCompanyInitialsSVG(getCompanyInitials(companyName||''));
+        logoEl.classList.add('visible');
+        logoEl.style.display='block';
+      }
       if(company.branding){
         const root = document.documentElement;
         if(company.branding.primaryColor) root.style.setProperty('--primary-color', company.branding.primaryColor);
         if(company.branding.secondaryColor) root.style.setProperty('--secondary-color', company.branding.secondaryColor);
       }
-    } else {
-      if(logoEl){ logoEl.src = generateCompanyInitialsSVG('DX'); logoEl.classList.add('visible'); logoEl.style.display='block'; }
+      if(cacheKey){
+        try{ localStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), companyName, logoUrl, branding: company.branding || null })); }catch(e){ /* ignore */ }
+      }
     }
   }catch(e){ /* no-op for branding errors */ }
 }
