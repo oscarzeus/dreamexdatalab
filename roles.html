@@ -1134,7 +1134,7 @@
             width: 100%;
             height: 100%;
             background: rgba(0, 0, 0, 0.6);
-            z-index: 1000;
+            z-index: 20000;
             backdrop-filter: blur(5px);
         }
 
@@ -2472,6 +2472,46 @@
                 };
             }
 
+            activateTab(tabKey) {
+                try {
+                    const key = String(tabKey || '').trim();
+                    if (!key) return;
+                    const btn = document.querySelector(`.tab-btn[data-tab="${key}"]`);
+                    if (btn && !btn.classList.contains('active')) {
+                        btn.click();
+                    }
+                } catch (e) {
+                    // no-op
+                }
+            }
+
+            openEditRoleById(roleId) {
+                try {
+                    const id = String(roleId || '').trim();
+                    if (!id) {
+                        console.warn('openEditRoleById called without roleId');
+                        this.activateTab('roles');
+                        this.showModal();
+                        return;
+                    }
+
+                    const role = (this.roles || []).find(r => String(r?.id || '') === id);
+                    if (role) {
+                        this.activateTab('roles');
+                        this.showModal(role);
+                        return;
+                    }
+
+                    // Fallback: open modal with minimal info; permissions can be empty.
+                    this.activateTab('roles');
+                    this.showModal({ id, name: '', description: '', permissions: {} });
+                } catch (err) {
+                    console.error('openEditRoleById failed:', err);
+                    this.activateTab('roles');
+                    this.showModal();
+                }
+            }
+
             // Get user avatar URL or null if not available
             async getUserAvatarUrl() {
                 if (!this.currentUser) return null;
@@ -2811,9 +2851,6 @@
                         <button class="tab-btn active" data-tab="roles">
                             <i class="fas fa-users"></i> Available Roles
                         </button>
-                        <button class="tab-btn" data-tab="permissions">
-                            <i class="fas fa-key"></i> Permissions
-                        </button>
                         <button class="tab-btn" data-tab="users">
                             <i class="fas fa-user-friends"></i> Users
                         </button>
@@ -2853,291 +2890,6 @@
                         </div>
                     </div>
 
-                    <!-- Permissions Tab Content -->
-                    <div id="permissionsTab" class="tab-content">
-                        <div class="permissions-section">
-                            <div class="permissions-header">
-                                <h2>Role Permissions</h2>
-                                <div class="permissions-controls">
-                                    <div class="section-controls">
-                                        <button type="button" class="btn-toggle-sections" onclick="expandAllSections()">
-                                            <i class="fas fa-expand-alt"></i>Expand All
-                                        </button>
-                                        <button type="button" class="btn-toggle-sections" onclick="collapseAllSections()">
-                                            <i class="fas fa-compress-alt"></i>Collapse All
-                                        </button>
-                                    </div>
-                                    <div class="filter-dropdown">
-                                        <label for="pageFilter">Filter by Page:</label>
-                                        <select id="pageFilter" class="page-filter-dropdown">
-                                            <option value="all">All Pages/Modules</option>
-                                                <option value="home">Home</option>
-                                                <option value="health">Health</option>
-                                                <option value="safety">Safety</option>
-                                                <option value="investigation">Investigation</option>
-                                                <option value="fuel">Fuel Management</option>
-                                                <option value="environment">Environment</option>
-                                                <option value="security">Security</option>
-                                                <option value="logistics">Logistics</option>
-                                                <option value="hr">HR</option>
-                                                <option value="project">Project</option>
-                                                <option value="catering">Catering / Meals</option>
-                                                <option value="settings">Settings</option>
-                                            </select>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div id="permissionsContainer" class="permissions-container">
-                                    <!-- Settings Section -->
-                                    <div class="permission-section">
-                                        <div class="permission-header" onclick="togglePermissionSection(this)">
-                                            <h3>Settings</h3>
-                                            <i class="fas fa-chevron-down permission-toggle"></i>
-                                        </div>
-                                        <div class="permission-content">
-                                            <!-- Company Management -->
-                                            <div class="permission-group">
-                                                <h4>Company Management</h4>
-                                                <div class="permission-options">
-                                                    <label class="checkbox-container">
-                                                        <input type="checkbox" data-permission="company_management_view">
-                                                        <span class="checkmark"></span>
-                                                        <span>View</span>
-                                                    </label>
-                                                    <label class="checkbox-container">
-                                                        <input type="checkbox" data-permission="company_management_create">
-                                                        <span class="checkmark"></span>
-                                                        <span>Create</span>
-                                                    </label>
-                                                    <label class="checkbox-container">
-                                                        <input type="checkbox" data-permission="company_management_edit">
-                                                        <span class="checkmark"></span>
-                                                        <span>Edit</span>
-                                                    </label>
-                                                    <label class="checkbox-container">
-                                                        <input type="checkbox" data-permission="company_management_delete">
-                                                        <span class="checkmark"></span>
-                                                        <span>Delete</span>
-                                                    </label>
-                                                </div>
-                                            </div>
-                                            
-                                            <!-- Profile Management -->
-                                            <div class="permission-group">
-                                                <h4>Profile Management</h4>
-                                                <div class="permission-options">
-                                                    <label class="checkbox-container">
-                                                        <input type="checkbox" data-permission="profile_view">
-                                                        <span class="checkmark"></span>
-                                                        <span>View</span>
-                                                    </label>
-                                                    <label class="checkbox-container">
-                                                        <input type="checkbox" data-permission="profile_edit">
-                                                        <span class="checkmark"></span>
-                                                        <span>Edit</span>
-                                                    </label>
-                                                </div>
-                                            </div>
-                                            
-                                            <!-- Safety Management -->
-                                            <div class="permission-group">
-                                                <h4>Safety Management</h4>
-                                                <div class="permission-options">
-                                                    <label class="checkbox-container">
-                                                        <input type="checkbox" data-permission="safety_view">
-                                                        <span class="checkmark"></span>
-                                                        <span>View</span>
-                                                    </label>
-                                                    <label class="checkbox-container">
-                                                        <input type="checkbox" data-permission="safety_create">
-                                                        <span class="checkmark"></span>
-                                                        <span>Create</span>
-                                                    </label>
-                                                    <label class="checkbox-container">
-                                                        <input type="checkbox" data-permission="safety_edit">
-                                                        <span class="checkmark"></span>
-                                                        <span>Edit</span>
-                                                    </label>
-                                                    <label class="checkbox-container">
-                                                        <input type="checkbox" data-permission="safety_delete">
-                                                        <span class="checkmark"></span>
-                                                        <span>Delete</span>
-                                                    </label>
-                                                </div>
-                                            </div>
-
-                                            <!-- User Management -->
-                                            <div class="permission-group">
-                                                <h4>User Management</h4>
-                                                <div class="permission-options">
-                                                    <label class="checkbox-container">
-                                                        <input type="checkbox" data-permission="user_management_view">
-                                                        <span class="checkmark"></span>
-                                                        <span>View</span>
-                                                    </label>
-                                                    <label class="checkbox-container">
-                                                        <input type="checkbox" data-permission="user_management_create">
-                                                        <span class="checkmark"></span>
-                                                        <span>Create</span>
-                                                    </label>
-                                                    <label class="checkbox-container">
-                                                        <input type="checkbox" data-permission="user_management_edit">
-                                                        <span class="checkmark"></span>
-                                                        <span>Edit</span>
-                                                    </label>
-                                                    <label class="checkbox-container">
-                                                        <input type="checkbox" data-permission="user_management_delete">
-                                                        <span class="checkmark"></span>
-                                                        <span>Delete</span>
-                                                    </label>
-                                                </div>
-                                            </div>
-
-                                            <!-- HR Management -->
-                                            <div class="permission-group">
-                                                <h4>HR Management</h4>
-                                                <div class="permission-options">
-                                                    <label class="checkbox-container">
-                                                        <input type="checkbox" data-permission="hr_view">
-                                                        <span class="checkmark"></span>
-                                                        <span>View HR</span>
-                                                    </label>
-                                                    <label class="checkbox-container">
-                                                        <input type="checkbox" data-permission="recruitment_view">
-                                                        <span class="checkmark"></span>
-                                                        <span>Recruitment</span>
-                                                    </label>
-                                                    <label class="checkbox-container">
-                                                        <input type="checkbox" data-permission="staff_management_view">
-                                                        <span class="checkmark"></span>
-                                                        <span>Staff Management - View</span>
-                                                    </label>
-                                                    <label class="checkbox-container">
-                                                        <input type="checkbox" data-permission="staff_management_create">
-                                                        <span class="checkmark"></span>
-                                                        <span>Staff Management - Create</span>
-                                                    </label>
-                                                    <label class="checkbox-container">
-                                                        <input type="checkbox" data-permission="staff_management_edit">
-                                                        <span class="checkmark"></span>
-                                                        <span>Staff Management - Edit</span>
-                                                    </label>
-                                                    <label class="checkbox-container">
-                                                        <input type="checkbox" data-permission="staff_management_delete">
-                                                        <span class="checkmark"></span>
-                                                        <span>Staff Management - Delete</span>
-                                                    </label>
-                                                    <label class="checkbox-container">
-                                                        <input type="checkbox" data-permission="staff_management_export">
-                                                        <span class="checkmark"></span>
-                                                        <span>Staff Management - Export</span>
-                                                    </label>
-                                                    <label class="checkbox-container">
-                                                        <input type="checkbox" data-permission="staff_management_import">
-                                                        <span class="checkmark"></span>
-                                                        <span>Staff Management - Import</span>
-                                                    </label>
-                                                    <label class="checkbox-container">
-                                                        <input type="checkbox" data-permission="salary_management_view">
-                                                        <span class="checkmark"></span>
-                                                        <span>Salary Management - View</span>
-                                                    </label>
-                                                    <label class="checkbox-container">
-                                                        <input type="checkbox" data-permission="salary_management_create">
-                                                        <span class="checkmark"></span>
-                                                        <span>Salary Management - Create</span>
-                                                    </label>
-                                                    <label class="checkbox-container">
-                                                        <input type="checkbox" data-permission="salary_management_edit">
-                                                        <span class="checkmark"></span>
-                                                        <span>Salary Management - Edit</span>
-                                                    </label>
-                                                    <label class="checkbox-container">
-                                                        <input type="checkbox" data-permission="salary_management_delete">
-                                                        <span class="checkmark"></span>
-                                                        <span>Salary Management - Delete</span>
-                                                    </label>
-                                                    <label class="checkbox-container">
-                                                        <input type="checkbox" data-permission="salary_management_export">
-                                                        <span class="checkmark"></span>
-                                                        <span>Salary Management - Export</span>
-                                                    </label>
-                                                    <label class="checkbox-container">
-                                                        <input type="checkbox" data-permission="staff_management_import">
-                                                        <span class="checkmark"></span>
-                                                        <span>Staff Management - Import</span>
-                                                    </label>
-                                                    <label class="checkbox-container">
-                                                        <input type="checkbox" data-permission="authority_to_recruit_view">
-                                                        <span class="checkmark"></span>
-                                                        <span>Authority to Recruit</span>
-                                                    </label>
-                                                    <label class="checkbox-container">
-                                                        <input type="checkbox" data-permission="job_advertising_view">
-                                                        <span class="checkmark"></span>
-                                                        <span>Job Advertising</span>
-                                                    </label>
-                                                    <label class="checkbox-container">
-                                                        <input type="checkbox" data-permission="screening_view">
-                                                        <span class="checkmark"></span>
-                                                        <span>Screening</span>
-                                                    </label>
-                                                    <label class="checkbox-container">
-                                                        <input type="checkbox" data-permission="interview_view">
-                                                        <span class="checkmark"></span>
-                                                        <span>Interview</span>
-                                                    </label>
-                                                    <label class="checkbox-container">
-                                                        <input type="checkbox" data-permission="hiring_view">
-                                                        <span class="checkmark"></span>
-                                                        <span>Hiring Management</span>
-                                                    </label>
-                                                    <label class="checkbox-container">
-                                                        <input type="checkbox" data-permission="offer_view">
-                                                        <span class="checkmark"></span>
-                                                        <span>Offer Management</span>
-                                                    </label>
-                                                    <label class="checkbox-container">
-                                                        <input type="checkbox" data-permission="contract_view">
-                                                        <span class="checkmark"></span>
-                                                        <span>Contract Management</span>
-                                                    </label>
-                                                    <label class="checkbox-container">
-                                                        <input type="checkbox" data-permission="onboarding_view">
-                                                        <span class="checkmark"></span>
-                                                        <span>Onboarding</span>
-                                                    </label>
-                                                </div>
-                                            </div>
-
-                                            <!-- Project Management -->
-                                            <div class="permission-group">
-                                                <h4>Project Management</h4>
-                                                <div class="permission-options">
-                                                    <label class="checkbox-container">
-                                                        <input type="checkbox" data-permission="project_dashboard">
-                                                        <span class="checkmark"></span>
-                                                        <span>Dashboard</span>
-                                                    </label>
-                                                    <label class="checkbox-container">
-                                                        <input type="checkbox" data-permission="project_list">
-                                                        <span class="checkmark"></span>
-                                                        <span>List</span>
-                                                    </label>
-                                                    <label class="checkbox-container">
-                                                        <input type="checkbox" data-permission="project_reports">
-                                                        <span class="checkmark"></span>
-                                                        <span>Reports</span>
-                                                    </label>
-                                                    <label class="checkbox-container">
-                                                        <input type="checkbox" data-permission="project_create">
-                                                        <span class="checkmark"></span>
-                                                        <span>Create</span>
-                                                    </label>
-                                                </div>
-                                            </div>
-                            </div>
-                        </div>
                         <!-- Users Tab Content -->
                         <div id="usersTab" class="tab-content">
                             <div class="permissions-section">
@@ -3552,423 +3304,65 @@
 
                 if (!modal || !form || !modalTitle || !saveBtn) return;
 
-                // Clear previous permissions
-                const existingPermissions = form.querySelector('.permissions-grid');
-                if (existingPermissions) {
-                    existingPermissions.remove();
+                // Open the modal first so UI is responsive even if building the grid fails
+                modal.classList.add('show');
+                modal.style.display = 'flex';
+
+                // Remove any existing permissions grid
+                const existingGrid = form.querySelector('.permissions-grid');
+                if (existingGrid && existingGrid.parentElement) {
+                    existingGrid.parentElement.remove();
                 }
 
-                // Add permissions grid with improved organization - matching super-admin-dashboard.html style
-                const permissionsWrapper = document.createElement('div');
-                permissionsWrapper.className = 'form-group full-width';
-                permissionsWrapper.style.marginTop = '1.5rem';
-                permissionsWrapper.style.borderTop = '1px solid #e9ecef';
-                permissionsWrapper.style.paddingTop = '1.5rem';
+                // Build a simplified permissions grid (feature rows with action checkboxes)
+                try {
+                    const wrapper = document.createElement('div');
+                    wrapper.className = 'form-group full-width';
+                    wrapper.style.marginTop = '1.5rem';
+                    const grid = document.createElement('div');
+                    grid.className = 'permissions-grid';
 
-                // Add permissions header with Select All/Deselect All buttons
-                const permissionsHeaderDiv = document.createElement('div');
-                permissionsHeaderDiv.style.cssText = 'display: flex; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;';
-                permissionsHeaderDiv.innerHTML = `
-                    <h4 style="margin: 0; color: #2c3e50; font-size: 1.1rem;">
-                        <i class="fas fa-shield-alt" style="margin-right: 0.5rem;"></i>
-                        Permissions
-                    </h4>
-                    <div style="margin-left: auto; display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
-                        <div style="position: relative; display: flex; align-items: center;">
-                            <input type="text" id="permissionSearchInput" placeholder="Search permissions..." 
-                                   style="padding: 0.4rem 0.75rem 0.4rem 2rem; border: 1px solid #ced4da; border-radius: 4px; font-size: 0.8rem; width: 180px;">
-                            <i class="fas fa-search" style="position: absolute; left: 0.6rem; color: #6c757d; font-size: 0.75rem;"></i>
-                        </div>
-                        <button type="button" id="expandAllSectionsBtn" 
-                                style="padding: 0.4rem 0.75rem; border: 1px solid #6c757d; background: white; color: #6c757d; border-radius: 4px; cursor: pointer; font-size: 0.75rem;">
-                            <i class="fas fa-expand-alt"></i> Expand All
-                        </button>
-                        <button type="button" id="collapseAllSectionsBtn" 
-                                style="padding: 0.4rem 0.75rem; border: 1px solid #6c757d; background: white; color: #6c757d; border-radius: 4px; cursor: pointer; font-size: 0.75rem;">
-                            <i class="fas fa-compress-alt"></i> Collapse All
-                        </button>
-                        <button type="button" id="selectAllPermsBtn" 
-                                style="padding: 0.4rem 0.75rem; border: 1px solid #28a745; background: white; color: #28a745; border-radius: 4px; cursor: pointer; font-size: 0.75rem;">
-                            <i class="fas fa-check-double"></i> Select All
-                        </button>
-                        <button type="button" id="deselectAllPermsBtn" 
-                                style="padding: 0.4rem 0.75rem; border: 1px solid #dc3545; background: white; color: #dc3545; border-radius: 4px; cursor: pointer; font-size: 0.75rem;">
-                            <i class="fas fa-times"></i> Deselect All
-                        </button>
-                    </div>
-                `;
-                permissionsWrapper.appendChild(permissionsHeaderDiv);
+                    Object.entries(this.features || {}).forEach(([featureId, feature]) => {
+                        const row = document.createElement('div');
+                        row.className = 'feature-row';
+                        row.style.cssText = 'display:flex;align-items:center;flex-wrap:wrap;gap:0.5rem;padding:0.5rem;background:#fff;border:1px solid #e9ecef;border-radius:6px;';
 
-                // Add description text
-                const permissionsDesc = document.createElement('p');
-                permissionsDesc.style.cssText = 'color: #6c757d; font-size: 0.9rem; margin-bottom: 1rem;';
-                permissionsDesc.textContent = 'Select which permissions this role will have for each module.';
-                permissionsWrapper.appendChild(permissionsDesc);
+                        const label = document.createElement('span');
+                        label.style.cssText = 'font-weight:500;color:#495057;font-size:0.9rem;min-width:180px;flex-shrink:0;';
+                        label.textContent = feature?.name || featureId;
+                        row.appendChild(label);
 
-                // Create scrollable permissions container
-                const permissionsGrid = document.createElement('div');
-                permissionsGrid.className = 'permissions-grid';
+                        const actions = document.createElement('div');
+                        actions.style.cssText = 'display:flex;flex-wrap:wrap;gap:0.5rem;align-items:center;';
 
-                // Helper to add a section header - matching super-admin module style
-                function addSectionHeader(title, iconClass) {
-                    const sectionHeader = document.createElement('div');
-                    sectionHeader.style.marginBottom = '1.5rem';
-                    sectionHeader.innerHTML = `
-                        <h5 style="margin: 0 0 0.75rem 0; color: #495057; font-size: 0.95rem; font-weight: 600; border-bottom: 1px solid #dee2e6; padding-bottom: 0.5rem;">
-                            <i class="${iconClass || 'fas fa-folder'}" style="margin-right: 0.5rem;"></i> ${title}
-                        </h5>
-                    `;
-                    return sectionHeader;
-                }
-
-                // Map categories to icons
-                const categoryIcons = {
-                    'HR Management': 'fas fa-users',
-                    'Project Management': 'fas fa-project-diagram',
-                    'Risk Management': 'fas fa-exclamation-triangle',
-                    'KPI Management': 'fas fa-chart-line',
-                    'Settings & Admin': 'fas fa-cog',
-                    'Home': 'fas fa-home',
-                    'Health': 'fas fa-medkit',
-                    'Safety': 'fas fa-shield-alt',
-                    'Investigation': 'fas fa-search-plus',
-                    'Environment': 'fas fa-leaf',
-                    'Fuel Management': 'fas fa-gas-pump',
-                    'Security': 'fas fa-lock',
-                    'Logistics': 'fas fa-truck',
-                    'Accommodation': 'fas fa-bed',
-                    'Catering': 'fas fa-utensils',
-                    'Inventory': 'fas fa-boxes'
-                };
-
-                // Render grouped permissions
-                const featuresToShow = { ...this.features };
-                const categories = [
-                    { key: 'hr', label: 'HR Management' },
-                    { key: 'project', label: 'Project Management' },
-                    { key: 'risk', label: 'Risk Management' },
-                    { key: 'kpi', label: 'KPI Management' },
-                    { key: 'settings', label: 'Settings & Admin' },
-                    { key: 'home', label: 'Home' },
-                    { key: 'health', label: 'Health' },
-                    { key: 'safety', label: 'Safety' },
-                    { key: 'investigation', label: 'Investigation' },
-                    { key: 'environment', label: 'Environment' },
-                    { key: 'fuel', label: 'Fuel Management' },
-                    { key: 'security', label: 'Security' },
-                    { key: 'logistics', label: 'Logistics' },
-                    { key: 'accommodation', label: 'Accommodation' }
-                ];
-                const usedFeatures = new Set();
-                categories.forEach(cat => {
-                    const featureIds = this.pageCategories[cat.key] || [];
-                    if (featureIds.length > 0) {
-                        // Add category section with icon - collapsible
-                        const categorySection = document.createElement('div');
-                        categorySection.style.marginBottom = '1rem';
-                        categorySection.className = 'permission-category-section';
-                        
-                        const iconClass = categoryIcons[cat.label] || 'fas fa-folder';
-                        
-                        // Collapsible header
-                        const categoryHeader = document.createElement('div');
-                        categoryHeader.style.cssText = 'display: flex; align-items: center; justify-content: space-between; cursor: pointer; padding: 0.5rem 0.75rem; background: #e9ecef; border-radius: 6px; margin-bottom: 0.5rem; user-select: none;';
-                        categoryHeader.innerHTML = `
-                            <h5 style="margin: 0; color: #495057; font-size: 0.95rem; font-weight: 600; display: flex; align-items: center; gap: 0.5rem;">
-                                <i class="${iconClass}"></i> ${cat.label}
-                                <span style="font-size: 0.75rem; color: #6c757d; font-weight: normal;">(${featureIds.filter(id => this.features[id]).length} features)</span>
-                            </h5>
-                            <i class="fas fa-chevron-down" style="color: #6c757d; transition: transform 0.2s;"></i>
-                        `;
-                        categorySection.appendChild(categoryHeader);
-                        
-                        // Create container for feature groups (collapsible content)
-                        const featuresContainer = document.createElement('div');
-                        featuresContainer.style.cssText = 'display: flex; flex-direction: column; gap: 0.5rem; padding-left: 0.5rem; overflow: hidden; transition: max-height 0.3s ease, opacity 0.2s ease;';
-                        featuresContainer.className = 'category-content';
-                        
-                        // Add click handler for collapse/expand
-                        categoryHeader.addEventListener('click', () => {
-                            const isCollapsed = featuresContainer.style.maxHeight === '0px';
-                            const chevron = categoryHeader.querySelector('.fa-chevron-down, .fa-chevron-right');
-                            
-                            if (isCollapsed) {
-                                featuresContainer.style.maxHeight = featuresContainer.scrollHeight + 'px';
-                                featuresContainer.style.opacity = '1';
-                                featuresContainer.style.marginTop = '0.5rem';
-                                if (chevron) {
-                                    chevron.classList.remove('fa-chevron-right');
-                                    chevron.classList.add('fa-chevron-down');
-                                }
-                            } else {
-                                featuresContainer.style.maxHeight = '0px';
-                                featuresContainer.style.opacity = '0';
-                                featuresContainer.style.marginTop = '0';
-                                if (chevron) {
-                                    chevron.classList.remove('fa-chevron-down');
-                                    chevron.classList.add('fa-chevron-right');
-                                }
-                            }
-                        });
-                        
-                        featureIds.forEach(featureId => {
-                            const feature = featuresToShow[featureId];
-                            if (!feature) return;
-                            usedFeatures.add(featureId);
-                            
-                            // Create a feature row with name and action checkboxes
-                            const featureRow = document.createElement('div');
-                            featureRow.className = 'feature-row';
-                            featureRow.dataset.featureName = feature.name.toLowerCase();
-                            featureRow.style.cssText = 'display: flex; align-items: center; flex-wrap: wrap; gap: 0.5rem; padding: 0.5rem; background: #fff; border: 1px solid #e9ecef; border-radius: 6px;';
-                            
-                            // Feature name label
-                            const featureLabel = document.createElement('span');
-                            featureLabel.style.cssText = 'font-weight: 500; color: #495057; font-size: 0.9rem; min-width: 180px; flex-shrink: 0;';
-                            featureLabel.textContent = feature.name;
-                            featureRow.appendChild(featureLabel);
-                            
-                            // Action checkboxes container
-                            const actionsContainer = document.createElement('div');
-                            actionsContainer.style.cssText = 'display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center;';
-                            
-                            (feature.actions || []).forEach(action => {
-                                const checked = roleData?.permissions?.[featureId]?.[action] || false;
-                                const checkboxId = `permission_${featureId}_${action}`;
-                                const label = document.createElement('label');
-                                label.style.cssText = 'display: flex; align-items: center; gap: 0.25rem; cursor: pointer; padding: 0.25rem 0.5rem; background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; font-size: 0.8rem;';
-                                label.innerHTML = `
-                                    <input type="checkbox" 
-                                        id="${checkboxId}"
-                                        name="permissions[${featureId}][${action}]"
-                                        style="width: 14px; height: 14px; cursor: pointer; accent-color: #007bff;"
-                                        ${checked ? 'checked' : ''}>
-                                    <span style="color: #495057;">${action.charAt(0).toUpperCase() + action.slice(1)}</span>
-                                `;
-                                actionsContainer.appendChild(label);
-                            });
-                            
-                            featureRow.appendChild(actionsContainer);
-                            featuresContainer.appendChild(featureRow);
-                        });
-                        
-                        // Set initial state - expanded
-                        setTimeout(() => {
-                            featuresContainer.style.maxHeight = featuresContainer.scrollHeight + 'px';
-                            featuresContainer.style.opacity = '1';
-                            featuresContainer.style.marginTop = '0.5rem';
-                        }, 0);
-                        
-                        categorySection.appendChild(featuresContainer);
-                        permissionsGrid.appendChild(categorySection);
-                    }
-                });
-                // Render any features not in categories (Other/Uncategorized)
-                const uncategorizedFeatures = Object.entries(featuresToShow).filter(([featureId]) => !usedFeatures.has(featureId));
-                if (uncategorizedFeatures.length > 0) {
-                    const otherSection = document.createElement('div');
-                    otherSection.style.marginBottom = '1rem';
-                    otherSection.className = 'permission-category-section';
-                    
-                    // Collapsible header
-                    const otherHeader = document.createElement('div');
-                    otherHeader.style.cssText = 'display: flex; align-items: center; justify-content: space-between; cursor: pointer; padding: 0.5rem 0.75rem; background: #e9ecef; border-radius: 6px; margin-bottom: 0.5rem; user-select: none;';
-                    otherHeader.innerHTML = `
-                        <h5 style="margin: 0; color: #495057; font-size: 0.95rem; font-weight: 600; display: flex; align-items: center; gap: 0.5rem;">
-                            <i class="fas fa-ellipsis-h"></i> Other
-                            <span style="font-size: 0.75rem; color: #6c757d; font-weight: normal;">(${uncategorizedFeatures.length} features)</span>
-                        </h5>
-                        <i class="fas fa-chevron-down" style="color: #6c757d; transition: transform 0.2s;"></i>
-                    `;
-                    otherSection.appendChild(otherHeader);
-                    
-                    const otherFeaturesContainer = document.createElement('div');
-                    otherFeaturesContainer.style.cssText = 'display: flex; flex-direction: column; gap: 0.5rem; padding-left: 0.5rem; overflow: hidden; transition: max-height 0.3s ease, opacity 0.2s ease;';
-                    otherFeaturesContainer.className = 'category-content';
-                    
-                    // Add click handler for collapse/expand
-                    otherHeader.addEventListener('click', () => {
-                        const isCollapsed = otherFeaturesContainer.style.maxHeight === '0px';
-                        const chevron = otherHeader.querySelector('.fa-chevron-down, .fa-chevron-right');
-                        
-                        if (isCollapsed) {
-                            otherFeaturesContainer.style.maxHeight = otherFeaturesContainer.scrollHeight + 'px';
-                            otherFeaturesContainer.style.opacity = '1';
-                            otherFeaturesContainer.style.marginTop = '0.5rem';
-                            if (chevron) {
-                                chevron.classList.remove('fa-chevron-right');
-                                chevron.classList.add('fa-chevron-down');
-                            }
-                        } else {
-                            otherFeaturesContainer.style.maxHeight = '0px';
-                            otherFeaturesContainer.style.opacity = '0';
-                            otherFeaturesContainer.style.marginTop = '0';
-                            if (chevron) {
-                                chevron.classList.remove('fa-chevron-down');
-                                chevron.classList.add('fa-chevron-right');
-                            }
-                        }
-                    });
-                    
-                    uncategorizedFeatures.forEach(([featureId, feature]) => {
-                        // Create a feature row with name and action checkboxes
-                        const featureRow = document.createElement('div');
-                        featureRow.className = 'feature-row';
-                        featureRow.dataset.featureName = feature.name.toLowerCase();
-                        featureRow.style.cssText = 'display: flex; align-items: center; flex-wrap: wrap; gap: 0.5rem; padding: 0.5rem; background: #fff; border: 1px solid #e9ecef; border-radius: 6px;';
-                        
-                        // Feature name label
-                        const featureLabel = document.createElement('span');
-                        featureLabel.style.cssText = 'font-weight: 500; color: #495057; font-size: 0.9rem; min-width: 180px; flex-shrink: 0;';
-                        featureLabel.textContent = feature.name;
-                        featureRow.appendChild(featureLabel);
-                        
-                        // Action checkboxes container
-                        const actionsContainer = document.createElement('div');
-                        actionsContainer.style.cssText = 'display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center;';
-                        
-                        (feature.actions || []).forEach(action => {
+                        const featureActions = Array.isArray(feature?.actions) ? feature.actions : [];
+                        featureActions.forEach(action => {
                             const checked = roleData?.permissions?.[featureId]?.[action] || false;
-                            const checkboxId = `permission_${featureId}_${action}`;
-                            const label = document.createElement('label');
-                            label.style.cssText = 'display: flex; align-items: center; gap: 0.25rem; cursor: pointer; padding: 0.25rem 0.5rem; background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; font-size: 0.8rem;';
-                            label.innerHTML = `
-                                <input type="checkbox" 
-                                    id="${checkboxId}"
-                                    name="permissions[${featureId}][${action}]"
-                                    style="width: 14px; height: 14px; cursor: pointer; accent-color: #007bff;"
-                                    ${checked ? 'checked' : ''}>
-                                <span style="color: #495057;">${action.charAt(0).toUpperCase() + action.slice(1)}</span>
-                            `;
-                            actionsContainer.appendChild(label);
+                            const chk = document.createElement('input');
+                            chk.type = 'checkbox';
+                            chk.name = `permissions[${featureId}][${action}]`;
+                            chk.checked = !!checked;
+                            chk.style.cssText = 'width:14px;height:14px;cursor:pointer;accent-color:#007bff;';
+
+                            const wrap = document.createElement('label');
+                            wrap.style.cssText = 'display:flex;align-items:center;gap:0.25rem;cursor:pointer;padding:0.25rem 0.5rem;background:#f8f9fa;border:1px solid #dee2e6;border-radius:4px;font-size:0.8rem;';
+                            const text = document.createElement('span');
+                            text.style.color = '#495057';
+                            text.textContent = action.charAt(0).toUpperCase() + action.slice(1);
+                            wrap.appendChild(chk);
+                            wrap.appendChild(text);
+                            actions.appendChild(wrap);
                         });
-                        
-                        featureRow.appendChild(actionsContainer);
-                        otherFeaturesContainer.appendChild(featureRow);
+
+                        row.appendChild(actions);
+                        grid.appendChild(row);
                     });
-                    
-                    // Set initial state - expanded
-                    setTimeout(() => {
-                        otherFeaturesContainer.style.maxHeight = otherFeaturesContainer.scrollHeight + 'px';
-                        otherFeaturesContainer.style.opacity = '1';
-                        otherFeaturesContainer.style.marginTop = '0.5rem';
-                    }, 0);
-                    
-                    otherSection.appendChild(otherFeaturesContainer);
-                    permissionsGrid.appendChild(otherSection);
-                }
 
-                // Add the permissions grid to the wrapper
-                permissionsWrapper.appendChild(permissionsGrid);
-                
-                // Add permissions wrapper to form (before footer)
-                const modalFooter = form.querySelector('.modal-footer');
-                if (modalFooter) {
-                    form.insertBefore(permissionsWrapper, modalFooter);
-                } else {
-                    form.appendChild(permissionsWrapper);
+                    wrapper.appendChild(grid);
+                    form.appendChild(wrapper);
+                } catch (err) {
+                    console.warn('Permissions grid build failed; opening modal without grid:', err);
                 }
-
-                // Add event listeners for Select All / Deselect All / Expand All / Collapse All buttons
-                setTimeout(() => {
-                    const selectAllBtn = document.getElementById('selectAllPermsBtn');
-                    const deselectAllBtn = document.getElementById('deselectAllPermsBtn');
-                    const expandAllBtn = document.getElementById('expandAllSectionsBtn');
-                    const collapseAllBtn = document.getElementById('collapseAllSectionsBtn');
-                    
-                    if (selectAllBtn) {
-                        selectAllBtn.addEventListener('click', () => {
-                            permissionsGrid.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = true);
-                        });
-                    }
-                    
-                    if (deselectAllBtn) {
-                        deselectAllBtn.addEventListener('click', () => {
-                            permissionsGrid.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
-                        });
-                    }
-                    
-                    if (expandAllBtn) {
-                        expandAllBtn.addEventListener('click', () => {
-                            permissionsGrid.querySelectorAll('.category-content').forEach(content => {
-                                content.style.maxHeight = content.scrollHeight + 'px';
-                                content.style.opacity = '1';
-                                content.style.marginTop = '0.5rem';
-                                const chevron = content.parentElement.querySelector('.fa-chevron-right');
-                                if (chevron) {
-                                    chevron.classList.remove('fa-chevron-right');
-                                    chevron.classList.add('fa-chevron-down');
-                                }
-                            });
-                        });
-                    }
-                    
-                    if (collapseAllBtn) {
-                        collapseAllBtn.addEventListener('click', () => {
-                            permissionsGrid.querySelectorAll('.category-content').forEach(content => {
-                                content.style.maxHeight = '0px';
-                                content.style.opacity = '0';
-                                content.style.marginTop = '0';
-                                const chevron = content.parentElement.querySelector('.fa-chevron-down');
-                                if (chevron) {
-                                    chevron.classList.remove('fa-chevron-down');
-                                    chevron.classList.add('fa-chevron-right');
-                                }
-                            });
-                        });
-                    }
-                    
-                    // Search functionality
-                    const searchInput = document.getElementById('permissionSearchInput');
-                    if (searchInput) {
-                        searchInput.addEventListener('input', (e) => {
-                            const searchTerm = e.target.value.toLowerCase().trim();
-                            
-                            // Get all category sections
-                            const categorySections = permissionsGrid.querySelectorAll('.permission-category-section');
-                            
-                            categorySections.forEach(categorySection => {
-                                const categoryContent = categorySection.querySelector('.category-content');
-                                const categoryHeader = categorySection.querySelector('h5');
-                                const categoryName = categoryHeader?.textContent?.toLowerCase() || '';
-                                const rows = categoryContent ? categoryContent.querySelectorAll('.feature-row') : [];
-                                let hasVisibleRows = false;
-                                
-                                rows.forEach(row => {
-                                    const featureName = row.dataset.featureName || '';
-                                    const featureDisplayName = row.querySelector('span')?.textContent?.toLowerCase() || '';
-                                    
-                                    if (searchTerm === '' || featureName.includes(searchTerm) || featureDisplayName.includes(searchTerm) || categoryName.includes(searchTerm)) {
-                                        row.style.display = 'flex';
-                                        hasVisibleRows = true;
-                                    } else {
-                                        row.style.display = 'none';
-                                    }
-                                });
-                                
-                                // Show/hide category section based on whether it has visible rows
-                                if (searchTerm === '') {
-                                    categorySection.style.display = '';
-                                    // Reset all rows to visible
-                                    rows.forEach(row => row.style.display = 'flex');
-                                } else {
-                                    categorySection.style.display = hasVisibleRows ? '' : 'none';
-                                    // Auto-expand sections with matches
-                                    if (hasVisibleRows && categoryContent) {
-                                        categoryContent.style.maxHeight = categoryContent.scrollHeight + 500 + 'px';
-                                        categoryContent.style.opacity = '1';
-                                        categoryContent.style.marginTop = '0.5rem';
-                                        const chevron = categorySection.querySelector('.fa-chevron-right');
-                                        if (chevron) {
-                                            chevron.classList.remove('fa-chevron-right');
-                                            chevron.classList.add('fa-chevron-down');
-                                        }
-                                    }
-                                }
-                            });
-                        });
-                    }
-                }, 0);
 
                 if (roleData) {
                     modalTitle.textContent = 'Edit Role';
@@ -3983,8 +3377,7 @@
                     saveBtn.textContent = 'Create Role';
                 }
 
-                modal.classList.add('show');
-                form.roleName.focus();
+                if (form.roleName) form.roleName.focus();
             }
 
             hideModal() {
@@ -3996,6 +3389,7 @@
                 if (!modal || !form) return;
                 
                 modal.classList.remove('show');
+                modal.style.display = 'none';
                 form.reset();
                 
                 // Reset form fields to editable state
@@ -4211,6 +3605,7 @@
                 }
 
                 modal.classList.add('show');
+                modal.style.display = 'flex';
                 
                 // Focus on close button instead of name field
                 if (cancelBtn) {
@@ -4446,6 +3841,11 @@
                         
                         this.renderRoles();
                         this.renderPermissions();
+                        
+                        // Re-apply action button permissions after rendering new rows
+                        if (typeof loadRolesActionPermissions === 'function') {
+                            loadRolesActionPermissions();
+                        }
                     });
 
                 } catch (error) {
@@ -4672,13 +4072,13 @@
                 
                 // Always show edit and delete buttons for all roles (including default admin)
                 const actionsHTML = `<div class="role-actions" style="display: flex; gap: 8px;">
-                    <button class="btn-action btn-view" title="View role permissions" style="display: inline-flex; background: #e8f5e8; color: #2e7d2e; padding: 6px 12px; border: none; border-radius: 6px; cursor: pointer;">
+                    <button type="button" class="btn-action btn-view" data-action="view" data-role-id="${role.id}" title="View role permissions" style="display: inline-flex; background: #e8f5e8; color: #2e7d2e; padding: 6px 12px; border: none; border-radius: 6px; cursor: pointer;">
                         <i class="fas fa-eye"></i>
                     </button>
-                    <button class="btn-action btn-edit" title="Edit this role" style="display: inline-flex; background: #e3f2fd; color: #1565c0; padding: 6px 12px; border: none; border-radius: 6px; cursor: pointer;">
+                    <button type="button" class="btn-action btn-edit" data-action="edit" data-role-id="${role.id}" title="Edit this role" onclick="event.preventDefault(); event.stopPropagation(); window.roleManager && window.roleManager.openEditRoleById && window.roleManager.openEditRoleById(this.dataset.roleId);" style="display: inline-flex; background: #e3f2fd; color: #1565c0; padding: 6px 12px; border: none; border-radius: 6px; cursor: pointer;">
                         <i class="fas fa-edit"></i>
                     </button>
-                    <button class="btn-action btn-delete" title="Delete this role" style="display: inline-flex; background: #ffebee; color: #c62828; padding: 6px 12px; border: none; border-radius: 6px; cursor: pointer;">
+                    <button type="button" class="btn-action btn-delete" data-action="delete" data-role-id="${role.id}" title="Delete this role" style="display: inline-flex; background: #ffebee; color: #c62828; padding: 6px 12px; border: none; border-radius: 6px; cursor: pointer;">
                         <i class="fas fa-trash"></i>
                     </button>
                 </div>`;
@@ -4753,12 +4153,11 @@
                 row.addEventListener('click', (e) => {
                     // Don't trigger if clicking on checkbox or action buttons
                     if (e.target.closest('.role-actions') || e.target.type === 'checkbox') return;
-                    // Alt+Click opens permissions; normal click opens Users tab
-                    if (e.altKey) {
-                        this.selectRole(role);
-                    } else {
-                        this.switchToUsersTab(role);
-                    }
+                    // Clicking a role row opens the edit modal
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.activateTab('roles');
+                    this.showModal(role);
                 });
 
                 return row;
@@ -6000,84 +5399,7 @@
                 // Make tabs focusable
                 button.setAttribute('tabindex', '0');
             });
-        });            // Role selection functionality
-            const roleCards = document.querySelectorAll('.role-card');
-            const permissionsTab = document.querySelector('[data-tab="permissions"]');
-            
-            roleCards.forEach(card => {
-                card.addEventListener('click', function() {
-                    // Prevent double-clicking
-                    if (this.classList.contains('updating')) return;
-                    
-                    // Add updating state
-                    this.classList.add('updating');
-                    
-                    // Remove active class from all role cards
-                    roleCards.forEach(c => c.classList.remove('active'));
-                    
-                    // Add active class to clicked card after a brief delay
-                    setTimeout(() => {
-                        this.classList.add('active');
-                        this.classList.remove('updating');
-                    }, 500);
-                    
-                    // Get role type
-                    const roleType = this.getAttribute('data-role');
-                    console.log('Selected role:', roleType);
-                    
-                    // Update permissions section header
-                    const permissionsTitle = document.querySelector('.permissions-section h2');
-                    if (permissionsTitle) {
-                        setTimeout(() => {
-                            permissionsTitle.innerHTML = `<i class="fas fa-key"></i> ${this.querySelector('.role-name').textContent} Permissions`;
-                        }, 250);
-                    }
-                    
-                    // Simulate loading permissions for the selected role
-                    setTimeout(() => {
-                        updatePermissionsForRole(roleType);
-                    }, 300);
-                });
-            });
-        
-        function updatePermissionsForRole(roleType) {
-            const checkboxes = document.querySelectorAll('.permissions-container input[type="checkbox"]');
-            
-            // Clear all checkboxes first
-            checkboxes.forEach(checkbox => checkbox.checked = false);
-            
-            // Set permissions based on role type
-            const rolePermissions = {
-                'manager': ['company_management_view', 'company_management_edit', 
-                           'profile_view', 'profile_edit',
-                           'safety_view', 'safety_create', 'safety_edit',
-                           'user_management_view', 'user_management_edit',
-                           'hr_view', 'staff_management_view', 'staff_management_create', 'staff_management_edit', 'staff_management_delete', 'staff_management_export', 'staff_management_import',
-                           'salary_management_view', 'salary_management_create', 'salary_management_edit', 'salary_management_delete', 'salary_management_export',
-                           'authority_to_recruit_view', 'job_advertising_view', 
-                           'screening_view', 'interview_view', 'hiring_view', 'offer_view', 'contract_view', 'onboarding_view'],
-                'employee': ['company_management_view', 'profile_view', 'safety_view', 'safety_create', 'user_management_view',
-                            'hr_view', 'staff_management_view'],
-                'viewer': ['company_management_view', 'profile_view', 'safety_view', 'user_management_view', 'hr_view']
-            };
-            
-            const permissions = rolePermissions[roleType] || [];
-            permissions.forEach(permission => {
-                const checkbox = document.querySelector(`input[data-permission="${permission}"]`);
-                if (checkbox) {
-                    checkbox.checked = true;
-                    // Add visual feedback
-                    const container = checkbox.closest('.checkbox-container');
-                    if (container) {
-                        container.style.background = 'linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)';
-                        setTimeout(() => {
-                            container.style.background = '';
-                        }, 300);
-                    }
-                }
-            });
-        }
-        
+        });
     </script>
 
     <!-- Authentication Script - Simplified like project-list.html -->
@@ -6678,6 +6000,47 @@ function toggleSelectAllRoles() {
       setTimeout(async () => {
           await loadRolesActionPermissions();
       }, 2000);
+  });
+
+  // Fallback: capture-phase delegated handler to ensure Edit opens modal.
+  // This runs even if other listeners call stopPropagation().
+  document.addEventListener('DOMContentLoaded', () => {
+      if (window.__rolesEditCaptureBound) return;
+      window.__rolesEditCaptureBound = true;
+
+      document.addEventListener('click', (e) => {
+          const editBtn = e.target.closest('.btn-edit');
+          if (!editBtn) return;
+
+              const rolesTab = document.getElementById('rolesTab');
+              if (rolesTab && !rolesTab.contains(editBtn)) return;
+
+          e.preventDefault();
+          e.stopPropagation();
+
+          try {
+                  const row = editBtn.closest('tr');
+                  const roleId = editBtn?.dataset?.roleId || row?.querySelector('.role-checkbox')?.dataset?.roleId || '';
+                  const roleName = (row?.querySelector('.role-name-cell')?.textContent || '').trim();
+                  const roleDescription = (row?.querySelector('.role-description-cell')?.textContent || '').trim();
+
+              const roles = window.roleManager?.roles || [];
+              const found = roles.find(r => String(r?.id || '') === String(roleId));
+              const permissions = found?.permissions || {};
+
+              const roleData = {
+                  id: roleId,
+                  name: found?.name || roleName,
+                  description: found?.description || roleDescription,
+                  permissions
+              };
+
+              window.roleManager?.showModal(roleData);
+          } catch (err) {
+              console.warn('Edit role capture fallback handler error:', err);
+              window.roleManager?.showModal();
+          }
+      }, true);
   });
 
 </script>
