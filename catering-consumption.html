@@ -1133,59 +1133,101 @@ async function performLogout(){
       nfcEls.status.textContent = 'No meal type selected';
       return;
     }
-    let userId = null;
-    // Try to extract user ID from NFC records
+    
+    // Get card identifier (serial number)
+    const cardSerial = event.serialNumber || null;
+    let cardTextId = null;
+    
+    // Try to extract card ID from NFC records
     for(const record of event.message.records){
       if(record.recordType === 'text'){
         const textDecoder = new TextDecoder(record.encoding || 'utf-8');
         const text = textDecoder.decode(record.data);
-        // Check if it looks like a user ID or JSON with userId
         try{
           const parsed = JSON.parse(text);
-          if(parsed.userId) userId = parsed.userId;
-          else if(parsed.user) userId = parsed.user;
-          else if(parsed.uid) userId = parsed.uid;
-          else if(parsed.employeeId) userId = parsed.employeeId;
+          if(parsed.cardId) cardTextId = parsed.cardId;
+          else if(parsed.id) cardTextId = parsed.id;
         }catch{
-          // Not JSON, use as plain user ID
-          if(text && text.trim()) userId = text.trim();
+          // Not JSON, might be a card ID
+          if(text && text.trim()) cardTextId = text.trim();
         }
-        if(userId) break;
-      } else if(record.recordType === 'url'){
-        const textDecoder = new TextDecoder();
-        const url = textDecoder.decode(record.data);
-        // Extract user ID from URL params if present
-        try{
-          const u = new URL(url);
-          userId = u.searchParams.get('userId') || u.searchParams.get('user') || u.searchParams.get('uid');
-        }catch{ /* ignore */ }
-        if(userId) break;
+        if(cardTextId) break;
       }
     }
-    // Fallback: use serial number if no user ID found
-    if(!userId && event.serialNumber){
-      userId = event.serialNumber;
-    }
-    if(!userId){
+    
+    // Look up card assignment from Firebase
+    let userId = null;
+    let employeeName = null;
+    let cardDisplayId = cardTextId || cardSerial || 'Unknown';
+    
+    try{
+      const { companyId } = await resolveCompanyContext();
+      
+      // Try to find assignment by cardId (text ID) first, then by serial number
+      let assignment = null;
+      
+      if(cardTextId){
+        const snap = await firebase.database().ref(`companies/${companyId}/cardAssignments/${cardTextId}`).once('value');
+        if(snap.exists()) assignment = snap.val();
+      }
+      
+      // If not found by text ID, search by serial number
+      if(!assignment && cardSerial){
+        const allSnap = await firebase.database().ref(`companies/${companyId}/cardAssignments`).orderByChild('serialNumber').equalTo(cardSerial).once('value');
+        if(allSnap.exists()){
+          const assignments = allSnap.val();
+          const firstKey = Object.keys(assignments)[0];
+          if(firstKey) assignment = assignments[firstKey];
+        }
+      }
+      
+      if(assignment){
+        userId = assignment.employeeId;
+        employeeName = assignment.employeeName || null;
+        cardDisplayId = assignment.cardId || cardDisplayId;
+        
+        // If we have employeeId but no name, try to fetch from users
+        if(userId && !employeeName){
+          const userSnap = await firebase.database().ref(`companies/${companyId}/users/${userId}`).once('value');
+          if(userSnap.exists()){
+            const u = userSnap.val();
+            employeeName = [u.firstName, u.lastName].filter(Boolean).join(' ') || u.displayName || u.name || u.email || userId;
+          }
+        }
+      }
+      
+      if(!userId){
+        nfcEls.status.style.color = '#b91c1c';
+        nfcEls.status.textContent = `Card not assigned to any employee (${cardDisplayId})`;
+        playErrorSound();
+        return;
+      }
+      
+      // Display the employee name
+      const displayText = employeeName ? `${employeeName}` : userId;
+      nfcEls.status.style.color = '#2563eb';
+      nfcEls.status.textContent = `Card detected: ${displayText}`;
+      
+      // Fill manual form as well
+      if(els.user) els.user.value = userId;
+      if(els.mealType) els.mealType.value = mealTypeId;
+      
+      // Auto-log if enabled
+      if(nfcEls.autoLog?.checked){
+        await logNfcConsumption(userId, mealTypeId, employeeName);
+      } else {
+        nfcEls.status.textContent = `${displayText} ready — click "Log Consumption" or enable auto-log`;
+      }
+    }catch(e){
       nfcEls.status.style.color = '#b91c1c';
-      nfcEls.status.textContent = 'Could not read user ID from card';
-      return;
-    }
-    nfcEls.status.style.color = '#2563eb';
-    nfcEls.status.textContent = `Card detected: ${userId}`;
-    // Fill manual form as well
-    if(els.user) els.user.value = userId;
-    if(els.mealType) els.mealType.value = mealTypeId;
-    // Auto-log if enabled
-    if(nfcEls.autoLog?.checked){
-      await logNfcConsumption(userId, mealTypeId);
-    } else {
-      nfcEls.status.textContent = `User ${userId} ready — click "Log Consumption" or enable auto-log`;
+      nfcEls.status.textContent = e.message || 'Error looking up card assignment';
+      playErrorSound();
     }
   }
 
-  async function logNfcConsumption(userId, mealTypeId){
+  async function logNfcConsumption(userId, mealTypeId, employeeName){
     const when = Date.now();
+    const displayName = employeeName || userId;
     try{
       const { companyId, userId: loggedBy } = await resolveCompanyContext();
       // Check eligibility
@@ -1193,7 +1235,7 @@ async function performLogout(){
       const matched = Object.values(asg).find(a => a.active && a.mealTypeId === mealTypeId);
       if(!matched){
         nfcEls.status.style.color = '#b91c1c';
-        nfcEls.status.textContent = `User ${userId} is NOT eligible for this meal type`;
+        nfcEls.status.textContent = `${displayName} is NOT eligible for this meal type`;
         playErrorSound();
         return;
       }
@@ -1203,7 +1245,7 @@ async function performLogout(){
       const limit = typeof matched.dailyQuota === 'number' && !Number.isNaN(matched.dailyQuota) ? matched.dailyQuota : Infinity;
       if(current >= limit){
         nfcEls.status.style.color = '#b91c1c';
-        nfcEls.status.textContent = `Daily quota reached for ${userId} (${limit})`;
+        nfcEls.status.textContent = `Daily quota reached for ${displayName} (${limit})`;
         playErrorSound();
         return;
       }
@@ -1215,9 +1257,9 @@ async function performLogout(){
       const mealName = mtSnap.val()?.name || mealTypeId;
       // Update UI
       nfcEls.status.style.color = '#065f46';
-      nfcEls.status.textContent = `✓ Logged: ${userId} — ${mealName}`;
+      nfcEls.status.textContent = `✓ Logged: ${displayName} — ${mealName}`;
       nfcEls.lastScan.style.display = 'block';
-      nfcEls.lastUser.textContent = userId;
+      nfcEls.lastUser.textContent = displayName;
       nfcEls.lastMeal.textContent = mealName;
       nfcEls.lastTime.textContent = new Date(when).toLocaleTimeString();
       playSuccessSound();
