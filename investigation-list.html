@@ -2137,8 +2137,9 @@ Safety Incident</textarea>
                     const approvalFlowData = approvalFlowSnap.exists() ? approvalFlowSnap.val() : null;
                     const accessControlData = accessControlSnap.exists() ? accessControlSnap.val() : {};
                     
-                    // Check if user has "View All Investigations" permission
+                    // Check if user has "View All Investigations" or "Edit All Investigations" permission
                     const canViewAllInvestigations = accessControlData.canViewAllInvestigations === true;
+                    const canEditAllInvestigations = accessControlData.canEditAllInvestigations === true;
                     
                     // Get current user info for visibility check
                     const userUID = user.uid || '';
@@ -2316,6 +2317,9 @@ Safety Incident</textarea>
                         // Users with "View All Investigations" permission can see all
                         if (canViewAllInvestigations) return { inv, visible: true };
                         
+                        // Users with "Edit All Investigations" permission can see all
+                        if (canEditAllInvestigations) return { inv, visible: true };
+                        
                         // Creator can always see their own investigation
                         const isCreator = inv.createdBy === userUID || 
                                          inv.createdBy === userEmail ||
@@ -2346,6 +2350,7 @@ Safety Incident</textarea>
                         visible: visibleInvestigations.length,
                         isAdmin,
                         canViewAllInvestigations,
+                        canEditAllInvestigations,
                         userIsApprover,
                         userName,
                         userJobTitle,
@@ -2522,6 +2527,17 @@ Safety Incident</textarea>
                 
                 // Get approval flow configuration
                 const approvalFlowData = approvalFlowSnap.exists() ? approvalFlowSnap.val() : null;
+                // Fetch access control for current user
+                let canViewAllInvestigations = false;
+                let canEditAllInvestigations = false;
+                try {
+                    const accessSnap = await firebase.database().ref(`companies/${companyId}/investigationAccessControl/${user.uid}`).once('value');
+                    if (accessSnap.exists()) {
+                        const ac = accessSnap.val() || {};
+                        canViewAllInvestigations = ac.canViewAllInvestigations === true;
+                        canEditAllInvestigations = ac.canEditAllInvestigations === true;
+                    }
+                } catch (e) { /* ignore */ }
                 
                 // ============ VISIBILITY CHECK ============
                 // Verify user has permission to view this investigation
@@ -2610,8 +2626,8 @@ Safety Incident</textarea>
                 const invStatus = (data.investigationStatus || data.status || 'draft').toLowerCase();
                 const isSubmitted = !['draft', 'created', 'new'].includes(invStatus);
                 
-                // Visibility rules: admin OR creator OR (approver AND submitted)
-                const canView = isAdmin || isCreator || (await isApprover() && isSubmitted);
+                // Visibility rules: admin OR creator OR explicit view/edit-all OR (approver AND submitted)
+                const canView = isAdmin || isCreator || canViewAllInvestigations || canEditAllInvestigations || (await isApprover() && isSubmitted);
                 
                 if (!canView) {
                     if (overlay) overlay.style.display = 'none';
