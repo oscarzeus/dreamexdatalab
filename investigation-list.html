@@ -1216,6 +1216,7 @@ Safety Incident</textarea>
                                                 <th>Role</th>
                                                 <th style="text-align:center;">Investigations Tab</th>
                                                 <th style="text-align:center;">View All Investigations</th>
+                                                <th style="text-align:center;">Edit All Investigations</th>
                                                 <th style="text-align:center;">Settings Tab</th>
                                                 <th style="text-align:center;">Actions</th>
                                             </tr>
@@ -3220,12 +3221,27 @@ Safety Incident</textarea>
 
         // Setup approval buttons visibility based on user role and approval flow
         async function setupApprovalButtons(data, approvalFlowData, companyId) {
-            console.log('ðŸš€ setupApprovalButtons called with:', { 
+            console.log('🚀 setupApprovalButtons called with:', { 
                 data: data ? { id: data.id, status: data.investigationStatus, createdBy: data.createdBy } : null,
                 approvalFlowData: approvalFlowData ? Object.keys(approvalFlowData) : null,
                 companyId,
                 hasSelectedRoles: approvalFlowData?.selectedRoles ? Object.keys(approvalFlowData.selectedRoles) : null
             });
+            
+            // Check if user has "Edit All Investigations" permission
+            let canEditAllInvestigations = false;
+            try {
+                const user = window.authManager?.currentUser;
+                if (user && companyId) {
+                    const db = firebase.database();
+                    const accessSnap = await db.ref(`companies/${companyId}/investigationAccessControl/${user.uid}`).once('value');
+                    if (accessSnap.exists()) {
+                        canEditAllInvestigations = accessSnap.val().canEditAllInvestigations === true;
+                    }
+                }
+            } catch (e) {
+                console.warn('Failed to check edit all permission:', e);
+            }
 
             const actionsContainer = document.getElementById('invApprovalActions');
             const approveBtn = document.getElementById('invApproveBtn');
@@ -3499,14 +3515,14 @@ Safety Incident</textarea>
                 });
             }
             
-            // Show edit button for creator or admin (if not closed/approved)
-            if ((isCreator || isAdmin) && !['closed', 'approved'].includes(investigationStatus)) {
+            // Show edit button for creator, admin, or users with "Edit All" permission (if not closed/approved)
+            if ((isCreator || isAdmin || canEditAllInvestigations) && !['closed', 'approved'].includes(investigationStatus)) {
                 if (editBtn) editBtn.style.display = 'inline-flex';
                 showActions = true;
             }
             
-            // Show delete button for creator (if draft) or admin
-            if ((isCreator && investigationStatus === 'draft') || isAdmin) {
+            // Show delete button for creator (if draft), admin, or users with "Edit All" permission
+            if ((isCreator && investigationStatus === 'draft') || isAdmin || canEditAllInvestigations) {
                 if (deleteBtn) deleteBtn.style.display = 'inline-flex';
                 showActions = true;
             }
@@ -4575,7 +4591,7 @@ Safety Incident</textarea>
             const permUserIds = Object.keys(perms || {});
             if (permUserIds.length === 0) {
                 const tr = document.createElement('tr');
-                tr.innerHTML = `<td colspan="7" style="text-align:center; color:#64748b; padding:1.5rem;">No users configured. Click + to add users.</td>`;
+                tr.innerHTML = `<td colspan="8" style="text-align:center; color:#64748b; padding:1.5rem;">No users configured. Click + to add users.</td>`;
                 tbody.appendChild(tr);
             } else {
                 permUserIds.forEach((uid) => {
@@ -4592,6 +4608,7 @@ Safety Incident</textarea>
                         <td><span class="role-badge role-${(role || 'user').toString().toLowerCase()}">${role}</span></td>
                         <td style="text-align:center;"><input type="checkbox" data-perm="investigations" data-uid="${uid}" ${p.canSeeInvestigationsTab !== false ? 'checked' : ''}></td>
                         <td style="text-align:center;"><input type="checkbox" data-perm="viewAll" data-uid="${uid}" ${p.canViewAllInvestigations ? 'checked' : ''} title="Allow user to see all investigations regardless of submitter"></td>
+                        <td style="text-align:center;"><input type="checkbox" data-perm="editAll" data-uid="${uid}" ${p.canEditAllInvestigations ? 'checked' : ''} title="Allow user to edit all investigations regardless of submitter"></td>
                         <td style="text-align:center;"><input type="checkbox" data-perm="settings" data-uid="${uid}" ${p.canSeeSettingsTab ? 'checked' : ''}></td>
                         <td style="text-align:center;"><button class="btn-remove" onclick="removeInvAccessControl('${uid}')" title="Remove user"><i class="fas fa-trash"></i></button></td>
                     `;
@@ -4608,6 +4625,7 @@ Safety Incident</textarea>
                 const update = {};
                 if (perm === 'investigations') update.canSeeInvestigationsTab = target.checked;
                 if (perm === 'viewAll') update.canViewAllInvestigations = target.checked;
+                if (perm === 'editAll') update.canEditAllInvestigations = target.checked;
                 if (perm === 'settings') update.canSeeSettingsTab = target.checked;
                 try {
                     const db = firebase.database();
@@ -4727,9 +4745,11 @@ Safety Incident</textarea>
             // Reset checkboxes
             const allowInv = document.getElementById('invAcAllowInvestigations');
             const allowViewAll = document.getElementById('invAcAllowViewAll');
+            const allowEditAll = document.getElementById('invAcAllowEditAll');
             const allowSettings = document.getElementById('invAcAllowSettings');
             if (allowInv) allowInv.checked = true;
             if (allowViewAll) allowViewAll.checked = false;
+            if (allowEditAll) allowEditAll.checked = false;
             if (allowSettings) allowSettings.checked = true;
         }
 
@@ -4752,12 +4772,14 @@ Safety Incident</textarea>
             }
             const canInvestigations = !!document.getElementById('invAcAllowInvestigations')?.checked;
             const canViewAll = !!document.getElementById('invAcAllowViewAll')?.checked;
+            const canEditAll = !!document.getElementById('invAcAllowEditAll')?.checked;
             const canSettings = !!document.getElementById('invAcAllowSettings')?.checked;
             try {
                 const db = firebase.database();
                 await db.ref(`companies/${user.companyId}/investigationAccessControl/${uid}`).set({
                     canSeeInvestigationsTab: canInvestigations,
                     canViewAllInvestigations: canViewAll,
+                    canEditAllInvestigations: canEditAll,
                     canSeeSettingsTab: canSettings,
                     addedAt: Date.now(),
                     addedBy: user.uid || user.email || 'unknown'
@@ -4958,7 +4980,7 @@ Safety Incident</textarea>
                     </select>
                     <small style="font-size:0.75rem; color:#64748b;">Choose a user who is not already in the access control list.</small>
                 </div>
-                <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:1rem;">
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem;">
                     <div>
                         <label style="display:block; font-size:0.85rem; font-weight:600; color:#374151; margin-bottom:0.5rem;">Investigations Tab</label>
                         <label style="display:flex; align-items:center; gap:0.4rem; font-size:0.85rem;">
@@ -4967,6 +4989,15 @@ Safety Incident</textarea>
                         </label>
                     </div>
                     <div>
+                        <label style="display:block; font-size:0.85rem; font-weight:600; color:#374151; margin-bottom:0.5rem;">Settings Tab</label>
+                        <label style="display:flex; align-items:center; gap:0.4rem; font-size:0.85rem;">
+                            <input type="checkbox" id="invAcAllowSettings" checked>
+                            Allow access
+                        </label>
+                    </div>
+                </div>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-top:1rem;">
+                    <div>
                         <label style="display:block; font-size:0.85rem; font-weight:600; color:#374151; margin-bottom:0.5rem;">View All</label>
                         <label style="display:flex; align-items:center; gap:0.4rem; font-size:0.85rem;">
                             <input type="checkbox" id="invAcAllowViewAll">
@@ -4974,10 +5005,10 @@ Safety Incident</textarea>
                         </label>
                     </div>
                     <div>
-                        <label style="display:block; font-size:0.85rem; font-weight:600; color:#374151; margin-bottom:0.5rem;">Settings Tab</label>
+                        <label style="display:block; font-size:0.85rem; font-weight:600; color:#374151; margin-bottom:0.5rem;">Edit All</label>
                         <label style="display:flex; align-items:center; gap:0.4rem; font-size:0.85rem;">
-                            <input type="checkbox" id="invAcAllowSettings" checked>
-                            Allow access
+                            <input type="checkbox" id="invAcAllowEditAll">
+                            Edit all investigations
                         </label>
                     </div>
                 </div>
