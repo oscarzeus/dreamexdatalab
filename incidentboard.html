@@ -5140,6 +5140,8 @@ async function saveEventReminderSettings(eventType) {
 
 // ========== AUTOMATIC REMINDER SYSTEM ==========
 let reminderCheckInterval = null;
+let isReminderSendingInProgress = false; // Prevent concurrent sends
+const reminderSendLock = new Map(); // Track which event types are being processed
 
 // Initialize automatic reminder checking system
 function initAutoReminderSystem() {
@@ -5240,9 +5242,16 @@ async function checkAndSendScheduledReminders() {
 async function checkEventTypeReminder(companyId, eventType, now, currentTime, currentDay, currentDayOfMonth, currentHour, currentMinute) {
 	const pathKey = `${eventType}Reminders`;
 	
+	// Prevent concurrent sends for the same event type
+	const lockKey = `${companyId}_${eventType}`;
+	if (reminderSendLock.get(lockKey)) {
+		console.log(`Auto-reminder: ${eventType} - Already processing, skipping`);
+		return;
+	}
+	
 	console.log(`Auto-reminder: Checking ${eventType} settings...`);
 	
-	// Get reminder settings
+	// Get reminder settings (fresh read to check if another process already sent)
 	const settingsSnap = await db.ref(`companies/${companyId}/incidentSettings/notifications/${pathKey}`).once('value');
 	const settings = settingsSnap.val();
 	
@@ -5393,7 +5402,27 @@ async function sendAutoReminders(companyId, eventType, settings) {
 	};
 	const eventConfig = eventTypeMap[eventType] || eventTypeMap['incident'];
 	
+	// Set lock to prevent concurrent sends
+	const lockKey = `${companyId}_${eventType}`;
+	if (reminderSendLock.get(lockKey)) {
+		console.log(`Auto-reminder: ${eventType} - Already sending, skipping duplicate`);
+		return;
+	}
+	reminderSendLock.set(lockKey, true);
+	
 	try {
+		// Double-check lastAutoSent BEFORE sending (in case another tab/function sent)
+		const freshSettingsSnap = await db.ref(`companies/${companyId}/incidentSettings/notifications/${eventConfig.pathKey}/lastAutoSent`).once('value');
+		const freshLastAutoSent = freshSettingsSnap.val();
+		if (freshLastAutoSent) {
+			const lastSentDate = new Date(freshLastAutoSent);
+			const now = new Date();
+			if (lastSentDate.toDateString() === now.toDateString()) {
+				console.log(`Auto-reminder: ${eventType} - Fresh check shows already sent today (${freshLastAutoSent}), skipping`);
+				return;
+			}
+		}
+		
 		// Get all incidents
 		const incidentsSnap = await db.ref(`companies/${companyId}/incidents`).once('value');
 		const incidents = incidentsSnap.val() || {};
@@ -5555,6 +5584,10 @@ async function sendAutoReminders(companyId, eventType, settings) {
 		
 	} catch (error) {
 		console.error(`Auto-reminder error for ${eventType}:`, error);
+	} finally {
+		// Always release the lock
+		const lockKey = `${companyId}_${eventType}`;
+		reminderSendLock.delete(lockKey);
 	}
 }
 

@@ -1,0 +1,3034 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,1.0">
+    <title>HSE System - Permit to Work Request</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Firebase v8 Scripts for Centralized Authentication -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
+    <style>
+        :root { 
+            --primary-color:#2c3e50; 
+            --secondary-color:#34495e; 
+            --accent-color:#e74c3c; 
+            --success-color:#27ae60; 
+            --warning-color:#f39c12; 
+            --info-color:#3498db; 
+            --light-color:#ecf0f1; 
+            --dark-color:#2c3e50; 
+            --sidebar-width:250px; 
+            --transition-speed:.25s; 
+        }
+        
+        * { 
+            box-sizing:border-box; 
+            margin:0; 
+            padding:0; 
+        }
+        
+        body { 
+            font-family: 'Segoe UI', Arial, sans-serif; 
+            background:#f5f7fa; 
+            color:#222; 
+        }
+        
+        .app-container { 
+            display:flex; 
+            min-height:100vh; 
+        }
+        
+        .sidebar { 
+            width:var(--sidebar-width); 
+            background:var(--primary-color); 
+            color:#fff; 
+            padding:1rem; 
+            position:fixed; 
+            top:0; 
+            left:0; 
+            bottom:0; 
+            overflow-y:auto; 
+            transition:transform .3s ease; 
+            z-index:1000; 
+        }
+        
+        .sidebar.collapsed { 
+            transform:translateX(-100%); 
+        }
+        
+        .main-content { 
+            flex:1; 
+            margin-left:var(--sidebar-width); 
+            padding:0.3rem; 
+            padding-top:3.2rem; 
+            transition:margin-left .3s ease; 
+        }
+        
+        .main-content.sidebar-collapsed { 
+            margin-left:0; 
+        }
+        
+        .main-content.sidebar-collapsed .top-nav { 
+            left:0.5rem; 
+        }
+        
+        .logo h2 { 
+            text-align:center; 
+            padding:1rem 0; 
+            border-bottom:1px solid rgba(255,255,255,0.1); 
+            font-size:1.05rem; 
+            letter-spacing:.5px; 
+        }
+        
+        .menu { 
+            list-style:none; 
+            margin-top:2rem; 
+        }
+        
+        .menu li { 
+            margin-bottom:0.45rem; 
+        }
+        
+        .menu a { 
+            display:flex; 
+            align-items:center; 
+            gap:10px; 
+            color:#fff; 
+            text-decoration:none; 
+            padding:0.6rem 0.75rem; 
+            border-radius:6px; 
+            font-size:0.82rem; 
+            font-weight:500; 
+            transition:background .25s; 
+        }
+        
+        .menu a:hover, 
+        .menu a.active { 
+            background:rgba(255,255,255,0.12); 
+        }
+        
+        .submenu { 
+            list-style:none; 
+            margin-left:0.75rem; 
+            display:none; 
+            margin-top:0.25rem; 
+        }
+        
+        .menu-dropdown:hover .submenu { 
+            display:block; 
+        }
+        
+        .submenu a { 
+            font-size:0.75rem; 
+            padding:0.45rem 0.65rem; 
+        }
+        
+        .top-nav { 
+            display:flex; 
+            justify-content:space-between; 
+            align-items:center; 
+            padding:0.5rem 0.75rem; 
+            background-color:#fff; 
+            box-shadow:0 2px 5px rgba(0,0,0,0.1); 
+            margin-bottom:0.3rem; 
+            position:fixed; 
+            top:0.25rem; 
+            right:0.5rem; 
+            left:calc(var(--sidebar-width) + 0.5rem); 
+            height:50px; 
+            min-height:50px; 
+            z-index:100; 
+            transition:left 0.3s ease; 
+        }
+        
+        .sidebar-toggle-btn { 
+            background:none; 
+            border:none; 
+            cursor:pointer; 
+            font-size:1.1rem; 
+            padding:0.4rem; 
+            color:#555; 
+        }
+        
+        .top-nav-left { 
+            display:flex; 
+            align-items:center; 
+            gap:0.75rem; 
+        }
+        
+        .company-branding { 
+            display:flex; 
+            align-items:center; 
+            gap:0.5rem; 
+        }
+        
+        #headerCompanyLogo { 
+            width:32px; 
+            height:32px; 
+            object-fit:contain; 
+            display:none; 
+        }
+        
+        #headerCompanyName { 
+            font-weight:600; 
+            font-size:0.85rem; 
+        }
+        
+        .top-nav-right { 
+            display:flex; 
+            align-items:center; 
+            gap:1rem; 
+        }
+        
+        .notifications { 
+            position:relative; 
+            display:flex; 
+            align-items:center; 
+        }
+        
+        .notification-btn { 
+            background:none; 
+            border:none; 
+            cursor:pointer; 
+            position:relative; 
+            font-size:1.2rem; 
+            padding:0.5rem; 
+            display:flex; 
+            align-items:center; 
+            justify-content:center; 
+        }
+        
+        .notification-badge { 
+            position:absolute; 
+            top:-5px; 
+            right:-5px; 
+            background-color:var(--accent-color); 
+            color:white; 
+            border-radius:50%; 
+            padding:0.2rem 0.5rem; 
+            font-size:0.7rem; 
+            display:none; 
+        }
+        
+        .notification-dropdown { 
+            display:none; 
+            position:absolute; 
+            right:0; 
+            top:100%; 
+            width:320px; 
+            background:#fff; 
+            border-radius:8px; 
+            box-shadow:0 4px 20px rgba(0,0,0,0.15); 
+            z-index:1000; 
+            border:1px solid #e9ecef; 
+            max-height:400px; 
+            overflow:hidden; 
+        }
+        
+        .notification-dropdown.show { 
+            display:block; 
+            animation: slideDown 0.2s ease-out; 
+        }
+        
+        @keyframes slideDown { 
+            from { 
+                opacity:0; 
+                transform:translateY(-10px);
+            } 
+            to { 
+                opacity:1; 
+                transform:translateY(0);
+            } 
+        }
+        
+        .notification-header { 
+            padding:12px 16px; 
+            border-bottom:1px solid #e9ecef; 
+            background:linear-gradient(135deg,#f8f9fa 0%, #e9ecef 100%); 
+            display:flex; 
+            justify-content:space-between; 
+            align-items:center; 
+        }
+        
+        .notification-header h3 { 
+            margin:0; 
+            color:#333; 
+            font-size:14px; 
+            font-weight:600; 
+        }
+        
+        .user-profile { 
+            position:relative; 
+        }
+        
+        .profile-btn { 
+            background:none; 
+            border:none; 
+            border-radius:50%; 
+            overflow:hidden; 
+            width:38px; 
+            height:38px; 
+            cursor:pointer; 
+        }
+        
+        .profile-btn img { 
+            width:100%; 
+            height:100%; 
+            object-fit:cover; 
+        }
+        
+        .profile-dropdown { 
+            display:none; 
+            position:absolute; 
+            right:0; 
+            top:110%; 
+            background:#fff; 
+            border-radius:8px; 
+            min-width:200px; 
+            box-shadow:0 6px 18px rgba(0,0,0,0.12); 
+            overflow:hidden; 
+        }
+        
+        .profile-dropdown.show { 
+            display:block; 
+        }
+
+        /* Profile dropdown list styling (match project-list.html) */
+        .profile-dropdown ul { 
+            list-style: none; 
+            margin: 0; 
+            padding: 0; 
+        }
+        .profile-dropdown li a { 
+            display: block; 
+            padding: 0.65rem 0.85rem; 
+            font-size: 0.72rem; 
+            text-decoration: none; 
+            color: #1e293b; 
+            font-weight: 500; 
+        }
+        .profile-dropdown li a:hover { 
+            background: #f1f5f9; 
+        }
+        
+        .page-header { 
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)); 
+            color: #fff; 
+            padding: 0.55rem 0.75rem; 
+            margin: 0.35rem 0 0.5rem 0; 
+            display: flex; 
+            align-items: center; 
+            justify-content: space-between; 
+            box-shadow: 0 10px 28px rgba(0,0,0,0.18), 0 6px 16px rgba(0,0,0,0.14); 
+            font-size: 0.9rem; 
+        }
+        
+        .page-header h1 { 
+            color: #fff; 
+            font-size: 0.9rem; 
+            display: flex; 
+            align-items: center; 
+            gap: 0.5rem; 
+            letter-spacing: 0.5px; 
+            margin: 0; 
+            font-weight: 600; 
+        }
+        
+        .page-header i { 
+            font-size: 1rem; 
+        }
+        
+        .page-actions { 
+            display:flex; 
+            gap:0.4rem; 
+            flex-wrap:wrap; 
+        }
+        
+        .btn-add-new {
+            background: none;
+            border: none;
+            color: #fff;
+            padding: 0.4rem;
+            font-size: 1.2rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-decoration: none;
+        }
+        
+        .btn-add-new:hover {
+            color: rgba(255,255,255,0.8);
+            transform: scale(1.1);
+        }
+        
+        .btn-add-new i {
+            font-size: 1.2rem;
+        }
+
+        .ptw-form-container {
+            max-width: 100%;
+            margin: 90px auto 0;
+            padding: 20px;
+        }
+        
+        .ptw-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 60px;
+        }
+        
+        .ptw-title h2 {
+            margin-bottom: 5px;
+        }
+        
+        .ptw-title p {
+            color: #666;
+            margin-top: 0;
+        }
+        
+        .form-section {
+            background-color: #fff;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+        
+        .form-section h3 {
+            margin-top: 0;
+            margin-bottom: 20px;
+            color: #333;
+            font-size: 1.1rem;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+        }
+        
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            font-weight: 500;
+            margin-bottom: 8px;
+            color: #333;
+        }
+        
+        .form-group input,
+        .form-group textarea,
+        .form-group select {
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        
+        .form-group input:focus,
+        .form-group textarea:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #007bff;
+            box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+        }
+        
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        
+        .form-row-3 {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 20px;
+        }
+        
+        .textarea-large {
+            min-height: 120px;
+            resize: vertical;
+        }
+        
+        .checkbox-group {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .checkbox-item input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+        }
+        
+        .safety-section {
+            background-color: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 0 8px 8px 0;
+        }
+        
+        .safety-section h3 {
+            color: #856404;
+            margin-top: 0;
+        }
+        
+        .hazard-checklist {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .hazard-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 10px;
+            background: #fff;
+            border-radius: 4px;
+            border: 1px solid #ffeaa7;
+        }
+        
+        .hazard-item input[type="checkbox"] {
+            margin-top: 3px;
+        }
+        
+        .hazard-item label {
+            font-weight: normal;
+            margin: 0;
+            font-size: 14px;
+        }
+        
+        .btn-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 30px;
+            padding: 20px 0;
+            border-top: 1px solid #eee;
+        }
+        
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .btn-primary {
+            background-color: #007bff;
+            color: #fff;
+        }
+        
+        .btn-primary:hover {
+            background-color: #0056b3;
+        }
+        
+        .btn-secondary {
+            background-color: #6c757d;
+            color: #fff;
+        }
+        
+        .btn-secondary:hover {
+            background-color: #545b62;
+        }
+        
+        .btn-danger {
+            background-color: #dc3545;
+            color: #fff;
+        }
+        
+        .btn-danger:hover {
+            background-color: #c82333;
+        }
+        
+        .required {
+            color: #dc3545;
+        }
+        
+        .file-upload-container {
+            margin-top: 20px;
+        }
+        
+        .file-input-wrapper {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+            cursor: pointer;
+        }
+        
+        .file-input-label {
+            display: inline-block;
+            padding: 10px 15px;
+            background: #f0f0f0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        .file-input-wrapper input[type="file"] {
+            position: absolute;
+            left: 0;
+            top: 0;
+            opacity: 0;
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+        }
+        
+        .file-list {
+            margin-top: 15px;
+            list-style: none;
+            padding: 0;
+        }
+        
+        .file-item {
+            display: flex;
+            align-items: center;
+            padding: 8px 12px;
+            background: #f9f9f9;
+            border: 1px solid #eee;
+            border-radius: 4px;
+            margin-bottom: 5px;
+        }
+        
+        .file-item i {
+            margin-right: 8px;
+            color: #6c757d;
+        }
+        
+        .file-name {
+            flex: 1;
+            font-size: 14px;
+        }
+        
+        .file-remove {
+            background: none;
+            border: none;
+            color: #dc3545;
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 2px;
+        }
+        
+        .file-remove:hover {
+            background: #f5f5f5;
+        }
+        
+        .alert {
+            padding: 12px 16px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            border: 1px solid;
+        }
+        
+        .alert-info {
+            background-color: #d1ecf1;
+            border-color: #bee5eb;
+            color: #0c5460;
+        }
+        
+        .alert-warning {
+            background-color: #fff3cd;
+            border-color: #ffeaa7;
+            color: #856404;
+        }
+        
+        @media (max-width: 768px) {
+            .form-row,
+            .form-row-3 {
+                grid-template-columns: 1fr;
+            }
+            
+            .btn-container {
+                flex-direction: column;
+                gap: 15px;
+            }
+            
+            .ptw-form-container {
+                margin-top: 60px;
+                padding: 15px;
+            }
+        }
+
+        /* Team Member Styles */
+        .team-member-item {
+            background: #f8f9fa;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 12px;
+            position: relative;
+        }
+        .team-member-item .member-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        .team-member-item .member-number {
+            font-weight: 600;
+            color: #007bff;
+            font-size: 0.9rem;
+        }
+        .btn-add-member {
+            background: #007bff;
+            color: #fff;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: background 0.2s;
+        }
+        .btn-add-member:hover {
+            background: #0056b3;
+        }
+        .btn-remove-member {
+            background: #e74c3c;
+            color: #fff;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .btn-remove-member:hover {
+            background: #c0392b;
+        }
+        .team-member-item .form-row {
+            margin-bottom: 10px;
+        }
+        .team-member-item .form-group {
+            margin-bottom: 0;
+        }
+        .no-members-msg {
+            color: #6c757d;
+            font-style: italic;
+            padding: 12px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <!-- Loading overlay -->
+    <div id="loadingOverlay" class="loading-overlay" style="display: none;">
+        <div class="loading-spinner">
+            <i class="fas fa-spinner fa-spin"></i>
+            <p>Loading...</p>
+        </div>
+    </div>
+
+    <div class="app-container">
+        <!-- Left Sidebar -->
+        <nav class="sidebar">
+            <div class="logo">
+                <h2>Dreamex Datalab</h2>
+            </div>
+            <ul class="menu">
+                <li class="menu-dropdown" data-feature="health_view">
+                    <a href="#"><i class="fas fa-medkit"></i> Health</a>
+                    <ul class="submenu">
+                        <li data-feature="health_assessment_view"><a href="health-assessment.html">Assessment</a></li>
+                        <li data-feature="health_consultation_view"><a href="health-consultation.html">Consultation</a></li>
+                        <li data-feature="medical_folder_view"><a href="medical-folder.html">Medical Folder</a></li>
+                    </ul>
+                </li>
+                <li class="menu-dropdown active" data-feature="safety_view">
+                    <a href="#" class="active"><i class="fas fa-shield-alt"></i> Safety</a>
+                    <ul class="submenu">
+                        <li data-feature="training_view"><a href="trainingboard.html">Training</a></li>
+                        <li data-feature="jsa_view"><a href="jsaboard.html">Job Safety Analysis</a></li>
+                        <li data-feature="ptw_view"><a href="ptwboard.html" class="active">Permit to Work</a></li>
+                        <li data-feature="incident_view"><a href="incidentboard.html">Incident Reports</a></li>
+                        <li data-feature="inspection_view"><a href="inspectionboard.html">Inspection</a></li>
+                        <li data-feature="audit_view"><a href="auditboard.html">Audit</a></li>
+                    </ul>
+                </li>
+                <!-- Risk Management (separate section) -->
+                <li class="menu-dropdown" data-feature="risk_view" data-requires-permission="risk_view">
+                    <a href="#"><i class="fas fa-exclamation-triangle"></i> Risk Management</a>
+                    <ul class="submenu">
+                        <li data-feature="risk_view" data-requires-permission="risk_view"><a href="riskboard.html">Risk Management</a></li>
+                        <li data-feature="risk_view" data-requires-permission="risk_register_view"><a href="riskreg.html">Risk Register</a></li>
+                    </ul>
+                </li>
+                    <li class="menu-dropdown" data-feature="investigation_view" data-requires-permission="investigation_view">
+                    	<a href="#"><i class="fas fa-search-plus"></i> Investigation</a>
+                    	<ul class="submenu">
+                        <li data-feature="investigation_dashboard_view" data-requires-permission="investigation_dashboard_view"><a href="investigation-dashboard.html">Investigation Dashboard</a></li>
+                        <li data-feature="investigation_list_view" data-requires-permission="investigation_list_view"><a href="investigation-list.html">Investigation List</a></li>
+                        <li data-feature="create_investigation_view" data-requires-permission="create_investigation_view"><a href="investigation-create.html">Create Investigation</a></li>
+                    	</ul>
+                    </li>
+                <li class="menu-dropdown" data-feature="environment_view">
+                    <a href="#"><i class="fas fa-leaf"></i> Environment</a>
+                    <ul class="submenu">
+                        <li data-feature="water_view"><a href="waterboard.html">Water Quality</a></li>
+                    </ul>
+                </li>
+                <li class="menu-dropdown" data-feature="security_view">
+                    <a href="#"><i class="fas fa-lock"></i> Security</a>
+                    <ul class="submenu">
+                        <li data-feature="access_view"><a href="accessboard.html">Access Request</a></li>
+                        <li data-feature="removal_view"><a href="removalboard.html">Property Removal</a></li>
+                    </ul>
+                </li>
+                <li data-feature="logistics_view"><a href="#"><i class="fas fa-truck"></i> Logistics</a></li>
+                <li class="menu-dropdown" data-feature="hr_view">
+                    <a href="#"><i class="fas fa-users"></i> HR</a>
+                    <ul class="submenu">
+                        <li data-feature="staff_management_view"><a href="staff.html">Staffing</a></li>
+                    </ul>
+                </li>
+                <li data-feature="finance_view"><a href="#"><i class="fas fa-dollar-sign"></i> Finance</a></li>
+            </ul>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content" id="mainContent">
+            <nav class="top-nav">
+                <div class="top-nav-left">
+                    <button id="sidebarToggle" class="sidebar-toggle-btn" title="Toggle Menu"><i class="fas fa-bars"></i></button>
+                    <div class="company-branding">
+                        <img id="headerCompanyLogo" alt="Company Logo" />
+                        <span id="headerCompanyName"></span>
+                    </div>
+                </div>
+                <div class="top-nav-right">
+                    <div class="notifications">
+                        <button id="notificationBtn" class="notification-btn">
+                            <i class="fas fa-bell"></i>
+                            <span class="notification-badge">0</span>
+                        </button>
+                        <div class="notification-dropdown">
+                            <div class="notification-header">
+                                <h3>Notifications</h3>
+                                <button class="mark-all-read">Mark all as read</button>
+                            </div>
+                            <div class="notification-list">
+                                <!-- Notifications will be dynamically added here -->
+                            </div>
+                            <div class="notification-empty">
+                                <i class="fas fa-inbox"></i>
+                                <div class="notification-empty-title">No notifications</div>
+                                <div class="notification-empty-message">You're all caught up</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="user-profile" style="position:relative;">
+                        <button id="userProfileBtn" class="profile-btn">
+                            <div id="user-avatar" class="avatar-container" style="width:38px;height:38px;border-radius:50%;overflow:hidden;position:relative;">
+                                <img id="user-img" src="" alt="User Avatar" style="width:100%;height:100%;object-fit:cover;display:none;" />
+                                <div id="user-initials" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#3498db;color:#fff;font-weight:600;font-size:0.8rem;">??</div>
+                            </div>
+                        </button>
+                        <div class="profile-dropdown"><ul></ul></div>
+                    </div>
+                </div>
+            </nav>
+            <div class="page-header">
+                <h1><i class="fas fa-file-contract"></i> Permit to Work Request</h1>
+                <div class="page-actions">
+                    <a href="ptwboard.html" class="btn-add-new" title="Back to PTW Board">
+                        <i class="fas fa-arrow-left"></i>
+                    </a>
+                </div>
+            </div>
+
+            <div class="ptw-form-container">
+            <form id="ptwForm">
+                <!-- General Information -->
+                <div class="form-section">
+                    <h3><i class="fas fa-info-circle"></i> General Information</h3>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="workTitle">Work Title <span class="required">*</span></label>
+                            <input type="text" id="workTitle" name="workTitle" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="permitType">Permit Type <span class="required">*</span></label>
+                            <select id="permitType" name="permitType" required>
+                                <option value="">Select Permit Type</option>
+                                <option value="hot_work">Hot Work</option>
+                                <option value="confined_space">Confined Space</option>
+                                <option value="electrical">Electrical Work</option>
+                                <option value="excavation">Excavation</option>
+                                <option value="work_at_height">Work at Height</option>
+                                <option value="cold_work">Cold Work</option>
+                                <option value="radiography">Radiography</option>
+                                <option value="lifting">Lifting Operations</option>
+                                <option value="other">Other</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="workDescription">Work Description <span class="required">*</span></label>
+                        <textarea id="workDescription" name="workDescription" class="textarea-large" 
+                                placeholder="Provide detailed description of the work to be performed" required></textarea>
+                    </div>
+
+                    <!-- Permit-Type Specific Sections (Hidden by default; shown when permit type selected) -->
+                    <div id="permitTypeSections">
+                        <!-- Hot Work Section -->
+                        <div class="form-section permit-type-section" data-type="hot_work" style="display:none;">
+                            <h3><i class="fas fa-fire"></i> Hot Work Details</h3>
+                            <div class="form-row-3">
+                                <div class="form-group" id="fireWatchNameGroup" style="display:none;">
+                                    <label for="hot_work_fireWatchName">Fire Watch Name <span class="required">*</span></label>
+                                    <input type="text" id="hot_work_fireWatchName" name="hot_work_fireWatchName" data-required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="hot_work_gasTestTime">Last Gas Test Time <span class="required">*</span></label>
+                                    <input type="datetime-local" id="hot_work_gasTestTime" name="hot_work_gasTestTime" data-required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="hot_work_extinguishersCount">Fire Extinguishers (Qty) <span class="required">*</span></label>
+                                    <input type="number" min="0" id="hot_work_extinguishersCount" name="hot_work_extinguishersCount" data-required>
+                                </div>
+                            </div>
+                            <div class="checkbox-group" style="margin-top:10px;">
+                                <div class="checkbox-item">
+                                    <input type="checkbox" name="hot_work_fireWatchAssigned" id="hot_work_fireWatchAssigned" onchange="toggleFireWatchName()">
+                                    <label for="hot_work_fireWatchAssigned">Fire Watch Assigned</label>
+                                </div>
+                                <div class="checkbox-item">
+                                    <input type="checkbox" name="hot_work_combustibleMaterialsRemoved" id="hot_work_combustibleMaterialsRemoved">
+                                    <label for="hot_work_combustibleMaterialsRemoved">Combustible Materials Removed</label>
+                                </div>
+                                <div class="checkbox-item">
+                                    <input type="checkbox" name="hot_work_weldingEquipmentInspection" id="hot_work_weldingEquipmentInspection">
+                                    <label for="hot_work_weldingEquipmentInspection">Welding/Cutting Equipment Inspected</label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Confined Space Section -->
+                        <div class="form-section permit-type-section" data-type="confined_space" style="display:none;">
+                            <h3><i class="fas fa-door-closed"></i> Confined Space Entry Details</h3>
+                            <div class="form-row-3">
+                                <div class="form-group">
+                                    <label for="confined_space_o2">O₂ % <span class="required">*</span></label>
+                                    <input type="number" step="0.1" id="confined_space_o2" name="confined_space_o2" data-required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="confined_space_lel">LEL % <span class="required">*</span></label>
+                                    <input type="number" step="0.1" id="confined_space_lel" name="confined_space_lel" data-required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="confined_space_h2s">H₂S (ppm)</label>
+                                    <input type="number" step="0.1" id="confined_space_h2s" name="confined_space_h2s">
+                                </div>
+                            </div>
+                            <div class="form-row-3">
+                                <div class="form-group">
+                                    <label for="confined_space_co">CO (ppm)</label>
+                                    <input type="number" step="0.1" id="confined_space_co" name="confined_space_co">
+                                </div>
+                                <div class="form-group">
+                                    <label for="confined_space_ventilationMethod">Ventilation Method <span class="required">*</span></label>
+                                    <input type="text" id="confined_space_ventilationMethod" name="confined_space_ventilationMethod" data-required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="confined_space_entryPermitNumber">Entry Permit Number</label>
+                                    <input type="text" id="confined_space_entryPermitNumber" name="confined_space_entryPermitNumber" readonly style="background-color: #f5f5f5; cursor: not-allowed;" placeholder="Auto-generated">
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="confined_space_entrySupervisor">Entry Supervisor <span class="required">*</span></label>
+                                    <input type="text" id="confined_space_entrySupervisor" name="confined_space_entrySupervisor" data-required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="confined_space_attendantName">Attendant Name <span class="required">*</span></label>
+                                    <input type="text" id="confined_space_attendantName" name="confined_space_attendantName" data-required>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="confined_space_rescuePlan">Rescue Plan <span class="required">*</span></label>
+                                <textarea id="confined_space_rescuePlan" name="confined_space_rescuePlan" data-required placeholder="Describe rescue plan and equipment staging"></textarea>
+                            </div>
+                        </div>
+
+                        <!-- Electrical Work Section -->
+                        <div class="form-section permit-type-section" data-type="electrical" style="display:none;">
+                            <h3><i class="fas fa-bolt"></i> Electrical Work Details</h3>
+                            <div class="form-row-3">
+                                <div class="form-group">
+                                    <label for="electrical_voltageLevel">Voltage Level <span class="required">*</span></label>
+                                    <input type="text" id="electrical_voltageLevel" name="electrical_voltageLevel" data-required placeholder="e.g., 480V, 11kV">
+                                </div>
+                                <div class="form-group">
+                                    <label for="electrical_lockoutTagoutNumbers">LOTO Device/Tag Numbers <span class="required">*</span></label>
+                                    <input type="text" id="electrical_lockoutTagoutNumbers" name="electrical_lockoutTagoutNumbers" data-required placeholder="List all applied locks/tags">
+                                </div>
+                                <div class="form-group">
+                                    <label for="electrical_groundingMethod">Grounding Method</label>
+                                    <input type="text" id="electrical_groundingMethod" name="electrical_groundingMethod" placeholder="Describe grounding method">
+                                </div>
+                            </div>
+                            <div class="checkbox-group" style="margin-top:10px;">
+                                <div class="checkbox-item">
+                                    <input type="checkbox" id="electrical_isolationPointVerified" name="electrical_isolationPointVerified">
+                                    <label for="electrical_isolationPointVerified">Isolation Point Verified</label>
+                                </div>
+                                <div class="checkbox-item">
+                                    <input type="checkbox" id="electrical_testInstrumentCalibrated" name="electrical_testInstrumentCalibrated">
+                                    <label for="electrical_testInstrumentCalibrated">Test Instrument Calibrated</label>
+                                </div>
+                                <div class="checkbox-item">
+                                    <input type="checkbox" id="electrical_arcFlashAnalysis" name="electrical_arcFlashAnalysis">
+                                    <label for="electrical_arcFlashAnalysis">Arc Flash Analysis Reviewed</label>
+                                </div>
+                                <div class="checkbox-item">
+                                    <input type="checkbox" id="electrical_zeroEnergyVerified" name="electrical_zeroEnergyVerified">
+                                    <label for="electrical_zeroEnergyVerified">Zero Energy State Verified</label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Excavation Section -->
+                        <div class="form-section permit-type-section" data-type="excavation" style="display:none;">
+                            <h3><i class="fas fa-digging"></i> Excavation Details</h3>
+                            <div class="form-row-3">
+                                <div class="form-group">
+                                    <label for="excavation_depth">Depth (m) <span class="required">*</span></label>
+                                    <input type="number" step="0.1" id="excavation_depth" name="excavation_depth" data-required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="excavation_soilType">Soil Type <span class="required">*</span></label>
+                                    <input type="text" id="excavation_soilType" name="excavation_soilType" data-required placeholder="e.g., Clay, Sand, Rock">
+                                </div>
+                                <div class="form-group">
+                                    <label for="excavation_spoilPileDistance">Spoil Pile Distance (m)</label>
+                                    <input type="number" step="0.1" id="excavation_spoilPileDistance" name="excavation_spoilPileDistance" placeholder="Min. 0.6m from edge">
+                                </div>
+                            </div>
+                            <div class="checkbox-group" style="margin-top:10px;">
+                                <div class="checkbox-item">
+                                    <input type="checkbox" id="excavation_shoringRequired" name="excavation_shoringRequired">
+                                    <label for="excavation_shoringRequired">Shoring/Shielding Installed</label>
+                                </div>
+                                <div class="checkbox-item">
+                                    <input type="checkbox" id="excavation_locateUndergroundUtilities" name="excavation_locateUndergroundUtilities">
+                                    <label for="excavation_locateUndergroundUtilities">Underground Utilities Located</label>
+                                </div>
+                                <div class="checkbox-item">
+                                    <input type="checkbox" id="excavation_accessLaddersInstalled" name="excavation_accessLaddersInstalled">
+                                    <label for="excavation_accessLaddersInstalled">Access Ladders Installed</label>
+                                </div>
+                                <div class="checkbox-item">
+                                    <input type="checkbox" id="excavation_barricadesInstalled" name="excavation_barricadesInstalled">
+                                    <label for="excavation_barricadesInstalled">Barricades/Warning Signs Installed</label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Work at Height Section -->
+                        <div class="form-section permit-type-section" data-type="work_at_height" style="display:none;">
+                            <h3><i class="fas fa-user-alt"></i> Work at Height Details</h3>
+                            <div class="form-row-3">
+                                <div class="form-group">
+                                    <label for="height_heightMeters">Height (m) <span class="required">*</span></label>
+                                    <input type="number" step="0.1" id="height_heightMeters" name="height_heightMeters" data-required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="height_fallProtectionType">Fall Protection Type <span class="required">*</span></label>
+                                    <input type="text" id="height_fallProtectionType" name="height_fallProtectionType" data-required placeholder="e.g., Harness, Guardrails">
+                                </div>
+                                <div class="form-group">
+                                    <label for="height_ladderOrScaffoldTag">Ladder/Scaffold Tag ID</label>
+                                    <input type="text" id="height_ladderOrScaffoldTag" name="height_ladderOrScaffoldTag" placeholder="Inspection tag number">
+                                </div>
+                            </div>
+                            <div class="form-row-3">
+                                <div class="form-group">
+                                    <label for="height_weatherConditions">Weather Conditions</label>
+                                    <input type="text" id="height_weatherConditions" name="height_weatherConditions" placeholder="e.g., Clear, Windy">
+                                </div>
+                                <div class="form-group">
+                                    <label for="height_windSpeed">Max Wind Speed (km/h)</label>
+                                    <input type="number" step="1" id="height_windSpeed" name="height_windSpeed" placeholder="Work stops if exceeded">
+                                </div>
+                                <div class="form-group">
+                                    <label for="height_accessMethod">Access Method</label>
+                                    <input type="text" id="height_accessMethod" name="height_accessMethod" placeholder="e.g., Scaffold, MEWP, Ladder">
+                                </div>
+                            </div>
+                            <div class="checkbox-group" style="margin-top:10px;">
+                                <div class="checkbox-item">
+                                    <input type="checkbox" id="height_anchorPointsInspected" name="height_anchorPointsInspected">
+                                    <label for="height_anchorPointsInspected">Anchor Points Inspected</label>
+                                </div>
+                                <div class="checkbox-item">
+                                    <input type="checkbox" id="height_edgeProtectionInstalled" name="height_edgeProtectionInstalled">
+                                    <label for="height_edgeProtectionInstalled">Edge Protection Installed</label>
+                                </div>
+                                <div class="checkbox-item">
+                                    <input type="checkbox" id="height_harnessInspected" name="height_harnessInspected">
+                                    <label for="height_harnessInspected">Harness/Lanyard Inspected</label>
+                                </div>
+                                <div class="checkbox-item">
+                                    <input type="checkbox" id="height_areaBarricaded" name="height_areaBarricaded">
+                                    <label for="height_areaBarricaded">Area Below Barricaded</label>
+                                </div>
+                            </div>
+                            <div class="form-group" style="margin-top:15px;">
+                                <label for="height_rescuePlanHeight">Rescue Plan <span class="required">*</span></label>
+                                <textarea id="height_rescuePlanHeight" name="height_rescuePlanHeight" data-required placeholder="Describe rescue plan for fall scenarios"></textarea>
+                            </div>
+                        </div>
+
+                        <!-- Lifting Operations Section -->
+                        <div class="form-section permit-type-section" data-type="lifting" style="display:none;">
+                            <h3><i class="fas fa-anchor"></i> Lifting Operations Details</h3>
+                            <div class="form-row-3">
+                                <div class="form-group">
+                                    <label for="lifting_craneOperatorName">Crane Operator Name <span class="required">*</span></label>
+                                    <input type="text" id="lifting_craneOperatorName" name="lifting_craneOperatorName" data-required placeholder="Certified operator name">
+                                </div>
+                                <div class="form-group">
+                                    <label for="lifting_riggingSupervisor">Rigging Supervisor <span class="required">*</span></label>
+                                    <input type="text" id="lifting_riggingSupervisor" name="lifting_riggingSupervisor" data-required placeholder="Supervisor name">
+                                </div>
+                                <div class="form-group">
+                                    <label for="lifting_signalmanName">Signalman Name</label>
+                                    <input type="text" id="lifting_signalmanName" name="lifting_signalmanName" placeholder="Designated signalman">
+                                </div>
+                            </div>
+                            <div class="form-row-3">
+                                <div class="form-group">
+                                    <label for="lifting_loadWeight">Load Weight (kg) <span class="required">*</span></label>
+                                    <input type="number" step="0.1" id="lifting_loadWeight" name="lifting_loadWeight" data-required placeholder="Total load weight">
+                                </div>
+                                <div class="form-group">
+                                    <label for="lifting_craneCapacity">Crane Capacity (kg)</label>
+                                    <input type="number" step="0.1" id="lifting_craneCapacity" name="lifting_craneCapacity" placeholder="Max rated capacity">
+                                </div>
+                                <div class="form-group">
+                                    <label for="lifting_liftRadius">Lift Radius (m)</label>
+                                    <input type="number" step="0.1" id="lifting_liftRadius" name="lifting_liftRadius" placeholder="Operating radius">
+                                </div>
+                            </div>
+                            <div class="form-row-3">
+                                <div class="form-group">
+                                    <label for="lifting_craneType">Crane/Equipment Type</label>
+                                    <input type="text" id="lifting_craneType" name="lifting_craneType" placeholder="e.g., Mobile crane, Tower crane">
+                                </div>
+                                <div class="form-group">
+                                    <label for="lifting_liftDescription">Lift Description</label>
+                                    <input type="text" id="lifting_liftDescription" name="lifting_liftDescription" placeholder="Brief description of lift">
+                                </div>
+                                <div class="form-group">
+                                    <label for="lifting_windSpeed">Max Wind Speed (km/h)</label>
+                                    <input type="number" step="1" id="lifting_windSpeed" name="lifting_windSpeed" placeholder="Wind limit for operation">
+                                </div>
+                            </div>
+                            <div class="checkbox-group" style="margin-top:10px;">
+                                <div class="checkbox-item">
+                                    <input type="checkbox" id="lifting_liftPlanApproved" name="lifting_liftPlanApproved">
+                                    <label for="lifting_liftPlanApproved">Lift Plan Approved</label>
+                                </div>
+                                <div class="checkbox-item">
+                                    <input type="checkbox" id="lifting_loadChartVerified" name="lifting_loadChartVerified">
+                                    <label for="lifting_loadChartVerified">Load Chart Verified</label>
+                                </div>
+                                <div class="checkbox-item">
+                                    <input type="checkbox" id="lifting_slingInspection" name="lifting_slingInspection">
+                                    <label for="lifting_slingInspection">Slings/Hardware Inspected</label>
+                                </div>
+                                <div class="checkbox-item">
+                                    <input type="checkbox" id="lifting_exclusionZoneEstablished" name="lifting_exclusionZoneEstablished">
+                                    <label for="lifting_exclusionZoneEstablished">Exclusion Zone Established</label>
+                                </div>
+                                <div class="checkbox-item">
+                                    <input type="checkbox" id="lifting_groundConditions" name="lifting_groundConditions">
+                                    <label for="lifting_groundConditions">Ground Conditions Verified</label>
+                                </div>
+                                <div class="checkbox-item">
+                                    <input type="checkbox" id="lifting_outriggersDeployed" name="lifting_outriggersDeployed">
+                                    <label for="lifting_outriggersDeployed">Outriggers/Stabilizers Deployed</label>
+                                </div>
+                                <div class="checkbox-item">
+                                    <input type="checkbox" id="lifting_communicationEstablished" name="lifting_communicationEstablished">
+                                    <label for="lifting_communicationEstablished">Communication Established</label>
+                                </div>
+                                <div class="checkbox-item">
+                                    <input type="checkbox" id="lifting_tagLinesAttached" name="lifting_tagLinesAttached">
+                                    <label for="lifting_tagLinesAttached">Tag Lines Attached</label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Radiography Section -->
+                        <div class="form-section permit-type-section" data-type="radiography" style="display:none;">
+                            <h3><i class="fas fa-radiation"></i> Radiography Details</h3>
+                            <div class="form-row-3">
+                                <div class="form-group">
+                                    <label for="radiography_sourceType">Source Type <span class="required">*</span></label>
+                                    <input type="text" id="radiography_sourceType" name="radiography_sourceType" data-required placeholder="e.g., Ir-192, Co-60, X-ray">
+                                </div>
+                                <div class="form-group">
+                                    <label for="radiography_sourceActivity">Source Activity (Ci/GBq)</label>
+                                    <input type="text" id="radiography_sourceActivity" name="radiography_sourceActivity" placeholder="e.g., 50 Ci, 1.85 TBq">
+                                </div>
+                                <div class="form-group">
+                                    <label for="radiography_exclusionRadius">Exclusion Radius (m) <span class="required">*</span></label>
+                                    <input type="number" step="0.1" id="radiography_exclusionRadius" name="radiography_exclusionRadius" data-required placeholder="Barricade distance">
+                                </div>
+                            </div>
+                            <div class="form-row-3">
+                                <div class="form-group">
+                                    <label for="radiography_startTime">Exposure Start Time</label>
+                                    <input type="time" id="radiography_startTime" name="radiography_startTime">
+                                </div>
+                                <div class="form-group">
+                                    <label for="radiography_endTime">Exposure End Time</label>
+                                    <input type="time" id="radiography_endTime" name="radiography_endTime">
+                                </div>
+                                <div class="form-group">
+                                    <label for="radiography_licenseNumber">Radiography License #</label>
+                                    <input type="text" id="radiography_licenseNumber" name="radiography_licenseNumber" placeholder="Operator license number">
+                                </div>
+                            </div>
+                            <div class="checkbox-group" style="margin-top:10px;">
+                                <div class="checkbox-item">
+                                    <input type="checkbox" id="radiography_barricadeSetup" name="radiography_barricadeSetup">
+                                    <label for="radiography_barricadeSetup">Barricade Setup Complete</label>
+                                </div>
+                                <div class="checkbox-item">
+                                    <input type="checkbox" id="radiography_dosimeterRequired" name="radiography_dosimeterRequired">
+                                    <label for="radiography_dosimeterRequired">Dosimeters Issued</label>
+                                </div>
+                                <div class="checkbox-item">
+                                    <input type="checkbox" id="radiography_surveyBefore" name="radiography_surveyBefore">
+                                    <label for="radiography_surveyBefore">Radiation Survey (Before)</label>
+                                </div>
+                                <div class="checkbox-item">
+                                    <input type="checkbox" id="radiography_surveyAfter" name="radiography_surveyAfter">
+                                    <label for="radiography_surveyAfter">Radiation Survey (After)</label>
+                                </div>
+                                <div class="checkbox-item">
+                                    <input type="checkbox" id="radiography_warningLightsActive" name="radiography_warningLightsActive">
+                                    <label for="radiography_warningLightsActive">Warning Lights/Alarms Active</label>
+                                </div>
+                                <div class="checkbox-item">
+                                    <input type="checkbox" id="radiography_emergencyProcedures" name="radiography_emergencyProcedures">
+                                    <label for="radiography_emergencyProcedures">Emergency Procedures Reviewed</label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Cold Work Section -->
+                        <div class="form-section permit-type-section" data-type="cold_work" style="display:none;">
+                            <h3><i class="fas fa-snowflake"></i> Cold Work Details</h3>
+                            <div class="form-row-3">
+                                <div class="form-group">
+                                    <label for="cold_work_workType">Type of Work <span class="required">*</span></label>
+                                    <input type="text" id="cold_work_workType" name="cold_work_workType" data-required placeholder="e.g., Grinding, Painting, Inspection">
+                                </div>
+                                <div class="form-group">
+                                    <label for="cold_work_toolsRequired">Tools Required</label>
+                                    <input type="text" id="cold_work_toolsRequired" name="cold_work_toolsRequired" placeholder="List main tools to be used">
+                                </div>
+                                <div class="form-group">
+                                    <label for="cold_work_duration">Estimated Duration</label>
+                                    <input type="text" id="cold_work_duration" name="cold_work_duration" placeholder="e.g., 2 hours, 1 day">
+                                </div>
+                            </div>
+                            <div class="checkbox-group" style="margin-top:10px;">
+                                <div class="checkbox-item">
+                                    <input type="checkbox" id="cold_work_generalIsolationConfirmed" name="cold_work_generalIsolationConfirmed">
+                                    <label for="cold_work_generalIsolationConfirmed">General Isolation Confirmed</label>
+                                </div>
+                                <div class="checkbox-item">
+                                    <input type="checkbox" id="cold_work_areaCleaned" name="cold_work_areaCleaned">
+                                    <label for="cold_work_areaCleaned">Work Area Clean & Clear</label>
+                                </div>
+                                <div class="checkbox-item">
+                                    <input type="checkbox" id="cold_work_toolsInspected" name="cold_work_toolsInspected">
+                                    <label for="cold_work_toolsInspected">Tools Inspected</label>
+                                </div>
+                                <div class="checkbox-item">
+                                    <input type="checkbox" id="cold_work_lightingAdequate" name="cold_work_lightingAdequate">
+                                    <label for="cold_work_lightingAdequate">Adequate Lighting</label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Other Section -->
+                        <div class="form-section permit-type-section" data-type="other" style="display:none;">
+                            <h3><i class="fas fa-ellipsis-h"></i> Other Permit Details</h3>
+                            <div class="form-group">
+                                <label for="other_additionalControls">Additional Controls / Notes</label>
+                                <textarea id="other_additionalControls" name="other_additionalControls" placeholder="Specify any additional controls relevant to this permit type"></textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="workLocation">Work Location <span class="required">*</span></label>
+                            <input type="text" id="workLocation" name="workLocation" 
+                                   placeholder="Specific location where work will be performed" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="department">Department <span class="required">*</span></label>
+                            <select id="department" name="department" required>
+                                <option value="">Select Department</option>
+                                <!-- Departments loaded dynamically from Firebase fieldOptions -->
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-row-3">
+                        <div class="form-group">
+                            <label for="startDate">Start Date <span class="required">*</span></label>
+                            <input type="datetime-local" id="startDate" name="startDate" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="endDate">End Date <span class="required">*</span></label>
+                            <input type="datetime-local" id="endDate" name="endDate" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="priority">Priority Level</label>
+                            <select id="priority" name="priority">
+                                <option value="low">Low</option>
+                                <option value="medium" selected>Medium</option>
+                                <option value="high">High</option>
+                                <option value="urgent">Urgent</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Personnel Information -->
+                <div class="form-section">
+                    <h3><i class="fas fa-users"></i> Personnel Information</h3>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="requestedBy">Requested By <span class="required">*</span></label>
+                            <input type="text" id="requestedBy" name="requestedBy" required readonly>
+                        </div>
+                        <div class="form-group">
+                            <label for="lineManager">Line Manager <span class="required">*</span></label>
+                            <input type="text" id="lineManager" name="lineManager" 
+                                   placeholder="Name of line manager" required readonly>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label style="font-weight:600; margin-bottom:10px; display:block;">Work Team Members</label>
+                        <div id="teamMembersList">
+                            <div class="no-members-msg">No team members added. Click "Add Team Member" to add one.</div>
+                        </div>
+                        <button type="button" class="btn-add-member" onclick="addTeamMember()" style="margin-top:10px">
+                            <i class="fas fa-plus"></i> Add Team Member
+                        </button>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="emergencyContact">Emergency Contact</label>
+                            <input type="text" id="emergencyContact" name="emergencyContact" 
+                                   placeholder="Emergency contact person and number">
+                        </div>
+                        <div class="form-group">
+                            <label for="contractorCompany">Contractor Company</label>
+                            <input type="text" id="contractorCompany" name="contractorCompany" 
+                                   placeholder="If applicable">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Safety Assessment -->
+                <div class="safety-section">
+                    <h3><i class="fas fa-exclamation-triangle"></i> Hazard Identification & Risk Assessment</h3>
+                    
+                    <div class="alert alert-warning">
+                        <i class="fas fa-info-circle"></i>
+                        Identify all potential hazards associated with the work. Check all that apply.
+                    </div>
+
+                    <div id="hazardChecklistContainer" class="hazard-checklist">
+                        <!-- Hazards will be populated dynamically based on permit type -->
+                    </div>
+
+                    <div class="form-group" style="margin-top: 20px;">
+                        <label for="additionalHazards">Additional Hazards Description</label>
+                        <textarea id="additionalHazards" name="additionalHazards" 
+                                placeholder="Describe any other hazards or provide details about selected hazards"></textarea>
+                    </div>
+                </div>
+
+                <!-- Safety Measures -->
+                <div class="form-section">
+                    <h3><i class="fas fa-shield-alt"></i> Safety Measures & Controls</h3>
+                    
+                    <div class="form-group">
+                        <label style="font-weight:600; margin-bottom:10px; display:block;">Safety Measures & Controls <span class="required">*</span></label>
+                        <div id="safetyMeasuresList">
+                            <div class="no-members-msg">No safety measures added. Click "Add Safety Measure" to add one.</div>
+                        </div>
+                        <button type="button" class="btn-add-member" onclick="addSafetyMeasure()" style="margin-top:10px">
+                            <i class="fas fa-plus"></i> Add Safety Measure
+                        </button>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="ppe">Required Personal Protective Equipment (PPE)</label>
+                        <div id="ppeContainer" class="checkbox-group">
+                            <!-- PPE items will be populated dynamically based on permit type -->
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="isolationRequirements">Isolation Requirements</label>
+                        <textarea id="isolationRequirements" name="isolationRequirements" 
+                                placeholder="Describe any electrical, mechanical, or process isolation requirements"></textarea>
+                    </div>
+                </div>
+
+                <!-- Equipment & Tools -->
+                <div class="form-section">
+                    <h3><i class="fas fa-tools"></i> Equipment & Tools</h3>
+                    
+                    <div class="form-group">
+                        <label for="equipmentTools">Equipment and Tools Required</label>
+                        <textarea id="equipmentTools" name="equipmentTools" 
+                                placeholder="List all equipment, tools, and materials required for the work"></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="specialEquipment">Special Equipment/Permits Required</label>
+                        <div id="specialEquipmentContainer" class="checkbox-group">
+                            <!-- Special equipment items will be populated dynamically based on permit type -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Attachments -->
+                <div class="form-section">
+                    <h3><i class="fas fa-paperclip"></i> Attachments</h3>
+                    
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i>
+                        Attach relevant documents such as work procedures, safety data sheets, drawings, or risk assessments.
+                    </div>
+
+                    <div class="file-upload-container">
+                        <div class="file-input-wrapper">
+                            <label for="attachments" class="file-input-label">
+                                <i class="fas fa-upload"></i> Choose Files
+                            </label>
+                            <input type="file" id="attachments" name="attachments" multiple 
+                                   accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg">
+                        </div>
+                        <ul id="fileList" class="file-list"></ul>
+                    </div>
+                </div>
+
+                <!-- Form Actions -->
+                <div class="btn-container">
+                    <div>
+                        <button type="button" id="saveDraftBtn" class="btn btn-secondary">
+                            <i class="fas fa-save"></i> Save as Draft
+                        </button>
+                    </div>
+                    <div>
+                        <button type="button" id="cancelBtn" class="btn btn-danger">
+                            <i class="fas fa-times"></i> Cancel
+                        </button>
+                        <button type="submit" id="submitBtn" class="btn btn-primary">
+                            <i class="fas fa-paper-plane"></i> Submit PTW Request
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </main>
+    </div>
+
+    <script>
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyCUTmTn0rRBb0M-UkQJxnUMrWqXYU_BgIc",
+            authDomain: "users-8be65.firebaseapp.com",
+            databaseURL: "https://users-8be65-default-rtdb.firebaseio.com",
+            projectId: "users-8be65",
+            storageBucket: "users-8be65.firebasestorage.app",
+            messagingSenderId: "909025468149",
+            appId: "1:909025468149:web:fb4e7c4a8b4bd6d1076e4d",
+            measurementId: "G-XHFMRCJQEZ"
+        };
+
+        // Initialize Firebase
+        function initializeFirebase() {
+            if (!window.firebase || !window.firebase.apps || window.firebase.apps.length === 0) {
+                window.firebase.initializeApp(firebaseConfig);
+                console.log('✅ Firebase v8 initialized successfully for centralized auth');
+            }
+            return window.firebase;
+        }
+
+        const firebase = initializeFirebase();
+        const auth = firebase.auth();
+        const database = firebase.database();
+
+        // Global variables
+        let currentUser = null;
+        let selectedFiles = [];
+        let teamMembersCounter = 0;
+        let safetyMeasuresCounter = 0;
+
+        // Team Members Management Functions
+        function addTeamMember(data = null) {
+            teamMembersCounter++;
+            const memberId = teamMembersCounter;
+            
+            const container = document.getElementById('teamMembersList');
+            const noMsg = container.querySelector('.no-members-msg');
+            if (noMsg) noMsg.remove();
+            
+            const memberDiv = document.createElement('div');
+            memberDiv.className = 'team-member-item';
+            memberDiv.id = `teamMember_${memberId}`;
+            memberDiv.innerHTML = `
+                <div class="member-header">
+                    <span class="member-number">Team Member #${memberId}</span>
+                    <button type="button" class="btn-remove-member" onclick="removeTeamMember(${memberId})">
+                        <i class="fas fa-trash"></i> Remove
+                    </button>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Name <span class="required">*</span></label>
+                        <input type="text" class="team-member-name" placeholder="Full name" value="${data?.name || ''}" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Role/Position</label>
+                        <input type="text" class="team-member-role" placeholder="e.g., Electrician, Safety Watch" value="${data?.role || ''}">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Company/Contractor</label>
+                        <input type="text" class="team-member-company" placeholder="Company or contractor name" value="${data?.company || ''}">
+                    </div>
+                    <div class="form-group">
+                        <label>Contact Number</label>
+                        <input type="text" class="team-member-contact" placeholder="Phone number" value="${data?.contact || ''}">
+                    </div>
+                </div>
+            `;
+            container.appendChild(memberDiv);
+        }
+
+        function removeTeamMember(memberId) {
+            const memberDiv = document.getElementById(`teamMember_${memberId}`);
+            if (memberDiv) {
+                memberDiv.remove();
+                // Check if list is empty
+                const container = document.getElementById('teamMembersList');
+                if (container.querySelectorAll('.team-member-item').length === 0) {
+                    container.innerHTML = '<div class="no-members-msg">No team members added. Click "Add Team Member" to add one.</div>';
+                }
+            }
+        }
+
+        function getTeamMembersData() {
+            const members = [];
+            document.querySelectorAll('#teamMembersList .team-member-item').forEach(item => {
+                const name = item.querySelector('.team-member-name')?.value;
+                if (name) {
+                    members.push({
+                        name: name,
+                        role: item.querySelector('.team-member-role')?.value || '',
+                        company: item.querySelector('.team-member-company')?.value || '',
+                        contact: item.querySelector('.team-member-contact')?.value || ''
+                    });
+                }
+            });
+            return members.length > 0 ? members : null;
+        }
+
+        function loadTeamMembersData(data) {
+            if (!data || data.length === 0) return;
+            data.forEach(member => addTeamMember(member));
+        }
+
+        // Safety Measures Management Functions
+        function addSafetyMeasure(data = null) {
+            safetyMeasuresCounter++;
+            const measureId = safetyMeasuresCounter;
+            
+            const container = document.getElementById('safetyMeasuresList');
+            const noMsg = container.querySelector('.no-members-msg');
+            if (noMsg) noMsg.remove();
+            
+            const measureDiv = document.createElement('div');
+            measureDiv.className = 'team-member-item';
+            measureDiv.id = `safetyMeasure_${measureId}`;
+            measureDiv.innerHTML = `
+                <div class="member-header">
+                    <span class="member-number">Safety Measure #${measureId}</span>
+                    <button type="button" class="btn-remove-member" onclick="removeSafetyMeasure(${measureId})">
+                        <i class="fas fa-trash"></i> Remove
+                    </button>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Measure/Control <span class="required">*</span></label>
+                        <input type="text" class="safety-measure-title" placeholder="e.g., Barricade area, Lock-out tag-out" value="${data?.title || ''}" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Category</label>
+                        <select class="safety-measure-category">
+                            <option value="">Select Category</option>
+                            <option value="elimination" ${data?.category === 'elimination' ? 'selected' : ''}>Elimination</option>
+                            <option value="substitution" ${data?.category === 'substitution' ? 'selected' : ''}>Substitution</option>
+                            <option value="engineering" ${data?.category === 'engineering' ? 'selected' : ''}>Engineering Control</option>
+                            <option value="administrative" ${data?.category === 'administrative' ? 'selected' : ''}>Administrative Control</option>
+                            <option value="ppe" ${data?.category === 'ppe' ? 'selected' : ''}>PPE</option>
+                            <option value="other" ${data?.category === 'other' ? 'selected' : ''}>Other</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Description/Details</label>
+                    <textarea class="safety-measure-description" placeholder="Describe how this measure will be implemented">${data?.description || ''}</textarea>
+                </div>
+            `;
+            container.appendChild(measureDiv);
+        }
+
+        function removeSafetyMeasure(measureId) {
+            const measureDiv = document.getElementById(`safetyMeasure_${measureId}`);
+            if (measureDiv) {
+                measureDiv.remove();
+                // Check if list is empty
+                const container = document.getElementById('safetyMeasuresList');
+                if (container.querySelectorAll('.team-member-item').length === 0) {
+                    container.innerHTML = '<div class="no-members-msg">No safety measures added. Click "Add Safety Measure" to add one.</div>';
+                }
+            }
+        }
+
+        function getSafetyMeasuresData() {
+            const measures = [];
+            document.querySelectorAll('#safetyMeasuresList .team-member-item').forEach(item => {
+                const title = item.querySelector('.safety-measure-title')?.value;
+                if (title) {
+                    measures.push({
+                        title: title,
+                        category: item.querySelector('.safety-measure-category')?.value || '',
+                        description: item.querySelector('.safety-measure-description')?.value || ''
+                    });
+                }
+            });
+            return measures.length > 0 ? measures : null;
+        }
+
+        function loadSafetyMeasuresData(data) {
+            if (!data || data.length === 0) return;
+            data.forEach(measure => addSafetyMeasure(measure));
+        }
+
+        // Authentication state observer
+        auth.onAuthStateChanged((user) => {
+            if (user) {
+                console.log('User authenticated:', user.email);
+                updateUIForAuthenticatedUser(user);
+                // Ensure line manager is populated for the requester once auth is ready
+                try { populateLineManagerFromRequestedBy(); } catch (e) { console.warn('Could not populate line manager after auth:', e); }
+            } else {
+                console.log('User not authenticated');
+                window.location.href = 'login.html';
+            }
+        });
+
+        // User profile functions
+        function getUserInitials(displayName) {
+            if (!displayName) return '??';
+            
+            const names = displayName.trim().split(' ');
+            if (names.length >= 2) {
+                return (names[0][0] + names[names.length - 1][0]).toUpperCase();
+            } else if (names.length === 1) {
+                return names[0][0].toUpperCase() + (names[0][1] || '').toUpperCase();
+            }
+            return '??';
+        }
+
+        function getUserDisplayName() {
+            const user = auth.currentUser;
+            if (!user) return '';
+            
+            return user.displayName || 
+                   localStorage.getItem('userDisplayName') || 
+                   user.email?.split('@')[0] || 
+                   'User';
+        }
+
+        async function getCompanyIdFor(uid) {
+            try {
+                if (!uid) return null;
+                const snap = await database.ref('users/' + uid).once('value');
+                const u = snap.val() || {};
+                return u.companyId || u.companyID || u.company || u.company_id || null;
+            } catch (e) {
+                return null;
+            }
+        }
+
+        async function getUserAvatarUrl() {
+            const user = auth.currentUser;
+            if (!user) return null;
+            
+            try {
+                // 1) If auth has a photoURL, use it
+                if (user.photoURL) return user.photoURL;
+
+                // 2) If localStorage user has a photo url, use it
+                let storedUser = null;
+                try {
+                    storedUser = JSON.parse(localStorage.getItem('currentUser') || 'null');
+                } catch (e) {
+                    storedUser = null;
+                }
+                const directUrl = storedUser?.profilePhotoUrl || storedUser?.profilePicture || storedUser?.photoURL;
+                if (directUrl) return directUrl;
+
+                // 3) Resolve companyId from multiple sources
+                const companyId = (
+                    window.authManager?.currentUser?.companyId ||
+                    storedUser?.companyId ||
+                    localStorage.getItem('companyId') ||
+                    (await getCompanyIdFor(user.uid)) ||
+                    'default'
+                );
+
+                const uid = user.uid;
+                const names = ['profile', 'avatar'];
+                const exts = ['jpg', 'jpeg', 'png'];
+                const searchPaths = [];
+
+                if (companyId) {
+                    names.forEach((n) => exts.forEach((ext) => searchPaths.push(`companies/${companyId}/avatars/${uid}/${n}.${ext}`)));
+                    names.forEach((n) => exts.forEach((ext) => searchPaths.push(`companies/${companyId}/users/${uid}/${n}.${ext}`)));
+                }
+
+                names.forEach((n) => exts.forEach((ext) => searchPaths.push(`avatars/${uid}/${n}.${ext}`)));
+                names.forEach((n) => exts.forEach((ext) => searchPaths.push(`profiles/${uid}/${n}.${ext}`)));
+                
+                // Try each path until we find one that exists
+                let lastErr = null;
+                for (const path of searchPaths) {
+                    try {
+                        const storageRef = firebase.storage().ref(path);
+                        const downloadURL = await storageRef.getDownloadURL();
+                        return downloadURL;
+                    } catch (error) {
+                        lastErr = error;
+                        // Continue to next path if this one doesn't exist
+                        continue;
+                    }
+                }
+
+                if (lastErr) {
+                    console.warn('Avatar not found (or no permission). Last error:', lastErr);
+                }
+                
+                // If no avatar found, return null
+                return null;
+            } catch (error) {
+                console.log('Error getting avatar URL:', error);
+                return null;
+            }
+        }
+
+        async function updateUIForAuthenticatedUser(user) {
+            try {
+                // Update user display name
+                const displayName = getUserDisplayName();
+                const email = (auth.currentUser && auth.currentUser.email) ? auth.currentUser.email : '';
+                
+                // Get avatar URL
+                const avatarUrl = await getUserAvatarUrl();
+                
+                // Update profile button avatar
+                const userImg = document.getElementById('user-img');
+                const userInitials = document.getElementById('user-initials');
+                
+                if (avatarUrl && userImg) {
+                    // Show image, hide initials
+                    userImg.src = avatarUrl;
+                    userImg.style.display = 'block';
+                    if (userInitials) userInitials.style.display = 'none';
+                    
+                    // Handle image load errors
+                    userImg.onerror = () => {
+                        userImg.style.display = 'none';
+                        if (userInitials) {
+                            userInitials.textContent = getUserInitials(displayName);
+                            userInitials.style.display = 'flex';
+                        }
+                    };
+                } else {
+                    // Show initials, hide image
+                    if (userImg) userImg.style.display = 'none';
+                    if (userInitials) {
+                        userInitials.textContent = getUserInitials(displayName);
+                        userInitials.style.display = 'flex';
+                    }
+                }
+                
+                // Update any display name elements
+                const userNameElements = document.querySelectorAll('.user-name, .user-display-name');
+                userNameElements.forEach(element => {
+                    element.textContent = displayName;
+                });
+
+                // Populate profile dropdown list
+                const list = document.querySelector('.profile-dropdown ul');
+                if (list) {
+                    const avatarHtml = avatarUrl 
+                        ? `<img src="${avatarUrl}" alt="${displayName} Avatar" style="width:32px;height:32px;border-radius:50%;object-fit:cover;">`
+                        : `<div style="width:32px;height:32px;border-radius:50%;background:#3498db;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:12px;">${getUserInitials(displayName)}</div>`;
+                    list.innerHTML = `
+                        <li style="border-bottom:1px solid #eee;padding:12px 16px;background:#f8f9fa;">
+                            <div style="display:flex;align-items:center;gap:12px;">
+                                ${avatarHtml}
+                                <div>
+                                    <div style="font-weight:600;color:#333;font-size:14px;margin-bottom:2px;">${displayName}</div>
+                                    <div style="color:#666;font-size:12px;">${email}</div>
+                                </div>
+                            </div>
+                        </li>
+                        <li><a href="profile.html"><i class="fas fa-user"></i> Profile</a></li>
+                        <li><a href="account.html"><i class="fas fa-cog"></i> Account Settings</a></li>
+                        <li><a href="#" id="logoutLink"><i class="fas fa-sign-out-alt"></i> Sign out</a></li>
+                    `;
+                    const logoutLink = list.querySelector('#logoutLink');
+                    if (logoutLink) {
+                        logoutLink.addEventListener('click', (e) => {
+                            e.preventDefault();
+                            logout();
+                        });
+                    }
+                }
+                
+            } catch (error) {
+                console.error('Error updating UI for authenticated user:', error);
+            }
+        }
+
+        function updateUserAvatar() {
+            const user = auth.currentUser;
+            if (user) {
+                updateUIForAuthenticatedUser(user);
+            }
+        }
+
+        // Bind dropdown toggle and outside click to close
+        function bindProfileDropdown() {
+            const btn = document.getElementById('userProfileBtn');
+            const dd = document.querySelector('.profile-dropdown');
+            if (!btn || !dd) return;
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                dd.classList.toggle('show');
+            });
+            document.addEventListener('click', (e) => {
+                if (!btn.contains(e.target) && !dd.contains(e.target)) {
+                    dd.classList.remove('show');
+                }
+            });
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') dd.classList.remove('show');
+            });
+        }
+
+        async function logout() {
+            try {
+                await firebase.auth().signOut();
+            } catch (e) {
+                console.warn('Sign out warning:', e);
+            } finally {
+                localStorage.removeItem('currentUser');
+                localStorage.removeItem('user');
+                window.location.href = 'login.html';
+            }
+        }
+
+        // Initialize the form
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeForm();
+            setupEventListeners();
+            loadUserData();
+            loadCompanyBranding();
+            loadDepartments();
+            updateUserAvatar();
+            bindProfileDropdown();
+        });
+
+        function initializeForm() {
+            // Set minimum date to today
+            const now = new Date();
+            const today = now.toISOString().slice(0, 16);
+            document.getElementById('startDate').min = today;
+            document.getElementById('endDate').min = today;
+            
+            // Set default start date to now + 1 hour
+            const defaultStart = new Date(now.getTime() + 60 * 60 * 1000);
+            document.getElementById('startDate').value = defaultStart.toISOString().slice(0, 16);
+            
+            // Set default end date to start date + 8 hours
+            const defaultEnd = new Date(defaultStart.getTime() + 8 * 60 * 60 * 1000);
+            document.getElementById('endDate').value = defaultEnd.toISOString().slice(0, 16);
+        }
+
+        function setupEventListeners() {
+            // Form submission
+            document.getElementById('ptwForm').addEventListener('submit', handleFormSubmit);
+            
+            // Save draft
+            document.getElementById('saveDraftBtn').addEventListener('click', saveDraft);
+            
+            // Cancel button
+            document.getElementById('cancelBtn').addEventListener('click', function() {
+                if (confirm('Are you sure you want to cancel? All unsaved changes will be lost.')) {
+                    window.location.href = 'ptwboard.html';
+                }
+            });
+            
+            // File upload
+            document.getElementById('attachments').addEventListener('change', handleFileSelect);
+            
+            // Date validation
+            document.getElementById('startDate').addEventListener('change', validateDates);
+            document.getElementById('endDate').addEventListener('change', validateDates);
+            
+            // Permit type change
+            document.getElementById('permitType').addEventListener('change', handlePermitTypeChange);
+            // Initialize permit section visibility on load
+            handlePermitTypeChange();
+
+            // If requester changes (in case it's editable elsewhere), refresh line manager
+            const rb = document.getElementById('requestedBy');
+            if (rb) {
+                rb.addEventListener('change', () => { try { populateLineManagerFromRequestedBy(); } catch (_) {} });
+                rb.addEventListener('input', () => { try { populateLineManagerFromRequestedBy(); } catch (_) {} });
+            }
+        }
+
+        async function loadUserData() {
+            // Load current user data (this would typically come from your auth system)
+            const user = JSON.parse(localStorage.getItem('currentUser')) || {
+                name: 'Current User',
+                email: 'user@company.com',
+                department: 'Operations'
+            };
+            
+            document.getElementById('requestedBy').value = user.name;
+            currentUser = user;
+            // Populate line manager using the requester name
+            await populateLineManagerFromRequestedBy();
+        }
+
+        async function loadLineManager(user) {
+            try {
+                const lineManagerInput = document.getElementById('lineManager');
+                if (!lineManagerInput) return;
+
+                // First check if lineManager is already in localStorage user
+                if (user.lineManager) {
+                    lineManagerInput.value = user.lineManager;
+                    console.log('✅ Line manager loaded from localStorage:', user.lineManager);
+                    return;
+                }
+
+                // If not, fetch from Firebase
+                const uid = user.uid || user.authUid || (auth.currentUser ? auth.currentUser.uid : null);
+                if (!uid) {
+                    console.warn('⚠️ No user UID available to fetch line manager');
+                    return;
+                }
+
+                // Resolve companyId
+                let companyId = user.companyId;
+                if (!companyId) {
+                    companyId = localStorage.getItem('companyId');
+                }
+                if (!companyId) {
+                    const userSnap = await database.ref(`users/${uid}`).once('value');
+                    if (userSnap.exists()) {
+                        companyId = userSnap.val().companyId;
+                    }
+                }
+
+                if (!companyId) {
+                    console.warn('⚠️ Could not determine companyId for loading line manager');
+                    return;
+                }
+
+                // Fetch user data from company users
+                const companyUserRef = database.ref(`companies/${companyId}/users/${uid}`);
+                const snapshot = await companyUserRef.once('value');
+
+                let lineManagerName = '';
+                if (snapshot.exists()) {
+                    const userData = snapshot.val();
+                    lineManagerName = userData.lineManager || '';
+                } else {
+                    console.warn('⚠️ User data not found in company users, trying global users path');
+                }
+
+                // Fallback to global users path if needed
+                if (!lineManagerName) {
+                    const globalUserSnap = await database.ref(`users/${uid}`).once('value');
+                    if (globalUserSnap.exists()) {
+                        const globalUser = globalUserSnap.val();
+                        lineManagerName = globalUser.lineManager || '';
+                    }
+                }
+
+                if (lineManagerName) {
+                    lineManagerInput.value = lineManagerName;
+                    console.log('✅ Line manager loaded:', lineManagerName);
+                } else {
+                    console.log('⚠️ No line manager assigned to this user');
+                    lineManagerInput.placeholder = 'No line manager assigned';
+                }
+            } catch (error) {
+                console.error('❌ Error loading line manager:', error);
+            }
+        }
+
+        // Populate Line Manager based on the "Requested By" name from company users
+        async function populateLineManagerFromRequestedBy() {
+            try {
+                const requestedByEl = document.getElementById('requestedBy');
+                const lineManagerInput = document.getElementById('lineManager');
+                if (!requestedByEl || !lineManagerInput) return;
+
+                const requesterName = (requestedByEl.value || '').trim();
+                if (!requesterName) return;
+
+                // Resolve companyId
+                let companyId = null;
+                if (window.authManager && window.authManager.currentUser) {
+                    companyId = window.authManager.currentUser.companyId;
+                }
+                if (!companyId && currentUser && currentUser.companyId) {
+                    companyId = currentUser.companyId;
+                }
+                if (!companyId) {
+                    const storedUser = localStorage.getItem('currentUser');
+                    if (storedUser) {
+                        try { companyId = JSON.parse(storedUser).companyId; } catch (e) {}
+                    }
+                }
+                if (!companyId) {
+                    companyId = localStorage.getItem('companyId');
+                }
+                if (!companyId && auth.currentUser) {
+                    companyId = await getCompanyIdFor(auth.currentUser.uid);
+                }
+
+                // As a last resort, try to detect the company by scanning for the requester name
+                if (!companyId) {
+                    try {
+                        const companiesSnap = await database.ref('companies').once('value');
+                        if (companiesSnap.exists()) {
+                            const companies = companiesSnap.val();
+                            const nameLc = requesterName.toLowerCase();
+                            for (const [cid, c] of Object.entries(companies)) {
+                                if (!c || !c.users) continue;
+                                const found = Object.values(c.users).some(u => {
+                                    const nm = (u?.name || `${u?.firstName || ''} ${u?.lastName || ''}`).trim();
+                                    return nm && nm.toLowerCase() === nameLc;
+                                });
+                                if (found) { companyId = cid; break; }
+                            }
+                        }
+                    } catch (e) { /* ignore */ }
+                }
+
+                if (!companyId) {
+                    console.warn('⚠️ Could not determine companyId for requester lookup');
+                    return;
+                }
+
+                // Look up requester in company users by full name
+                const usersSnap = await database.ref(`companies/${companyId}/users`).once('value');
+                if (!usersSnap.exists()) {
+                    console.warn('⚠️ No users found under company to resolve requester');
+                    return;
+                }
+
+                const usersObj = usersSnap.val() || {};
+                const targetNameLc = requesterName.toLowerCase();
+                let matchedUser = null;
+                for (const [uid, u] of Object.entries(usersObj)) {
+                    const nm = (u?.name || `${u?.firstName || ''} ${u?.lastName || ''}`).trim();
+                    if (nm && nm.toLowerCase() === targetNameLc) { matchedUser = { uid, ...u }; break; }
+                }
+
+                if (!matchedUser) {
+                    console.warn('⚠️ Requester not found in company users:', requesterName);
+                    lineManagerInput.placeholder = 'Requester not found';
+                    return;
+                }
+
+                // Prefer stored lineManager name; fallback to lineManagerId lookup
+                let lineManagerName = matchedUser.lineManager || '';
+                if (!lineManagerName && matchedUser.lineManagerId) {
+                    // Try to resolve manager name from company path
+                    let manager = null;
+                    const mgrCompanyPath = await database.ref(`companies/${companyId}/users/${matchedUser.lineManagerId}`).once('value');
+                    if (mgrCompanyPath.exists()) manager = mgrCompanyPath.val();
+                    if (!manager) {
+                        const mgrGlobalPath = await database.ref(`users/${matchedUser.lineManagerId}`).once('value');
+                        if (mgrGlobalPath.exists()) manager = mgrGlobalPath.val();
+                    }
+                    if (manager) {
+                        lineManagerName = manager.name || `${manager.firstName || ''} ${manager.lastName || ''}`.trim();
+                    }
+                }
+
+                if (lineManagerName) {
+                    lineManagerInput.value = lineManagerName;
+                    console.log('✅ Line manager (by requester) loaded:', lineManagerName);
+                } else {
+                    console.log('⚠️ No line manager assigned for requester');
+                    lineManagerInput.placeholder = 'No line manager assigned';
+                }
+            } catch (err) {
+                console.error('❌ Error populating line manager from requester:', err);
+            }
+        }
+
+        function validateDates() {
+            const startDate = new Date(document.getElementById('startDate').value);
+            const endDate = new Date(document.getElementById('endDate').value);
+            
+            if (startDate && endDate && endDate <= startDate) {
+                alert('End date must be after start date');
+                document.getElementById('endDate').value = '';
+            }
+        }
+
+        function toggleFireWatchName() {
+            const checkbox = document.getElementById('hot_work_fireWatchAssigned');
+            const nameGroup = document.getElementById('fireWatchNameGroup');
+            const nameInput = document.getElementById('hot_work_fireWatchName');
+            
+            if (checkbox && nameGroup && nameInput) {
+                if (checkbox.checked) {
+                    nameGroup.style.display = 'flex';
+                    nameInput.setAttribute('required', 'required');
+                } else {
+                    nameGroup.style.display = 'none';
+                    nameInput.removeAttribute('required');
+                    nameInput.value = '';
+                }
+            }
+        }
+
+        function handlePermitTypeChange() {
+            const permitType = document.getElementById('permitType').value;
+            // Hide all sections first
+            document.querySelectorAll('.permit-type-section').forEach(section => {
+                section.style.display = 'none';
+                // Remove required attribute from inputs tagged data-required when hidden
+                section.querySelectorAll('[data-required]').forEach(inp => {
+                    inp.removeAttribute('required');
+                });
+            });
+
+            // Update Hazards, PPE and Special Equipment based on permit type
+            updateHazardsForPermitType(permitType);
+            updatePPEForPermitType(permitType);
+            updateSpecialEquipmentForPermitType(permitType);
+
+            if (!permitType) return;
+
+            // Show the matching section
+            const activeSection = document.querySelector(`.permit-type-section[data-type="${permitType}"]`);
+            if (activeSection) {
+                activeSection.style.display = 'block';
+                // Apply required attributes dynamically
+                activeSection.querySelectorAll('[data-required]').forEach(inp => {
+                    inp.setAttribute('required', 'required');
+                });
+                
+                // Auto-generate Entry Permit Number for Confined Space
+                if (permitType === 'confined_space') {
+                    const entryPermitField = document.getElementById('confined_space_entryPermitNumber');
+                    if (entryPermitField && !entryPermitField.value) {
+                        const now = new Date();
+                        const year = now.getFullYear();
+                        const month = String(now.getMonth() + 1).padStart(2, '0');
+                        const day = String(now.getDate()).padStart(2, '0');
+                        const random = String(Math.floor(Math.random() * 10000)).padStart(4, '0');
+                        entryPermitField.value = `CSE-${year}${month}${day}-${random}`;
+                    }
+                }
+            }
+
+            // Optional contextual console info (could be replaced with inline UI alert later)
+            const additionalInfo = {
+                'hot_work': 'Ensure continuous fire watch and verify gas tests within acceptable limits.',
+                'confined_space': 'Verify atmospheric testing, ventilation, attendant, and rescue plan readiness.',
+                'electrical': 'Confirm isolation, LOTO tags, test instrument calibration, and arc flash precautions.',
+                'excavation': 'Check soil stability, shoring/shielding, underground utility locates, access ladders.',
+                'work_at_height': 'Inspect anchor points, fall protection gear, weather conditions, edge protection.',
+                'lifting': 'Verify approved lift plan, operator competency, rigging inspections, exclusion zone.',
+                'radiography': 'Confirm barricades, dosimeters, radiation surveys before and after exposure.',
+                'cold_work': 'General housekeeping, tool condition, and isolation confirmed as applicable.',
+                'other': 'Capture any special controls pertinent to the unique work scope.'
+            };
+            if (additionalInfo[permitType]) console.log(additionalInfo[permitType]);
+        }
+
+        // PPE configurations per permit type
+        const ppeConfig = {
+            common: [
+                { id: 'hard_hat', label: 'Hard Hat' },
+                { id: 'safety_glasses', label: 'Safety Glasses' },
+                { id: 'safety_boots', label: 'Safety Boots' },
+                { id: 'safety_gloves', label: 'Safety Gloves' }
+            ],
+            hot_work: [
+                { id: 'fire_retardant', label: 'Fire Retardant Clothing (FRC)' },
+                { id: 'welding_helmet', label: 'Welding Helmet/Face Shield' },
+                { id: 'welding_gloves', label: 'Welding Gloves' },
+                { id: 'leather_apron', label: 'Leather Apron' },
+                { id: 'hearing_protection', label: 'Hearing Protection' },
+                { id: 'safety_goggles', label: 'Safety Goggles (Cutting)' }
+            ],
+            confined_space: [
+                { id: 'respiratory_scba', label: 'SCBA (Self-Contained Breathing Apparatus)' },
+                { id: 'respiratory_air_line', label: 'Air-Line Respirator' },
+                { id: 'gas_monitor_personal', label: 'Personal Gas Monitor' },
+                { id: 'full_body_harness', label: 'Full Body Harness' },
+                { id: 'retrieval_line', label: 'Retrieval Line/Lifeline' },
+                { id: 'coveralls', label: 'Coveralls/Protective Suit' },
+                { id: 'chemical_gloves', label: 'Chemical Resistant Gloves' }
+            ],
+            electrical: [
+                { id: 'arc_flash_suit', label: 'Arc Flash Suit' },
+                { id: 'arc_flash_hood', label: 'Arc Flash Hood' },
+                { id: 'insulated_gloves', label: 'Insulated Gloves (Class Rated)' },
+                { id: 'insulated_boots', label: 'Insulated/Dielectric Boots' },
+                { id: 'face_shield_arc', label: 'Arc-Rated Face Shield' },
+                { id: 'voltage_detector', label: 'Voltage Detector' },
+                { id: 'rubber_blankets', label: 'Insulating Rubber Blankets' }
+            ],
+            excavation: [
+                { id: 'high_vis_vest', label: 'High Visibility Vest' },
+                { id: 'steel_toe_boots', label: 'Steel Toe Boots' },
+                { id: 'dust_mask', label: 'Dust Mask/Respirator' },
+                { id: 'hearing_protection', label: 'Hearing Protection' },
+                { id: 'work_gloves', label: 'Heavy Duty Work Gloves' },
+                { id: 'knee_pads', label: 'Knee Pads' }
+            ],
+            work_at_height: [
+                { id: 'full_body_harness', label: 'Full Body Harness' },
+                { id: 'shock_absorbing_lanyard', label: 'Shock Absorbing Lanyard' },
+                { id: 'self_retracting_lifeline', label: 'Self-Retracting Lifeline (SRL)' },
+                { id: 'anchor_sling', label: 'Anchor Sling' },
+                { id: 'rope_grab', label: 'Rope Grab Device' },
+                { id: 'chin_strap', label: 'Hard Hat with Chin Strap' },
+                { id: 'tool_lanyard', label: 'Tool Lanyard' }
+            ],
+            cold_work: [
+                { id: 'work_gloves', label: 'Work Gloves' },
+                { id: 'hearing_protection', label: 'Hearing Protection' },
+                { id: 'dust_mask', label: 'Dust Mask' },
+                { id: 'coveralls', label: 'Coveralls' },
+                { id: 'knee_pads', label: 'Knee Pads' }
+            ],
+            radiography: [
+                { id: 'dosimeter', label: 'Personal Dosimeter' },
+                { id: 'film_badge', label: 'Film Badge' },
+                { id: 'lead_apron', label: 'Lead Apron' },
+                { id: 'lead_gloves', label: 'Lead Gloves' },
+                { id: 'thyroid_collar', label: 'Thyroid Collar' },
+                { id: 'radiation_glasses', label: 'Radiation Safety Glasses' }
+            ],
+            lifting: [
+                { id: 'high_vis_vest', label: 'High Visibility Vest' },
+                { id: 'rigger_gloves', label: 'Rigger Gloves' },
+                { id: 'steel_toe_boots', label: 'Steel Toe Boots' },
+                { id: 'hearing_protection', label: 'Hearing Protection' },
+                { id: 'hand_signals_card', label: 'Hand Signals Card' }
+            ],
+            other: [
+                { id: 'hearing_protection', label: 'Hearing Protection' },
+                { id: 'respiratory', label: 'Respiratory Protection' },
+                { id: 'fall_protection', label: 'Fall Protection' },
+                { id: 'chemical_suit', label: 'Chemical Suit' },
+                { id: 'face_shield', label: 'Face Shield' }
+            ]
+        };
+
+        // Special Equipment configurations per permit type
+        const specialEquipmentConfig = {
+            hot_work: [
+                { id: 'welding_machine', label: 'Welding Machine' },
+                { id: 'cutting_torch', label: 'Cutting Torch/Oxy-Acetylene' },
+                { id: 'grinding_equipment', label: 'Grinding Equipment' },
+                { id: 'fire_extinguisher', label: 'Fire Extinguisher (ABC)' },
+                { id: 'fire_blanket', label: 'Fire Blanket' },
+                { id: 'spark_containment', label: 'Spark Containment/Welding Screens' },
+                { id: 'gas_cylinders', label: 'Gas Cylinders (Secured)' }
+            ],
+            confined_space: [
+                { id: 'gas_detector_4way', label: '4-Gas Detector (O2/LEL/CO/H2S)' },
+                { id: 'ventilation_blower', label: 'Ventilation Blower/Fan' },
+                { id: 'tripod_winch', label: 'Tripod & Winch System' },
+                { id: 'communication_equipment', label: 'Communication Equipment' },
+                { id: 'rescue_equipment', label: 'Rescue Equipment' },
+                { id: 'lighting_intrinsic', label: 'Intrinsically Safe Lighting' },
+                { id: 'entry_log', label: 'Entry/Exit Log Board' }
+            ],
+            electrical: [
+                { id: 'loto_kit', label: 'Lock Out/Tag Out (LOTO) Kit' },
+                { id: 'voltage_tester', label: 'Voltage Tester/Multimeter' },
+                { id: 'grounding_equipment', label: 'Grounding Equipment' },
+                { id: 'insulated_tools', label: 'Insulated Hand Tools' },
+                { id: 'circuit_identifier', label: 'Circuit Identifier' },
+                { id: 'rescue_hook', label: 'Rescue Hook/Hot Stick' },
+                { id: 'danger_tape', label: 'Danger Tape/Barricades' }
+            ],
+            excavation: [
+                { id: 'excavator', label: 'Excavator/Backhoe' },
+                { id: 'shoring_equipment', label: 'Shoring/Trench Boxes' },
+                { id: 'ladder_access', label: 'Ladder (Access/Egress)' },
+                { id: 'barricades', label: 'Barricades/Fencing' },
+                { id: 'utility_locator', label: 'Utility Locator/Ground Scanner' },
+                { id: 'pumping_equipment', label: 'Pumping/Dewatering Equipment' },
+                { id: 'soil_testing_kit', label: 'Soil Testing Kit' }
+            ],
+            work_at_height: [
+                { id: 'scaffolding', label: 'Scaffolding (Inspected/Tagged)' },
+                { id: 'mobile_platform', label: 'Mobile Elevated Work Platform (MEWP)' },
+                { id: 'ladder_certified', label: 'Certified Ladder' },
+                { id: 'anchor_points', label: 'Anchor Points (Certified)' },
+                { id: 'safety_nets', label: 'Safety Nets' },
+                { id: 'guardrails', label: 'Guardrails/Edge Protection' },
+                { id: 'rescue_plan', label: 'Rescue Plan & Equipment' }
+            ],
+            cold_work: [
+                { id: 'hand_tools', label: 'Hand Tools' },
+                { id: 'power_tools', label: 'Power Tools' },
+                { id: 'measuring_equipment', label: 'Measuring Equipment' },
+                { id: 'work_platform', label: 'Work Platform/Ladder' },
+                { id: 'lighting', label: 'Adequate Lighting' },
+                { id: 'first_aid_kit', label: 'First Aid Kit' }
+            ],
+            radiography: [
+                { id: 'radiation_source', label: 'Radiation Source Container' },
+                { id: 'survey_meter', label: 'Radiation Survey Meter' },
+                { id: 'barricades_rad', label: 'Barricades (Radiation Area)' },
+                { id: 'warning_signs', label: 'Warning Signs/Lights' },
+                { id: 'alarm_system', label: 'Radiation Alarm System' },
+                { id: 'film_cassettes', label: 'Film Cassettes/CR Plates' },
+                { id: 'emergency_kit', label: 'Emergency Response Kit' }
+            ],
+            lifting: [
+                { id: 'crane', label: 'Crane (Certified/Inspected)' },
+                { id: 'rigging_equipment', label: 'Rigging Equipment (Slings/Shackles)' },
+                { id: 'load_chart', label: 'Load Chart' },
+                { id: 'tag_lines', label: 'Tag Lines' },
+                { id: 'communication_radio', label: 'Two-Way Radio' },
+                { id: 'outrigger_pads', label: 'Outrigger Pads/Mats' },
+                { id: 'exclusion_barricades', label: 'Exclusion Zone Barricades' }
+            ],
+            other: [
+                { id: 'first_aid_kit', label: 'First Aid Kit' },
+                { id: 'communication_equipment', label: 'Communication Equipment' },
+                { id: 'lighting', label: 'Adequate Lighting' },
+                { id: 'barricades', label: 'Barricades/Warning Signs' },
+                { id: 'fire_extinguisher', label: 'Fire Extinguisher' }
+            ]
+        };
+
+        function updatePPEForPermitType(permitType) {
+            const container = document.getElementById('ppeContainer');
+            container.innerHTML = '';
+
+            // Always add common PPE first
+            ppeConfig.common.forEach(item => {
+                container.appendChild(createCheckboxItem('ppe', item.id, item.label));
+            });
+
+            // Add permit-specific PPE if available
+            const specificPPE = ppeConfig[permitType] || ppeConfig.other;
+            if (specificPPE) {
+                specificPPE.forEach(item => {
+                    container.appendChild(createCheckboxItem('ppe', item.id, item.label));
+                });
+            }
+
+            // If no permit type selected, show a message
+            if (!permitType) {
+                container.innerHTML = '<div class="no-members-msg" style="grid-column: 1/-1;">Select a permit type to see relevant PPE options</div>';
+            }
+        }
+
+        function updateSpecialEquipmentForPermitType(permitType) {
+            const container = document.getElementById('specialEquipmentContainer');
+            container.innerHTML = '';
+
+            // Add permit-specific equipment
+            const specificEquipment = specialEquipmentConfig[permitType] || specialEquipmentConfig.other;
+            if (specificEquipment && permitType) {
+                specificEquipment.forEach(item => {
+                    container.appendChild(createCheckboxItem('specialEquipment', item.id, item.label));
+                });
+            } else {
+                container.innerHTML = '<div class="no-members-msg" style="grid-column: 1/-1;">Select a permit type to see relevant equipment options</div>';
+            }
+        }
+
+        // Hazard configurations per permit type
+        const hazardConfig = {
+            common: [
+                { id: 'slip_trip_fall', label: 'Slip, Trip, Fall' },
+                { id: 'struck_by', label: 'Struck By Objects' },
+                { id: 'manual_handling', label: 'Manual Handling/Ergonomic' },
+                { id: 'environmental', label: 'Environmental (Weather/Temperature)' }
+            ],
+            hot_work: [
+                { id: 'fire_explosion', label: 'Fire/Explosion' },
+                { id: 'burns', label: 'Burns (Thermal)' },
+                { id: 'sparks_molten_metal', label: 'Sparks/Molten Metal' },
+                { id: 'fumes_smoke', label: 'Welding Fumes/Smoke Inhalation' },
+                { id: 'uv_radiation', label: 'UV/IR Radiation (Arc Flash)' },
+                { id: 'flammable_materials', label: 'Flammable Materials Nearby' },
+                { id: 'hot_surfaces', label: 'Hot Surfaces/Equipment' },
+                { id: 'gas_cylinder_hazards', label: 'Gas Cylinder Hazards' },
+                { id: 'noise', label: 'High Noise Levels' },
+                { id: 'electrical_shock', label: 'Electrical Shock' }
+            ],
+            confined_space: [
+                { id: 'oxygen_deficiency', label: 'Oxygen Deficiency (<19.5%)' },
+                { id: 'oxygen_enrichment', label: 'Oxygen Enrichment (>23.5%)' },
+                { id: 'toxic_gases', label: 'Toxic Gases (H2S, CO, etc.)' },
+                { id: 'flammable_atmosphere', label: 'Flammable/Explosive Atmosphere' },
+                { id: 'engulfment', label: 'Engulfment/Drowning' },
+                { id: 'entrapment', label: 'Entrapment/Confinement' },
+                { id: 'limited_access', label: 'Limited Entry/Exit' },
+                { id: 'poor_visibility', label: 'Poor Visibility/Lighting' },
+                { id: 'communication_difficulty', label: 'Communication Difficulty' },
+                { id: 'rescue_complications', label: 'Rescue Complications' },
+                { id: 'temperature_extremes', label: 'Temperature Extremes' }
+            ],
+            electrical: [
+                { id: 'electric_shock', label: 'Electric Shock/Electrocution' },
+                { id: 'arc_flash', label: 'Arc Flash' },
+                { id: 'arc_blast', label: 'Arc Blast' },
+                { id: 'burns_electrical', label: 'Electrical Burns' },
+                { id: 'fire_electrical', label: 'Electrical Fire' },
+                { id: 'stored_energy', label: 'Stored Energy (Capacitors)' },
+                { id: 'induced_voltage', label: 'Induced Voltage' },
+                { id: 'back_feed', label: 'Back Feed from Generators' },
+                { id: 'underground_cables', label: 'Underground/Hidden Cables' },
+                { id: 'inadequate_isolation', label: 'Inadequate Isolation' }
+            ],
+            excavation: [
+                { id: 'cave_in', label: 'Cave-In/Trench Collapse' },
+                { id: 'falling_loads', label: 'Falling Loads/Materials' },
+                { id: 'underground_utilities', label: 'Underground Utilities (Gas/Electric/Water)' },
+                { id: 'water_accumulation', label: 'Water Accumulation/Flooding' },
+                { id: 'hazardous_atmosphere_exc', label: 'Hazardous Atmosphere' },
+                { id: 'mobile_equipment', label: 'Mobile Equipment Proximity' },
+                { id: 'soil_instability', label: 'Soil Instability' },
+                { id: 'vibration', label: 'Vibration from Equipment' },
+                { id: 'noise_excavation', label: 'Noise Exposure' },
+                { id: 'dust_silica', label: 'Dust/Silica Exposure' },
+                { id: 'access_egress', label: 'Access/Egress Hazards' }
+            ],
+            work_at_height: [
+                { id: 'fall_from_height', label: 'Fall from Height' },
+                { id: 'falling_objects', label: 'Falling Objects/Tools' },
+                { id: 'unstable_surface', label: 'Unstable Work Surface' },
+                { id: 'scaffold_collapse', label: 'Scaffold/Platform Collapse' },
+                { id: 'ladder_hazards', label: 'Ladder Hazards' },
+                { id: 'swing_fall', label: 'Swing Fall' },
+                { id: 'anchor_failure', label: 'Anchor Point Failure' },
+                { id: 'rescue_at_height', label: 'Rescue Complications at Height' },
+                { id: 'wind_weather', label: 'Wind/Adverse Weather' },
+                { id: 'fragile_surfaces', label: 'Fragile Roof/Surfaces' },
+                { id: 'overhead_hazards', label: 'Overhead Hazards (Power Lines)' }
+            ],
+            cold_work: [
+                { id: 'mechanical_injury', label: 'Mechanical Injury' },
+                { id: 'cuts_abrasions', label: 'Cuts/Abrasions' },
+                { id: 'pinch_points', label: 'Pinch Points' },
+                { id: 'rotating_equipment', label: 'Rotating Equipment' },
+                { id: 'noise_cold', label: 'Noise Exposure' },
+                { id: 'vibration_cold', label: 'Vibration (Hand-Arm)' },
+                { id: 'dust_debris', label: 'Dust/Debris' },
+                { id: 'poor_housekeeping', label: 'Poor Housekeeping' }
+            ],
+            radiography: [
+                { id: 'ionizing_radiation', label: 'Ionizing Radiation Exposure' },
+                { id: 'radiation_burns', label: 'Radiation Burns' },
+                { id: 'source_loss', label: 'Loss of Radioactive Source' },
+                { id: 'source_stuck', label: 'Source Stuck/Jammed' },
+                { id: 'unauthorized_access', label: 'Unauthorized Personnel Access' },
+                { id: 'inadequate_shielding', label: 'Inadequate Shielding' },
+                { id: 'dosimeter_failure', label: 'Dosimeter Failure' },
+                { id: 'emergency_response', label: 'Emergency Response Delay' }
+            ],
+            lifting: [
+                { id: 'load_drop', label: 'Dropped Load' },
+                { id: 'crane_tip_over', label: 'Crane Tip-Over' },
+                { id: 'boom_contact', label: 'Boom Contact with Structures' },
+                { id: 'power_line_contact', label: 'Power Line Contact' },
+                { id: 'rigging_failure', label: 'Rigging Failure' },
+                { id: 'load_swing', label: 'Load Swing/Uncontrolled Movement' },
+                { id: 'ground_conditions', label: 'Ground Conditions (Soft/Uneven)' },
+                { id: 'wind_lifting', label: 'High Wind Conditions' },
+                { id: 'pinch_crush_points', label: 'Pinch/Crush Points' },
+                { id: 'communication_failure', label: 'Communication Failure' },
+                { id: 'exclusion_zone_breach', label: 'Exclusion Zone Breach' }
+            ],
+            other: [
+                { id: 'fire', label: 'Fire/Explosion' },
+                { id: 'toxic_substance', label: 'Toxic Substance Exposure' },
+                { id: 'electrical', label: 'Electrical Hazards' },
+                { id: 'mechanical', label: 'Mechanical Hazards' },
+                { id: 'fall', label: 'Fall Hazards' },
+                { id: 'confined', label: 'Confined Space' },
+                { id: 'lifting_hazard', label: 'Lifting Operations' },
+                { id: 'pressure', label: 'Pressure Systems' },
+                { id: 'chemical', label: 'Chemical Exposure' },
+                { id: 'noise_other', label: 'Noise' },
+                { id: 'radiation_other', label: 'Radiation' }
+            ]
+        };
+
+        function updateHazardsForPermitType(permitType) {
+            const container = document.getElementById('hazardChecklistContainer');
+            container.innerHTML = '';
+
+            // Always add common hazards first
+            hazardConfig.common.forEach(item => {
+                container.appendChild(createHazardItem(item.id, item.label));
+            });
+
+            // Add permit-specific hazards
+            const specificHazards = hazardConfig[permitType] || hazardConfig.other;
+            if (specificHazards) {
+                specificHazards.forEach(item => {
+                    container.appendChild(createHazardItem(item.id, item.label));
+                });
+            }
+
+            // Always add "Other" option at the end
+            container.appendChild(createHazardItem('other', 'Other Hazards (Specify Below)'));
+
+            // If no permit type selected, show a message
+            if (!permitType) {
+                container.innerHTML = '<div class="no-members-msg" style="grid-column: 1/-1;">Select a permit type to see relevant hazards</div>';
+            }
+        }
+
+        function createHazardItem(id, label) {
+            const div = document.createElement('div');
+            div.className = 'hazard-item';
+            div.innerHTML = `
+                <input type="checkbox" id="hazard_${id}" name="hazards" value="${id}">
+                <label for="hazard_${id}">${label}</label>
+            `;
+            return div;
+        }
+
+        function createCheckboxItem(name, id, label) {
+            const div = document.createElement('div');
+            div.className = 'checkbox-item';
+            div.innerHTML = `
+                <input type="checkbox" id="${name}_${id}" name="${name}" value="${id}">
+                <label for="${name}_${id}">${label}</label>
+            `;
+            return div;
+        }
+
+        function handleFileSelect(event) {
+            const files = Array.from(event.target.files);
+            selectedFiles = [...selectedFiles, ...files];
+            updateFileList();
+        }
+
+        function updateFileList() {
+            const fileList = document.getElementById('fileList');
+            fileList.innerHTML = '';
+            
+            selectedFiles.forEach((file, index) => {
+                const listItem = document.createElement('li');
+                listItem.className = 'file-item';
+                listItem.innerHTML = `
+                    <i class="fas fa-file"></i>
+                    <span class="file-name">${file.name}</span>
+                    <button type="button" class="file-remove" onclick="removeFile(${index})">
+                        <i class="fas fa-times"></i>
+                    </button>
+                `;
+                fileList.appendChild(listItem);
+            });
+        }
+
+        function removeFile(index) {
+            selectedFiles.splice(index, 1);
+            updateFileList();
+        }
+
+        function collectFormData() {
+            const formData = new FormData(document.getElementById('ptwForm'));
+            
+            // Collect hazards
+            const hazards = [];
+            document.querySelectorAll('input[name="hazards"]:checked').forEach(checkbox => {
+                hazards.push(checkbox.value);
+            });
+            
+            // Collect PPE
+            const ppe = [];
+            document.querySelectorAll('input[name="ppe"]:checked').forEach(checkbox => {
+                ppe.push(checkbox.value);
+            });
+            
+            // Collect special equipment
+            const specialEquipment = [];
+            document.querySelectorAll('input[name="specialEquipment"]:checked').forEach(checkbox => {
+                specialEquipment.push(checkbox.value);
+            });
+            
+            // Create PTW data object
+            const ptwData = {
+                id: 'PTW-' + Date.now(),
+                workTitle: formData.get('workTitle'),
+                permitType: formData.get('permitType'),
+                workDescription: formData.get('workDescription'),
+                workLocation: formData.get('workLocation'),
+                department: formData.get('department'),
+                startDate: formData.get('startDate'),
+                endDate: formData.get('endDate'),
+                priority: formData.get('priority'),
+                requestedBy: formData.get('requestedBy'),
+                lineManager: formData.get('lineManager'),
+                workTeam: getTeamMembersData(),
+                emergencyContact: formData.get('emergencyContact'),
+                contractorCompany: formData.get('contractorCompany'),
+                hazards: hazards,
+                additionalHazards: formData.get('additionalHazards'),
+                safetyMeasures: getSafetyMeasuresData(),
+                ppe: ppe,
+                isolationRequirements: formData.get('isolationRequirements'),
+                equipmentTools: formData.get('equipmentTools'),
+                specialEquipment: specialEquipment,
+                attachments: selectedFiles.map(file => file.name),
+                status: 'pending',
+                createdAt: new Date().toISOString(),
+                submittedBy: currentUser,
+                permitSpecific: {}
+            };
+            
+            // Collect permit-type specific fields
+            const permitType = ptwData.permitType;
+            if (permitType) {
+                const section = document.querySelector(`.permit-type-section[data-type="${permitType}"]`);
+                if (section) {
+                    section.querySelectorAll('input, select, textarea').forEach(el => {
+                        const name = el.name;
+                        if (!name) return;
+                        if (el.type === 'checkbox') {
+                            ptwData.permitSpecific[name] = el.checked;
+                        } else {
+                            ptwData.permitSpecific[name] = el.value;
+                        }
+                    });
+                }
+            }
+            
+            return ptwData;
+        }
+
+        function handleFormSubmit(event) {
+            event.preventDefault();
+            
+            if (!validateForm()) {
+                return;
+            }
+            
+            const ptwData = collectFormData();
+            ptwData.status = 'submitted';
+            
+            // Show loading
+            document.getElementById('loadingOverlay').style.display = 'flex';
+            
+            // Simulate API call
+            setTimeout(async () => {
+                try {
+                    await savePTWData(ptwData);
+                    alert('PTW request submitted successfully!');
+                    window.location.href = 'ptwboard.html';
+                } catch (error) {
+                    alert('Error submitting PTW request: ' + error.message);
+                } finally {
+                    document.getElementById('loadingOverlay').style.display = 'none';
+                }
+            }, 1000);
+        }
+
+        function saveDraft() {
+            if (!document.getElementById('workTitle').value) {
+                alert('Please provide a work title before saving as draft.');
+                return;
+            }
+            
+            const ptwData = collectFormData();
+            ptwData.status = 'draft';
+            
+            try {
+                savePTWData(ptwData);
+                alert('PTW request saved as draft.');
+            } catch (error) {
+                alert('Error saving draft: ' + error.message);
+            }
+        }
+
+        function validateForm() {
+            const requiredFields = [
+                'workTitle', 'permitType', 'workDescription', 
+                'workLocation', 'department', 'startDate', 
+                'endDate', 'requestedBy', 'lineManager'
+            ];
+            
+            for (const field of requiredFields) {
+                const element = document.getElementById(field);
+                if (!element.value.trim()) {
+                    alert(`Please fill in the ${field.replace(/([A-Z])/g, ' $1').toLowerCase()}.`);
+                    element.focus();
+                    return false;
+                }
+            }
+
+            // Validate at least one safety measure is added
+            const safetyMeasures = getSafetyMeasuresData();
+            if (!safetyMeasures || safetyMeasures.length === 0) {
+                alert('Please add at least one safety measure.');
+                return false;
+            }
+            // Validate active permit-type section required fields
+            const permitType = document.getElementById('permitType').value;
+            if (permitType) {
+                const section = document.querySelector(`.permit-type-section[data-type="${permitType}"]`);
+                if (section) {
+                    const missing = Array.from(section.querySelectorAll('[data-required]')).find(el => {
+                        if (el.type === 'checkbox') {
+                            // For checkboxes marked data-required, require checked
+                            return !el.checked;
+                        }
+                        return !String(el.value || '').trim();
+                    });
+                    if (missing) {
+                        const label = (missing.id ? (document.querySelector(`label[for='${missing.id}']`)?.textContent || missing.name) : missing.name) || 'required field';
+                        alert(`Please complete the required ${label} for the selected permit type.`);
+                        missing.focus();
+                        return false;
+                    }
+                }
+            }
+            
+            // Check if at least one hazard is selected
+            const hazardSelected = document.querySelector('input[name="hazards"]:checked');
+            if (!hazardSelected) {
+                alert('Please identify at least one potential hazard.');
+                return false;
+            }
+            
+            return true;
+        }
+
+    async function savePTWData(ptwData) {
+            // Local persistence (retain drafts and local offline capability)
+            let ptwList = JSON.parse(localStorage.getItem('ptwData')) || [];
+            const existingIndex = ptwList.findIndex(ptw => ptw.id === ptwData.id);
+            if (existingIndex > -1) {
+                ptwList[existingIndex] = ptwData;
+            } else {
+                ptwList.push(ptwData);
+            }
+            localStorage.setItem('ptwData', JSON.stringify(ptwList));
+
+            // Attempt company-scoped Firebase storage (only when submitted)
+            try {
+                if (ptwData.status !== 'submitted') {
+                    return; // company scope storage only for submitted PTWs
+                }
+                if (!firebase || !firebase.database) {
+                    console.warn('Firebase database not available; company-scoped save skipped.');
+                    return;
+                }
+
+                // Resolve companyId
+                let companyId = localStorage.getItem('companyId');
+
+                // Fallback: try to derive companyId from companies tree and current user membership
+                if (!companyId) {
+                    const authUser = auth.currentUser;
+                    if (authUser) {
+                        const snapshot = await firebase.database().ref('companies').once('value');
+                        if (snapshot.exists()) {
+                            const companies = snapshot.val();
+                            for (const [cId, company] of Object.entries(companies)) {
+                                if (company?.users && (company.users[authUser.uid] || company.users[authUser.authUid])) {
+                                    companyId = cId;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (!companyId) {
+                    console.warn('Company ID not found; storing PTW only locally.');
+                    return;
+                }
+
+                // Build path: companies/{companyId}/ptw/{ptwId}
+                const ptwRef = firebase.database().ref(`companies/${companyId}/ptw/${ptwData.id}`);
+
+                // Include a server-side timestamp for ordering
+                const payload = {
+                    ...ptwData,
+                    companyId,
+                    serverTimestamp: firebase.database.ServerValue.TIMESTAMP
+                };
+
+                await ptwRef.set(payload);
+                console.log(`PTW ${ptwData.id} stored under company ${companyId}.`);
+            } catch (err) {
+                console.warn('Failed to store PTW in company scope:', err);
+            }
+        }
+
+        // Load departments from Firebase fieldOptions
+        async function loadDepartments() {
+            try {
+                console.log('🔄 Loading departments from Firebase fieldOptions...');
+                const departmentSelect = document.getElementById('department');
+                if (!departmentSelect) return;
+
+                // Resolve companyId
+                let companyId = null;
+                if (window.authManager && window.authManager.currentUser) {
+                    companyId = window.authManager.currentUser.companyId;
+                }
+                if (!companyId) {
+                    const storedUser = localStorage.getItem('currentUser');
+                    if (storedUser) {
+                        const parsed = JSON.parse(storedUser);
+                        companyId = parsed.companyId;
+                    }
+                }
+                if (!companyId) {
+                    companyId = localStorage.getItem('companyId');
+                }
+                if (!companyId && auth.currentUser) {
+                    // Fallback: look up from users/{uid}
+                    const userSnap = await database.ref(`users/${auth.currentUser.uid}`).once('value');
+                    if (userSnap.exists()) {
+                        companyId = userSnap.val().companyId;
+                    }
+                }
+
+                if (!companyId) {
+                    console.warn('⚠️ Could not determine companyId for loading departments');
+                    return;
+                }
+
+                // Load departments from fieldOptions/department
+                const fieldOptionsRef = database.ref(`companies/${companyId}/fieldOptions/department`);
+                const snapshot = await fieldOptionsRef.once('value');
+
+                if (snapshot.exists()) {
+                    const departmentsData = snapshot.val();
+                    console.log('✅ Departments loaded from Firebase:', departmentsData);
+
+                    let departments = [];
+
+                    if (Array.isArray(departmentsData)) {
+                        // Array format - filter enabled ones
+                        departments = departmentsData
+                            .filter(dept => dept && dept.enabled !== false)
+                            .sort((a, b) => (a.label || a.name || '').localeCompare(b.label || b.name || ''));
+                    } else if (typeof departmentsData === 'object') {
+                        // Object format - convert to array
+                        const deptArray = Object.values(departmentsData);
+                        if (deptArray.length > 0 && typeof deptArray[0] === 'object' && (deptArray[0].label || deptArray[0].name)) {
+                            // Settings.html format with label/value properties
+                            departments = deptArray
+                                .filter(dept => dept && dept.enabled !== false)
+                                .sort((a, b) => (a.label || a.name || '').localeCompare(b.label || b.name || ''));
+                        } else {
+                            // Legacy string format
+                            departments = deptArray
+                                .filter(dept => dept)
+                                .map(dept => ({ label: dept, value: dept.toLowerCase().replace(/\s+/g, '-') }))
+                                .sort((a, b) => a.label.localeCompare(b.label));
+                        }
+                    }
+
+                    if (departments.length > 0) {
+                        // Clear existing options except the first placeholder
+                        departmentSelect.innerHTML = '<option value="">Select Department</option>';
+                        
+                        // Populate with departments from Firebase
+                        departments.forEach(dept => {
+                            const option = document.createElement('option');
+                            option.value = dept.value || dept.label.toLowerCase().replace(/\s+/g, '-');
+                            option.textContent = dept.label || dept.name || dept.value;
+                            departmentSelect.appendChild(option);
+                        });
+                        console.log(`✅ Populated ${departments.length} departments from Firebase`);
+                    }
+                } else {
+                    console.log('⚠️ No departments found in Firebase fieldOptions, using default options');
+                }
+            } catch (error) {
+                console.error('❌ Error loading departments:', error);
+            }
+        }
+
+        // Load company name and logo into header (similar to project-list.html)
+        async function loadCompanyBranding() {
+            try {
+                const headerLogo = document.getElementById('headerCompanyLogo');
+                const headerCompanyName = document.getElementById('headerCompanyName');
+                if (!headerLogo || !headerCompanyName) return;
+
+                // Resolve current user from centralized AuthManager or localStorage fallback
+                let currentUser = null;
+                if (window.authManager && window.authManager.currentUser) {
+                    currentUser = window.authManager.currentUser;
+                } else {
+                    const storedUser = localStorage.getItem('currentUser');
+                    if (storedUser) currentUser = JSON.parse(storedUser);
+                }
+
+                if (!currentUser) {
+                    headerCompanyName.textContent = 'Dreamex Datalab';
+                    headerLogo.style.display = 'none';
+                    return;
+                }
+
+                // Check if Firebase is available
+                if (typeof firebase === 'undefined' || !firebase.database) {
+                    headerCompanyName.textContent = 'Dreamex Datalab';
+                    headerLogo.style.display = 'none';
+                    return;
+                }
+
+                const db = firebase.database();
+                const companiesSnap = await db.ref('companies').once('value');
+                if (!companiesSnap.exists()) {
+                    headerCompanyName.textContent = 'Dreamex Datalab';
+                    headerLogo.style.display = 'none';
+                    return;
+                }
+
+                const companies = companiesSnap.val();
+                let companyId = currentUser.companyId || null;
+
+                // If companyId not provided on user, try to locate by membership
+                if (!companyId) {
+                    for (const [cId, company] of Object.entries(companies)) {
+                        if (company?.status !== 'active') continue;
+                        if (company?.users && (company.users[currentUser.uid] || company.users[currentUser.authUid])) {
+                            companyId = cId;
+                            break;
+                        }
+                    }
+                }
+
+                if (companyId && companies[companyId]) {
+                    const company = companies[companyId];
+                    const companyName = company.companyName || company.name || 'Dreamex Datalab';
+                    const logoUrl = company.logoUrl || company.logo || '';
+
+                    headerCompanyName.textContent = companyName;
+                    if (logoUrl) {
+                        headerLogo.src = logoUrl;
+                        headerLogo.style.display = 'block';
+                    } else {
+                        headerLogo.style.display = 'none';
+                    }
+
+                    // Optionally brand the page title
+                    if (companyName && companyName !== 'Dreamex Datalab') {
+                        document.title = document.title.replace('Dreamex Datalab', companyName);
+                    }
+                } else {
+                    headerCompanyName.textContent = 'Dreamex Datalab';
+                    headerLogo.style.display = 'none';
+                }
+            } catch (err) {
+                console.warn('Failed to load company branding:', err);
+                const headerLogo = document.getElementById('headerCompanyLogo');
+                const headerCompanyName = document.getElementById('headerCompanyName');
+                if (headerCompanyName) headerCompanyName.textContent = 'Dreamex Datalab';
+                if (headerLogo) headerLogo.style.display = 'none';
+            }
+        }
+    </script>
+    
+    <script src="js/notifications.js"></script>
+    <script type="module" src="js/auth.js"></script>
+    <script type="module" src="js/roles.js"></script>
+</body>
+</html>
