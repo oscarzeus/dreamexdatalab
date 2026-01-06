@@ -657,6 +657,19 @@
         .access-control-table tbody tr.clickable-row { cursor: pointer; transition: background 0.15s; }
         .access-control-table tbody tr.clickable-row:hover { background: #e0f2fe; }
 
+        /* Batch selection styles */
+        .batch-checkbox { width: 16px; height: 16px; cursor: pointer; accent-color: var(--primary-color); }
+        .batch-action-bar { display: none; align-items: center; gap: 12px; padding: 10px 16px; background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; margin-bottom: 12px; }
+        .batch-action-bar.visible { display: flex; }
+        .batch-action-bar .selected-count { font-size: 0.75rem; font-weight: 600; color: #92400e; }
+        .batch-action-bar .batch-btn { padding: 6px 12px; border: none; border-radius: 6px; font-size: 0.7rem; font-weight: 500; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; transition: all 0.2s; }
+        .batch-action-bar .batch-btn-delete { background: #ef4444; color: #fff; }
+        .batch-action-bar .batch-btn-delete:hover { background: #dc2626; }
+        .batch-action-bar .batch-btn-cancel { background: #e5e7eb; color: #374151; }
+        .batch-action-bar .batch-btn-cancel:hover { background: #d1d5db; }
+        .data-table tbody tr.selected { background: #fef3c7 !important; }
+        .data-table th.batch-col, .data-table td.batch-col { width: 40px; text-align: center; }
+
         /* Interactive Guide / Tour Styles */
         .guide-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 9998; pointer-events: none; }
         .guide-highlight { position: absolute; box-shadow: 0 0 0 4px #3b82f6, 0 0 0 9999px rgba(0,0,0,0.5); border-radius: 8px; z-index: 9999; pointer-events: none; transition: all 0.3s ease; }
@@ -971,7 +984,7 @@
                 <!-- Investigations Tab -->
                 <div class="tab-content active" id="investigationsTab">
                     <!-- Filters -->
-                    <div class="filters">
+                    <div class="filters" style="display:none;">
                         <div class="filter-grid">
                             <div class="filter-group">
                                 <label for="statusFilter" data-i18n="status">Status</label>
@@ -1016,9 +1029,16 @@
 
                     <!-- Investigation Table -->
                     <div class="table-container">
+                        <!-- Batch Action Bar -->
+                        <div class="batch-action-bar" id="invBatchActionBar">
+                            <span class="selected-count"><span id="invSelectedCount">0</span> selected</span>
+                            <button class="batch-btn batch-btn-delete" onclick="invBatchDelete()"><i class="fas fa-trash"></i> Delete Selected</button>
+                            <button class="batch-btn batch-btn-cancel" onclick="invClearSelection()"><i class="fas fa-times"></i> Cancel</button>
+                        </div>
                         <table class="data-table">
                             <thead>
                                 <tr>
+                                    <th class="batch-col" id="invSelectAllHeader" style="display:none;"><input type="checkbox" class="batch-checkbox" id="invSelectAllCheckbox" title="Select all" onclick="invToggleSelectAll(this)"></th>
                                     <th data-i18n="investigationId">Investigation ID</th>
                                     <th data-i18n="title">Title</th>
                                     <th data-i18n="status">Status</th>
@@ -2153,7 +2173,7 @@ Safety Incident</textarea>
                     const matchesTitleFilter = (inv) => {
                         if (allowedTitles.length === 0) return true; // No filter = all allowed
                         const invTitle = (inv.title || '').toLowerCase().trim();
-                        return allowedTitles.some(title => invTitle.includes(title));
+                        return allowedTitles.some(title => invTitle === title);
                     };
                     
                     // Get current user info for visibility check
@@ -2413,10 +2433,17 @@ Safety Incident</textarea>
             renderInvestigations() {
                 const tableBody = document.getElementById('investigationsTableBody');
                 
+                // Clear batch selection on re-render
+                invClearSelection();
+                
+                // Check batch actions visibility
+                const showBatch = window._canSeeBatchActions === true;
+                
                 if (this.filteredInvestigations.length === 0) {
+                    const colSpan = showBatch ? 10 : 9;
                     tableBody.innerHTML = `
                         <tr>
-                            <td colspan="9" style="text-align: center; padding: 2rem; color: #64748b;">
+                            <td colspan="${colSpan}" style="text-align: center; padding: 2rem; color: #64748b;">
                                 <i class="fas fa-search" style="font-size: 2rem; margin-bottom: 1rem; opacity: 0.5;"></i>
                                 <br>No investigations found
                             </td>
@@ -2425,8 +2452,13 @@ Safety Incident</textarea>
                     return;
                 }
 
-                tableBody.innerHTML = this.filteredInvestigations.map(investigation => `
+                tableBody.innerHTML = this.filteredInvestigations.map(investigation => {
+                    const batchTd = showBatch 
+                        ? `<td class="batch-col" onclick="event.stopPropagation();"><input type="checkbox" class="batch-checkbox row-checkbox" data-id="${investigation.id}" onchange="invUpdateSelection(this)"></td>` 
+                        : `<td class="batch-col" style="display:none;" onclick="event.stopPropagation();"><input type="checkbox" class="batch-checkbox row-checkbox" data-id="${investigation.id}" onchange="invUpdateSelection(this)"></td>`;
+                    return `
                     <tr data-inv-id="${investigation.id}" style="cursor:pointer;">
+                        ${batchTd}
                         <td><strong>${investigation.id}</strong></td>
                         <td>${investigation.title}</td>
                         <td><span class="status-badge status-${investigation.status.toLowerCase().replace(' ', '-')}">${investigation.status}</span></td>
@@ -2436,13 +2468,13 @@ Safety Incident</textarea>
                         <td>${investigation.leadInvestigator}</td>
                         <td>${new Date(investigation.createdDate).toLocaleDateString()}</td>
                     </tr>
-                `).join('');
+                `}).join('');
 
-                // Row click opens modal (excluding clicks on action buttons)
+                // Row click opens modal (excluding clicks on action buttons and checkboxes)
                 Array.from(tableBody.querySelectorAll('tr[data-inv-id]')).forEach(row => {
                     row.addEventListener('click', (e) => {
                         const target = e.target;
-                        if (target.closest('button')) return; // ignore action button clicks
+                        if (target.closest('button') || target.closest('input[type="checkbox"]')) return; // ignore action button and checkbox clicks
                         const invId = row.getAttribute('data-inv-id');
                         if (invId) openInvestigationModal(invId);
                     });
@@ -2510,6 +2542,120 @@ Safety Incident</textarea>
             }
         }
 
+        // ===== BATCH SELECTION FUNCTIONS =====
+        window._invSelectedIds = new Set();
+
+        function invUpdateSelection(checkbox) {
+            const id = checkbox.dataset.id;
+            const row = checkbox.closest('tr');
+            if (checkbox.checked) {
+                window._invSelectedIds.add(id);
+                row?.classList.add('selected');
+            } else {
+                window._invSelectedIds.delete(id);
+                row?.classList.remove('selected');
+            }
+            invUpdateBatchUI();
+        }
+
+        function invToggleSelectAll(checkbox) {
+            const rowCheckboxes = document.querySelectorAll('#investigationsTableBody .row-checkbox');
+            rowCheckboxes.forEach(cb => {
+                cb.checked = checkbox.checked;
+                const id = cb.dataset.id;
+                const row = cb.closest('tr');
+                if (checkbox.checked) {
+                    window._invSelectedIds.add(id);
+                    row?.classList.add('selected');
+                } else {
+                    window._invSelectedIds.delete(id);
+                    row?.classList.remove('selected');
+                }
+            });
+            invUpdateBatchUI();
+        }
+
+        function invClearSelection() {
+            window._invSelectedIds.clear();
+            const selectAllCb = document.getElementById('invSelectAllCheckbox');
+            if (selectAllCb) selectAllCb.checked = false;
+            document.querySelectorAll('#investigationsTableBody .row-checkbox').forEach(cb => {
+                cb.checked = false;
+                cb.closest('tr')?.classList.remove('selected');
+            });
+            invUpdateBatchUI();
+        }
+
+        function invUpdateBatchUI() {
+            const count = window._invSelectedIds.size;
+            const countEl = document.getElementById('invSelectedCount');
+            if (countEl) countEl.textContent = count;
+            
+            const batchBar = document.getElementById('invBatchActionBar');
+            if (batchBar) batchBar.classList.toggle('visible', count > 0);
+            
+            // Update select all checkbox state
+            const rowCheckboxes = document.querySelectorAll('#investigationsTableBody .row-checkbox');
+            const allChecked = rowCheckboxes.length > 0 && Array.from(rowCheckboxes).every(cb => cb.checked);
+            const someChecked = Array.from(rowCheckboxes).some(cb => cb.checked);
+            const selectAllCb = document.getElementById('invSelectAllCheckbox');
+            if (selectAllCb) {
+                selectAllCb.checked = allChecked;
+                selectAllCb.indeterminate = someChecked && !allChecked;
+            }
+        }
+
+        async function invBatchDelete() {
+            const count = window._invSelectedIds.size;
+            if (count === 0) return;
+            
+            if (!confirm(`Are you sure you want to delete ${count} investigation(s)? This action cannot be undone.`)) {
+                return;
+            }
+            
+            const user = window.authManager?.currentUser;
+            if (!user || !user.companyId) {
+                alert('Not authenticated');
+                return;
+            }
+            
+            try {
+                const deletePromises = Array.from(window._invSelectedIds).map(id => 
+                    firebase.database().ref(`companies/${user.companyId}/investigations/${id}`).remove()
+                );
+                
+                await Promise.all(deletePromises);
+                
+                alert(`Successfully deleted ${count} investigation(s)`);
+                invClearSelection();
+                location.reload();
+            } catch (error) {
+                console.error('Batch delete error:', error);
+                alert('Failed to delete some investigations');
+            }
+        }
+
+        function applyInvBatchActionsVisibility(show) {
+            // Store permission for render function
+            window._canSeeBatchActions = show;
+            
+            // Header checkbox column
+            const headerTh = document.getElementById('invSelectAllHeader');
+            if (headerTh) headerTh.style.display = show ? '' : 'none';
+            
+            // All row checkboxes
+            document.querySelectorAll('#investigationsTableBody .batch-col').forEach(td => {
+                td.style.display = show ? '' : 'none';
+            });
+            
+            // Hide batch action bar if no permission
+            const batchBar = document.getElementById('invBatchActionBar');
+            if (batchBar && !show) {
+                batchBar.classList.remove('visible');
+            }
+        }
+        // ===== END BATCH SELECTION FUNCTIONS =====
+
         // Modal logic: fetch and display investigation details
         async function openInvestigationModal(investigationId) {
             try {
@@ -2569,7 +2715,7 @@ Safety Incident</textarea>
                 const invLocation = (data.location || '').toLowerCase().trim();
                 const invTitle = (data.title || '').toLowerCase().trim();
                 const passesLocationFilter = allowedLocations.length === 0 || allowedLocations.some(loc => invLocation.includes(loc) || loc.includes(invLocation));
-                const passesTitleFilter = allowedTitles.length === 0 || allowedTitles.some(title => invTitle.includes(title));
+                const passesTitleFilter = allowedTitles.length === 0 || allowedTitles.some(title => invTitle === title);
                 const passesFilters = passesLocationFilter && passesTitleFilter;
                 
                 // ============ VISIBILITY CHECK ============
@@ -4724,6 +4870,8 @@ Safety Incident</textarea>
                 const allowInvestigations = p.canSeeInvestigationsTab !== false;
                 // Default: Settings tab is allowed unless explicitly denied
                 const allowSettings = p.canSeeSettingsTab !== false;
+                // Batch actions - default HIDE unless explicitly allowed
+                const allowBatchActions = p.canSeeBatchActions === true;
 
                 const invBtn = document.querySelector('.tab-btn[data-tab="investigations"]');
                 const settingsBtn = document.querySelector('.tab-btn[data-tab="settings"]');
@@ -4734,6 +4882,9 @@ Safety Incident</textarea>
                 if (settingsBtn) settingsBtn.style.display = allowSettings ? '' : 'none';
                 if (invTab) invTab.style.display = allowInvestigations ? '' : 'none';
                 if (settingsTab) settingsTab.style.display = allowSettings ? '' : 'none';
+
+                // Apply batch actions visibility
+                applyInvBatchActionsVisibility(allowBatchActions);
 
                 // If on hidden tab, switch to allowed tab
                 const isInvActive = invTab?.classList.contains('active');
@@ -4959,6 +5110,7 @@ Safety Incident</textarea>
             document.getElementById('invAcdViewAll').checked = p.canViewAllInvestigations === true;
             document.getElementById('invAcdEditAll').checked = p.canEditAllInvestigations === true;
             document.getElementById('invAcdSettingsTab').checked = p.canSeeSettingsTab === true;
+            document.getElementById('invAcdBatchActions').checked = p.canSeeBatchActions === true;
 
             // Populate location and title dropdowns
             const allowedLocationsStr = p.allowedLocations || '';
@@ -5116,6 +5268,7 @@ Safety Incident</textarea>
                 canViewAllInvestigations: document.getElementById('invAcdViewAll').checked,
                 canEditAllInvestigations: document.getElementById('invAcdEditAll').checked,
                 canSeeSettingsTab: document.getElementById('invAcdSettingsTab').checked,
+                canSeeBatchActions: document.getElementById('invAcdBatchActions').checked,
                 allowedLocations: selectedLocations.join(', '),
                 allowedTitles: selectedTitles.join(', ')
             };
@@ -5417,6 +5570,11 @@ Safety Incident</textarea>
                             <input type="checkbox" id="invAcdSettingsTab" style="width:16px; height:16px;">
                             <i class="fas fa-cog" style="color:#8b5cf6; width:18px;"></i>
                             <span>Settings Tab</span>
+                        </label>
+                        <label style="display:flex; align-items:center; gap:0.5rem; font-size:0.8rem; color:#374151; padding:0.6rem; background:#fff; border:1px solid #e5e7eb; border-radius:6px; cursor:pointer;">
+                            <input type="checkbox" id="invAcdBatchActions" style="width:16px; height:16px;">
+                            <i class="fas fa-check-square" style="color:#ef4444; width:18px;"></i>
+                            <span>Batch Delete Actions</span>
                         </label>
                     </div>
                 </div>
