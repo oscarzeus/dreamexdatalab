@@ -665,8 +665,6 @@
             <li data-feature="inventory_items_view" data-requires-permission="inventory_items_view"><a href="inventory-items.html"><i class="fas fa-cubes"></i> Items Management</a></li>
             <li data-feature="inventory_warehouses_view" data-requires-permission="inventory_warehouses_view"><a href="inventory-warehouses.html"><i class="fas fa-warehouse"></i> Warehouses</a></li>
             <li data-feature="inventory_reservations_view" data-requires-permission="inventory_reservations_view"><a href="inventory-reservations.html" class="active"><i class="fas fa-bookmark"></i> Material Reservations</a></li>
-            <li data-feature="inventory_approvals_view" data-requires-permission="inventory_approvals_view"><a href="inventory-approvals.html"><i class="fas fa-check-circle"></i> Approvals</a></li>
-            <li data-feature="inventory_issue_view" data-requires-permission="inventory_issue_view"><a href="inventory-issue.html"><i class="fas fa-shipping-fast"></i> Material Issue</a></li>
           </ul>
         </li>
         <li class="menu-dropdown" data-feature="catering_view" data-requires-permission="catering_view">
@@ -1316,9 +1314,20 @@
       const dateFrom = document.getElementById('issuedDateFrom')?.value;
       const dateTo = document.getElementById('issuedDateTo')?.value;
 
-      // Get all issued items from cache
+      // Get current user UID
+      const currentUserUid = currentUser?.uid || window.authManager?.currentUser?.uid;
+
+      // Get all issued items from cache, filtered by user's reservations
       let issuedItems = Object.entries(issuesCache)
-        .map(([id, issue]) => ({ id, ...issue }));
+        .map(([id, issue]) => ({ id, ...issue }))
+        .filter(issue => {
+          // Check if the issue belongs to user's reservation
+          const reservation = reservationsCache[issue.reservationId];
+          if (reservation?.requestedBy?.uid) {
+            return reservation.requestedBy.uid === currentUserUid;
+          }
+          return false;
+        });
 
       // Apply date filter
       if (dateFrom) {
@@ -1399,10 +1408,13 @@
       const tbody = document.getElementById('pendingIssueTableBody');
       const search = (document.getElementById('pendingIssueSearch')?.value || '').toLowerCase();
 
-      // Get only approved reservations
+      // Get current user UID
+      const currentUserUid = currentUser?.uid || window.authManager?.currentUser?.uid;
+
+      // Get only approved reservations created by current user
       let approvedReservations = Object.entries(reservationsCache)
         .map(([id, r]) => ({ id, ...r }))
-        .filter(r => r.status === 'approved');
+        .filter(r => r.status === 'approved' && r.requestedBy?.uid === currentUserUid);
 
       // Flatten to individual employee items for issue tracking
       let pendingIssueItems = [];
@@ -2302,7 +2314,16 @@
 
     // Update stats
     function updateStats() {
-      const reservations = Object.values(reservationsCache);
+      const allReservations = Object.values(reservationsCache);
+      
+      // Filter to show only user's reservations in stats
+      const currentUserUid = currentUser?.uid || window.authManager?.currentUser?.uid;
+      const reservations = allReservations.filter(r => {
+        if (r.requestedBy?.uid) {
+          return r.requestedBy.uid === currentUserUid;
+        }
+        return false;
+      });
 
       const pending = reservations.filter(r => r.status === 'pending').length;
       const approved = reservations.filter(r => r.status === 'approved').length;
@@ -2318,8 +2339,13 @@
     function updatePendingIssueBadge() {
       let pendingIssueCount = 0;
       
-      // Get only approved reservations
-      const approvedReservations = Object.values(reservationsCache).filter(r => r.status === 'approved');
+      // Get current user UID
+      const currentUserUid = currentUser?.uid || window.authManager?.currentUser?.uid;
+      
+      // Get only approved reservations created by current user
+      const approvedReservations = Object.values(reservationsCache).filter(r => 
+        r.status === 'approved' && r.requestedBy?.uid === currentUserUid
+      );
       
       approvedReservations.forEach(reservation => {
         if (reservation.employeeReservations && Array.isArray(reservation.employeeReservations)) {
@@ -2345,9 +2371,18 @@
 
     // Update issued badge count
     function updateIssuedBadge() {
+      // Get current user UID
+      const currentUserUid = currentUser?.uid || window.authManager?.currentUser?.uid;
+      
+      // Count only issues from user's reservations
+      const userIssuesCount = Object.values(issuesCache).filter(issue => {
+        const reservation = reservationsCache[issue.reservationId];
+        return reservation?.requestedBy?.uid === currentUserUid;
+      }).length;
+      
       const badgeCount = document.getElementById('issuedCount');
       if (badgeCount) {
-        badgeCount.textContent = Object.keys(issuesCache).length;
+        badgeCount.textContent = userIssuesCount;
       }
     }
 
@@ -2357,9 +2392,21 @@
       const search = (document.getElementById('searchBox').value || '').toLowerCase();
       const status = document.getElementById('statusFilter').value;
 
-      let reservations = Object.entries(reservationsCache).map(([id, r]) => ({ id, ...r }));
+      // Get current user UID
+      const currentUserUid = currentUser?.uid || window.authManager?.currentUser?.uid;
+      
+      // Filter to show only reservations created by the current user
+      let reservations = Object.entries(reservationsCache)
+        .map(([id, r]) => ({ id, ...r }))
+        .filter(r => {
+          // Check if requestedBy.uid matches current user
+          if (r.requestedBy?.uid) {
+            return r.requestedBy.uid === currentUserUid;
+          }
+          return false; // Hide reservations without requestedBy (legacy data)
+        });
 
-      // Filter
+      // Filter by search
       if (search) {
         reservations = reservations.filter(r =>
           (r.reservationNumber || '').toLowerCase().includes(search) ||

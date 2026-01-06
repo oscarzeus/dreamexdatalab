@@ -332,8 +332,6 @@
             <li data-feature="inventory_items_view" data-requires-permission="inventory_items_view"><a href="inventory-items.html" class="active"><i class="fas fa-cubes"></i> Items Management</a></li>
             <li data-feature="inventory_warehouses_view" data-requires-permission="inventory_warehouses_view"><a href="inventory-warehouses.html"><i class="fas fa-warehouse"></i> Warehouses</a></li>
             <li data-feature="inventory_reservations_view" data-requires-permission="inventory_reservations_view"><a href="inventory-reservations.html"><i class="fas fa-bookmark"></i> Material Reservations</a></li>
-            <li data-feature="inventory_approvals_view" data-requires-permission="inventory_approvals_view"><a href="inventory-approvals.html"><i class="fas fa-check-circle"></i> Approvals</a></li>
-            <li data-feature="inventory_issue_view" data-requires-permission="inventory_issue_view"><a href="inventory-issue.html"><i class="fas fa-shipping-fast"></i> Material Issue</a></li>
           </ul>
         </li>
         <li class="menu-dropdown" data-feature="catering_view" data-requires-permission="catering_view">
@@ -1159,6 +1157,7 @@
     let currentUser = null;
     let itemsCache = {};
     let warehousesCache = {};
+    let warehouseAccessCache = {};
     let suppliersCache = {};
     let categoriesCache = {};
     let zonesCache = {};
@@ -1196,7 +1195,18 @@
       const tbody = document.getElementById('warehousesTableBody');
       const search = (document.getElementById('warehouseSearchBox')?.value || '').toLowerCase();
       
-      let warehouses = Object.entries(warehousesCache).map(([id, w]) => ({ id, ...w }));
+      // Get current user ID for filtering
+      const currentUserUid = currentUser?.uid || window.authManager?.currentUser?.uid;
+      
+      let warehouses = Object.entries(warehousesCache)
+        .map(([id, w]) => ({ id, ...w }))
+        .filter(w => {
+          // Filter by current user (creator OR has access)
+          const whCreatorUid = w.createdBy?.uid || w.createdBy;
+          const isCreator = whCreatorUid === currentUserUid;
+          const hasAccess = warehouseAccessCache[w.id]?.[currentUserUid] === true;
+          return isCreator || hasAccess;
+        });
       
       // Filter by search
       if (search) {
@@ -1522,12 +1532,13 @@
       if (!companyId) { setTimeout(loadPageData, 500); return; }
 
       try {
-        const [itemsSnap, warehousesSnap, suppliersSnap, categoriesSnap, zonesSnap] = await Promise.all([
+        const [itemsSnap, warehousesSnap, suppliersSnap, categoriesSnap, zonesSnap, accessSnap] = await Promise.all([
           db.ref(`companies/${companyId}/inventory/items`).once('value'),
           db.ref(`companies/${companyId}/inventory/warehouses`).once('value'),
           db.ref(`companies/${companyId}/inventory/suppliers`).once('value'),
           db.ref(`companies/${companyId}/fieldOptions/inventoryCategory`).once('value'),
-          db.ref(`companies/${companyId}/fieldOptions/area`).once('value')
+          db.ref(`companies/${companyId}/fieldOptions/area`).once('value'),
+          db.ref(`companies/${companyId}/inventory/warehouseAccess`).once('value')
         ]);
 
         itemsCache = itemsSnap.val() || {};
@@ -1535,6 +1546,7 @@
         suppliersCache = suppliersSnap.val() || {};
         categoriesCache = categoriesSnap.val() || {};
         zonesCache = zonesSnap.val() || {};
+        warehouseAccessCache = accessSnap.val() || {};
 
         updateStats();
         updateCategoryFilter();
@@ -1660,7 +1672,21 @@
 
     // Update stats
     function updateStats() {
-      const items = Object.values(itemsCache);
+      // Get current user ID for filtering
+      const currentUserUid = currentUser?.uid || window.authManager?.currentUser?.uid;
+      
+      // Get user's warehouse IDs (creator OR has access)
+      const userWarehouseIds = Object.entries(warehousesCache)
+        .filter(([id, wh]) => {
+          const whCreatorUid = wh.createdBy?.uid || wh.createdBy;
+          const isCreator = whCreatorUid === currentUserUid;
+          const hasAccess = warehouseAccessCache[id]?.[currentUserUid] === true;
+          return isCreator || hasAccess;
+        })
+        .map(([id]) => id);
+      
+      // Filter items by user's warehouses
+      const items = Object.values(itemsCache).filter(item => userWarehouseIds.includes(item.warehouseId));
       let inStock = 0, lowStock = 0, outOfStock = 0;
 
       items.forEach(item => {
@@ -1687,15 +1713,26 @@
 
     // Update warehouse dropdown
     function updateWarehouseDropdown() {
+      // Get current user ID for filtering
+      const currentUserUid = currentUser?.uid || window.authManager?.currentUser?.uid;
+      
+      // Filter warehouses by current user (creator OR has access)
+      const userWarehouses = Object.entries(warehousesCache).filter(([id, wh]) => {
+        const whCreatorUid = wh.createdBy?.uid || wh.createdBy;
+        const isCreator = whCreatorUid === currentUserUid;
+        const hasAccess = warehouseAccessCache[id]?.[currentUserUid] === true;
+        return isCreator || hasAccess;
+      });
+      
       const select = document.getElementById('itemWarehouse');
       select.innerHTML = '<option value="">Select Warehouse</option>' + 
-        Object.entries(warehousesCache).map(([id, wh]) => `<option value="${id}">${escapeHtml(wh.name || 'Warehouse')}</option>`).join('');
+        userWarehouses.map(([id, wh]) => `<option value="${id}">${escapeHtml(wh.name || 'Warehouse')}</option>`).join('');
       
       // Also update the warehouse filter dropdown in Items tab
       const filterSelect = document.getElementById('warehouseFilter');
       if (filterSelect) {
         filterSelect.innerHTML = '<option value="">Select Warehouse</option>' + 
-          Object.entries(warehousesCache).map(([id, wh]) => `<option value="${id}">${escapeHtml(wh.name || 'Warehouse')}</option>`).join('');
+          userWarehouses.map(([id, wh]) => `<option value="${id}">${escapeHtml(wh.name || 'Warehouse')}</option>`).join('');
       }
     }
 

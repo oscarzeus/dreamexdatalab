@@ -314,8 +314,6 @@
             <li data-feature="inventory_items_view" data-requires-permission="inventory_items_view"><a href="inventory-items.html"><i class="fas fa-cubes"></i> Items Management</a></li>
             <li data-feature="inventory_warehouses_view" data-requires-permission="inventory_warehouses_view"><a href="inventory-warehouses.html" class="active"><i class="fas fa-warehouse"></i> Warehouses</a></li>
             <li data-feature="inventory_reservations_view" data-requires-permission="inventory_reservations_view"><a href="inventory-reservations.html"><i class="fas fa-bookmark"></i> Material Reservations</a></li>
-            <li data-feature="inventory_approvals_view" data-requires-permission="inventory_approvals_view"><a href="inventory-approvals.html"><i class="fas fa-check-circle"></i> Approvals</a></li>
-            <li data-feature="inventory_issue_view" data-requires-permission="inventory_issue_view"><a href="inventory-issue.html"><i class="fas fa-shipping-fast"></i> Material Issue</a></li>
           </ul>
         </li>
         <li class="menu-dropdown" data-feature="catering_view" data-requires-permission="catering_view">
@@ -793,6 +791,7 @@
     let currentUser = null;
     let warehousesCache = {};
     let itemsCache = {};
+    let warehouseAccessCache = {};
     let editingWarehouseId = null;
 
     // AuthManager class
@@ -933,13 +932,15 @@
       if (!companyId) { setTimeout(loadPageData, 500); return; }
 
       try {
-        const [warehousesSnap, itemsSnap] = await Promise.all([
+        const [warehousesSnap, itemsSnap, accessSnap] = await Promise.all([
           db.ref(`companies/${companyId}/inventory/warehouses`).once('value'),
-          db.ref(`companies/${companyId}/inventory/items`).once('value')
+          db.ref(`companies/${companyId}/inventory/items`).once('value'),
+          db.ref(`companies/${companyId}/inventory/warehouseAccess`).once('value')
         ]);
 
         warehousesCache = warehousesSnap.val() || {};
         itemsCache = itemsSnap.val() || {};
+        warehouseAccessCache = accessSnap.val() || {};
 
         updateStats();
         renderWarehouses();
@@ -1207,29 +1208,72 @@
 
     // Update stats
     function updateStats() {
-      const warehouses = Object.values(warehousesCache);
+      const allWarehouses = Object.values(warehousesCache);
       const items = Object.values(itemsCache);
+      
+      // Filter to show only user's warehouses in stats (creator OR has access)
+      const currentUserUid = currentUser?.uid || window.authManager?.currentUser?.uid;
+      const warehouses = allWarehouses.filter((w, index) => {
+        const warehouseId = Object.keys(warehousesCache)[Object.values(warehousesCache).indexOf(w)];
+        // Check if creator
+        if (w.createdBy) {
+          const isCreator = w.createdBy.uid === currentUserUid || w.createdBy === currentUserUid;
+          if (isCreator) return true;
+        }
+        // Check if has access
+        const accessList = warehouseAccessCache[warehouseId];
+        if (accessList && accessList[currentUserUid] === true) {
+          return true;
+        }
+        return false;
+      });
 
       const active = warehouses.filter(w => w.status === 'active' || !w.status).length;
       const inactive = warehouses.filter(w => w.status === 'inactive').length;
+      
+      // Get warehouse IDs for this user to filter items
+      const userWarehouseIds = Object.entries(warehousesCache)
+        .filter(([id, w]) => {
+          const isCreator = w.createdBy?.uid === currentUserUid || w.createdBy === currentUserUid;
+          const hasAccess = warehouseAccessCache[id]?.[currentUserUid] === true;
+          return isCreator || hasAccess;
+        })
+        .map(([id]) => id);
+      const userItems = items.filter(i => userWarehouseIds.includes(i.warehouseId));
 
       document.getElementById('totalWarehouses').textContent = warehouses.length;
       document.getElementById('activeWarehouses').textContent = active;
       document.getElementById('inactiveWarehouses').textContent = inactive;
-      document.getElementById('totalItems').textContent = items.length;
+      document.getElementById('totalItems').textContent = userItems.length;
     }
 
     // Render warehouses
     function renderWarehouses() {
       const tbody = document.getElementById('warehousesTableBody');
-      const warehouses = Object.entries(warehousesCache);
+      const allWarehouses = Object.entries(warehousesCache);
+      
+      // Filter warehouses to show only those created by the current user OR with access granted
+      const currentUserUid = currentUser?.uid || window.authManager?.currentUser?.uid;
+      const warehouses = allWarehouses.filter(([id, wh]) => {
+        // Check if createdBy matches current user
+        if (wh.createdBy) {
+          const isCreator = wh.createdBy.uid === currentUserUid || wh.createdBy === currentUserUid;
+          if (isCreator) return true;
+        }
+        // Check if user has access granted
+        const accessList = warehouseAccessCache[id];
+        if (accessList && accessList[currentUserUid] === true) {
+          return true;
+        }
+        return false; // Hide warehouses without creator match or access
+      });
 
       if (warehouses.length === 0) {
         tbody.innerHTML = `
           <tr>
             <td colspan="8" style="text-align:center; padding:2rem; color:#64748b;">
               <i class="fas fa-warehouse" style="font-size:1.5rem; opacity:0.4; margin-bottom:0.5rem; display:block;"></i>
-              No warehouses configured yet
+              No warehouses found. Create your first warehouse to get started.
             </td>
           </tr>
         `;

@@ -318,6 +318,15 @@
         .attachment-actions { display:flex; align-items:center; gap:0.25rem; }
         .attachment-actions .btn-icon { background:none; border:1px solid #e5e7eb; cursor:pointer; color:#374151; padding:0.25rem 0.4rem; border-radius:6px; font-size:0.8rem; }
         .attachment-actions .btn-icon:hover { background:#f3f4f6; }
+        /* Statement attachment styles */
+        .statement-attachment-area { margin-top: 0.75rem; padding: 0.75rem; border: 1px dashed #d1d5db; border-radius: 6px; background: #f9fafb; }
+        .statement-attachment-preview { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.5rem; padding: 0.5rem; background: #fff; border: 1px solid #e5e7eb; border-radius: 6px; }
+        .statement-attachment-preview .file-icon { font-size: 1.25rem; color: #64748b; }
+        .statement-attachment-preview .file-info { flex: 1; }
+        .statement-attachment-preview .file-name { font-weight: 600; font-size: 0.8rem; color: #374151; word-break: break-all; }
+        .statement-attachment-preview .file-size { font-size: 0.7rem; color: #64748b; }
+        .statement-attachment-preview .remove-file { background: #fee2e2; color: #dc2626; border: none; padding: 0.25rem 0.5rem; border-radius: 4px; cursor: pointer; font-size: 0.75rem; }
+        .statement-attachment-preview .remove-file:hover { background: #fecaca; }
         /* Corrective Actions table row clickable */
         .ca-row { cursor: pointer; }
 
@@ -542,8 +551,6 @@
                         <li data-feature="inventory_items_view" data-requires-permission="inventory_items_view"><a href="inventory-items.html"><i class="fas fa-cubes"></i> Items Management</a></li>
                         <li data-feature="inventory_warehouses_view" data-requires-permission="inventory_warehouses_view"><a href="inventory-warehouses.html"><i class="fas fa-warehouse"></i> Warehouses</a></li>
                         <li data-feature="inventory_reservations_view" data-requires-permission="inventory_reservations_view"><a href="inventory-reservations.html"><i class="fas fa-bookmark"></i> Material Reservations</a></li>
-                        <li data-feature="inventory_approvals_view" data-requires-permission="inventory_approvals_view"><a href="inventory-approvals.html"><i class="fas fa-check-circle"></i> Approvals</a></li>
-                        <li data-feature="inventory_issue_view" data-requires-permission="inventory_issue_view"><a href="inventory-issue.html"><i class="fas fa-shipping-fast"></i> Material Issue</a></li>
                     </ul>
                 </li>
                 <li data-feature="communication_view"><a href="info.html"><i class="fas fa-comments"></i> Communication</a></li>
@@ -5021,12 +5028,85 @@
         // ========== Statement Modal Functions ==========
         let statements = [];
         let editingStatementId = null;
+        let pendingStatementAttachment = null; // Pending file for upload
         
         // Utility function for escaping HTML (global scope for statements)
         function escapeHtmlGlobal(str) {
             return String(str || '').replace(/[&<>"']/g, function(c) {
                 return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c] || c;
             });
+        }
+
+        // Preview selected statement attachment
+        function previewStatementAttachment(input) {
+            const previewDiv = document.getElementById('statementAttachmentPreview');
+            previewDiv.innerHTML = '';
+            
+            if (input.files && input.files[0]) {
+                const file = input.files[0];
+                pendingStatementAttachment = file;
+                
+                const fileSize = file.size < 1024 ? file.size + ' B' : 
+                    file.size < 1048576 ? (file.size / 1024).toFixed(1) + ' KB' : 
+                    (file.size / 1048576).toFixed(2) + ' MB';
+                
+                const iconMap = {
+                    'application/pdf': 'fa-file-pdf',
+                    'application/msword': 'fa-file-word',
+                    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'fa-file-word'
+                };
+                const iconClass = file.type.startsWith('image/') ? 'fa-file-image' : (iconMap[file.type] || 'fa-file');
+                
+                previewDiv.innerHTML = `
+                    <div class="statement-attachment-preview">
+                        <i class="fas ${iconClass} file-icon"></i>
+                        <div class="file-info">
+                            <div class="file-name">${escapeHtmlGlobal(file.name)}</div>
+                            <div class="file-size">${fileSize}</div>
+                        </div>
+                        <button type="button" class="remove-file" onclick="removeStatementAttachment()">
+                            <i class="fas fa-times"></i> Remove
+                        </button>
+                    </div>
+                `;
+            } else {
+                pendingStatementAttachment = null;
+            }
+        }
+
+        // Remove pending statement attachment
+        function removeStatementAttachment() {
+            pendingStatementAttachment = null;
+            const input = document.getElementById('statementAttachment');
+            if (input) input.value = '';
+            const previewDiv = document.getElementById('statementAttachmentPreview');
+            if (previewDiv) previewDiv.innerHTML = '';
+        }
+
+        // Upload statement attachment to Firebase Storage
+        async function uploadStatementAttachment(companyId, investigationId, statementId) {
+            if (!pendingStatementAttachment) return null;
+            
+            try {
+                const storage = firebase.storage();
+                const safeName = `${Date.now()}-${pendingStatementAttachment.name}`;
+                const fileRef = storage.ref(`companies/${companyId}/investigations/${investigationId}/statements/${statementId}/${safeName}`);
+                
+                await fileRef.put(pendingStatementAttachment);
+                const url = await fileRef.getDownloadURL();
+                
+                return {
+                    name: pendingStatementAttachment.name,
+                    type: pendingStatementAttachment.type,
+                    size: pendingStatementAttachment.size,
+                    url: url,
+                    storagePath: fileRef.fullPath,
+                    uploadedAt: Date.now()
+                };
+            } catch (err) {
+                console.error('Failed to upload statement attachment:', err);
+                return null;
+            }
         }
         
         // Initialize statements table on page load
@@ -5113,16 +5193,60 @@
                 document.getElementById('statementDate').value = new Date().toISOString().split('T')[0];
             }
             
+            // Clear attachment input and preview
+            removeStatementAttachment();
+            
+            // If editing, show existing attachment
+            if (statementId) {
+                const statement = statements.find(s => s.id === statementId);
+                if (statement && statement.attachment) {
+                    const previewDiv = document.getElementById('statementAttachmentPreview');
+                    const att = statement.attachment;
+                    const iconMap = {
+                        'application/pdf': 'fa-file-pdf',
+                        'application/msword': 'fa-file-word',
+                        'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'fa-file-word'
+                    };
+                    const iconClass = att.type && att.type.startsWith('image/') ? 'fa-file-image' : (iconMap[att.type] || 'fa-file');
+                    previewDiv.innerHTML = `
+                        <div class="statement-attachment-preview">
+                            <i class="fas ${iconClass} file-icon"></i>
+                            <div class="file-info">
+                                <div class="file-name">${escapeHtmlGlobal(att.name)}</div>
+                                <small style="color: #10b981; font-size: 0.7rem;">(Existing file)</small>
+                            </div>
+                            <a href="${att.url}" target="_blank" style="background: #dbeafe; color: #1d4ed8; border: none; padding: 0.25rem 0.5rem; border-radius: 4px; cursor: pointer; font-size: 0.75rem; text-decoration: none; margin-right: 0.25rem;">
+                                <i class="fas fa-eye"></i> View
+                            </a>
+                            <button type="button" class="remove-file" onclick="removeExistingStatementAttachment('${statementId}')">
+                                <i class="fas fa-times"></i> Remove
+                            </button>
+                        </div>
+                    `;
+                }
+            }
+            
             modal.classList.add('show');
+        }
+
+        // Remove existing attachment from statement
+        function removeExistingStatementAttachment(statementId) {
+            const idx = statements.findIndex(s => s.id === statementId);
+            if (idx !== -1) {
+                statements[idx].attachment = null;
+            }
+            const previewDiv = document.getElementById('statementAttachmentPreview');
+            if (previewDiv) previewDiv.innerHTML = '';
         }
 
         function closeStatementModal() {
             const modal = document.getElementById('statementModal');
             modal.classList.remove('show');
             editingStatementId = null;
+            removeStatementAttachment(); // Clear pending attachment
         }
 
-        function saveStatement() {
+        async function saveStatement() {
             try {
                 const nameEl = document.getElementById('statementName');
                 const roleEl = document.getElementById('statementRole');
@@ -5145,10 +5269,28 @@
                     return;
                 }
 
+                // Generate statement ID for new statements
+                const statementId = editingStatementId || ('stmt_' + Date.now());
+                
+                // Handle attachment upload if there's a pending file
+                let attachmentData = null;
+                if (pendingStatementAttachment) {
+                    // Get companyId and investigationId from URL or context
+                    const params = new URLSearchParams(location.search);
+                    const investigationId = params.get('id') || 'draft_' + Date.now();
+                    const authUser = typeof getAuthUser === 'function' ? getAuthUser() : null;
+                    const companyId = authUser?.companyId;
+                    
+                    if (companyId) {
+                        attachmentData = await uploadStatementAttachment(companyId, investigationId, statementId);
+                    }
+                }
+
                 if (editingStatementId) {
                     // Update existing statement
                     const index = statements.findIndex(s => s.id === editingStatementId);
                     if (index !== -1) {
+                        const existingAttachment = statements[index].attachment;
                         statements[index] = {
                             ...statements[index],
                             name,
@@ -5156,18 +5298,20 @@
                             date,
                             contact,
                             statement: statementText,
+                            attachment: attachmentData || existingAttachment || null,
                             updatedAt: new Date().toISOString()
                         };
                     }
                 } else {
                     // Add new statement
                     statements.push({
-                        id: 'stmt_' + Date.now(),
+                        id: statementId,
                         name,
                         role,
                         date,
                         contact,
                         statement: statementText,
+                        attachment: attachmentData,
                         createdAt: new Date().toISOString()
                     });
                 }
@@ -5213,8 +5357,9 @@
                 const tr = document.createElement('tr');
                 tr.style.cursor = 'pointer';
                 const summary = (stmt.statement || '').substring(0, 50) + ((stmt.statement || '').length > 50 ? '...' : '');
+                const attachmentIcon = stmt.attachment ? `<i class="fas fa-paperclip" style="color: #3b82f6; margin-left: 0.25rem;" title="Has attachment"></i>` : '';
                 tr.innerHTML = `
-                    <td>${escapeHtmlGlobal(stmt.name)}</td>
+                    <td>${escapeHtmlGlobal(stmt.name)}${attachmentIcon}</td>
                     <td>${escapeHtmlGlobal(stmt.role || '-')}</td>
                     <td>${stmt.date || '-'}</td>
                     <td title="${escapeHtmlGlobal(stmt.statement)}">${escapeHtmlGlobal(summary)}</td>
@@ -5249,6 +5394,22 @@
             document.getElementById('viewStatementDate').textContent = stmt.date || '-';
             document.getElementById('viewStatementContact').textContent = stmt.contact || '-';
             document.getElementById('viewStatementText').textContent = stmt.statement || '-';
+            
+            // Show attachment if exists
+            const attachmentDiv = document.getElementById('viewStatementAttachment');
+            if (attachmentDiv) {
+                if (stmt.attachment && stmt.attachment.url) {
+                    attachmentDiv.innerHTML = `
+                        <strong style="display: block; margin-bottom: 0.25rem;">Attachment:</strong>
+                        <a href="${stmt.attachment.url}" target="_blank" style="color: #3b82f6; text-decoration: none; display: inline-flex; align-items: center; gap: 0.25rem;">
+                            <i class="fas fa-paperclip"></i> ${escapeHtmlGlobal(stmt.attachment.name)}
+                        </a>
+                    `;
+                    attachmentDiv.style.display = 'block';
+                } else {
+                    attachmentDiv.style.display = 'none';
+                }
+            }
             
             modal.classList.add('show');
         }
@@ -5711,6 +5872,14 @@
                             <label for="statementText">Statement *</label>
                             <textarea id="statementText" rows="6" placeholder="Record the witness statement in detail..." required></textarea>
                         </div>
+                        <div class="form-group full-width">
+                            <label>Attachment (Optional)</label>
+                            <div class="statement-attachment-area">
+                                <input type="file" id="statementAttachment" accept="image/*,.pdf,.doc,.docx" style="font-size: 0.85rem;" onchange="previewStatementAttachment(this)">
+                                <small style="display: block; margin-top: 0.5rem; color: #64748b; font-size: 0.75rem;">Supported: Images, PDF, Word documents</small>
+                                <div id="statementAttachmentPreview"></div>
+                            </div>
+                        </div>
                     </div>
                 </form>
             </div>
@@ -5926,6 +6095,8 @@
                     <div>
                         <label style="font-size: 0.75rem; color: #64748b; font-weight: 600; display: block; margin-bottom: 0.25rem;">Statement</label>
                         <div id="viewStatementText" style="font-size: 0.9rem; color: #1e293b; padding: 0.75rem; background: #f8fafc; border-radius: 6px; border: 1px solid #e2e8f0; min-height: 150px; white-space: pre-wrap; line-height: 1.6;">-</div>
+                    </div>
+                    <div id="viewStatementAttachment" style="display: none; margin-top: 0.5rem; padding: 0.75rem; background: #eff6ff; border-radius: 6px; border: 1px solid #bfdbfe; font-size: 0.85rem;">
                     </div>
                 </div>
             </div>
