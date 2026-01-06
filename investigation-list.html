@@ -2168,7 +2168,8 @@ Safety Incident</textarea>
                     const matchesLocationFilter = (inv) => {
                         if (allowedLocations.length === 0) return true; // No filter = all allowed
                         const invLocation = (inv.location || '').toLowerCase().trim();
-                        return allowedLocations.some(loc => invLocation.includes(loc) || loc.includes(invLocation));
+                        // Exact match for selected locations
+                        return allowedLocations.some(loc => invLocation === loc);
                     };
                     const matchesTitleFilter = (inv) => {
                         if (allowedTitles.length === 0) return true; // No filter = all allowed
@@ -2360,11 +2361,11 @@ Safety Incident</textarea>
                         // Users with "Edit All Investigations" permission - apply location/title filters
                         if (canEditAllInvestigations && passesFilters) return { inv, visible: true };
                         
-                        // Creator can always see their own investigation (no location/title filter)
+                        // Creator can see their own investigation only if it passes filters when filters are set
                         const isCreator = inv.createdBy === userUID || 
                                          inv.createdBy === userEmail ||
                                          inv.createdByEmail === userEmail;
-                        if (isCreator) return { inv, visible: true };
+                        if (isCreator) return { inv, visible: passesFilters };
                         
                         // Check approver status for non-draft investigations
                         const invStatus = (inv.investigationStatus || inv.status || 'draft').toLowerCase();
@@ -2373,7 +2374,8 @@ Safety Incident</textarea>
                         if (!isDraft && userIsApprover) {
                             // Use enhanced approver check that resolves L+1 for this specific investigation
                             const isApproverForThis = await isApproverForInvestigation(inv);
-                            return { inv, visible: isApproverForThis };
+                            // Approver sees only if investigation passes filters when filters are set
+                            return { inv, visible: isApproverForThis && passesFilters };
                         }
                         
                         return { inv, visible: false };
@@ -2714,7 +2716,7 @@ Safety Incident</textarea>
                 // Helper to check location/title filters for modal
                 const invLocation = (data.location || '').toLowerCase().trim();
                 const invTitle = (data.title || '').toLowerCase().trim();
-                const passesLocationFilter = allowedLocations.length === 0 || allowedLocations.some(loc => invLocation.includes(loc) || loc.includes(invLocation));
+                const passesLocationFilter = allowedLocations.length === 0 || allowedLocations.some(loc => invLocation === loc);
                 const passesTitleFilter = allowedTitles.length === 0 || allowedTitles.some(title => invTitle === title);
                 const passesFilters = passesLocationFilter && passesTitleFilter;
                 
@@ -2808,7 +2810,9 @@ Safety Incident</textarea>
                 // Visibility rules: admin OR creator OR (explicit view/edit-all WITH filters) OR (approver AND submitted)
                 const hasViewAllWithFilters = canViewAllInvestigations && passesFilters;
                 const hasEditAllWithFilters = canEditAllInvestigations && passesFilters;
-                const canView = isAdmin || isCreator || hasViewAllWithFilters || hasEditAllWithFilters || (await isApprover() && isSubmitted);
+                const creatorWithFilters = isCreator && passesFilters;
+                const approverWithFilters = (await isApprover()) && isSubmitted && passesFilters;
+                const canView = isAdmin || creatorWithFilters || hasViewAllWithFilters || hasEditAllWithFilters || approverWithFilters;
                 
                 if (!canView) {
                     if (overlay) overlay.style.display = 'none';
