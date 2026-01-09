@@ -9,6 +9,8 @@
 	<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
 	<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 	<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
+	<!-- EmailJS for notifications -->
+	<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 	<!-- Font Awesome -->
 	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
 	<meta name="robots" content="noindex, nofollow">
@@ -1061,6 +1063,267 @@
 	/**************** Firebase Initialization ****************/ (function(){ const firebaseConfig={ apiKey:"AIzaSyCUTmTn0rRBb0M-UkQJxnUMrWqXYU_BgIc", authDomain:"users-8be65.firebaseapp.com", databaseURL:"https://users-8be65-default-rtdb.firebaseio.com", projectId:"users-8be65", storageBucket:"users-8be65.firebasestorage.app", messagingSenderId:"829083030831", appId:"1:829083030831:web:36a370e62691e560bc3dda" }; if(!window.firebase?.apps?.length){ firebase.initializeApp(firebaseConfig); console.log('✅ Firebase initialized (risk form)'); } window.db=firebase.database(); window.auth=firebase.auth(); window.storage=firebase.storage(); })();
 
 	/**************** Notification Manager (light) ****************/ class NotificationManager{ constructor(){this.notifications=this.load();this.init();} load(){try{return JSON.parse(localStorage.getItem('notifications')||'[]');}catch{return[];}} save(){localStorage.setItem('notifications',JSON.stringify(this.notifications));this.updateBadge();this.render();} addNotification(n){this.notifications.unshift({id:Date.now(),timestamp:new Date().toISOString(),read:false,...n});this.save();} init(){this.bindUI();this.updateBadge();this.render();if(this.notifications.length===0){this.addNotification({type:'System',message:'Welcome to Risk Management'});} } bindUI(){const btn=document.getElementById('notificationBtn'); if(btn){btn.onclick=()=>document.querySelector('.notification-dropdown')?.classList.toggle('show');} document.addEventListener('click',e=>{if(!e.target.closest('.notifications')) document.querySelector('.notification-dropdown')?.classList.remove('show');}); const mark=document.querySelector('.mark-all-read'); if(mark){mark.onclick=()=>{this.notifications.forEach(n=>n.read=true); this.save();};}} updateBadge(){const badge=document.querySelector('.notification-badge'); if(!badge)return; const unread=this.notifications.filter(n=>!n.read).length; badge.textContent=unread; badge.style.display= unread? 'inline-block':'none';} render(){const list=document.querySelector('.notification-list'); if(!list)return; list.innerHTML=''; if(this.notifications.length===0){ list.innerHTML='<div style="padding:.9rem;font-size:.65rem;">No notifications</div>'; return;} this.notifications.slice(0,25).forEach(n=>{ const d=new Date(n.timestamp); const div=document.createElement('div'); div.className='notification-item'+(n.read?' read':''); div.style.cssText='padding:.65rem .75rem;border-bottom:1px solid #eee;font-size:.62rem;cursor:pointer;'+(n.read?'opacity:.6;':''); div.innerHTML=`<div style="display:flex;justify-content:space-between;font-weight:600;margin-bottom:2px;"><span>${n.type||'Info'}</span><span style="font-weight:400;color:#555;">${d.toLocaleDateString()} ${d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</span></div><div style="line-height:1.2;">${n.message||''}</div>`; div.onclick=()=>{n.read=true; this.save(); if(n.link) location.href=n.link;}; list.appendChild(div); }); }} window.notificationManager=new NotificationManager();
+
+	/**************** EmailJS Configuration for Risk Notifications ****************/
+	const RISK_EMAILJS_CONFIG = {
+		publicKey: 'fHs6oaqQgkcPoUwpv',
+		serviceId: 'service_p2e9swy',
+		templateId: 'template_zreahgt'
+	};
+
+	// Initialize EmailJS
+	if (typeof emailjs !== 'undefined') {
+		emailjs.init(RISK_EMAILJS_CONFIG.publicKey);
+		console.log('✅ EmailJS initialized for risk notifications');
+	}
+
+	// Send risk notification email
+	async function sendRiskNotificationEmail(companyId, risk, isUpdate = false) {
+		if (!companyId || !risk) return;
+		
+		try {
+			// Try server-side function first (production-safe)
+			try {
+				const projectId = firebase.app().options.projectId || 'users-8be65';
+				const endpoint = `https://us-central1-${projectId}.cloudfunctions.net/sendRiskNotification`;
+				const notificationType = isUpdate ? 'update' : 'submission';
+				const resp = await fetch(endpoint, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ companyId, risk, notificationType })
+				});
+				if (resp.ok) {
+					const data = await resp.json();
+					console.log('✅ Server-side risk notification response:', data);
+					if (data && data.success && (data.sent || 0) > 0) {
+						return; // done
+					}
+					console.warn('Server responded but did not send any emails; falling back to client EmailJS');
+				} else {
+					console.warn('Server send failed, falling back to client EmailJS:', await resp.text());
+				}
+			} catch (srvErr) {
+				console.warn('Server function call failed, using client EmailJS:', srvErr);
+			}
+
+			// Check if notifications are enabled for this action
+			const settingsSnap = await firebase.database().ref(`companies/${companyId}/riskSettings/notifications`).once('value');
+			const settings = settingsSnap.val() || {};
+			
+			// Check if notification should be sent based on submission/update setting
+			const settingKey = isUpdate ? 'riskOnUpdate' : 'riskOnSubmission';
+			const isEnabled = isUpdate ? (settings[settingKey] === true) : (settings[settingKey] !== false);
+			
+			if (!isEnabled) {
+				console.log(`Risk notifications disabled for ${isUpdate ? 'updates' : 'submissions'}`);
+				return;
+			}
+			
+			// Get recipients from notification settings (keep name + email for Outlook template)
+			const recipients = settings.riskRecipients || {};
+			const recipientList = Object.values(recipients)
+				.map(r => ({ email: r?.email || '', name: r?.name || 'Risk Management Team' }))
+				.filter(r => !!r.email);
+
+			const byEmail = new Map();
+			for (const r of recipientList) {
+				if (!byEmail.has(r.email)) byEmail.set(r.email, r.name);
+			}
+
+			// Add corrective action owners (responsibleId) to recipients
+			try {
+				const actions = Array.isArray(risk.correctiveActions)
+					? risk.correctiveActions
+					: (risk.correctiveActions ? Object.values(risk.correctiveActions) : []);
+				for (const action of actions) {
+					const uid = action?.responsibleId;
+					if (!uid) continue;
+					try {
+						const userSnap = await firebase.database().ref(`companies/${companyId}/users/${uid}`).once('value');
+						const u = userSnap.val();
+						if (u?.email && !byEmail.has(u.email)) {
+							const nm = u?.name || `${u?.firstName || ''} ${u?.lastName || ''}`.trim() || 'Risk Action Owner';
+							byEmail.set(u.email, nm);
+							console.log('Added action owner to notification recipients:', u.email);
+						}
+					} catch (err) {
+						console.warn('Could not fetch action owner for notification:', err);
+					}
+				}
+			} catch (err) {
+				console.warn('Error processing corrective action recipients:', err);
+			}
+			
+			// Also add the risk owner (responsible person) to the notification list
+			if (risk.riskOwner) {
+				try {
+					const ownerSnap = await firebase.database().ref(`companies/${companyId}/users/${risk.riskOwner}`).once('value');
+					const ownerUser = ownerSnap.val();
+					if (ownerUser && ownerUser.email && !byEmail.has(ownerUser.email)) {
+						const nm = ownerUser?.name || `${ownerUser?.firstName || ''} ${ownerUser?.lastName || ''}`.trim() || 'Risk Owner';
+						byEmail.set(ownerUser.email, nm);
+						console.log('Added risk owner to notification recipients:', ownerUser.email);
+					}
+				} catch (err) {
+					console.warn('Could not fetch risk owner for notification:', err);
+				}
+			}
+			
+			// Always add submitter (matches incident-style behavior)
+			try {
+				if (risk.submittedBy) {
+					const submitterSnap = await firebase.database().ref(`companies/${companyId}/users/${risk.submittedBy}`).once('value');
+					const submitter = submitterSnap.val();
+					if (submitter?.email && !byEmail.has(submitter.email)) {
+						const nm = submitter?.name || `${submitter?.firstName || ''} ${submitter?.lastName || ''}`.trim() || 'Submitter';
+						byEmail.set(submitter.email, nm);
+						console.log('Added submitter to notification recipients:', submitter.email);
+					}
+				}
+			} catch (fbErr) {
+				console.warn('Submitter recipient fetch failed:', fbErr);
+			}
+
+			const emails = Array.from(byEmail.keys());
+			if (emails.length === 0) {
+				console.log('No notification recipients available for risks');
+				return;
+			}
+			
+			// Get company info
+			const companySnap = await firebase.database().ref(`companies/${companyId}`).once('value');
+			const company = companySnap.val() || {};
+			const companyName = company.companyName || 'Company';
+			
+			if (typeof emailjs === 'undefined') {
+				console.warn('EmailJS not loaded, cannot send notification');
+				return;
+			}
+
+			console.log('Preparing to send risk email notifications:', {
+				notificationType: isUpdate ? 'update' : 'submission',
+				enabled: isEnabled,
+				recipientCount: emails.length,
+				riskId: risk.riskID || risk.id
+			});
+			
+			// Send to each recipient individually
+			for (const email of emails) {
+				try {
+					const reporterName = risk.reportedByName || risk.submittedByName || 'HSE System';
+					const riskDate = risk.date || risk.submittedAt?.split('T')[0] || new Date().toLocaleDateString();
+					const refNumber = risk.riskID || risk.id || 'N/A';
+					const riskRating = risk.riskRating || risk.inherentRiskRating || 'Not Assessed';
+					
+					// Determine action text based on submission/update
+					const actionText = isUpdate ? 'has been updated' : 'has been submitted';
+					const subjectPrefix = isUpdate ? 'Updated' : 'New';
+					const notificationContext = isUpdate ? 'Risk Assessment Update Notification' : 'New Risk Assessment Notification';
+					
+					// Format message
+					const messageBody = `Dear Risk Management Team,
+
+${isUpdate ? 'An existing' : 'A new'} risk assessment ${actionText} and requires your attention.
+
+RISK DETAILS:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Risk ID: ${refNumber}
+Title: ${risk.riskTitle || risk.title || 'Untitled'}
+Category: ${risk.riskCategory || 'Not specified'}
+Department: ${risk.department || 'Not specified'}
+Location: ${risk.location || 'Not specified'}
+Risk Rating: ${riskRating}
+Status: ${risk.status || (isUpdate ? 'Updated' : 'Pending')}
+Date: ${riskDate}
+Reported By: ${reporterName}
+
+DESCRIPTION:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+${risk.riskDescription || risk.description || 'No description provided'}
+
+${risk.hazardDescription ? `HAZARD DESCRIPTION:\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n${risk.hazardDescription}\n\n` : ''}${risk.existingControls ? `EXISTING CONTROLS:\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n${risk.existingControls}\n\n` : ''}Please review this risk assessment through the HSE System and take appropriate action.
+
+Review Link: ${window.location.origin}/riskboard.html
+
+Best regards,
+${companyName} HSE System
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+This is an automated notification from the HSE Management System.
+If you have questions, please contact your HSE department.`;
+
+					// EmailJS template variables
+					const emailData = {
+						to_email: email,
+						to_name: byEmail.get(email) || 'Risk Management Team',
+						from_name: companyName + ' HSE System',
+						subject: `[Risk Alert] ${subjectPrefix} Risk Assessment: ${risk.riskTitle || risk.title || 'Untitled'} - ${refNumber}`,
+						message: messageBody,
+						position_title: `Risk: ${risk.riskTitle || risk.title || 'Untitled'}`,
+						position_code: refNumber,
+						department: risk.department || 'Risk Management',
+						requesting_manager: reporterName,
+						request_date: riskDate,
+						employment_type: 'Risk Assessment',
+						work_location: risk.location || 'Not specified',
+						working_hours: riskDate,
+						contract_duration: riskRating,
+						reporting_manager: reporterName,
+						budget_code: refNumber,
+						salary_min: riskRating,
+						salary_max: risk.status || (isUpdate ? 'Updated' : 'Pending'),
+						annual_budget_impact: 'Risk Assessment',
+						benefits_package: risk.department || 'HSE',
+						department_budget: isUpdate ? 'Risk Updated' : 'New Risk',
+						current_stage: '1',
+						total_stages: '1',
+						approver_role: 'Risk Reviewer',
+						approval_type: 'Review Required',
+						notification_context: notificationContext,
+						business_need: risk.riskDescription || risk.description || 'No description provided',
+						key_responsibilities: risk.existingControls || 'Review and assess risk controls',
+						required_skills: `Location: ${risk.location || 'Not specified'}`,
+						required_experience: `Risk Rating: ${riskRating}`,
+						priority_level: risk.riskRating === 'High' || risk.riskRating === 'Extreme' ? 'high' : 'medium',
+						approval_link: `${window.location.origin}/riskboard.html`,
+						system_link: `${window.location.origin}/riskboard.html`,
+						company_name: companyName,
+						company_email: 'info@dreamexdatalab.com',
+						company_initial: companyName.charAt(0).toUpperCase(),
+						hr_email: 'hse@dreamexdatalab.com',
+						budget_team_email: 'hse@dreamexdatalab.com',
+						request_id: refNumber,
+						generation_timestamp: new Date().toLocaleString(),
+						submission_date: riskDate,
+						risk_id: refNumber,
+						risk_title: risk.riskTitle || risk.title || 'Untitled',
+						risk_category: risk.riskCategory || 'Not specified',
+						risk_rating: riskRating,
+						risk_description: risk.riskDescription || risk.description || 'No description provided',
+						risk_status: risk.status || (isUpdate ? 'Updated' : 'Pending'),
+						risk_location: risk.location || 'Not specified',
+						risk_department: risk.department || 'Not specified',
+						risk_reporter: reporterName,
+						hazard_description: risk.hazardDescription || 'N/A',
+						existing_controls: risk.existingControls || 'N/A',
+						is_update: isUpdate ? 'Yes' : 'No',
+						event_action: isUpdate ? 'Updated' : 'New Submission'
+					};
+					
+					const response = await emailjs.send(RISK_EMAILJS_CONFIG.serviceId, RISK_EMAILJS_CONFIG.templateId, emailData);
+					console.log('Risk notification sent to:', email, response);
+				} catch (err) {
+					console.error('Failed to send risk notification to:', email, err);
+				}
+			}
+			
+			console.log(`Risk notification emails sent for ${isUpdate ? 'update' : 'submission'}`);
+		} catch (error) {
+			console.error('Error sending risk notification:', error);
+		}
+	}
 
 	/**************** AuthManager (adapted from accessboard.html) ****************/ class AuthManager{ constructor(){ this.currentUser=this.getCurrentUser(); this.currentCompany=null; console.log('🔐 AuthManager(init) risk form'); this.initializeAuth(); }
 		getCurrentUser(){ try{return JSON.parse(localStorage.getItem('currentUser')||'null');}catch{return null;} }
@@ -3096,6 +3359,13 @@
 				await riskRef.set(riskData);
 				console.log('✅ Risk updated successfully');
 				
+				// Send notification email for update
+				try {
+					await sendRiskNotificationEmail(currentUser.companyId, riskData, true);
+				} catch (notifErr) {
+					console.error('Notification error:', notifErr);
+				}
+				
 				// Clear edit data from localStorage
 				localStorage.removeItem('riskEditData');
 				
@@ -3129,6 +3399,13 @@
 				console.log('💾 Saving new risk data:', riskData);
 				await riskRef.set(riskData);
 				console.log('✅ New risk created successfully:', riskRef.key);
+				
+				// Send notification email for new submission
+				try {
+					await sendRiskNotificationEmail(currentUser.companyId, riskData, false);
+				} catch (notifErr) {
+					console.error('Notification error:', notifErr);
+				}
 				
 				// Show success message
 				window.notificationManager?.addNotification({
