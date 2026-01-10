@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Finance Dashboard - Dreamex Datalab</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
+  <!-- Firebase v8 Scripts -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
+  <style>
+    :root { --primary-color:#2c3e50; --secondary-color:#34495e; --accent-color:#e74c3c; --light-color:#ecf0f1; --sidebar-width:250px; }
+    * { box-sizing:border-box; margin:0; padding:0; }
+    body { font-family:'Segoe UI', Arial, sans-serif; background:#f5f7fa; color:#222; }
+    .app-container { display:flex; min-height:100vh; }
+    .sidebar { width:var(--sidebar-width); background:var(--primary-color); color:#fff; padding:1rem; position:fixed; top:0; left:0; bottom:0; overflow-y:auto; z-index:1000; transition:transform .3s ease; }
+    .sidebar.collapsed { transform:translateX(-100%); }
+    .logo h2 { text-align:center; padding:1rem 0; border-bottom:1px solid rgba(255,255,255,0.1); font-size:1.05rem; }
+    .menu { list-style:none; margin-top:2rem; }
+    .menu li { margin-bottom:0.45rem; }
+    .menu a { display:flex; align-items:center; gap:10px; color:#fff; text-decoration:none; padding:0.6rem 0.75rem; border-radius:6px; font-size:0.82rem; font-weight:500; }
+    .menu a:hover, .menu a.active { background:rgba(255,255,255,0.12); }
+    .submenu { list-style:none; margin-left:0.75rem; display:none; margin-top:0.25rem; }
+    .menu-dropdown:hover .submenu { display:block; }
+    .submenu a { font-size:0.75rem; padding:0.45rem 0.65rem; }
+    [data-feature]:not(.menu-visible) { display:none !important; }
+    .menu-dropdown:not(.menu-visible) { display:none !important; }
+
+    .main-content { flex:1; margin-left:var(--sidebar-width); padding:0.3rem; padding-top:3.2rem; transition:margin-left .3s ease; min-height:100vh; }
+    .main-content.sidebar-collapsed { margin-left:0; }
+    .main-content.sidebar-collapsed .top-nav { left:0.5rem; }
+    .top-nav { display:flex; justify-content:space-between; align-items:center; padding:0.5rem 0.75rem; background-color:#fff; box-shadow:0 2px 5px rgba(0,0,0,0.1); margin-bottom:0.3rem; position:fixed; top:0.25rem; right:0.5rem; left:calc(var(--sidebar-width) + 0.5rem); height:50px; min-height:50px; z-index:100; transition:left 0.3s ease; }
+    .sidebar-toggle-btn { background:none; border:none; cursor:pointer; font-size:1.1rem; padding:0.4rem; color:#555; }
+    .top-nav-left { display:flex; align-items:center; gap:0.75rem; }
+    .company-branding { display:flex; align-items:center; gap:0.5rem; }
+    #headerCompanyLogo { width:32px; height:32px; object-fit:contain; display:none; }
+    #headerCompanyName { font-weight:600; font-size:0.85rem; }
+    .top-nav-right { display:flex; align-items:center; gap:1rem; }
+    .notification-btn { background:none; border:none; cursor:pointer; position:relative; font-size:1.2rem; padding:0.5rem; display:flex; align-items:center; justify-content:center; }
+    .notification-badge { position:absolute; top:-5px; right:-5px; background-color:var(--accent-color); color:white; border-radius:50%; padding:0.2rem 0.5rem; font-size:0.7rem; display:none; }
+    .profile-btn { background:none; border:none; border-radius:50%; overflow:hidden; width:38px; height:38px; cursor:pointer; }
+    .profile-dropdown { display:none; position:absolute; right:0; top:110%; background:#fff; border-radius:8px; min-width:200px; box-shadow:0 6px 18px rgba(0,0,0,0.12); overflow:hidden; }
+    .profile-dropdown.show { display:block; }
+
+    .page-header { background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)); color: #fff; padding: 0.4rem 0.75rem; margin: 0.2rem 0 0.3rem 0; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 4px 12px rgba(0,0,0,0.15); font-size: 0.85rem; }
+    .page-header h1 { color: #fff; font-size: 0.85rem; display: flex; align-items: center; gap: 0.5rem; letter-spacing: 0.5px; margin: 0; font-weight: 600; }
+    .section { background:#fff; padding:0.6rem; border-radius:8px; box-shadow:0 2px 5px rgba(0,0,0,0.06); margin-bottom:0.5rem; }
+    .grid { display:grid; gap:0.5rem; }
+    .grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
+    @media (max-width: 1200px) { .grid.cols-3 { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 768px) { .grid.cols-3 { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="app-container">
+    <nav class="sidebar" id="sidebar">
+      <div class="logo"><h2>Dreamex Datalab</h2></div>
+      <ul class="menu" id="roleBasedMenu">
+        <li class="menu-item menu-visible" data-feature="home_view"><a href="index.html"><i class="fas fa-home"></i> Home</a></li>
+        <li class="menu-dropdown menu-visible" data-feature="finance_view">
+          <a href="#"><i class="fas fa-coins"></i> Finance</a>
+          <ul class="submenu">
+            <li class="menu-visible" data-feature="finance_dashboard_view"><a class="active" href="finance-dashboard.html"><i class="fas fa-gauge"></i> Finance Dashboard</a></li>
+            <li class="menu-visible" data-feature="gl_accounts_view"><a href="finance-gl-accounts.html"><i class="fas fa-book"></i> Chart of Accounts</a></li>
+            <li class="menu-visible" data-feature="gl_journal_view"><a href="finance-journal.html"><i class="fas fa-pen-nib"></i> Journal Entries</a></li>
+            <li class="menu-visible" data-feature="budgeting_view"><a href="finance-budgeting.html"><i class="fas fa-chart-line"></i> Budgeting</a></li>
+            <li class="menu-visible" data-feature="ap_view"><a href="finance-ap.html"><i class="fas fa-file-invoice-dollar"></i> Accounts Payable</a></li>
+            
+            <li class="menu-visible" data-feature="finance_invoicing_view"><a href="finance-inv.html"><i class="fas fa-file-invoice"></i> Invoicing</a></li>
+            <li class="menu-visible" data-feature="cash_view"><a href="finance-cash.html"><i class="fas fa-piggy-bank"></i> Cash & Bank</a></li>
+            <li class="menu-visible" data-feature="assets_view"><a href="finance-assets.html"><i class="fas fa-building"></i> Fixed Assets</a></li>
+            <li class="menu-visible" data-feature="tax_view"><a href="finance-tax.html"><i class="fas fa-percent"></i> Tax</a></li>
+            <li class="menu-visible" data-feature="finance_reports_view"><a href="finance-reports.html"><i class="fas fa-chart-pie"></i> Reports</a></li>
+            <li class="menu-visible" data-feature="finance_settings_view"><a href="finance-settings.html"><i class="fas fa-sliders-h"></i> Finance Settings</a></li>
+          </ul>
+        </li>
+      </ul>
+    </nav>
+
+    <main class="main-content" id="mainContent">
+      <nav class="top-nav">
+        <div class="top-nav-left">
+          <button id="sidebarToggle" class="sidebar-toggle-btn" title="Toggle Menu"><i class="fas fa-bars"></i></button>
+          <div class="company-branding">
+            <img id="headerCompanyLogo" alt="Company Logo" />
+            <span id="headerCompanyName"></span>
+          </div>
+        </div>
+        <div class="top-nav-right">
+          <button id="notificationBtn" class="notification-btn" title="Notifications">
+            <i class="fas fa-bell"></i>
+            <span class="notification-badge">0</span>
+          </button>
+          <div class="user-profile" style="position:relative;">
+            <button id="userProfileBtn" class="profile-btn"><img src="" alt="User Avatar" /></button>
+            <div class="profile-dropdown"><ul></ul></div>
+          </div>
+        </div>
+      </nav>
+
+      <section class="page-header">
+        <h1><i class="fas fa-gauge"></i> Finance Dashboard</h1>
+      </section>
+
+      <div class="grid cols-3">
+        <div class="section">
+          <h3 style="font-size:0.9rem; margin-bottom:0.4rem;">Snapshot</h3>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.4rem;">
+            <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:0.6rem;">
+              <div style="font-size:0.7rem;color:#64748b;">YTD Revenue</div>
+              <div id="ytdRevenue" style="font-weight:700;font-size:1rem;">—</div>
+            </div>
+            <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:0.6rem;">
+              <div style="font-size:0.7rem;color:#64748b;">YTD Expense</div>
+              <div id="ytdExpense" style="font-weight:700;font-size:1rem;">—</div>
+            </div>
+            <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:0.6rem;">
+              <div style="font-size:0.7rem;color:#64748b;">Cash Balance</div>
+              <div id="cashBalance" style="font-weight:700;font-size:1rem;">—</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <h3 style="font-size:0.9rem; margin-bottom:0.4rem;">Recent Journals</h3>
+          <div id="recentJournals" class="muted" style="font-size:0.75rem;color:#64748b;">No entries yet</div>
+        </div>
+
+        <div class="section">
+          <h3 style="font-size:0.9rem; margin-bottom:0.4rem;">Tasks</h3>
+          <ul style="font-size:0.75rem;color:#475569;line-height:1.9;">
+            <li>Set up Chart of Accounts</li>
+            <li>Define fiscal periods</li>
+            <li>Load opening balances</li>
+          </ul>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    // Simple auth check - allow page to display if user has stored credentials
+    (function() {
+      const storedUser = localStorage.getItem('currentUser');
+      if (!storedUser) {
+        window.location.href = 'login.html';
+      }
+    })();
+  </script>
+  <script src="finance-core.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const sidebar = document.getElementById('sidebar');
+      const main = document.getElementById('mainContent');
+      document.getElementById('sidebarToggle').addEventListener('click', () => {
+        sidebar.classList.toggle('collapsed');
+        main.classList.toggle('sidebar-collapsed');
+      });
+
+      const profileBtn = document.getElementById('userProfileBtn');
+      const profileDropdown = document.querySelector('.profile-dropdown');
+      if (profileBtn && profileDropdown) {
+        profileBtn.addEventListener('click', (e) => { e.stopPropagation(); profileDropdown.classList.toggle('show'); });
+        document.addEventListener('click', () => profileDropdown.classList.remove('show'));
+      }
+
+      // Show Finance menu by default for scaffolding
+      document.querySelectorAll('[data-feature]').forEach(el => el.classList.add('menu-visible'));
+
+      // Initialize structure and load KPIs
+      (async () => {
+        try {
+          await FinanceCore.ensureStructure();
+          // Compute current period YTD-like simple totals from summaries
+          const now = new Date();
+          const y = now.getFullYear();
+          let ytdRevenue = 0, ytdExpense = 0, cashBalance = 0;
+          for (let m=1; m<=now.getMonth()+1; m++) {
+            const key = `${y}-${String(m).padStart(2,'0')}`;
+            const tb = await FinanceCore.getTrialBalance(key);
+            tb.rows.forEach(r => {
+              const bal = r.debit - r.credit;
+              if (r.type === 'Revenue') ytdRevenue += (r.credit - r.debit);
+              if (r.type === 'Expense') ytdExpense += (r.debit - r.credit);
+              if (r.code === '1000') cashBalance += bal;
+            });
+          }
+          const fmt = (v) => new Intl.NumberFormat(undefined,{ style:'currency', currency:'USD'}).format(v||0);
+          document.getElementById('ytdRevenue').textContent = fmt(ytdRevenue);
+          document.getElementById('ytdExpense').textContent = fmt(ytdExpense);
+          document.getElementById('cashBalance').textContent = fmt(cashBalance);
+        } catch(e) {}
+      })();
+    });
+  </script>
+</body>
+</html>
+
+

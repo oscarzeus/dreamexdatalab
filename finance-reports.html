@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Finance Reports - Dreamex Datalab</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
+  <style>
+    :root { --primary-color:#2c3e50; --secondary-color:#34495e; --sidebar-width:250px; }
+    * { box-sizing:border-box; margin:0; padding:0; }
+    body { font-family:'Segoe UI', Arial, sans-serif; background:#f5f7fa; color:#222; }
+    .app-container { display:flex; min-height:100vh; }
+    .sidebar { width:var(--sidebar-width); background:var(--primary-color); color:#fff; padding:1rem; position:fixed; top:0; left:0; bottom:0; overflow-y:auto; z-index:1000; transition:transform .3s ease; }
+    .sidebar.collapsed { transform:translateX(-100%); }
+    .logo h2 { text-align:center; padding:1rem 0; border-bottom:1px solid rgba(255,255,255,0.1); font-size:1.05rem; }
+    .menu { list-style:none; margin-top:2rem; }
+    .menu li { margin-bottom:0.45rem; }
+    .menu a { display:flex; align-items:center; gap:10px; color:#fff; text-decoration:none; padding:0.6rem 0.75rem; border-radius:6px; font-size:0.82rem; font-weight:500; }
+    .menu a:hover, .menu a.active { background:rgba(255,255,255,0.12); }
+    .submenu { list-style:none; margin-left:0.75rem; display:none; margin-top:0.25rem; }
+    .menu-dropdown:hover .submenu { display:block; }
+    .submenu a { font-size:0.75rem; padding:0.45rem 0.65rem; }
+    [data-feature]:not(.menu-visible) { display:none !important; }
+    .menu-dropdown:not(.menu-visible) { display:none !important; }
+    .main-content { flex:1; margin-left:var(--sidebar-width); padding:0.3rem; padding-top:3.2rem; transition:margin-left .3s ease; min-height:100vh; }
+    .main-content.sidebar-collapsed { margin-left:0; }
+    .top-nav { display:flex; justify-content:space-between; align-items:center; padding:0.5rem 0.75rem; background-color:#fff; box-shadow:0 2px 5px rgba(0,0,0,0.1); margin-bottom:0.3rem; position:fixed; top:0.25rem; right:0.5rem; left:calc(var(--sidebar-width) + 0.5rem); height:50px; min-height:50px; z-index:100; transition:left 0.3s ease; }
+    .sidebar-toggle-btn { background:none; border:none; cursor:pointer; font-size:1.1rem; padding:0.4rem; color:#555; }
+    .company-branding { display:flex; align-items:center; gap:0.5rem; }
+    #headerCompanyLogo { width:32px; height:32px; object-fit:contain; display:none; }
+    #headerCompanyName { font-weight:600; font-size:0.85rem; }
+    .page-header { background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)); color: #fff; padding: 0.4rem 0.75rem; margin: 0.2rem 0 0.3rem 0; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 4px 12px rgba(0,0,0,0.15); font-size: 0.85rem; }
+    .page-header h1 { color: #fff; font-size: 0.85rem; display: flex; align-items: center; gap: 0.5rem; letter-spacing: 0.5px; margin: 0; font-weight: 600; }
+    .section { background:#fff; padding:0.6rem; border-radius:8px; box-shadow:0 2px 5px rgba(0,0,0,0.06); margin-bottom:0.5rem; }
+    .grid { display:grid; gap:0.5rem; grid-template-columns: repeat(2, 1fr); }
+    .report-card { background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:0.6rem;display:flex;justify-content:space-between;align-items:center; }
+    .btn { border:none; border-radius:6px; padding:0.45rem 0.7rem; font-size:0.78rem; font-weight:600; cursor:pointer; background:#2c3e50; color:#fff; }
+    .btn.secondary { background:#fff; color:#1e293b; border:1px solid #cbd5e1; }
+    table { width:100%; border-collapse:collapse; }
+    th, td { text-align:left; padding:0.5rem; border-bottom:1px solid #e5e7eb; font-size:0.82rem; }
+    th { color:#64748b; font-size:0.72rem; text-transform:uppercase; }
+    .toolbar { display:flex; gap:0.5rem; align-items:center; justify-content:space-between; margin-bottom:0.4rem; flex-wrap:wrap; }
+  </style>
+</head>
+<body>
+  <div class="app-container">
+    <nav class="sidebar" id="sidebar">
+      <div class="logo"><h2>Dreamex Datalab</h2></div>
+      <ul class="menu" id="roleBasedMenu">
+        <li class="menu-item menu-visible" data-feature="home_view"><a href="index.html"><i class="fas fa-home"></i> Home</a></li>
+        <li class="menu-dropdown menu-visible" data-feature="finance_view">
+          <a href="#"><i class="fas fa-coins"></i> Finance</a>
+          <ul class="submenu">
+            <li class="menu-visible" data-feature="finance_dashboard_view"><a href="finance-dashboard.html"><i class="fas fa-gauge"></i> Finance Dashboard</a></li>
+            <li class="menu-visible" data-feature="gl_accounts_view"><a href="finance-gl-accounts.html"><i class="fas fa-book"></i> Chart of Accounts</a></li>
+            <li class="menu-visible" data-feature="gl_journal_view"><a href="finance-journal.html"><i class="fas fa-pen-nib"></i> Journal Entries</a></li>
+            <li class="menu-visible" data-feature="budgeting_view"><a href="finance-budgeting.html"><i class="fas fa-chart-line"></i> Budgeting</a></li>
+            <li class="menu-visible" data-feature="ap_view"><a href="finance-ap.html"><i class="fas fa-file-invoice-dollar"></i> Accounts Payable</a></li>
+            
+            <li class="menu-visible" data-feature="finance_invoicing_view"><a href="finance-inv.html"><i class="fas fa-file-invoice"></i> Invoicing</a></li>
+            <li class="menu-visible" data-feature="cash_view"><a href="finance-cash.html"><i class="fas fa-piggy-bank"></i> Cash & Bank</a></li>
+            <li class="menu-visible" data-feature="assets_view"><a href="finance-assets.html"><i class="fas fa-building"></i> Fixed Assets</a></li>
+            <li class="menu-visible" data-feature="tax_view"><a href="finance-tax.html"><i class="fas fa-percent"></i> Tax</a></li>
+            <li class="menu-visible" data-feature="finance_reports_view"><a class="active" href="finance-reports.html"><i class="fas fa-chart-pie"></i> Reports</a></li>
+            <li class="menu-visible" data-feature="finance_settings_view"><a href="finance-settings.html"><i class="fas fa-sliders-h"></i> Finance Settings</a></li>
+          </ul>
+        </li>
+      </ul>
+    </nav>
+
+    <main class="main-content" id="mainContent">
+      <nav class="top-nav">
+        <div class="top-nav-left">
+          <button id="sidebarToggle" class="sidebar-toggle-btn" title="Toggle Menu"><i class="fas fa-bars"></i></button>
+          <div class="company-branding">
+            <img id="headerCompanyLogo" alt="Company Logo" />
+            <span id="headerCompanyName"></span>
+          </div>
+        </div>
+        <div class="top-nav-right"></div>
+      </nav>
+
+      <section class="page-header">
+        <h1><i class="fas fa-chart-pie"></i> Finance Reports</h1>
+      </section>
+
+      <div class="grid">
+        <div class="report-card">
+          <div>
+            <div style="font-weight:700;">Trial Balance</div>
+            <div style="color:#64748b;font-size:0.8rem;">Balances by account and period</div>
+          </div>
+          <div>
+            <button class="btn" id="btnTrialBalance">View</button>
+          </div>
+        </div>
+        <div class="report-card">
+          <div>
+            <div style="font-weight:700;">Profit & Loss</div>
+            <div style="color:#64748b;font-size:0.8rem;">Income and expenses summary</div>
+          </div>
+          <div>
+            <button class="btn" id="btnPL">View</button>
+          </div>
+        </div>
+        <div class="report-card">
+          <div>
+            <div style="font-weight:700;">Balance Sheet</div>
+            <div style="color:#64748b;font-size:0.8rem;">Assets, liabilities, and equity</div>
+          </div>
+          <div>
+            <button class="btn" id="btnBS">View</button>
+          </div>
+        </div>
+        <div class="report-card">
+          <div>
+            <div style="font-weight:700;">Cash Flow</div>
+            <div style="color:#64748b;font-size:0.8rem;">Operating, investing, financing</div>
+          </div>
+          <div>
+            <button class="btn" id="btnCF">View</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="section" id="tbSection" style="display:none;">
+        <div class="toolbar">
+          <div style="display:flex;gap:0.4rem;align-items:center;flex-wrap:wrap;">
+            <label for="tbPeriod" style="color:#64748b;font-size:0.8rem;">Period</label>
+            <select id="tbPeriod"></select>
+          </div>
+          <div class="actions" style="display:flex;gap:0.4rem;">
+            <button class="btn secondary" id="btnTbRefresh">Refresh</button>
+            <button class="btn" id="btnTbCsv"><i class="fas fa-download"></i> Download CSV</button>
+          </div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Account</th>
+              <th>Name</th>
+              <th style="text-align:right;">Debit</th>
+              <th style="text-align:right;">Credit</th>
+            </tr>
+          </thead>
+          <tbody id="tbBody">
+            <tr><td colspan="4" style="color:#64748b;">No data</td></tr>
+          </tbody>
+          <tfoot>
+            <tr>
+              <th colspan="2" style="text-align:right;">Total</th>
+              <th id="tbTotalDebit" style="text-align:right;">0.00</th>
+              <th id="tbTotalCredit" style="text-align:right;">0.00</th>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      <div class="section" id="plSection" style="display:none;">
+        <div class="toolbar">
+          <div style="display:flex;gap:0.4rem;align-items:center;flex-wrap:wrap;">
+            <label for="plPeriod" style="color:#64748b;font-size:0.8rem;">Period</label>
+            <select id="plPeriod"></select>
+          </div>
+          <div class="actions" style="display:flex;gap:0.4rem;">
+            <button class="btn secondary" id="btnPlRefresh">Refresh</button>
+            <button class="btn" id="btnPlCsv"><i class="fas fa-download"></i> Download CSV</button>
+          </div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Account</th>
+              <th>Name</th>
+              <th style="text-align:right;">Amount</th>
+            </tr>
+          </thead>
+          <tbody id="plBody">
+            <tr><td colspan="3" style="color:#64748b;">No data</td></tr>
+          </tbody>
+          <tfoot>
+            <tr>
+              <th colspan="2" style="text-align:right;">Total Revenue</th>
+              <th id="plTotalRevenue" style="text-align:right;">0.00</th>
+            </tr>
+            <tr>
+              <th colspan="2" style="text-align:right;">Total Expense</th>
+              <th id="plTotalExpense" style="text-align:right;">0.00</th>
+            </tr>
+            <tr>
+              <th colspan="2" style="text-align:right;">Net Income</th>
+              <th id="plNetIncome" style="text-align:right;">0.00</th>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      <div class="section" id="bsSection" style="display:none;">
+        <div class="toolbar">
+          <div style="display:flex;gap:0.4rem;align-items:center;flex-wrap:wrap;">
+            <label for="bsPeriod" style="color:#64748b;font-size:0.8rem;">Period</label>
+            <select id="bsPeriod"></select>
+          </div>
+          <div class="actions" style="display:flex;gap:0.4rem;">
+            <button class="btn secondary" id="btnBsRefresh">Refresh</button>
+            <button class="btn" id="btnBsCsv"><i class="fas fa-download"></i> Download CSV</button>
+          </div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Account</th>
+              <th>Name</th>
+              <th style="text-align:right;">Balance</th>
+            </tr>
+          </thead>
+          <tbody id="bsBody">
+            <tr><td colspan="3" style="color:#64748b;">No data</td></tr>
+          </tbody>
+          <tfoot>
+            <tr>
+              <th colspan="2" style="text-align:right;">Total Assets</th>
+              <th id="bsTotalAssets" style="text-align:right;">0.00</th>
+            </tr>
+            <tr>
+              <th colspan="2" style="text-align:right;">Total Liabilities + Equity</th>
+              <th id="bsTotalLiabEq" style="text-align:right;">0.00</th>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    // Simple auth check - allow page to display if user has stored credentials
+    (function() {
+      const storedUser = localStorage.getItem('currentUser');
+      if (!storedUser) {
+        window.location.href = 'login.html';
+      }
+    })();
+  </script>
+  <script src="finance-core.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const sidebar = document.getElementById('sidebar');
+      const main = document.getElementById('mainContent');
+      document.getElementById('sidebarToggle').addEventListener('click', () => {
+        sidebar.classList.toggle('collapsed');
+        main.classList.toggle('sidebar-collapsed');
+      });
+      document.querySelectorAll('[data-feature]').forEach(el => el.classList.add('menu-visible'));
+
+      (async () => {
+        try {
+          await FinanceCore.ensureStructure();
+          await setupTrialBalanceUI();
+        } catch(e) { console.error(e); }
+      })();
+
+      async function setupTrialBalanceUI(){
+        const btn = document.getElementById('btnTrialBalance');
+        const section = document.getElementById('tbSection');
+        const sel = document.getElementById('tbPeriod');
+        const btnRefresh = document.getElementById('btnTbRefresh');
+        const btnCsv = document.getElementById('btnTbCsv');
+
+        const periodsObj = await FinanceCore.listPeriods();
+        const entries = Object.entries(periodsObj).map(([k,v])=>({ key:k, year:v.year, month:v.month, locked:!!v.locked, status:v.status||'open' }));
+        entries.sort((a,b)=> (b.year - a.year) || (b.month - a.month));
+        sel.innerHTML = entries.map(p => `<option value="${p.key}">${p.key} ${p.locked?'(locked)':''}</option>`).join('');
+        const firstOpen = entries.find(p => !p.locked && p.status==='open');
+        if (firstOpen) sel.value = firstOpen.key; else if (entries[0]) sel.value = entries[0].key;
+
+        btn.addEventListener('click', async () => {
+          section.style.display = 'block';
+          await renderTrialBalance();
+        });
+        btnRefresh.addEventListener('click', renderTrialBalance);
+        btnCsv.addEventListener('click', downloadTrialBalanceCsv);
+        setupPLUI(entries);
+        setupBSUI(entries);
+      }
+      function setSelectOptions(selectEl, entries){
+        selectEl.innerHTML = entries.map(p => `<option value="${p.key}">${p.key} ${p.locked?'(locked)':''}</option>`).join('');
+        const firstOpen = entries.find(p => !p.locked && p.status==='open');
+        if (firstOpen) selectEl.value = firstOpen.key; else if (entries[0]) selectEl.value = entries[0].key;
+      }
+
+      function setupPLUI(entries){
+        const btn = document.getElementById('btnPL');
+        const section = document.getElementById('plSection');
+        const sel = document.getElementById('plPeriod');
+        const btnRefresh = document.getElementById('btnPlRefresh');
+        const btnCsv = document.getElementById('btnPlCsv');
+        setSelectOptions(sel, entries);
+        btn.addEventListener('click', async () => {
+          section.style.display = 'block';
+          await renderPL();
+        });
+        btnRefresh.addEventListener('click', renderPL);
+        btnCsv.addEventListener('click', downloadPLCsv);
+      }
+
+      function setupBSUI(entries){
+        const btn = document.getElementById('btnBS');
+        const section = document.getElementById('bsSection');
+        const sel = document.getElementById('bsPeriod');
+        const btnRefresh = document.getElementById('btnBsRefresh');
+        const btnCsv = document.getElementById('btnBsCsv');
+        setSelectOptions(sel, entries);
+        btn.addEventListener('click', async () => {
+          section.style.display = 'block';
+          await renderBS();
+        });
+        btnRefresh.addEventListener('click', renderBS);
+        btnCsv.addEventListener('click', downloadBSCsv);
+      }
+
+      function formatNumber(n){
+        const x = Number(n||0);
+        return x.toLocaleString(undefined, { minimumFractionDigits:2, maximumFractionDigits:2 });
+      }
+
+      async function renderTrialBalance(){
+        const periodKey = document.getElementById('tbPeriod').value;
+        const tbody = document.getElementById('tbBody');
+        const totalsDebit = document.getElementById('tbTotalDebit');
+        const totalsCredit = document.getElementById('tbTotalCredit');
+        const { rows, totals } = await FinanceCore.getTrialBalance(periodKey);
+        if (!rows.length) {
+          tbody.innerHTML = '<tr><td colspan="4" style="color:#64748b;">No data</td></tr>';
+          totalsDebit.textContent = '0.00';
+          totalsCredit.textContent = '0.00';
+          return;
+        }
+        const html = rows.map(r => `
+          <tr>
+            <td>${escapeHtml(r.code)}</td>
+            <td>${escapeHtml(r.name||'')}</td>
+            <td style="text-align:right;">${formatNumber(r.debit)}</td>
+            <td style="text-align:right;">${formatNumber(r.credit)}</td>
+          </tr>`).join('');
+        tbody.innerHTML = html;
+        totalsDebit.textContent = formatNumber(totals.debit||0);
+        totalsCredit.textContent = formatNumber(totals.credit||0);
+      }
+
+      async function downloadTrialBalanceCsv(){
+        const periodKey = document.getElementById('tbPeriod').value;
+        const { rows, totals } = await FinanceCore.getTrialBalance(periodKey);
+        const lines = [
+          ['Account Code','Account Name','Debit','Credit'],
+          ...rows.map(r => [r.code, r.name||'', (r.debit||0).toFixed(2), (r.credit||0).toFixed(2)]),
+          ['Total','', (totals.debit||0).toFixed(2), (totals.credit||0).toFixed(2)]
+        ];
+        const csv = lines.map(l => l.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+        const blob = new Blob([csv], { type:'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `trial-balance-${periodKey}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 0);
+      }
+
+      function escapeHtml(s){
+        return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
+      }
+
+      async function renderPL(){
+        const periodKey = document.getElementById('plPeriod').value;
+        const tbody = document.getElementById('plBody');
+        const totRevEl = document.getElementById('plTotalRevenue');
+        const totExpEl = document.getElementById('plTotalExpense');
+        const netEl = document.getElementById('plNetIncome');
+        const { accounts, totalsPerAccount } = await FinanceCore.getAggregatedBalancesUpTo(periodKey);
+        const rows = [];
+        let totalRevenue = 0, totalExpense = 0;
+        for (const [code, acc] of Object.entries(accounts)){
+          const s = totalsPerAccount[code] || {debit:0, credit:0};
+          if (acc.type === 'Revenue'){
+            const amount = Number(s.credit||0) - Number(s.debit||0);
+            if (amount !== 0){ rows.push({ code, name:acc.name, group:'Revenue', amount }); }
+            totalRevenue += amount;
+          } else if (acc.type === 'Expense'){
+            const amount = Number(s.debit||0) - Number(s.credit||0);
+            if (amount !== 0){ rows.push({ code, name:acc.name, group:'Expense', amount }); }
+            totalExpense += amount;
+          }
+        }
+        rows.sort((a,b)=> a.group.localeCompare(b.group) || a.code.localeCompare(b.code));
+        if (!rows.length){
+          tbody.innerHTML = '<tr><td colspan="3" style="color:#64748b;">No data</td></tr>';
+        } else {
+          tbody.innerHTML = rows.map(r => `
+            <tr>
+              <td>${escapeHtml(r.code)}</td>
+              <td>${escapeHtml(r.name||'')}</td>
+              <td style="text-align:right;">${formatNumber(r.amount)}</td>
+            </tr>`).join('');
+        }
+        totRevEl.textContent = formatNumber(totalRevenue);
+        totExpEl.textContent = formatNumber(totalExpense);
+        netEl.textContent = formatNumber(totalRevenue - totalExpense);
+      }
+
+      async function downloadPLCsv(){
+        const periodKey = document.getElementById('plPeriod').value;
+        const { accounts, totalsPerAccount } = await FinanceCore.getAggregatedBalancesUpTo(periodKey);
+        const rows = [];
+        let totalRevenue = 0, totalExpense = 0;
+        for (const [code, acc] of Object.entries(accounts)){
+          const s = totalsPerAccount[code] || {debit:0, credit:0};
+          if (acc.type === 'Revenue'){
+            const amount = Number(s.credit||0) - Number(s.debit||0);
+            if (amount !== 0){ rows.push(['Revenue', code, acc.name||'', amount.toFixed(2)]); }
+            totalRevenue += amount;
+          } else if (acc.type === 'Expense'){
+            const amount = Number(s.debit||0) - Number(s.credit||0);
+            if (amount !== 0){ rows.push(['Expense', code, acc.name||'', amount.toFixed(2)]); }
+            totalExpense += amount;
+          }
+        }
+        const lines = [
+          ['Group','Account Code','Account Name','Amount'],
+          ...rows,
+          ['Totals','','Revenue', totalRevenue.toFixed(2)],
+          ['Totals','','Expense', totalExpense.toFixed(2)],
+          ['Totals','','Net Income', (totalRevenue - totalExpense).toFixed(2)]
+        ];
+        const csv = lines.map(l => l.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+        const blob = new Blob([csv], { type:'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `profit-and-loss-${periodKey}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 0);
+      }
+
+      async function renderBS(){
+        const periodKey = document.getElementById('bsPeriod').value;
+        const tbody = document.getElementById('bsBody');
+        const totAssetsEl = document.getElementById('bsTotalAssets');
+        const totLiabEqEl = document.getElementById('bsTotalLiabEq');
+        const { accounts, totalsPerAccount } = await FinanceCore.getAggregatedBalancesUpTo(periodKey);
+        const rows = [];
+        let totalAssets = 0, totalLiabEq = 0;
+        for (const [code, acc] of Object.entries(accounts)){
+          const s = totalsPerAccount[code] || {debit:0, credit:0};
+          if (acc.type === 'Asset'){
+            const bal = Number(s.debit||0) - Number(s.credit||0);
+            if (bal !== 0){ rows.push({ code, name:acc.name, group:'Asset', amount: bal }); }
+            totalAssets += bal;
+          } else if (acc.type === 'Liability' || acc.type === 'Equity'){
+            const bal = Number(s.credit||0) - Number(s.debit||0);
+            const group = acc.type;
+            if (bal !== 0){ rows.push({ code, name:acc.name, group, amount: bal }); }
+            totalLiabEq += bal;
+          }
+        }
+        rows.sort((a,b)=> a.group.localeCompare(b.group) || a.code.localeCompare(b.code));
+        if (!rows.length){
+          tbody.innerHTML = '<tr><td colspan="3" style="color:#64748b;">No data</td></tr>';
+        } else {
+          tbody.innerHTML = rows.map(r => `
+            <tr>
+              <td>${escapeHtml(r.code)}</td>
+              <td>${escapeHtml(r.name||'')}</td>
+              <td style="text-align:right;">${formatNumber(r.amount)}</td>
+            </tr>`).join('');
+        }
+        totAssetsEl.textContent = formatNumber(totalAssets);
+        totLiabEqEl.textContent = formatNumber(totalLiabEq);
+      }
+
+      async function downloadBSCsv(){
+        const periodKey = document.getElementById('bsPeriod').value;
+        const { accounts, totalsPerAccount } = await FinanceCore.getAggregatedBalancesUpTo(periodKey);
+        const rows = [];
+        let totalAssets = 0, totalLiabEq = 0;
+        for (const [code, acc] of Object.entries(accounts)){
+          const s = totalsPerAccount[code] || {debit:0, credit:0};
+          if (acc.type === 'Asset'){
+            const bal = Number(s.debit||0) - Number(s.credit||0);
+            if (bal !== 0){ rows.push(['Asset', code, acc.name||'', bal.toFixed(2)]); }
+            totalAssets += bal;
+          } else if (acc.type === 'Liability' || acc.type === 'Equity'){
+            const bal = Number(s.credit||0) - Number(s.debit||0);
+            const group = acc.type;
+            if (bal !== 0){ rows.push([group, code, acc.name||'', bal.toFixed(2)]); }
+            totalLiabEq += bal;
+          }
+        }
+        const lines = [
+          ['Group','Account Code','Account Name','Balance'],
+          ...rows,
+          ['Totals','','Total Assets', totalAssets.toFixed(2)],
+          ['Totals','','Total Liabilities + Equity', totalLiabEq.toFixed(2)]
+        ];
+        const csv = lines.map(l => l.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+        const blob = new Blob([csv], { type:'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `balance-sheet-${periodKey}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 0);
+      }
+    });
+  </script>
+</body>
+</html>
+
+
